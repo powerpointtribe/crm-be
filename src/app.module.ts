@@ -9,6 +9,9 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { MembersModule } from './members/members.module';
+import { GroupsModule } from './groups/groups.module';
+import { FirstTimersModule } from './first-timers/first-timers.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -40,6 +43,9 @@ import { MembersModule } from './members/members.module';
     AuthModule,
     UsersModule,
     MembersModule,
+    GroupsModule,
+    FirstTimersModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [
