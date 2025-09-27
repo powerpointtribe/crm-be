@@ -52,17 +52,16 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   // Swagger documentation (only in development)
-  if (process.env.NODE_ENV !== 'production') {
-    const config = new DocumentBuilder()
-      .setTitle('Church Management System API')
-      .setDescription('API for Church Management System - PowerPoint Tribe')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
 
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
-  }
+  const config = new DocumentBuilder()
+    .setTitle('Church Management System API')
+    .setDescription('API for Church Management System - PowerPoint Tribe')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port, '0.0.0.0');
