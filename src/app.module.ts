@@ -13,6 +13,7 @@ import { GroupsModule } from './groups/groups.module';
 import { FirstTimersModule } from './first-timers/first-timers.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { QueueModule } from './queue/queue.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { QueueModule } from './queue/queue.module';
     FirstTimersModule,
     NotificationsModule,
     QueueModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [
