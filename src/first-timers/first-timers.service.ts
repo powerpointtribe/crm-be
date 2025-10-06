@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery } from 'mongoose';
@@ -9,12 +10,16 @@ import { FirstTimer, FirstTimerDocument } from './schemas/first-timer.schema';
 import { CreateFirstTimerDto } from './dto/create-first-timer.dto';
 import { AddFollowUpDto } from './dto/add-follow-up.dto';
 import { FirstTimerSearchDto } from './dto/first-timer-search.dto';
+import { BulkUploadResultDto } from './dto/bulk-upload-first-timer.dto';
 import {
   PaginatedResult,
   createPaginatedResult,
 } from '../common/utils/pagination.util';
 import { QueryBuilder } from '../common/utils/query-builder.util';
+import { CSVParserUtil } from '../common/utils/csv-parser.util';
 import { EngagementStatus } from '../common/enums/engagement-status.enum';
+import { validate } from 'class-validator';
+import { plainToClass } from 'class-transformer';
 
 @Injectable()
 export class FirstTimersService {
@@ -452,5 +457,157 @@ export class FirstTimersService {
     if (result.deletedCount === 0) {
       throw new NotFoundException('First-timer not found');
     }
+  }
+
+  async bulkUpload(
+    csvContent: string,
+    options: {
+      skipErrors?: boolean;
+      defaultAssignedTo?: string;
+    } = {},
+  ): Promise<BulkUploadResultDto> {
+    const { skipErrors = false, defaultAssignedTo } = options;
+
+    // Parse CSV content
+    let csvData: any[];
+    try {
+      csvData = CSVParserUtil.parseCSV(csvContent, {
+        headerRow: true,
+        skipEmptyLines: true,
+      });
+    } catch (error) {
+      throw new BadRequestException(`CSV parsing failed: ${error.message}`);
+    }
+
+    if (csvData.length === 0) {
+      throw new BadRequestException('No valid data found in CSV file');
+    }
+
+    const result: BulkUploadResultDto = {
+      successCount: 0,
+      errorCount: 0,
+      totalCount: csvData.length,
+      successfulRecords: [],
+      failedRecords: [],
+      message: '',
+    };
+
+    // Process each row
+    for (let i = 0; i < csvData.length; i++) {
+      const row = csvData[i];
+      const rowNumber = i + 2; // +2 because array is 0-indexed and first row is header
+
+      try {
+        // Map CSV data to CreateFirstTimerDto format
+        const mappedData = CSVParserUtil.mapCSVToFirstTimer(row);
+
+        // Apply default assigned user if provided
+        if (defaultAssignedTo && !mappedData.assignedTo) {
+          mappedData.assignedTo = defaultAssignedTo;
+        }
+
+        // Validate the mapped data
+        const createDto = plainToClass(CreateFirstTimerDto, mappedData);
+        const validationErrors = await validate(createDto);
+
+        if (validationErrors.length > 0) {
+          const errorMessages = validationErrors.map((error) =>
+            Object.values(error.constraints || {}).join(', '),
+          );
+          throw new Error(`Validation failed: ${errorMessages.join('; ')}`);
+        }
+
+        // Check for required fields
+        if (
+          !createDto.firstName ||
+          !createDto.lastName ||
+          !createDto.phone ||
+          !createDto.dateOfVisit
+        ) {
+          throw new Error(
+            'Missing required fields: firstName, lastName, phone, or dateOfVisit',
+          );
+        }
+
+        // Create the first-timer record
+        const firstTimer = await this.createSafe(createDto);
+        result.successfulRecords.push(firstTimer);
+        result.successCount++;
+      } catch (error) {
+        result.errorCount++;
+        result.failedRecords.push({
+          row: rowNumber,
+          data: row,
+          errors: [error.message],
+        });
+
+        // If not skipping errors, stop processing
+        if (!skipErrors) {
+          result.message = `Processing stopped at row ${rowNumber} due to error: ${error.message}`;
+          break;
+        }
+      }
+    }
+
+    // Generate summary message
+    if (result.errorCount === 0) {
+      result.message = `Successfully processed all ${result.successCount} records`;
+    } else if (result.successCount === 0) {
+      result.message = `Failed to process any records. ${result.errorCount} errors encountered`;
+    } else {
+      result.message = `Processed ${result.successCount} records successfully, ${result.errorCount} failed`;
+    }
+
+    return result;
+  }
+
+  private async createSafe(
+    createFirstTimerDto: CreateFirstTimerDto,
+  ): Promise<FirstTimerDocument> {
+    // Check if phone already exists
+    const existingPhone = await this.firstTimerModel.findOne({
+      phone: createFirstTimerDto.phone,
+      isActive: true,
+    });
+
+    if (existingPhone) {
+      throw new Error(
+        `Phone number ${createFirstTimerDto.phone} already exists`,
+      );
+    }
+
+    // Check if email already exists (if provided)
+    if (createFirstTimerDto.email) {
+      const existingEmail = await this.firstTimerModel.findOne({
+        email: createFirstTimerDto.email.toLowerCase(),
+        isActive: true,
+      });
+
+      if (existingEmail) {
+        throw new Error(`Email ${createFirstTimerDto.email} already exists`);
+      }
+    }
+
+    const firstTimer = new this.firstTimerModel({
+      ...createFirstTimerDto,
+      email: createFirstTimerDto.email?.toLowerCase(),
+      followUps: [],
+      familyMembers: createFirstTimerDto.familyMembers || [],
+      interests: createFirstTimerDto.interests || [],
+      prayerRequests: createFirstTimerDto.prayerRequests || [],
+      servingInterests: createFirstTimerDto.servingInterests || [],
+      followUpCount: 0,
+    });
+
+    // Set initial follow-up date (1 day after visit)
+    const nextDay = new Date(createFirstTimerDto.dateOfVisit);
+    nextDay.setDate(nextDay.getDate() + 1);
+    firstTimer.nextFollowUpDate = nextDay;
+
+    return firstTimer.save();
+  }
+
+  generateSampleCSV(): string {
+    return CSVParserUtil.generateSampleCSV();
   }
 }

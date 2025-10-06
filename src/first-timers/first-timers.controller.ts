@@ -10,7 +10,12 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Express } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -18,11 +23,17 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { FirstTimersService } from './first-timers.service';
 import { CreateFirstTimerDto } from './dto/create-first-timer.dto';
 import { AddFollowUpDto } from './dto/add-follow-up.dto';
 import { FirstTimerSearchDto } from './dto/first-timer-search.dto';
+import { BulkUploadResultDto } from './dto/bulk-upload-first-timer.dto';
+import { CSVParserUtil } from '../common/utils/csv-parser.util';
+import { QueueService } from '../queue/queue.service';
+import { JobType } from '../common/interfaces/queue-job.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -36,7 +47,10 @@ import { ResponseUtil } from '../common/utils/response.util';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('first-timers')
 export class FirstTimersController {
-  constructor(private readonly firstTimersService: FirstTimersService) {}
+  constructor(
+    private readonly firstTimersService: FirstTimersService,
+    private readonly queueService: QueueService,
+  ) {}
 
   @Post()
   @Roles(
@@ -457,5 +471,151 @@ export class FirstTimersController {
     }
 
     return ResponseUtil.success(results, 'Bulk status update completed');
+  }
+
+  @Post('bulk-upload')
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.PASTOR,
+    UserRole.LEADERSHIP,
+    UserRole.FOLLOW_UP_TEAM,
+  )
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Queue bulk upload first-timers from CSV file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'CSV file with first-timer data',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+        skipErrors: {
+          type: 'boolean',
+          description:
+            'Whether to skip validation errors and continue with valid records',
+          default: false,
+        },
+        defaultAssignedTo: {
+          type: 'string',
+          description: 'Default assignee for all first-timers in the upload',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 202,
+    description: 'Bulk upload job queued successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        data: {
+          type: 'object',
+          properties: {
+            jobId: { type: 'string' },
+            status: { type: 'string' },
+          },
+        },
+        message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file format or content',
+  })
+  async bulkUpload(
+    @UploadedFile() file: any,
+    @Body('skipErrors') skipErrors: string = 'false',
+    @Body('defaultAssignedTo') defaultAssignedTo: string = '',
+    @CurrentUser() user: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    // Validate file type
+    if (!CSVParserUtil.validateFileType(file.originalname)) {
+      throw new BadRequestException(
+        'Invalid file type. Only CSV files are allowed',
+      );
+    }
+
+    // Validate file size (limit to 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      throw new BadRequestException(
+        'File size too large. Maximum allowed size is 5MB',
+      );
+    }
+
+    const csvContent = file.buffer.toString('utf-8');
+
+    // Parse CSV to get row count for metadata
+    let totalRows = 0;
+    try {
+      const csvData = CSVParserUtil.parseCSV(csvContent, {
+        headerRow: true,
+        skipEmptyLines: true,
+      });
+      totalRows = csvData.length;
+    } catch (error) {
+      throw new BadRequestException(`CSV parsing failed: ${error.message}`);
+    }
+
+    const options = {
+      skipErrors: skipErrors === 'true',
+      defaultAssignedTo,
+    };
+
+    // Queue the job
+    const job = await this.queueService.addBulkOperationJob(
+      JobType.BULK_FIRST_TIMER_CREATE,
+      csvContent,
+      options,
+      user.sub,
+      {
+        filename: file.originalname,
+        totalRows,
+      },
+    );
+
+    return ResponseUtil.success(
+      {
+        jobId: job.id,
+        status: 'queued',
+        estimatedRows: totalRows,
+      },
+      'Bulk upload job queued successfully. Use the job ID to check progress.',
+    );
+  }
+
+  @Get('sample-csv')
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.PASTOR,
+    UserRole.LEADERSHIP,
+    UserRole.FOLLOW_UP_TEAM,
+  )
+  @ApiOperation({ summary: 'Download sample CSV template for bulk upload' })
+  @ApiResponse({
+    status: 200,
+    description: 'Sample CSV template downloaded successfully',
+  })
+  getSampleCSV() {
+    const csvContent = this.firstTimersService.generateSampleCSV();
+
+    return {
+      success: true,
+      data: {
+        content: csvContent,
+        filename: 'first-timers-template.csv',
+        contentType: 'text/csv',
+      },
+      message: 'Sample CSV template generated successfully',
+    };
   }
 }

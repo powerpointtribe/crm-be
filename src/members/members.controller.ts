@@ -11,7 +11,11 @@ import {
   HttpCode,
   HttpStatus,
   ForbiddenException,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -19,12 +23,22 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { MemberSearchDto } from './dto/member-search.dto';
 import { AssignLeadershipDto } from './dto/leadership-assignment.dto';
+import {
+  BulkMemberOperationDto,
+  BulkMemberResultDto,
+} from './dto/bulk-member.dto';
+import { BulkOperationType } from '../common/interfaces/bulk-operation.interface';
+import { CSVParserUtil } from '../common/utils/csv-parser.util';
+import { QueueService } from '../queue/queue.service';
+import { JobType } from '../common/interfaces/queue-job.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -37,7 +51,10 @@ import { ResponseUtil } from '../common/utils/response.util';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('members')
 export class MembersController {
-  constructor(private readonly membersService: MembersService) {}
+  constructor(
+    private readonly membersService: MembersService,
+    private readonly queueService: QueueService,
+  ) {}
 
   @Post()
   @Roles(
@@ -322,5 +339,201 @@ export class MembersController {
     memberId: string,
   ): Promise<boolean> {
     return this.membersService.canAccessMember(userEmail, memberId);
+  }
+
+  @Post('bulk-operation')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Queue bulk create or update members from CSV file',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'CSV file with member data and operation parameters',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+        operationType: {
+          type: 'string',
+          enum: Object.values(BulkOperationType),
+          description: 'Type of operation to perform',
+        },
+        skipErrors: {
+          type: 'boolean',
+          description:
+            'Whether to skip validation errors and continue with valid records',
+          default: false,
+        },
+        identifierField: {
+          type: 'string',
+          description: 'Field to use as identifier for update operations',
+          default: 'email',
+        },
+        defaultDistrict: {
+          type: 'string',
+          description: 'Default district assignment for all members',
+        },
+        defaultUnit: {
+          type: 'string',
+          description: 'Default unit assignment for all members',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'Preview changes without applying them',
+          default: false,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 202,
+    description: 'Bulk operation job queued successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        data: {
+          type: 'object',
+          properties: {
+            jobId: { type: 'string' },
+            status: { type: 'string' },
+          },
+        },
+        message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file format or content',
+  })
+  async bulkOperation(
+    @UploadedFile() file: any,
+    @Body('operationType') operationType: string,
+    @Body('skipErrors') skipErrors: string = 'false',
+    @Body('identifierField') identifierField: string = 'email',
+    @Body('defaultDistrict') defaultDistrict: string = '',
+    @Body('defaultUnit') defaultUnit: string = '',
+    @Body('dryRun') dryRun: string = 'false',
+    @CurrentUser() user: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    if (
+      !operationType ||
+      !Object.values(BulkOperationType).includes(
+        operationType as BulkOperationType,
+      )
+    ) {
+      throw new BadRequestException(
+        'Valid operationType is required (create or update)',
+      );
+    }
+
+    // Validate file type
+    if (!CSVParserUtil.validateFileType(file.originalname)) {
+      throw new BadRequestException(
+        'Invalid file type. Only CSV files are allowed',
+      );
+    }
+
+    // Validate file size (limit to 10MB for members)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      throw new BadRequestException(
+        'File size too large. Maximum allowed size is 10MB',
+      );
+    }
+
+    const csvContent = file.buffer.toString('utf-8');
+
+    // Parse CSV to get row count for metadata
+    let totalRows = 0;
+    try {
+      const csvData = CSVParserUtil.parseCSV(csvContent, {
+        headerRow: true,
+        skipEmptyLines: true,
+      });
+      totalRows = csvData.length;
+    } catch (error) {
+      throw new BadRequestException(`CSV parsing failed: ${error.message}`);
+    }
+
+    const options: BulkMemberOperationDto = {
+      operationType: operationType as BulkOperationType,
+      skipErrors: skipErrors === 'true',
+      identifierField: identifierField || 'email',
+      defaultDistrict,
+      defaultUnit,
+      dryRun: dryRun === 'true',
+    };
+
+    // Determine job type based on operation
+    const jobType =
+      operationType === BulkOperationType.CREATE
+        ? JobType.BULK_MEMBER_CREATE
+        : JobType.BULK_MEMBER_UPDATE;
+
+    // Queue the job
+    const job = await this.queueService.addBulkOperationJob(
+      jobType,
+      csvContent,
+      options,
+      user.sub,
+      {
+        filename: file.originalname,
+        totalRows,
+      },
+    );
+
+    return ResponseUtil.success(
+      {
+        jobId: job.id,
+        status: 'queued',
+        estimatedRows: totalRows,
+      },
+      'Bulk operation job queued successfully. Use the job ID to check progress.',
+    );
+  }
+
+  @Get('csv-templates/:operationType')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @ApiOperation({ summary: 'Download CSV template for bulk operations' })
+  @ApiParam({
+    name: 'operationType',
+    enum: ['create', 'update'],
+    description: 'Type of operation template to download',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'CSV template downloaded successfully',
+  })
+  getMemberCSVTemplate(
+    @Param('operationType') operationType: 'create' | 'update',
+  ) {
+    if (!['create', 'update'].includes(operationType)) {
+      throw new BadRequestException(
+        'Operation type must be either "create" or "update"',
+      );
+    }
+
+    const csvContent =
+      this.membersService.generateMemberCSVTemplate(operationType);
+
+    return {
+      success: true,
+      data: {
+        content: csvContent,
+        filename: `members-${operationType}-template.csv`,
+        contentType: 'text/csv',
+      },
+      message: `Member ${operationType} CSV template generated successfully`,
+    };
   }
 }

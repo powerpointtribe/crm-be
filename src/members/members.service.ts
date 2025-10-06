@@ -12,10 +12,17 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 import { MemberSearchDto } from './dto/member-search.dto';
 import { AssignLeadershipDto } from './dto/leadership-assignment.dto';
 import {
+  BulkMemberOperationDto,
+  BulkMemberResultDto,
+} from './dto/bulk-member.dto';
+import {
   PaginatedResult,
   createPaginatedResult,
 } from '../common/utils/pagination.util';
 import { QueryBuilder } from '../common/utils/query-builder.util';
+import { BulkOperationUtil } from '../common/utils/bulk-operation.util';
+import { BulkOperationType } from '../common/interfaces/bulk-operation.interface';
+import { MemberCSVMappingUtil } from './utils/member-csv-mapping.util';
 import { MembershipStatus } from '../common/enums/member-status.enum';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
 
@@ -778,5 +785,157 @@ export class MembersService {
       .limit(10)
       .select('firstName lastName email phone membershipStatus district unit')
       .exec();
+  }
+
+  async bulkOperation(
+    csvContent: string,
+    options: BulkMemberOperationDto,
+  ): Promise<BulkMemberResultDto> {
+    const {
+      operationType,
+      identifierField = 'email',
+      defaultDistrict,
+      defaultUnit,
+      ...bulkOptions
+    } = options;
+
+    // Determine mapping configuration based on operation type
+    const mappingConfig =
+      operationType === BulkOperationType.CREATE
+        ? MemberCSVMappingUtil.getCreateMappingConfig()
+        : MemberCSVMappingUtil.getUpdateMappingConfig();
+
+    // Set up default values
+    const defaultValues: any = {};
+    if (defaultDistrict) defaultValues.district = defaultDistrict;
+    if (defaultUnit) defaultValues.unit = defaultUnit;
+
+    const result = await BulkOperationUtil.processBulkOperation(
+      csvContent,
+      operationType === BulkOperationType.CREATE
+        ? CreateMemberDto
+        : UpdateMemberDto,
+      mappingConfig,
+      (dto: CreateMemberDto) => this.createSafe(dto),
+      (identifier: any, dto: Partial<UpdateMemberDto>) =>
+        this.updateSafe(identifier, dto),
+      (identifier: any) => this.findByIdentifier(identifier, identifierField),
+      {
+        ...bulkOptions,
+        operationType,
+        identifierField,
+        defaultValues,
+      },
+    );
+
+    return {
+      ...result,
+      successfulRecords: result.successfulRecords,
+    };
+  }
+
+  private async createSafe(
+    createMemberDto: CreateMemberDto,
+  ): Promise<MemberDocument> {
+    // Process nested objects
+    const processedDto =
+      MemberCSVMappingUtil.postProcessMappedData(createMemberDto);
+
+    // Check if email already exists
+    const existingEmail = await this.memberModel.findOne({
+      email: processedDto.email.toLowerCase(),
+    });
+    if (existingEmail) {
+      throw new Error(`Email ${processedDto.email} already registered`);
+    }
+
+    // Check if phone already exists
+    const existingPhone = await this.memberModel.findOne({
+      phone: processedDto.phone,
+    });
+    if (existingPhone) {
+      throw new Error(`Phone number ${processedDto.phone} already registered`);
+    }
+
+    // Validate district assignment
+    if (!processedDto.district) {
+      throw new Error('Every member must be assigned to a district');
+    }
+
+    const member = new this.memberModel({
+      ...processedDto,
+      email: processedDto.email.toLowerCase(),
+      membershipStatus:
+        processedDto.membershipStatus || MembershipStatus.NEW_CONVERT,
+      dateJoined: processedDto.dateJoined || new Date(),
+      familyMembers: processedDto.familyMembers || [],
+      ministries: processedDto.ministries || [],
+      skills: processedDto.skills || [],
+      additionalGroups: processedDto.additionalGroups || [],
+      children: processedDto.children || [],
+      isActive: true,
+    });
+
+    return member.save();
+  }
+
+  private async updateSafe(
+    identifier: any,
+    updateMemberDto: Partial<UpdateMemberDto>,
+  ): Promise<MemberDocument> {
+    // Process nested objects
+    const processedDto =
+      MemberCSVMappingUtil.postProcessMappedData(updateMemberDto);
+
+    // If email is being updated, check for conflicts
+    if (processedDto.email) {
+      const existingEmail = await this.memberModel.findOne({
+        email: processedDto.email.toLowerCase(),
+        _id: { $ne: identifier }, // Exclude current member
+      });
+      if (existingEmail) {
+        throw new Error(`Email ${processedDto.email} already registered`);
+      }
+      processedDto.email = processedDto.email.toLowerCase();
+    }
+
+    // If phone is being updated, check for conflicts
+    if (processedDto.phone) {
+      const existingPhone = await this.memberModel.findOne({
+        phone: processedDto.phone,
+        _id: { $ne: identifier }, // Exclude current member
+      });
+      if (existingPhone) {
+        throw new Error(
+          `Phone number ${processedDto.phone} already registered`,
+        );
+      }
+    }
+
+    const member = await this.memberModel.findOneAndUpdate(
+      { email: identifier },
+      { $set: processedDto },
+      { new: true, runValidators: true },
+    );
+
+    if (!member) {
+      throw new Error(`Member with ${identifier} not found`);
+    }
+
+    return member;
+  }
+
+  private async findByIdentifier(
+    identifier: any,
+    identifierField: string,
+  ): Promise<MemberDocument | null> {
+    const query: any = {};
+    query[identifierField] = identifier;
+
+    return this.memberModel.findOne(query);
+  }
+
+  generateMemberCSVTemplate(operationType: 'create' | 'update'): string {
+    return MemberCSVMappingUtil.generateSampleCSV(operationType);
   }
 }

@@ -8,11 +8,15 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { BulkUserOperationDto, BulkUserResultDto } from './dto/bulk-user.dto';
 import { SearchDto } from '../common/dto/search.dto';
 import {
   PaginatedResult,
   createPaginatedResult,
 } from '../common/utils/pagination.util';
+import { BulkOperationUtil } from '../common/utils/bulk-operation.util';
+import { BulkOperationType } from '../common/interfaces/bulk-operation.interface';
+import { UserCSVMappingUtil } from './utils/user-csv-mapping.util';
 import { UserRole } from '../common/enums/user-roles.enums';
 
 @Injectable()
@@ -188,5 +192,119 @@ export class UsersService {
       inactive: inactiveUsers,
       byRole: stats[0]?.roles || [],
     };
+  }
+
+  async bulkOperation(
+    csvContent: string,
+    options: BulkUserOperationDto,
+  ): Promise<BulkUserResultDto> {
+    const {
+      operationType,
+      identifierField = 'email',
+      defaultPassword,
+      defaultRole,
+      ...bulkOptions
+    } = options;
+
+    // Determine mapping configuration based on operation type
+    const mappingConfig =
+      operationType === BulkOperationType.CREATE
+        ? UserCSVMappingUtil.getCreateMappingConfig()
+        : UserCSVMappingUtil.getUpdateMappingConfig();
+
+    // Set up default values
+    const defaultValues: any = {};
+    if (defaultPassword && operationType === BulkOperationType.CREATE) {
+      defaultValues.password = defaultPassword;
+    }
+    if (defaultRole) defaultValues.role = defaultRole;
+
+    const result = await BulkOperationUtil.processBulkOperation(
+      csvContent,
+      operationType === BulkOperationType.CREATE
+        ? CreateUserDto
+        : UpdateUserDto,
+      mappingConfig,
+      (dto: CreateUserDto) => this.createSafe(dto),
+      (identifier: any, dto: Partial<UpdateUserDto>) =>
+        this.updateSafe(identifier, dto),
+      (identifier: any) => this.findByIdentifier(identifier, identifierField),
+      {
+        ...bulkOptions,
+        operationType,
+        identifierField,
+        defaultValues,
+      },
+    );
+
+    return {
+      ...result,
+      successfulRecords: result.successfulRecords,
+    };
+  }
+
+  private async createSafe(
+    createUserDto: CreateUserDto,
+  ): Promise<UserDocument> {
+    // Check if email already exists
+    const existingUser = await this.userModel.findOne({
+      email: createUserDto.email.toLowerCase(),
+    });
+    if (existingUser) {
+      throw new Error(`Email ${createUserDto.email} already registered`);
+    }
+
+    const user = new this.userModel({
+      ...createUserDto,
+      email: createUserDto.email.toLowerCase(),
+      role: createUserDto.role || UserRole.MEMBER,
+      isActive:
+        createUserDto.isActive !== undefined ? createUserDto.isActive : true,
+    });
+
+    return user.save();
+  }
+
+  private async updateSafe(
+    identifier: any,
+    updateUserDto: Partial<UpdateUserDto> | any, // Allow any for bulk operations
+  ): Promise<UserDocument> {
+    // If email is being updated (for bulk operations), check for conflicts
+    if (updateUserDto.email) {
+      const existingUser = await this.userModel.findOne({
+        email: updateUserDto.email.toLowerCase(),
+        _id: { $ne: identifier }, // Exclude current user
+      });
+      if (existingUser) {
+        throw new Error(`Email ${updateUserDto.email} already registered`);
+      }
+      updateUserDto.email = updateUserDto.email.toLowerCase();
+    }
+
+    const user = await this.userModel.findOneAndUpdate(
+      { email: identifier },
+      { $set: updateUserDto },
+      { new: true, runValidators: true },
+    );
+
+    if (!user) {
+      throw new Error(`User with ${identifier} not found`);
+    }
+
+    return user;
+  }
+
+  private async findByIdentifier(
+    identifier: any,
+    identifierField: string,
+  ): Promise<UserDocument | null> {
+    const query: any = {};
+    query[identifierField] = identifier;
+
+    return this.userModel.findOne(query);
+  }
+
+  generateUserCSVTemplate(operationType: 'create' | 'update'): string {
+    return UserCSVMappingUtil.generateSampleCSV(operationType);
   }
 }
