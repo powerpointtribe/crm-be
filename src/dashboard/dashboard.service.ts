@@ -12,7 +12,7 @@ import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { FirstTimer, FirstTimerDocument } from '../first-timers/schemas/first-timer.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Group, GroupDocument } from '../groups/schemas/group.schema';
-import { QueueService } from '../queue/queue.service';
+// import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 export class DashboardService {
@@ -21,7 +21,7 @@ export class DashboardService {
     @InjectModel(FirstTimer.name) private firstTimerModel: Model<FirstTimerDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
-    private queueService: QueueService,
+    // private queueService: QueueService,
   ) {}
 
   async getDashboardOverview(userId: string, userRole: string): Promise<DashboardOverviewDto> {
@@ -295,7 +295,8 @@ export class DashboardService {
       .select('firstName lastName status createdAt assignedTo');
 
     // Get recent bulk operations
-    const recentJobs = await this.queueService.getJobHistory(userId, 5);
+    // const recentJobs = await this.queueService.getJobHistory(userId, 5);
+    const recentJobs: any[] = []; // Temporary placeholder
 
     const pendingFollowUps = pendingFirstTimers.map(ft => ({
       id: (ft as any)._id.toString(),

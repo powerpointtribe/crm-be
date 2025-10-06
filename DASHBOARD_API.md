@@ -4,13 +4,13 @@ This document describes the dashboard API endpoints for the Church Management Sy
 
 ## Base URL
 ```
-http://localhost:3000/dashboard
+http://localhost:3000/api/v1/dashboard
 ```
 
 ## Available Endpoints
 
 ### 1. Dashboard Overview
-**GET** `/dashboard/overview`
+**GET** `/api/v1/dashboard/overview`
 
 Returns comprehensive dashboard data for the overview page.
 
@@ -114,7 +114,7 @@ Returns comprehensive dashboard data for the overview page.
 ```
 
 ### 2. Detailed Statistics
-**GET** `/dashboard/stats?period=month`
+**GET** `/api/v1/dashboard/stats?period=month`
 
 Returns detailed statistics for admin users.
 
@@ -139,7 +139,7 @@ Returns detailed statistics for admin users.
 ```
 
 ### 3. Activity Feed
-**GET** `/dashboard/activity?limit=20`
+**GET** `/api/v1/dashboard/activity?limit=20`
 
 Returns recent activity feed.
 
@@ -163,7 +163,7 @@ Returns recent activity feed.
 ```
 
 ### 4. Pending Tasks
-**GET** `/dashboard/tasks`
+**GET** `/api/v1/dashboard/tasks`
 
 Returns pending tasks and notifications.
 
@@ -183,7 +183,7 @@ Returns pending tasks and notifications.
 ```
 
 ### 5. Quick Stats
-**GET** `/dashboard/quick-stats`
+**GET** `/api/v1/dashboard/quick-stats`
 
 Returns quick stats for header/sidebar display.
 
@@ -212,7 +212,7 @@ Returns quick stats for header/sidebar display.
 // Example: Fetch dashboard overview
 const fetchDashboardOverview = async () => {
   try {
-    const response = await fetch('http://localhost:3000/dashboard/overview', {
+    const response = await fetch('http://localhost:3000/api/v1/dashboard/overview', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -235,7 +235,7 @@ const fetchDashboardOverview = async () => {
 // Example: Fetch quick stats for header
 const fetchQuickStats = async () => {
   try {
-    const response = await fetch('http://localhost:3000/dashboard/quick-stats', {
+    const response = await fetch('http://localhost:3000/api/v1/dashboard/quick-stats', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -256,7 +256,7 @@ const fetchQuickStats = async () => {
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3000',
+  baseURL: 'http://localhost:3000/api/v1',
   headers: {
     'Authorization': `Bearer ${localStorage.getItem('token')}`
   }
