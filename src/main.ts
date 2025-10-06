@@ -26,13 +26,13 @@ async function bootstrap() {
   app.use(compression());
 
   // Enable CORS
-  const allowedOrigins =
+  const corsOrigin =
     process.env.NODE_ENV === 'production'
       ? [process.env.FRONTEND_URL].filter(Boolean)
-      : ['http://localhost:3001', 'http://localhost:3000'];
+      : true;
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: corsOrigin,
     credentials: true,
   });
 
