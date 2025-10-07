@@ -280,4 +280,5 @@ export class DashboardController {
       'Demographics analytics retrieved successfully',
     );
   }
+
 }
