@@ -204,6 +204,260 @@ Returns quick stats for header/sidebar display.
 }
 ```
 
+### 6. Growth Analytics
+**GET** `/api/v1/dashboard/growth-analytics?period=month`
+
+Returns comprehensive growth analytics including member, first-timer, and group growth metrics with historical data.
+
+**Authentication:** Required
+**Roles:** SUPER_ADMIN, PASTOR, LEADERSHIP
+
+**Query Parameters:**
+- `period` (optional): `week` | `month` | `quarter` | `year` (default: `month`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "memberGrowth": {
+      "current": 1250,
+      "previous": 1200,
+      "percentageChange": 4.17,
+      "trend": "up",
+      "netChange": 50
+    },
+    "firstTimerGrowth": {
+      "current": 45,
+      "previous": 38,
+      "percentageChange": 18.42,
+      "trend": "up",
+      "netChange": 7
+    },
+    "groupGrowth": {
+      "current": 8,
+      "previous": 7,
+      "percentageChange": 14.29,
+      "trend": "up",
+      "netChange": 1
+    },
+    "userGrowth": {
+      "current": 12,
+      "previous": 10,
+      "percentageChange": 20.0,
+      "trend": "up",
+      "netChange": 2
+    },
+    "monthlyData": [
+      {
+        "month": "September",
+        "year": 2024,
+        "members": 45,
+        "firstTimers": 12,
+        "groups": 1,
+        "totalGrowth": 58
+      },
+      {
+        "month": "October",
+        "year": 2024,
+        "members": 50,
+        "firstTimers": 7,
+        "groups": 0,
+        "totalGrowth": 57
+      }
+    ],
+    "period": "month",
+    "dateRange": {
+      "start": "2024-09-01T00:00:00.000Z",
+      "end": "2024-10-31T23:59:59.999Z"
+    }
+  },
+  "message": "Growth analytics for month retrieved successfully"
+}
+```
+
+### 7. Recent Activity Analytics
+**GET** `/api/v1/dashboard/recent-activity?limit=50&days=7`
+
+Returns detailed recent activity analytics including activity trends, most active users, and activity summaries.
+
+**Authentication:** Required
+**Roles:** SUPER_ADMIN, PASTOR, LEADERSHIP, FOLLOW_UP_TEAM, GROUP_LEADER
+
+**Query Parameters:**
+- `limit` (optional): Number of activities to retrieve (default: 50)
+- `days` (optional): Number of days to analyze (default: 7)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "activities": [
+      {
+        "id": "activity_123",
+        "type": "member_joined",
+        "description": "John Smith joined as a new member",
+        "performer": {
+          "id": "user_456",
+          "name": "Pastor Mike",
+          "role": "PASTOR"
+        },
+        "timestamp": "2024-10-06T14:30:00.000Z",
+        "entityData": {
+          "id": "member_789",
+          "name": "John Smith",
+          "type": "member"
+        },
+        "metadata": {
+          "district": "North District",
+          "unit": "Unit A"
+        }
+      }
+    ],
+    "summary": {
+      "totalActivities": 125,
+      "memberActivities": 45,
+      "firstTimerActivities": 23,
+      "groupActivities": 8,
+      "userActivities": 5,
+      "bulkOperations": 44
+    },
+    "trends": {
+      "todayCount": 15,
+      "yesterdayCount": 18,
+      "weekCount": 125,
+      "monthCount": 480
+    },
+    "mostActiveUsers": [
+      {
+        "userId": "user_456",
+        "userName": "Pastor Mike",
+        "activityCount": 45,
+        "lastActivity": "2024-10-06T16:45:00.000Z"
+      },
+      {
+        "userId": "user_789",
+        "userName": "Sister Sarah",
+        "activityCount": 32,
+        "lastActivity": "2024-10-06T15:20:00.000Z"
+      }
+    ],
+    "period": "last 7 days",
+    "lastUpdated": "2024-10-06T17:00:00.000Z"
+  },
+  "message": "Recent activity analytics retrieved successfully"
+}
+```
+
+### 8. Demographics Analytics
+**GET** `/api/v1/dashboard/demographics`
+
+Returns comprehensive demographic analysis including age, gender, marital status, and geographic distributions.
+
+**Authentication:** Required
+**Roles:** SUPER_ADMIN, PASTOR, LEADERSHIP
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "ageDistribution": [
+      {
+        "ageGroup": "Young Adults (18-25)",
+        "count": 280,
+        "percentage": 22.4,
+        "growth": 5.2
+      },
+      {
+        "ageGroup": "Adults (26-35)",
+        "count": 450,
+        "percentage": 36.0,
+        "growth": 2.8
+      },
+      {
+        "ageGroup": "Middle Age (36-50)",
+        "count": 380,
+        "percentage": 30.4,
+        "growth": 1.5
+      },
+      {
+        "ageGroup": "Seniors (51+)",
+        "count": 140,
+        "percentage": 11.2,
+        "growth": -1.2
+      }
+    ],
+    "genderDistribution": [
+      {
+        "gender": "Female",
+        "count": 670,
+        "percentage": 53.6,
+        "growth": 3.1
+      },
+      {
+        "gender": "Male",
+        "count": 580,
+        "percentage": 46.4,
+        "growth": 2.9
+      }
+    ],
+    "maritalStatusDistribution": [
+      {
+        "status": "Single",
+        "count": 625,
+        "percentage": 50.0
+      },
+      {
+        "status": "Married",
+        "count": 500,
+        "percentage": 40.0
+      },
+      {
+        "status": "Divorced",
+        "count": 75,
+        "percentage": 6.0
+      },
+      {
+        "status": "Widowed",
+        "count": 50,
+        "percentage": 4.0
+      }
+    ],
+    "geographicDistribution": [
+      {
+        "location": "Lagos State",
+        "count": 850,
+        "percentage": 68.0,
+        "type": "state"
+      },
+      {
+        "location": "Abuja FCT",
+        "count": 200,
+        "percentage": 16.0,
+        "type": "state"
+      },
+      {
+        "location": "Ikeja",
+        "count": 320,
+        "percentage": 25.6,
+        "type": "city"
+      },
+      {
+        "location": "Victoria Island",
+        "count": 180,
+        "percentage": 14.4,
+        "type": "city"
+      }
+    ],
+    "totalMembers": 1250,
+    "analysisDate": "2024-10-06T17:00:00.000Z"
+  },
+  "message": "Demographics analytics retrieved successfully"
+}
+```
+
 ## Frontend Integration
 
 ### For React/Vue/Angular Applications

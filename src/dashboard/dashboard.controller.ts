@@ -1,9 +1,4 @@
-import {
-  Controller,
-  Get,
-  UseGuards,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -13,6 +8,7 @@ import {
 } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { DashboardOverviewDto } from './dto/dashboard-overview.dto';
+import { GrowthAnalyticsDto, RecentActivityAnalyticsDto, DemographicsDto } from './dto/analytics.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -35,7 +31,9 @@ export class DashboardController {
     UserRole.FOLLOW_UP_TEAM,
     UserRole.GROUP_LEADER,
   )
-  @ApiOperation({ summary: 'Get dashboard overview with key metrics and statistics' })
+  @ApiOperation({
+    summary: 'Get dashboard overview with key metrics and statistics',
+  })
   @ApiResponse({
     status: 200,
     description: 'Dashboard overview retrieved successfully',
@@ -55,15 +53,14 @@ export class DashboardController {
       user.role,
     );
 
-    return ResponseUtil.success(overview, 'Dashboard overview retrieved successfully');
+    return ResponseUtil.success(
+      overview,
+      'Dashboard overview retrieved successfully',
+    );
   }
 
   @Get('stats')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-  )
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
   @ApiOperation({ summary: 'Get detailed statistics (admin only)' })
   @ApiQuery({
     name: 'period',
@@ -187,6 +184,100 @@ export class DashboardController {
         userRole: user.role,
       },
       'Quick stats retrieved successfully',
+    );
+  }
+
+  @Get('growth-analytics')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @ApiOperation({
+    summary: 'Get growth analytics and trends data',
+    description: 'Returns comprehensive growth analytics including member, first-timer, and group growth metrics with historical data'
+  })
+  @ApiQuery({
+    name: 'period',
+    required: false,
+    enum: ['week', 'month', 'quarter', 'year'],
+    description: 'Time period for analytics analysis',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Growth analytics retrieved successfully',
+    type: GrowthAnalyticsDto,
+  })
+  async getGrowthAnalytics(
+    @CurrentUser() user: any,
+    @Query('period') period: 'week' | 'month' | 'quarter' | 'year' = 'month',
+  ) {
+    const analytics = await this.dashboardService.getGrowthAnalytics(period);
+
+    return ResponseUtil.success(
+      analytics,
+      `Growth analytics for ${period} retrieved successfully`,
+    );
+  }
+
+  @Get('recent-activity')
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.PASTOR,
+    UserRole.LEADERSHIP,
+    UserRole.FOLLOW_UP_TEAM,
+    UserRole.GROUP_LEADER,
+  )
+  @ApiOperation({
+    summary: 'Get recent activity analytics',
+    description: 'Returns detailed recent activity analytics including activity trends, most active users, and activity summaries'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of activities to retrieve (default: 50)',
+  })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    type: Number,
+    description: 'Number of days to analyze (default: 7)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recent activity analytics retrieved successfully',
+    type: RecentActivityAnalyticsDto,
+  })
+  async getRecentActivity(
+    @CurrentUser() user: any,
+    @Query('limit') limit: number = 50,
+    @Query('days') days: number = 7,
+  ) {
+    const analytics = await this.dashboardService.getRecentActivityAnalytics(
+      limit,
+      days,
+    );
+
+    return ResponseUtil.success(
+      analytics,
+      'Recent activity analytics retrieved successfully',
+    );
+  }
+
+  @Get('demographics')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @ApiOperation({
+    summary: 'Get member demographics analytics',
+    description: 'Returns comprehensive demographic analysis including age, gender, marital status, and geographic distributions'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Demographics analytics retrieved successfully',
+    type: DemographicsDto,
+  })
+  async getDemographics(@CurrentUser() user: any) {
+    const demographics = await this.dashboardService.getDemographicsAnalytics();
+
+    return ResponseUtil.success(
+      demographics,
+      'Demographics analytics retrieved successfully',
     );
   }
 }
