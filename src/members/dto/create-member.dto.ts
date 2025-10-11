@@ -43,20 +43,20 @@ class AddressDto {
 }
 
 class EmergencyContactDto {
-  @ApiProperty({ description: 'Emergency contact name' })
+  @ApiPropertyOptional({ description: 'Emergency contact name' })
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  @IsOptional()
+  name?: string;
 
-  @ApiProperty({ description: 'Relationship to member' })
+  @ApiPropertyOptional({ description: 'Relationship to member' })
   @IsString()
-  @IsNotEmpty()
-  relationship: string;
+  @IsOptional()
+  relationship?: string;
 
-  @ApiProperty({ description: 'Emergency contact phone' })
+  @ApiPropertyOptional({ description: 'Emergency contact phone' })
   @IsString()
-  @IsNotEmpty()
-  phone: string;
+  @IsOptional()
+  phone?: string;
 
   @ApiPropertyOptional({ description: 'Emergency contact email' })
   @IsOptional()
@@ -179,14 +179,13 @@ export class CreateMemberDto {
   @Type(() => LeadershipRolesDto)
   leadershipRoles?: LeadershipRolesDto;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'Membership status',
     enum: MembershipStatus,
-    default: MembershipStatus.NEW_CONVERT,
   })
-  @IsOptional()
   @IsEnum(MembershipStatus)
-  membershipStatus?: MembershipStatus;
+  @IsNotEmpty()
+  membershipStatus: MembershipStatus;
 
   @ApiPropertyOptional({
     description: 'Date joined church',
@@ -233,7 +232,7 @@ export class CreateMemberDto {
 
   @ApiPropertyOptional({ description: 'Spouse member ID' })
   @IsOptional()
-  @IsMongoId()
+  @IsString()
   spouse?: string;
 
   @ApiPropertyOptional({ description: 'Children member IDs' })
@@ -244,7 +243,7 @@ export class CreateMemberDto {
 
   @ApiPropertyOptional({ description: 'Parent member ID' })
   @IsOptional()
-  @IsMongoId()
+  @IsString()
   parent?: string;
 
   @ApiPropertyOptional({ description: 'Emergency contact information' })
