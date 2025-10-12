@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery } from 'mongoose';
@@ -18,19 +19,37 @@ import {
 import { QueryBuilder } from '../common/utils/query-builder.util';
 import { CSVParserUtil } from '../common/utils/csv-parser.util';
 import { EngagementStatus } from '../common/enums/engagement-status.enum';
+import { MembershipStatus } from '../common/enums/member-status.enum';
 import { validate } from 'class-validator';
 import { plainToClass } from 'class-transformer';
+import { MembersService } from '../members/members.service';
+import { QueueService } from '../queue/queue.service';
+import { GroupsService } from '../groups/groups.service';
+import { GroupType } from '../common/enums/group-types.enum';
 
 @Injectable()
 export class FirstTimersService {
+  private readonly logger = new Logger(FirstTimersService.name);
+
   constructor(
     @InjectModel(FirstTimer.name)
     private firstTimerModel: Model<FirstTimerDocument>,
+    private membersService: MembersService,
+    private queueService: QueueService,
+    private groupsService: GroupsService,
   ) {}
 
   async create(
     createFirstTimerDto: CreateFirstTimerDto,
   ): Promise<FirstTimerDocument> {
+    // Check for duplicate phone and email but don't block creation
+    const duplicateTracking = {
+      hasDuplicatePhone: false,
+      hasDuplicateEmail: false,
+      duplicatePhoneNotes: [] as string[],
+      duplicateEmailNotes: [] as string[],
+    };
+
     // Check if phone already exists
     const existingPhone = await this.firstTimerModel.findOne({
       phone: createFirstTimerDto.phone,
@@ -38,8 +57,12 @@ export class FirstTimersService {
     });
 
     if (existingPhone) {
-      throw new ConflictException(
-        'A first-timer with this phone number already exists',
+      duplicateTracking.hasDuplicatePhone = true;
+      duplicateTracking.duplicatePhoneNotes.push(
+        `Duplicate phone detected - matches first-timer: ${existingPhone.firstName} ${existingPhone.lastName} (ID: ${existingPhone._id}) created on ${existingPhone.createdAt}`,
+      );
+      this.logger.warn(
+        `Duplicate phone number detected: ${createFirstTimerDto.phone} - already exists for ${existingPhone.firstName} ${existingPhone.lastName} (${existingPhone._id})`,
       );
     }
 
@@ -51,29 +74,99 @@ export class FirstTimersService {
       });
 
       if (existingEmail) {
-        throw new ConflictException(
-          'A first-timer with this email already exists',
+        duplicateTracking.hasDuplicateEmail = true;
+        duplicateTracking.duplicateEmailNotes.push(
+          `Duplicate email detected - matches first-timer: ${existingEmail.firstName} ${existingEmail.lastName} (ID: ${existingEmail._id}) created on ${existingEmail.createdAt}`,
+        );
+        this.logger.warn(
+          `Duplicate email detected: ${createFirstTimerDto.email} - already exists for ${existingEmail.firstName} ${existingEmail.lastName} (${existingEmail._id})`,
         );
       }
     }
 
+    // Auto-assign GIA leader if not provided
+    let giaLeader = createFirstTimerDto.giaLeader;
+    if (!giaLeader) {
+      try {
+        // Find the GIA unit group
+        const giaGroup = await this.groupsService.findByNameAndType(
+          'Guest Relations and Integrations',
+          GroupType.UNIT,
+        );
+
+        if (!giaGroup) {
+          throw new Error('GIA unit group not found. Please create a GIA unit group in the groups module.');
+        }
+
+        if (!giaGroup.unitHead) {
+          throw new Error('GIA unit group has no unit head assigned. Please assign a unit head to the GIA group.');
+        }
+
+        // The unitHead is populated, so we can access the member's email
+        const unitHeadMember = giaGroup.unitHead as any;
+
+        if (!unitHeadMember.email) {
+          throw new Error('GIA unit head member has no email address. Please ensure the unit head member has a valid email.');
+        }
+
+        // Find the member with the same email as the GIA unit head
+        const giaLeaderMember = await this.membersService.findByEmail(unitHeadMember.email);
+
+        if (!giaLeaderMember) {
+          throw new Error(`No active member found with email ${unitHeadMember.email}`);
+        }
+
+        giaLeader = giaLeaderMember._id?.toString();
+      } catch (error) {
+        throw new BadRequestException(
+          `Failed to assign GIA leader: ${error.message}`
+        );
+      }
+    }
+
+    // Validate and convert dateOfVisit
+    const dateOfVisit = new Date(createFirstTimerDto.dateOfVisit);
+    if (isNaN(dateOfVisit.getTime())) {
+      throw new BadRequestException('Invalid date format for dateOfVisit. Use YYYY-MM-DD format.');
+    }
+
     const firstTimer = new this.firstTimerModel({
       ...createFirstTimerDto,
+      dateOfVisit,
       email: createFirstTimerDto.email?.toLowerCase(),
+      status: EngagementStatus.NEW,
+      giaLeader,
       followUps: [],
       familyMembers: createFirstTimerDto.familyMembers || [],
       interests: createFirstTimerDto.interests || [],
       prayerRequests: createFirstTimerDto.prayerRequests || [],
       servingInterests: createFirstTimerDto.servingInterests || [],
       followUpCount: 0,
+      lastStatusChange: new Date(),
+      interestedInJoining: createFirstTimerDto.interestedInJoining || false,
+      // Include duplicate tracking information
+      hasDuplicatePhone: duplicateTracking.hasDuplicatePhone,
+      hasDuplicateEmail: duplicateTracking.hasDuplicateEmail,
+      duplicatePhoneNotes: duplicateTracking.duplicatePhoneNotes,
+      duplicateEmailNotes: duplicateTracking.duplicateEmailNotes,
     });
 
     // Set initial follow-up date (1 day after visit)
-    const nextDay = new Date(createFirstTimerDto.dateOfVisit);
+    const nextDay = new Date(dateOfVisit);
     nextDay.setDate(nextDay.getDate() + 1);
     firstTimer.nextFollowUpDate = nextDay;
 
-    return firstTimer.save();
+    const savedFirstTimer = await firstTimer.save();
+
+    // Schedule thank you email job (3 hours after registration)
+    const thankYouDelay = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+    await this.queueService.addDelayedJob(
+      'first-timer-thank-you-email',
+      savedFirstTimer._id,
+      thankYouDelay,
+    );
+
+    return savedFirstTimer;
   }
 
   async findAll(
@@ -235,7 +328,12 @@ export class FirstTimersService {
   ): Promise<FirstTimerDocument> {
     const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
       id,
-      { $set: { status } },
+      {
+        $set: {
+          status,
+          lastStatusChange: new Date(),
+        },
+      },
       { new: true },
     );
 
@@ -246,24 +344,23 @@ export class FirstTimersService {
     return firstTimer;
   }
 
-  async convertToMember(
+  async assignFollowUp(
     id: string,
-    memberRecordId: string,
+    followUpPersonId: string,
   ): Promise<FirstTimerDocument> {
     const firstTimer = await this.firstTimerModel
       .findByIdAndUpdate(
         id,
         {
           $set: {
-            converted: true,
-            conversionDate: new Date(),
-            memberRecord: memberRecordId,
-            status: EngagementStatus.CONVERTED,
+            followUpPerson: followUpPersonId,
+            status: EngagementStatus.FOLLOWING_UP,
+            lastStatusChange: new Date(),
           },
         },
         { new: true },
       )
-      .populate('memberRecord', 'firstName lastName membershipStatus');
+      .populate('followUpPerson', 'firstName lastName email');
 
     if (!firstTimer) {
       throw new NotFoundException('First-timer not found');
@@ -272,9 +369,88 @@ export class FirstTimersService {
     return firstTimer;
   }
 
-  async assignToUser(id: string, userId: string): Promise<FirstTimerDocument> {
+  async getPendingDistrictAssignments(): Promise<FirstTimerDocument[]> {
+    return this.firstTimerModel
+      .find({
+        isActive: true,
+        status: EngagementStatus.MEMBER,
+        pendingDistrictAssignment: true,
+      })
+      .populate('memberRecord', 'firstName lastName email phone')
+      .populate('giaLeader', 'firstName lastName email')
+      .sort({ memberCreatedAt: -1 });
+  }
+
+  async convertToMember(
+    id: string,
+    memberRecordId?: string,
+  ): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel.findById(id);
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    // If no memberRecordId provided, create a new member record
+    if (!memberRecordId) {
+      const memberData = {
+        firstName: firstTimer.firstName,
+        lastName: firstTimer.lastName,
+        email: firstTimer.email || `${firstTimer.firstName.toLowerCase()}.${firstTimer.lastName.toLowerCase()}@church.com`,
+        phone: firstTimer.phone,
+        address: {
+          street: firstTimer.address?.street || 'Unknown',
+          city: firstTimer.address?.city || 'Unknown',
+          state: firstTimer.address?.state || 'Unknown',
+          country: firstTimer.address?.country || 'Nigeria'
+        },
+        dateOfBirth: '1990-01-01', // Default date, will need to be updated later
+        gender: 'male', // Default, will need to be updated
+        membershipStatus: MembershipStatus.NEW_CONVERT,
+        district: firstTimer.suggestedDistrict?.toString() || '507f1f77bcf86cd799439011', // Default district ID
+      };
+
+      const newMember = await this.membersService.create(memberData);
+      memberRecordId = newMember._id?.toString();
+    }
+
+    const updatedFirstTimer = await this.firstTimerModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            converted: true,
+            conversionDate: new Date(),
+            memberRecord: memberRecordId,
+            status: EngagementStatus.MEMBER,
+            lastStatusChange: new Date(),
+            memberCreatedAt: new Date(),
+            pendingDistrictAssignment: true,
+          },
+        },
+        { new: true },
+      )
+      .populate('memberRecord', 'firstName lastName membershipStatus')
+      .populate('giaLeader', 'firstName lastName email');
+
+    if (!updatedFirstTimer) {
+      throw new NotFoundException('First-timer not found after update');
+    }
+
+    // Notify GIA leader about new member conversion
+    if (updatedFirstTimer.giaLeader) {
+      await this.queueService.addJob('first-timer-conversion-notification', {
+        firstTimerId: updatedFirstTimer._id,
+        giaLeaderId: updatedFirstTimer.giaLeader._id,
+        memberRecordId,
+      });
+    }
+
+    return updatedFirstTimer;
+  }
+
+  async assignToMember(id: string, memberId: string): Promise<FirstTimerDocument> {
     const firstTimer = await this.firstTimerModel
-      .findByIdAndUpdate(id, { $set: { assignedTo: userId } }, { new: true })
+      .findByIdAndUpdate(id, { $set: { assignedTo: memberId } }, { new: true })
       .populate('assignedTo', 'firstName lastName email');
 
     if (!firstTimer) {
@@ -353,10 +529,10 @@ export class FirstTimersService {
         },
         {
           $lookup: {
-            from: 'users',
+            from: 'members',
             localField: '_id',
             foreignField: '_id',
-            as: 'assignedUser',
+            as: 'assignedMember',
           },
         },
       ]),
@@ -414,10 +590,10 @@ export class FirstTimersService {
       .sort({ dateOfVisit: -1 });
   }
 
-  async getByAssignedUser(userId: string): Promise<FirstTimerDocument[]> {
+  async getByAssignedMember(memberId: string): Promise<FirstTimerDocument[]> {
     return this.firstTimerModel
       .find({
-        assignedTo: userId,
+        assignedTo: memberId,
         isActive: true,
         converted: false,
       })
@@ -564,6 +740,14 @@ export class FirstTimersService {
   private async createSafe(
     createFirstTimerDto: CreateFirstTimerDto,
   ): Promise<FirstTimerDocument> {
+    // Check for duplicate phone and email but don't block creation
+    const duplicateTracking = {
+      hasDuplicatePhone: false,
+      hasDuplicateEmail: false,
+      duplicatePhoneNotes: [] as string[],
+      duplicateEmailNotes: [] as string[],
+    };
+
     // Check if phone already exists
     const existingPhone = await this.firstTimerModel.findOne({
       phone: createFirstTimerDto.phone,
@@ -571,8 +755,12 @@ export class FirstTimersService {
     });
 
     if (existingPhone) {
-      throw new Error(
-        `Phone number ${createFirstTimerDto.phone} already exists`,
+      duplicateTracking.hasDuplicatePhone = true;
+      duplicateTracking.duplicatePhoneNotes.push(
+        `Duplicate phone detected during bulk upload - matches first-timer: ${existingPhone.firstName} ${existingPhone.lastName} (ID: ${existingPhone._id}) created on ${existingPhone.createdAt}`,
+      );
+      this.logger.warn(
+        `Bulk upload: Duplicate phone number detected: ${createFirstTimerDto.phone} - already exists for ${existingPhone.firstName} ${existingPhone.lastName} (${existingPhone._id})`,
       );
     }
 
@@ -584,12 +772,25 @@ export class FirstTimersService {
       });
 
       if (existingEmail) {
-        throw new Error(`Email ${createFirstTimerDto.email} already exists`);
+        duplicateTracking.hasDuplicateEmail = true;
+        duplicateTracking.duplicateEmailNotes.push(
+          `Duplicate email detected during bulk upload - matches first-timer: ${existingEmail.firstName} ${existingEmail.lastName} (ID: ${existingEmail._id}) created on ${existingEmail.createdAt}`,
+        );
+        this.logger.warn(
+          `Bulk upload: Duplicate email detected: ${createFirstTimerDto.email} - already exists for ${existingEmail.firstName} ${existingEmail.lastName} (${existingEmail._id})`,
+        );
       }
+    }
+
+    // Validate and convert dateOfVisit
+    const dateOfVisit = new Date(createFirstTimerDto.dateOfVisit);
+    if (isNaN(dateOfVisit.getTime())) {
+      throw new BadRequestException('Invalid date format for dateOfVisit. Use YYYY-MM-DD format.');
     }
 
     const firstTimer = new this.firstTimerModel({
       ...createFirstTimerDto,
+      dateOfVisit,
       email: createFirstTimerDto.email?.toLowerCase(),
       followUps: [],
       familyMembers: createFirstTimerDto.familyMembers || [],
@@ -597,10 +798,15 @@ export class FirstTimersService {
       prayerRequests: createFirstTimerDto.prayerRequests || [],
       servingInterests: createFirstTimerDto.servingInterests || [],
       followUpCount: 0,
+      // Include duplicate tracking information
+      hasDuplicatePhone: duplicateTracking.hasDuplicatePhone,
+      hasDuplicateEmail: duplicateTracking.hasDuplicateEmail,
+      duplicatePhoneNotes: duplicateTracking.duplicatePhoneNotes,
+      duplicateEmailNotes: duplicateTracking.duplicateEmailNotes,
     });
 
     // Set initial follow-up date (1 day after visit)
-    const nextDay = new Date(createFirstTimerDto.dateOfVisit);
+    const nextDay = new Date(dateOfVisit);
     nextDay.setDate(nextDay.getDate() + 1);
     firstTimer.nextFollowUpDate = nextDay;
 
@@ -610,4 +816,45 @@ export class FirstTimersService {
   generateSampleCSV(): string {
     return CSVParserUtil.generateSampleCSV();
   }
+
+  // New methods for automation
+  async findStaleFirstTimers(cutoffDate: Date): Promise<FirstTimerDocument[]> {
+    return this.firstTimerModel.find({
+      isActive: true,
+      status: { $in: [EngagementStatus.NEW, EngagementStatus.FOLLOWING_UP] },
+      lastStatusChange: { $lte: cutoffDate },
+    });
+  }
+
+  async findInterestedFirstTimers(): Promise<FirstTimerDocument[]> {
+    return this.firstTimerModel.find({
+      isActive: true,
+      interestedInJoining: true,
+      status: { $nin: [EngagementStatus.MEMBER, EngagementStatus.NOT_JOINED] },
+      remindersSent: { $lt: 3 },
+    });
+  }
+
+  async updateReminderCount(id: string): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
+      id,
+      {
+        $inc: { remindersSent: 1 },
+        $set: { lastReminderSent: new Date() },
+      },
+      { new: true },
+    );
+
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    return firstTimer;
+  }
+
+  // Helper method to get GIA group information
+  async getGiaGroup() {
+    return this.groupsService.findByNameAndType('GIA', GroupType.UNIT);
+  }
+
 }

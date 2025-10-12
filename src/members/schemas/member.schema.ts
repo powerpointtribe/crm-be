@@ -15,7 +15,7 @@ export class Member {
   @Prop({ required: true, trim: true })
   lastName: string;
 
-  @Prop({ required: true, unique: true, lowercase: true, trim: true })
+  @Prop({ required: true, lowercase: true, trim: true })
   email: string;
 
   @Prop({ required: true, trim: true })
@@ -47,15 +47,20 @@ export class Member {
 
   @Prop({
     type: {
-      street: { type: String, required: true },
-      city: { type: String, required: true },
-      state: { type: String, required: true },
+      street: { type: String, default: '' },
+      city: { type: String, default: '' },
+      state: { type: String, default: 'Lagos' },
       zipCode: String,
       country: { type: String, default: 'Nigeria' },
     },
-    required: true,
+    default: {
+      street: '',
+      city: '',
+      state: 'Lagos',
+      country: 'Nigeria',
+    },
   })
-  address: {
+  address?: {
     street: string;
     city: string;
     state: string;
@@ -76,9 +81,8 @@ export class Member {
   @Prop({
     type: Types.ObjectId,
     ref: 'Group',
-    required: true, // EVERY member MUST be in a district
   })
-  district: Types.ObjectId;
+  district?: Types.ObjectId;
 
   @Prop({
     type: Types.ObjectId,

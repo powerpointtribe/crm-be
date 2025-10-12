@@ -21,7 +21,9 @@ import { UserRole } from '../common/enums/user-roles.enums';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+  ) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserDocument> {
     const existingUser = await this.userModel.findOne({
@@ -90,6 +92,7 @@ export class UsersService {
   async findByRole(role: UserRole): Promise<UserDocument[]> {
     return this.userModel.find({ role, isActive: true }).select('-password');
   }
+
 
   async update(
     id: string,

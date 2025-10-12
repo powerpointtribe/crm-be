@@ -58,7 +58,6 @@ export class DashboardService {
     };
   }
 
-
   private async getGeneralStats(): Promise<DashboardStatsDto> {
     const [
       totalMembers,
@@ -174,7 +173,7 @@ export class DashboardService {
           count: { $sum: 1 },
         },
       },
-      { $sort: { '_id.year': 1 as 1, '_id.month': 1 as 1 } },
+      { $sort: { '_id.year': 1 as const, '_id.month': 1 as const } },
     ]);
 
     const firstTimerGrowth = await this.firstTimerModel.aggregate([
@@ -188,7 +187,7 @@ export class DashboardService {
           count: { $sum: 1 },
         },
       },
-      { $sort: { '_id.year': 1 as 1, '_id.month': 1 as 1 } },
+      { $sort: { '_id.year': 1 as const, '_id.month': 1 as const } },
     ]);
 
     // Combine and format the data
@@ -383,27 +382,46 @@ export class DashboardService {
   }
 
   // Growth Analytics Methods
-  async getGrowthAnalytics(period: 'week' | 'month' | 'quarter' | 'year' = 'month'): Promise<GrowthAnalyticsDto> {
-    const { startDate, endDate, previousStartDate } = this.getDateRanges(period);
+  async getGrowthAnalytics(
+    period: 'week' | 'month' | 'quarter' | 'year' = 'month',
+  ): Promise<GrowthAnalyticsDto> {
+    const { startDate, endDate, previousStartDate } =
+      this.getDateRanges(period);
 
-    const [currentPeriodData, previousPeriodData, monthlyData] = await Promise.all([
-      this.getPeriodCounts(startDate, endDate),
-      this.getPeriodCounts(previousStartDate, startDate),
-      this.getDetailedMonthlyGrowth(period),
-    ]);
+    const [currentPeriodData, previousPeriodData, monthlyData] =
+      await Promise.all([
+        this.getPeriodCounts(startDate, endDate),
+        this.getPeriodCounts(previousStartDate, startDate),
+        this.getDetailedMonthlyGrowth(period),
+      ]);
 
     return {
-      memberGrowth: this.createGrowthMetrics(currentPeriodData.members, previousPeriodData.members),
-      firstTimerGrowth: this.createGrowthMetrics(currentPeriodData.firstTimers, previousPeriodData.firstTimers),
-      groupGrowth: this.createGrowthMetrics(currentPeriodData.groups, previousPeriodData.groups),
-      userGrowth: this.createGrowthMetrics(currentPeriodData.users, previousPeriodData.users),
+      memberGrowth: this.createGrowthMetrics(
+        currentPeriodData.members,
+        previousPeriodData.members,
+      ),
+      firstTimerGrowth: this.createGrowthMetrics(
+        currentPeriodData.firstTimers,
+        previousPeriodData.firstTimers,
+      ),
+      groupGrowth: this.createGrowthMetrics(
+        currentPeriodData.groups,
+        previousPeriodData.groups,
+      ),
+      userGrowth: this.createGrowthMetrics(
+        currentPeriodData.users,
+        previousPeriodData.users,
+      ),
       monthlyData,
       period,
       dateRange: { start: startDate, end: endDate },
     };
   }
 
-  async getRecentActivityAnalytics(limit: number = 50, days: number = 7): Promise<RecentActivityAnalyticsDto> {
+  async getRecentActivityAnalytics(
+    limit: number = 50,
+    days: number = 7,
+  ): Promise<RecentActivityAnalyticsDto> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
@@ -423,7 +441,13 @@ export class DashboardService {
   }
 
   async getDemographicsAnalytics(): Promise<DemographicsDto> {
-    const [ageDistribution, genderDistribution, maritalStatus, geographic, totalMembers] = await Promise.all([
+    const [
+      ageDistribution,
+      genderDistribution,
+      maritalStatus,
+      geographic,
+      totalMembers,
+    ] = await Promise.all([
       this.getAgeDistribution(),
       this.getGenderDistribution(),
       this.getMaritalStatusDistribution(),
@@ -470,16 +494,27 @@ export class DashboardService {
 
   private async getPeriodCounts(startDate: Date, endDate: Date) {
     const [members, firstTimers, groups, users] = await Promise.all([
-      this.memberModel.countDocuments({ createdAt: { $gte: startDate, $lt: endDate } }),
-      this.firstTimerModel.countDocuments({ createdAt: { $gte: startDate, $lt: endDate } }),
-      this.groupModel.countDocuments({ createdAt: { $gte: startDate, $lt: endDate } }),
-      this.userModel.countDocuments({ createdAt: { $gte: startDate, $lt: endDate } }),
+      this.memberModel.countDocuments({
+        createdAt: { $gte: startDate, $lt: endDate },
+      }),
+      this.firstTimerModel.countDocuments({
+        createdAt: { $gte: startDate, $lt: endDate },
+      }),
+      this.groupModel.countDocuments({
+        createdAt: { $gte: startDate, $lt: endDate },
+      }),
+      this.userModel.countDocuments({
+        createdAt: { $gte: startDate, $lt: endDate },
+      }),
     ]);
 
     return { members, firstTimers, groups, users };
   }
 
-  private createGrowthMetrics(current: number, previous: number): GrowthMetricsDto {
+  private createGrowthMetrics(
+    current: number,
+    previous: number,
+  ): GrowthMetricsDto {
     return {
       current,
       previous,
@@ -489,7 +524,9 @@ export class DashboardService {
     };
   }
 
-  private async getDetailedMonthlyGrowth(period: string): Promise<MonthlyGrowthDto[]> {
+  private async getDetailedMonthlyGrowth(
+    period: string,
+  ): Promise<MonthlyGrowthDto[]> {
     const months = period === 'year' ? 12 : period === 'quarter' ? 3 : 6;
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
@@ -505,7 +542,7 @@ export class DashboardService {
           count: { $sum: 1 },
         },
       },
-      { $sort: { '_id.year': 1 as 1, '_id.month': 1 as 1 } },
+      { $sort: { '_id.year': 1 as const, '_id.month': 1 as const } },
     ];
 
     const [memberData, firstTimerData, groupData] = await Promise.all([
@@ -514,13 +551,41 @@ export class DashboardService {
       this.groupModel.aggregate(aggregationPipeline),
     ]);
 
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     const result: MonthlyGrowthDto[] = [];
 
     // Create maps for easy lookup
-    const memberMap = new Map(memberData.map(item => [`${item._id.year}-${item._id.month}`, item.count]));
-    const firstTimerMap = new Map(firstTimerData.map(item => [`${item._id.year}-${item._id.month}`, item.count]));
-    const groupMap = new Map(groupData.map(item => [`${item._id.year}-${item._id.month}`, item.count]));
+    const memberMap = new Map(
+      memberData.map((item) => [
+        `${item._id.year}-${item._id.month}`,
+        item.count,
+      ]),
+    );
+    const firstTimerMap = new Map(
+      firstTimerData.map((item) => [
+        `${item._id.year}-${item._id.month}`,
+        item.count,
+      ]),
+    );
+    const groupMap = new Map(
+      groupData.map((item) => [
+        `${item._id.year}-${item._id.month}`,
+        item.count,
+      ]),
+    );
 
     for (let i = months - 1; i >= 0; i--) {
       const date = new Date();
@@ -544,7 +609,10 @@ export class DashboardService {
     return result;
   }
 
-  private async buildRecentActivities(startDate: Date, limit: number): Promise<ActivityItemDto[]> {
+  private async buildRecentActivities(
+    startDate: Date,
+    limit: number,
+  ): Promise<ActivityItemDto[]> {
     const activities: ActivityItemDto[] = [];
 
     // Get recent members
@@ -554,7 +622,7 @@ export class DashboardService {
       .limit(Math.floor(limit / 4))
       .select('firstName lastName createdAt');
 
-    recentMembers.forEach(member => {
+    recentMembers.forEach((member) => {
       activities.push({
         id: `member_${(member as any)._id}`,
         type: 'member_joined',
@@ -575,7 +643,7 @@ export class DashboardService {
       .limit(Math.floor(limit / 4))
       .select('firstName lastName createdAt');
 
-    recentFirstTimers.forEach(ft => {
+    recentFirstTimers.forEach((ft) => {
       activities.push({
         id: `ft_${(ft as any)._id}`,
         type: 'first_timer_visit',
@@ -596,7 +664,7 @@ export class DashboardService {
       .limit(Math.floor(limit / 4))
       .select('name type createdAt');
 
-    recentGroups.forEach(group => {
+    recentGroups.forEach((group) => {
       activities.push({
         id: `group_${(group as any)._id}`,
         type: 'group_created',
@@ -617,7 +685,7 @@ export class DashboardService {
       .limit(Math.floor(limit / 4))
       .select('firstName lastName role createdAt');
 
-    recentUsers.forEach(user => {
+    recentUsers.forEach((user) => {
       activities.push({
         id: `user_${(user as any)._id}`,
         type: 'user_registered',
@@ -632,17 +700,25 @@ export class DashboardService {
     });
 
     // Sort all activities by timestamp (most recent first)
-    return activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, limit);
+    return activities
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, limit);
   }
 
   private calculateActivitySummary(activities: ActivityItemDto[]) {
     return {
       totalActivities: activities.length,
-      memberActivities: activities.filter(a => a.type === 'member_joined').length,
-      firstTimerActivities: activities.filter(a => a.type === 'first_timer_visit').length,
-      groupActivities: activities.filter(a => a.type === 'group_created').length,
-      userActivities: activities.filter(a => a.type === 'user_registered').length,
-      bulkOperations: activities.filter(a => a.type === 'bulk_operation').length,
+      memberActivities: activities.filter((a) => a.type === 'member_joined')
+        .length,
+      firstTimerActivities: activities.filter(
+        (a) => a.type === 'first_timer_visit',
+      ).length,
+      groupActivities: activities.filter((a) => a.type === 'group_created')
+        .length,
+      userActivities: activities.filter((a) => a.type === 'user_registered')
+        .length,
+      bulkOperations: activities.filter((a) => a.type === 'bulk_operation')
+        .length,
     };
   }
 
@@ -655,12 +731,13 @@ export class DashboardService {
     const monthAgo = new Date(today);
     monthAgo.setMonth(monthAgo.getMonth() - 1);
 
-    const [todayCount, yesterdayCount, weekCount, monthCount] = await Promise.all([
-      this.getTotalActivityCount(today, new Date()),
-      this.getTotalActivityCount(yesterday, today),
-      this.getTotalActivityCount(weekAgo, new Date()),
-      this.getTotalActivityCount(monthAgo, new Date()),
-    ]);
+    const [todayCount, yesterdayCount, weekCount, monthCount] =
+      await Promise.all([
+        this.getTotalActivityCount(today, new Date()),
+        this.getTotalActivityCount(yesterday, today),
+        this.getTotalActivityCount(weekAgo, new Date()),
+        this.getTotalActivityCount(monthAgo, new Date()),
+      ]);
 
     return {
       todayCount,
@@ -670,12 +747,23 @@ export class DashboardService {
     };
   }
 
-  private async getTotalActivityCount(startDate: Date, endDate: Date): Promise<number> {
+  private async getTotalActivityCount(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<number> {
     const [members, firstTimers, groups, users] = await Promise.all([
-      this.memberModel.countDocuments({ createdAt: { $gte: startDate, $lt: endDate } }),
-      this.firstTimerModel.countDocuments({ createdAt: { $gte: startDate, $lt: endDate } }),
-      this.groupModel.countDocuments({ createdAt: { $gte: startDate, $lt: endDate } }),
-      this.userModel.countDocuments({ createdAt: { $gte: startDate, $lt: endDate } }),
+      this.memberModel.countDocuments({
+        createdAt: { $gte: startDate, $lt: endDate },
+      }),
+      this.firstTimerModel.countDocuments({
+        createdAt: { $gte: startDate, $lt: endDate },
+      }),
+      this.groupModel.countDocuments({
+        createdAt: { $gte: startDate, $lt: endDate },
+      }),
+      this.userModel.countDocuments({
+        createdAt: { $gte: startDate, $lt: endDate },
+      }),
     ]);
 
     return members + firstTimers + groups + users;
@@ -689,7 +777,7 @@ export class DashboardService {
       .limit(limit)
       .select('firstName lastName createdAt');
 
-    return recentUsers.map(user => ({
+    return recentUsers.map((user) => ({
       userId: (user as any)._id.toString(),
       userName: `${user.firstName} ${user.lastName}`,
       activityCount: 1, // Simplified - would be actual activity count
@@ -717,10 +805,11 @@ export class DashboardService {
       maritalStatus: { $exists: true, $ne: null },
     });
 
-    return maritalStats.map(stat => ({
+    return maritalStats.map((stat) => ({
       status: stat._id,
       count: stat.count,
-      percentage: totalMembers > 0 ? Math.round((stat.count / totalMembers) * 100) : 0,
+      percentage:
+        totalMembers > 0 ? Math.round((stat.count / totalMembers) * 100) : 0,
     }));
   }
 
@@ -775,7 +864,8 @@ export class DashboardService {
       result.push({
         location: stat._id as string,
         count: stat.count as number,
-        percentage: totalMembers > 0 ? Math.round((stat.count / totalMembers) * 100) : 0,
+        percentage:
+          totalMembers > 0 ? Math.round((stat.count / totalMembers) * 100) : 0,
         type: 'state' as const,
       });
     });
@@ -784,7 +874,8 @@ export class DashboardService {
       result.push({
         location: stat._id as string,
         count: stat.count as number,
-        percentage: totalMembers > 0 ? Math.round((stat.count / totalMembers) * 100) : 0,
+        percentage:
+          totalMembers > 0 ? Math.round((stat.count / totalMembers) * 100) : 0,
         type: 'city' as const,
       });
     });

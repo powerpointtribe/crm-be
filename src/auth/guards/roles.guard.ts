@@ -28,6 +28,11 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Access denied');
     }
 
+    // Super admins have access to everything
+    if (user.role === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
     const hasRole = requiredRoles.some((role) => user.role === role);
 
     if (!hasRole) {

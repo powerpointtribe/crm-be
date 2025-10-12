@@ -7,6 +7,8 @@ import {
   BulkOperationJobData,
   JobProgress,
   JobResult,
+  FirstTimerNotificationJobData,
+  FirstTimerAutomationJobData,
 } from '../common/interfaces/queue-job.interface';
 
 @Injectable()
@@ -16,6 +18,10 @@ export class QueueService {
   constructor(
     @InjectQueue(QueueName.BULK_OPERATION)
     private bulkOperationQueue: Queue<BulkOperationJobData>,
+    @InjectQueue(QueueName.FIRST_TIMER_NOTIFICATIONS)
+    private firstTimerNotificationQueue: Queue<FirstTimerNotificationJobData>,
+    @InjectQueue(QueueName.FIRST_TIMER_AUTOMATION)
+    private firstTimerAutomationQueue: Queue<FirstTimerAutomationJobData>,
   ) {}
 
   async addBulkOperationJob(
@@ -148,6 +154,55 @@ export class QueueService {
         delayed: 0,
       };
     }
+  }
+
+  // First Timer specific methods
+  async addDelayedJob(jobType: string, data: any, delay: number): Promise<Job> {
+    const job = await this.firstTimerNotificationQueue.add(jobType, data, {
+      delay,
+    });
+
+    this.logger.log(`Delayed job ${jobType} added with ${delay}ms delay`);
+    return job;
+  }
+
+  async addJob(jobType: string, data: any): Promise<Job> {
+    const job = await this.firstTimerNotificationQueue.add(jobType, data);
+
+    this.logger.log(`Job ${jobType} added immediately`);
+    return job;
+  }
+
+  async addAutomationJob(
+    jobType: string,
+    data: FirstTimerAutomationJobData,
+    options?: any,
+  ): Promise<Job> {
+    const job = await this.firstTimerAutomationQueue.add(
+      jobType,
+      data,
+      options,
+    );
+
+    this.logger.log(`Automation job ${jobType} added`);
+    return job;
+  }
+
+  async scheduleRecurringJob(
+    jobType: string,
+    data: FirstTimerAutomationJobData,
+    cronExpression: string,
+  ): Promise<Job> {
+    const job = await this.firstTimerAutomationQueue.add(jobType, data, {
+      repeat: { cron: cronExpression },
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
+
+    this.logger.log(
+      `Recurring job ${jobType} scheduled with cron: ${cronExpression}`,
+    );
+    return job;
   }
 
   private getJobPriority(jobType: JobType): number {

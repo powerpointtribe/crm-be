@@ -125,7 +125,7 @@ export class MembersController {
   }
 
   @Get('my-district')
-  @Roles(UserRole.GROUP_LEADER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.GROUP_LEADER)
   @ApiOperation({ summary: "Get members in current user's district" })
   async getMyDistrictMembers(@CurrentUser() user: any) {
     const member = await this.membersService.findByEmail(user.email);
@@ -170,7 +170,7 @@ export class MembersController {
   }
 
   @Get('my-unit')
-  @Roles(UserRole.GROUP_LEADER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.GROUP_LEADER)
   @ApiOperation({ summary: "Get members in current user's unit" })
   async getMyUnitMembers(@CurrentUser() user: any) {
     const member = await this.membersService.findByEmail(user.email);

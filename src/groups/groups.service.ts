@@ -54,19 +54,13 @@ export class GroupsService {
   ): Promise<void> {
     const { type, districtPastor, unitHead } = groupDto;
 
-    if (type === GroupType.DISTRICT) {
-      if (!districtPastor) {
-        throw new BadRequestException(
-          'District must have a district pastor assigned',
-        );
-      }
+    // District pastor and unit head are now optional
+    // Validation only occurs if they are provided
+    if (type === GroupType.DISTRICT && districtPastor) {
       // TODO: Validate that districtPastor exists and is not already pastoring another district
     }
 
-    if (type === GroupType.UNIT) {
-      if (!unitHead) {
-        throw new BadRequestException('Unit must have a unit head assigned');
-      }
+    if (type === GroupType.UNIT && unitHead) {
       // TODO: Validate that unitHead exists and is not already leading another unit
     }
   }
@@ -181,6 +175,14 @@ export class GroupsService {
       .populate('districtPastor', 'firstName lastName')
       .populate('unitHead', 'firstName lastName')
       .sort({ name: 1 })
+      .exec();
+  }
+
+  async findByNameAndType(name: string, type: GroupType): Promise<GroupDocument | null> {
+    return this.groupModel
+      .findOne({ name, type, isActive: true })
+      .populate('districtPastor', 'firstName lastName email phone')
+      .populate('unitHead', 'firstName lastName email phone')
       .exec();
   }
 
@@ -448,7 +450,7 @@ export class GroupsService {
                             { $ne: ['$unitHead', null] },
                           ],
                         },
-                        { $nin: ['$type', ['district', 'unit']] },
+                        { $not: { $in: ['$type', ['district', 'unit']] } },
                       ],
                     },
                     1,

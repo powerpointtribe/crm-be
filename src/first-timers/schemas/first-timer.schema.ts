@@ -48,12 +48,21 @@ export class FirstTimer {
   @Prop({
     type: String,
     enum: Object.values(EngagementStatus),
-    default: EngagementStatus.NOT_CONTACTED,
+    default: EngagementStatus.NEW,
   })
   status: EngagementStatus;
 
-  @Prop({ type: Types.ObjectId, ref: 'User' })
+  @Prop({ type: Types.ObjectId, ref: 'Member' })
   assignedTo?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Member' })
+  giaLeader?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Member' })
+  followUpPerson?: Types.ObjectId;
+
+  @Prop({ type: Boolean, default: false })
+  interestedInJoining: boolean;
 
   // Follow-up tracking
   @Prop([
@@ -78,7 +87,7 @@ export class FirstTimer {
           ],
           required: true,
         },
-        contactedBy: { type: Types.ObjectId, ref: 'User', required: true },
+        contactedBy: { type: Types.ObjectId, ref: 'Member', required: true },
         nextFollowUpDate: Date,
       },
     },
@@ -168,6 +177,21 @@ export class FirstTimer {
   @Prop({ type: Types.ObjectId, ref: 'Group' })
   suggestedDistrict?: Types.ObjectId;
 
+  @Prop({ type: Boolean, default: false })
+  pendingDistrictAssignment: boolean;
+
+  @Prop({ type: Date })
+  memberCreatedAt?: Date;
+
+  @Prop({ type: Date })
+  lastStatusChange?: Date;
+
+  @Prop({ type: Number, default: 0 })
+  remindersSent: number;
+
+  @Prop({ type: Date })
+  lastReminderSent?: Date;
+
   // Follow-up scheduling
   @Prop({ type: Date })
   nextFollowUpDate?: Date;
@@ -177,6 +201,19 @@ export class FirstTimer {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  // Duplicate tracking
+  @Prop({ type: Boolean, default: false })
+  hasDuplicatePhone: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  hasDuplicateEmail: boolean;
+
+  @Prop([String])
+  duplicatePhoneNotes: string[];
+
+  @Prop([String])
+  duplicateEmailNotes: string[];
 
   @Prop({ type: Date })
   createdAt: Date;
@@ -195,3 +232,8 @@ FirstTimerSchema.index({ dateOfVisit: -1 });
 FirstTimerSchema.index({ assignedTo: 1 });
 FirstTimerSchema.index({ nextFollowUpDate: 1 });
 FirstTimerSchema.index({ converted: 1 });
+FirstTimerSchema.index({ giaLeader: 1 });
+FirstTimerSchema.index({ followUpPerson: 1 });
+FirstTimerSchema.index({ pendingDistrictAssignment: 1 });
+FirstTimerSchema.index({ interestedInJoining: 1 });
+FirstTimerSchema.index({ lastStatusChange: -1 });

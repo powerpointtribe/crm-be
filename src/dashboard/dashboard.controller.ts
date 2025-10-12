@@ -8,7 +8,11 @@ import {
 } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { DashboardOverviewDto } from './dto/dashboard-overview.dto';
-import { GrowthAnalyticsDto, RecentActivityAnalyticsDto, DemographicsDto } from './dto/analytics.dto';
+import {
+  GrowthAnalyticsDto,
+  RecentActivityAnalyticsDto,
+  DemographicsDto,
+} from './dto/analytics.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -191,7 +195,8 @@ export class DashboardController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
   @ApiOperation({
     summary: 'Get growth analytics and trends data',
-    description: 'Returns comprehensive growth analytics including member, first-timer, and group growth metrics with historical data'
+    description:
+      'Returns comprehensive growth analytics including member, first-timer, and group growth metrics with historical data',
   })
   @ApiQuery({
     name: 'period',
@@ -226,7 +231,8 @@ export class DashboardController {
   )
   @ApiOperation({
     summary: 'Get recent activity analytics',
-    description: 'Returns detailed recent activity analytics including activity trends, most active users, and activity summaries'
+    description:
+      'Returns detailed recent activity analytics including activity trends, most active users, and activity summaries',
   })
   @ApiQuery({
     name: 'limit',
@@ -265,7 +271,8 @@ export class DashboardController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
   @ApiOperation({
     summary: 'Get member demographics analytics',
-    description: 'Returns comprehensive demographic analysis including age, gender, marital status, and geographic distributions'
+    description:
+      'Returns comprehensive demographic analysis including age, gender, marital status, and geographic distributions',
   })
   @ApiResponse({
     status: 200,
@@ -280,5 +287,4 @@ export class DashboardController {
       'Demographics analytics retrieved successfully',
     );
   }
-
 }

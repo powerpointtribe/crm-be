@@ -10,6 +10,7 @@ import {
   IsObject,
   IsMongoId,
   IsBoolean,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -26,10 +27,10 @@ class AddressDto {
   @IsNotEmpty()
   city: string;
 
-  @ApiProperty({ description: 'State' })
+  @ApiPropertyOptional({ description: 'State', default: 'Lagos' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  state: string;
+  state?: string = 'Lagos';
 
   @ApiPropertyOptional({ description: 'ZIP/Postal code' })
   @IsOptional()
@@ -124,9 +125,10 @@ export class CreateMemberDto {
   phone: string;
 
   @ApiProperty({ description: 'Date of birth', example: '1990-01-01' })
-  @IsDateString()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateOfBirth must be in YYYY-MM-DD format' })
   @IsNotEmpty()
-  dateOfBirth: Date;
+  dateOfBirth: string;
 
   @ApiProperty({ description: 'Gender', enum: ['male', 'female'] })
   @IsEnum(['male', 'female'])
@@ -142,19 +144,20 @@ export class CreateMemberDto {
   @IsEnum(['single', 'married', 'divorced', 'widowed'])
   maritalStatus?: string;
 
-  @ApiProperty({ description: 'Member address' })
+  @ApiPropertyOptional({ description: 'Member address (optional - defaults will be used if not provided)' })
+  @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => AddressDto)
-  address: AddressDto;
+  address?: AddressDto;
 
   // CHURCH STRUCTURE - District and Unit Assignments
-  @ApiProperty({
-    description: 'District ID (MANDATORY - every member must be in a district)',
+  @ApiPropertyOptional({
+    description: 'District ID (optional - member can be created without district assignment)',
   })
+  @IsOptional()
   @IsMongoId()
-  @IsNotEmpty()
-  district: string;
+  district?: string;
 
   @ApiPropertyOptional({
     description: 'Unit/Department ID (OPTIONAL but recommended)',

@@ -137,7 +137,7 @@ export class GroupsController {
   }
 
   @Get('my-groups')
-  @Roles(UserRole.GROUP_LEADER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.GROUP_LEADER)
   @ApiOperation({ summary: 'Get groups led by current user' })
   @ApiResponse({
     status: 200,

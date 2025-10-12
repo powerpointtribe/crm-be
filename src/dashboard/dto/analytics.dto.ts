@@ -50,7 +50,10 @@ export class GrowthAnalyticsDto {
   @ApiProperty({ description: 'User growth metrics' })
   userGrowth: GrowthMetricsDto;
 
-  @ApiProperty({ description: 'Monthly growth data for charts', type: [MonthlyGrowthDto] })
+  @ApiProperty({
+    description: 'Monthly growth data for charts',
+    type: [MonthlyGrowthDto],
+  })
   monthlyData: MonthlyGrowthDto[];
 
   @ApiProperty({ description: 'Period analyzed' })
@@ -68,7 +71,12 @@ export class ActivityItemDto {
   id: string;
 
   @ApiProperty({ description: 'Activity type' })
-  type: 'member_joined' | 'first_timer_visit' | 'group_created' | 'user_registered' | 'bulk_operation';
+  type:
+    | 'member_joined'
+    | 'first_timer_visit'
+    | 'group_created'
+    | 'user_registered'
+    | 'bulk_operation';
 
   @ApiProperty({ description: 'Activity description' })
   description: string;
@@ -95,7 +103,10 @@ export class ActivityItemDto {
 }
 
 export class RecentActivityAnalyticsDto {
-  @ApiProperty({ description: 'Recent activity items', type: [ActivityItemDto] })
+  @ApiProperty({
+    description: 'Recent activity items',
+    type: [ActivityItemDto],
+  })
   activities: ActivityItemDto[];
 
   @ApiProperty({ description: 'Activity summary by type' })

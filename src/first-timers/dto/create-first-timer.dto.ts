@@ -10,7 +10,9 @@ import {
   IsArray,
   IsEnum,
   IsNumber,
+  IsBoolean,
   Min,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -84,9 +86,10 @@ export class CreateFirstTimerDto {
   address?: AddressDto;
 
   @ApiProperty({ description: 'Date of visit', example: '2024-01-15' })
-  @IsDateString()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateOfVisit must be in YYYY-MM-DD format' })
   @IsNotEmpty()
-  dateOfVisit: Date;
+  dateOfVisit: string;
 
   @ApiPropertyOptional({ description: 'Name of person who invited them' })
   @IsOptional()
@@ -98,7 +101,7 @@ export class CreateFirstTimerDto {
   @IsMongoId()
   invitedByMember?: string;
 
-  @ApiPropertyOptional({ description: 'User ID to assign follow-up to' })
+  @ApiPropertyOptional({ description: 'Member ID to assign follow-up to' })
   @IsOptional()
   @IsMongoId()
   assignedTo?: string;
@@ -188,4 +191,19 @@ export class CreateFirstTimerDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Is interested in joining the tribe',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  interestedInJoining?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'GIA leader Member ID (auto-assigned if not provided)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  giaLeader?: string;
 }

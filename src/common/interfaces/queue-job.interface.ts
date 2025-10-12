@@ -1,5 +1,7 @@
 export enum QueueName {
   BULK_OPERATION = 'bulk-operation',
+  FIRST_TIMER_NOTIFICATIONS = 'first-timer-notifications',
+  FIRST_TIMER_AUTOMATION = 'first-timer-automation',
 }
 
 export enum JobType {
@@ -8,6 +10,14 @@ export enum JobType {
   BULK_USER_CREATE = 'bulk-user-create',
   BULK_USER_UPDATE = 'bulk-user-update',
   BULK_FIRST_TIMER_CREATE = 'bulk-first-timer-create',
+
+  // First Timer specific jobs
+  FIRST_TIMER_THANK_YOU_EMAIL = 'first-timer-thank-you-email',
+  FIRST_TIMER_CONVERSION_NOTIFICATION = 'first-timer-conversion-notification',
+  FIRST_TIMER_FOLLOW_UP_REMINDER = 'first-timer-follow-up-reminder',
+  FIRST_TIMER_STATUS_TRANSITION = 'first-timer-status-transition',
+  FIRST_TIMER_WEEKLY_REMINDER = 'first-timer-weekly-reminder',
+  DISTRICT_PASTOR_NOTIFICATION = 'district-pastor-notification',
 }
 
 export interface BulkOperationJobData {
@@ -47,4 +57,19 @@ export interface JobResult {
       errors: string[];
     }>;
   };
+}
+
+// First Timer specific job data interfaces
+export interface FirstTimerNotificationJobData {
+  firstTimerId: string;
+  type: 'thank_you' | 'conversion' | 'reminder' | 'district_assignment';
+  recipientEmail?: string;
+  additionalData?: any;
+}
+
+export interface FirstTimerAutomationJobData {
+  type: 'status_transition' | 'follow_up_reminder' | 'weekly_reminder';
+  firstTimerId?: string;
+  targetStatus?: string;
+  checkDate?: Date;
 }

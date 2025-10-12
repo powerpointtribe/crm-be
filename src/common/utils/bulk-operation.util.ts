@@ -235,7 +235,8 @@ export class BulkOperationUtil {
         if (isNaN(date.getTime())) {
           throw new Error(`Invalid date format: ${value}`);
         }
-        return date;
+        // Return ISO date string (YYYY-MM-DD format) instead of Date object
+        return date.toISOString().split('T')[0];
       },
 
       // Number transformations

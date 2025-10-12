@@ -26,9 +26,6 @@ export class Group {
   @Prop({
     type: Types.ObjectId,
     ref: 'Member',
-    required: function () {
-      return this.type === GroupType.DISTRICT;
-    },
   })
   districtPastor?: Types.ObjectId;
 
@@ -44,9 +41,6 @@ export class Group {
   @Prop({
     type: Types.ObjectId,
     ref: 'Member',
-    required: function () {
-      return this.type === GroupType.UNIT;
-    },
   })
   unitHead?: Types.ObjectId;
 

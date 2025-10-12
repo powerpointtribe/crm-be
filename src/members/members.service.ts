@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -34,27 +33,14 @@ export class MembersService {
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<MemberDocument> {
-    // Check if email already exists
-    const existingEmail = await this.memberModel.findOne({
-      email: createMemberDto.email.toLowerCase(),
-    });
-    if (existingEmail) {
-      throw new ConflictException('Email already registered');
-    }
 
-    // Check if phone already exists
-    const existingPhone = await this.memberModel.findOne({
-      phone: createMemberDto.phone,
-    });
-    if (existingPhone) {
-      throw new ConflictException('Phone number already registered');
-    }
+    // District assignment is now optional
+    // Members can be created without district assignment and assigned later
 
-    // Validate district assignment (this would normally check against Groups collection)
-    if (!createMemberDto.district) {
-      throw new BadRequestException(
-        'Every member must be assigned to a district',
-      );
+    // Validate and convert dateOfBirth
+    const dateOfBirth = new Date(createMemberDto.dateOfBirth);
+    if (isNaN(dateOfBirth.getTime())) {
+      throw new BadRequestException('Invalid date format for dateOfBirth. Use YYYY-MM-DD format.');
     }
 
     // TODO: Add validation to ensure district exists and is of type 'district'
@@ -63,7 +49,18 @@ export class MembersService {
     const member = new this.memberModel({
       ...createMemberDto,
       email: createMemberDto.email.toLowerCase(),
-      dateJoined: createMemberDto.dateJoined || new Date(),
+      dateOfBirth,
+      dateJoined: createMemberDto.dateJoined ? new Date(createMemberDto.dateJoined) : new Date(),
+      address: createMemberDto.address ? {
+        ...createMemberDto.address,
+        state: createMemberDto.address.state || 'Lagos',
+        country: createMemberDto.address.country || 'Nigeria',
+      } : {
+        street: '',
+        city: '',
+        state: 'Lagos',
+        country: 'Nigeria',
+      },
       leadershipRoles: createMemberDto.leadershipRoles || {
         isDistrictPastor: false,
         isChamp: false,
@@ -284,27 +281,9 @@ export class MembersService {
     id: string,
     updateMemberDto: UpdateMemberDto,
   ): Promise<MemberDocument> {
-    // Check if updating email and it already exists
+    // Normalize email if provided
     if (updateMemberDto.email) {
-      const existingEmail = await this.memberModel.findOne({
-        email: updateMemberDto.email.toLowerCase(),
-        _id: { $ne: id },
-      });
-      if (existingEmail) {
-        throw new ConflictException('Email already registered');
-      }
       updateMemberDto.email = updateMemberDto.email.toLowerCase();
-    }
-
-    // Check if updating phone and it already exists
-    if (updateMemberDto.phone) {
-      const existingPhone = await this.memberModel.findOne({
-        phone: updateMemberDto.phone,
-        _id: { $ne: id },
-      });
-      if (existingPhone) {
-        throw new ConflictException('Phone number already registered');
-      }
     }
 
     const member = await this.memberModel
@@ -841,22 +820,6 @@ export class MembersService {
     const processedDto =
       MemberCSVMappingUtil.postProcessMappedData(createMemberDto);
 
-    // Check if email already exists
-    const existingEmail = await this.memberModel.findOne({
-      email: processedDto.email.toLowerCase(),
-    });
-    if (existingEmail) {
-      throw new Error(`Email ${processedDto.email} already registered`);
-    }
-
-    // Check if phone already exists
-    const existingPhone = await this.memberModel.findOne({
-      phone: processedDto.phone,
-    });
-    if (existingPhone) {
-      throw new Error(`Phone number ${processedDto.phone} already registered`);
-    }
-
     // Validate district assignment
     if (!processedDto.district) {
       throw new Error('Every member must be assigned to a district');
@@ -887,29 +850,9 @@ export class MembersService {
     const processedDto =
       MemberCSVMappingUtil.postProcessMappedData(updateMemberDto);
 
-    // If email is being updated, check for conflicts
+    // Normalize email if provided
     if (processedDto.email) {
-      const existingEmail = await this.memberModel.findOne({
-        email: processedDto.email.toLowerCase(),
-        _id: { $ne: identifier }, // Exclude current member
-      });
-      if (existingEmail) {
-        throw new Error(`Email ${processedDto.email} already registered`);
-      }
       processedDto.email = processedDto.email.toLowerCase();
-    }
-
-    // If phone is being updated, check for conflicts
-    if (processedDto.phone) {
-      const existingPhone = await this.memberModel.findOne({
-        phone: processedDto.phone,
-        _id: { $ne: identifier }, // Exclude current member
-      });
-      if (existingPhone) {
-        throw new Error(
-          `Phone number ${processedDto.phone} already registered`,
-        );
-      }
     }
 
     const member = await this.memberModel.findOneAndUpdate(

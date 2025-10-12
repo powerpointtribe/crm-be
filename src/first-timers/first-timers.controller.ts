@@ -29,6 +29,7 @@ import {
 import { FirstTimersService } from './first-timers.service';
 import { CreateFirstTimerDto } from './dto/create-first-timer.dto';
 import { AddFollowUpDto } from './dto/add-follow-up.dto';
+import { AssignFollowUpDto } from './dto/assign-follow-up.dto';
 import { FirstTimerSearchDto } from './dto/first-timer-search.dto';
 import { BulkUploadResultDto } from './dto/bulk-upload-first-timer.dto';
 import { CSVParserUtil } from '../common/utils/csv-parser.util';
@@ -186,14 +187,14 @@ export class FirstTimersController {
   }
 
   @Get('my-assignments')
-  @Roles(UserRole.FOLLOW_UP_TEAM, UserRole.GROUP_LEADER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.FOLLOW_UP_TEAM, UserRole.GROUP_LEADER)
   @ApiOperation({ summary: 'Get first-timers assigned to current user' })
   @ApiResponse({
     status: 200,
     description: 'Assigned first-timers retrieved successfully',
   })
   async getMyAssignments(@CurrentUser() user: any) {
-    const assignments = await this.firstTimersService.getByAssignedUser(
+    const assignments = await this.firstTimersService.getByAssignedMember(
       user._id,
     );
     return ResponseUtil.success(
@@ -256,8 +257,10 @@ export class FirstTimersController {
     @Body() followUpDto: AddFollowUpDto,
     @CurrentUser() user: any,
   ) {
-    // Auto-set the contactedBy field to current user
-    followUpDto.contactedBy = user._id;
+    // Auto-set the contactedBy field to current user if not provided
+    if (!followUpDto.contactedBy) {
+      followUpDto.contactedBy = user._id;
+    }
 
     const firstTimer = await this.firstTimersService.addFollowUp(
       id,
@@ -287,17 +290,17 @@ export class FirstTimersController {
     return ResponseUtil.success(firstTimer, 'Status updated successfully');
   }
 
-  @Patch(':id/assign/:userId')
+  @Patch(':id/assign/:memberId')
   @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
   @ApiOperation({ summary: 'Assign first-timer to a follow-up team member' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
-  @ApiParam({ name: 'userId', description: 'User ID to assign to' })
+  @ApiParam({ name: 'memberId', description: 'Member ID to assign to' })
   @ApiResponse({
     status: 200,
     description: 'First-timer assigned successfully',
   })
-  async assignToUser(@Param('id') id: string, @Param('userId') userId: string) {
-    const firstTimer = await this.firstTimersService.assignToUser(id, userId);
+  async assignToMember(@Param('id') id: string, @Param('memberId') memberId: string) {
+    const firstTimer = await this.firstTimersService.assignToMember(id, memberId);
     return ResponseUtil.success(
       firstTimer,
       'First-timer assigned successfully',
@@ -319,7 +322,7 @@ export class FirstTimersController {
   })
   async convertToMember(
     @Param('id') id: string,
-    @Body() body: { memberRecordId: string },
+    @Body() body: { memberRecordId?: string },
   ) {
     const firstTimer = await this.firstTimersService.convertToMember(
       id,
@@ -328,6 +331,44 @@ export class FirstTimersController {
     return ResponseUtil.success(
       firstTimer,
       'First-timer converted to member successfully',
+    );
+  }
+
+  @Patch(':id/assign')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @ApiOperation({ summary: 'Assign follow-up person to first-timer' })
+  @ApiParam({ name: 'id', description: 'First-timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Follow-up person assigned successfully',
+  })
+  async assignFollowUp(
+    @Param('id') id: string,
+    @Body() assignDto: AssignFollowUpDto,
+  ) {
+    const firstTimer = await this.firstTimersService.assignFollowUp(
+      id,
+      assignDto.followUpPersonId,
+    );
+    return ResponseUtil.success(
+      firstTimer,
+      'Follow-up person assigned successfully',
+    );
+  }
+
+  @Get('pending-district')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @ApiOperation({ summary: 'Get first-timers pending district assignment' })
+  @ApiResponse({
+    status: 200,
+    description: 'Pending district assignments retrieved successfully',
+  })
+  async getPendingDistrictAssignments() {
+    const pendingMembers =
+      await this.firstTimersService.getPendingDistrictAssignments();
+    return ResponseUtil.success(
+      pendingMembers,
+      'Pending district assignments retrieved successfully',
     );
   }
 
@@ -403,7 +444,7 @@ export class FirstTimersController {
   async bulkAssign(
     @Body()
     body: {
-      assignments: Array<{ firstTimerId: string; userId: string }>;
+      assignments: Array<{ firstTimerId: string; memberId: string }>;
     },
   ) {
     const results: Array<{
@@ -415,9 +456,9 @@ export class FirstTimersController {
 
     for (const assignment of body.assignments) {
       try {
-        const firstTimer = await this.firstTimersService.assignToUser(
+        const firstTimer = await this.firstTimersService.assignToMember(
           assignment.firstTimerId,
-          assignment.userId,
+          assignment.memberId,
         );
         results.push({ success: true, firstTimer });
       } catch (error: any) {
@@ -618,4 +659,5 @@ export class FirstTimersController {
       message: 'Sample CSV template generated successfully',
     };
   }
+
 }

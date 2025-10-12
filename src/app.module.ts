@@ -14,6 +14,7 @@ import { FirstTimersModule } from './first-timers/first-timers.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { QueueModule } from './queue/queue.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { BullBoardModule } from './bull-board/bull-board.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     NotificationsModule,
     QueueModule,
     DashboardModule,
+    BullBoardModule,
   ],
   controllers: [AppController],
   providers: [

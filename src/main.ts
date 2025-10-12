@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import * as compression from 'compression';
 import { AppModule } from './app.module';
+import { BullBoardService } from './bull-board/bull-board.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -63,6 +64,12 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Setup Bull Board (only in development for security)
+  if (process.env.NODE_ENV !== 'production') {
+    const bullBoardService = app.get(BullBoardService);
+    app.use('/admin/queues', bullBoardService.getRouter());
+  }
+
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port, '0.0.0.0');
 
@@ -70,6 +77,9 @@ async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
     console.log(
       `📚 API Documentation available at: http://localhost:${port}/api/docs`,
+    );
+    console.log(
+      `🎛️  Bull Board (Queue Dashboard) available at: http://localhost:${port}/admin/queues`,
     );
   }
 }

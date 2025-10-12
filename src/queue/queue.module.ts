@@ -3,6 +3,8 @@ import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QueueName } from '../common/interfaces/queue-job.interface';
 import { BulkOperationProcessor } from './processors/bulk-operation.processor';
+import { FirstTimerNotificationProcessor } from './processors/first-timer-notification.processor';
+import { FirstTimerAutomationProcessor } from './processors/first-timer-automation.processor';
 import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
 import { MembersModule } from '../members/members.module';
@@ -35,12 +37,23 @@ import { FirstTimersModule } from '../first-timers/first-timers.module';
     BullModule.registerQueue({
       name: QueueName.BULK_OPERATION,
     }),
+    BullModule.registerQueue({
+      name: QueueName.FIRST_TIMER_NOTIFICATIONS,
+    }),
+    BullModule.registerQueue({
+      name: QueueName.FIRST_TIMER_AUTOMATION,
+    }),
     forwardRef(() => MembersModule),
     forwardRef(() => UsersModule),
     forwardRef(() => FirstTimersModule),
   ],
   controllers: [QueueController],
-  providers: [BulkOperationProcessor, QueueService],
+  providers: [
+    BulkOperationProcessor,
+    FirstTimerNotificationProcessor,
+    FirstTimerAutomationProcessor,
+    QueueService,
+  ],
   exports: [QueueService, BullModule],
 })
 export class QueueModule {}
