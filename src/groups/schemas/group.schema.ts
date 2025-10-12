@@ -71,6 +71,8 @@ export class Group {
       },
       time: String,
       location: String,
+      isVirtual: { type: Boolean, default: false },
+      virtualLink: String, // For online meetings (Zoom, Teams, etc.)
       address: {
         street: String,
         city: String,
@@ -83,6 +85,8 @@ export class Group {
     day: string;
     time: string;
     location: string;
+    isVirtual?: boolean;
+    virtualLink?: string;
     address?: {
       street: string;
       city: string;

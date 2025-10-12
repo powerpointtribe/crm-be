@@ -10,6 +10,8 @@ import {
   ValidateNested,
   IsObject,
   IsEmail,
+  IsBoolean,
+  IsUrl,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -46,7 +48,23 @@ class MeetingScheduleDto {
   location?: string;
 
   @ApiPropertyOptional({
-    description: 'Meeting address',
+    description: 'Is the meeting virtual/online',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isVirtual?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Virtual meeting link (Zoom, Teams, etc.)',
+    example: 'https://zoom.us/j/123456789',
+  })
+  @IsOptional()
+  @IsUrl()
+  virtualLink?: string;
+
+  @ApiPropertyOptional({
+    description: 'Physical meeting address (not required for virtual meetings)',
     type: 'object',
     properties: {
       street: { type: 'string' },
