@@ -216,12 +216,8 @@ export class MembersService {
   }
 
   async findByUserId(userId: string): Promise<MemberDocument | null> {
-    // Note: This assumes you have a way to link User and Member records
-    // For now, we'll use email as the link between User and Member
-    const user = await this.userModel?.findById(userId);
-    if (!user) return null;
-
-    return this.findByEmail(user.email);
+    // Since users are now represented by members, userId is the memberId
+    return this.memberModel.findById(userId).exec();
   }
 
   async findByEmail(email: string): Promise<MemberDocument | null> {

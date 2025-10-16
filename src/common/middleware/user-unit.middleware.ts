@@ -3,10 +3,10 @@ import { Request, Response, NextFunction } from 'express';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Unit, UnitDocument } from '../../units/schemas/unit.schema';
-import { User } from '../../users/schemas/user.schema';
+import { Member } from '../../members/schemas/member-unified.schema';
 
 export interface RequestWithUserUnit extends Request {
-  user: User;
+  user: Member;
   userUnit?: Unit;
 }
 
@@ -15,9 +15,9 @@ export class UserUnitMiddleware implements NestMiddleware {
   constructor(@InjectModel(Unit.name) private unitModel: Model<UnitDocument>) {}
 
   async use(req: RequestWithUserUnit, res: Response, next: NextFunction) {
-    if (req.user && req.user.leaderOfUnit) {
+    if (req.user && req.user.leadershipRoles?.leadsUnit) {
       try {
-        const unit = await this.unitModel.findById(req.user.leaderOfUnit);
+        const unit = await this.unitModel.findById(req.user.leadershipRoles.leadsUnit);
         if (!unit) return next();
 
         req.userUnit = unit;

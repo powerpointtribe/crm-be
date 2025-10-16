@@ -8,7 +8,6 @@ import { FirstTimerAutomationProcessor } from './processors/first-timer-automati
 import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
 import { MembersModule } from '../members/members.module';
-import { UsersModule } from '../users/users.module';
 import { FirstTimersModule } from '../first-timers/first-timers.module';
 
 @Module({
@@ -44,7 +43,6 @@ import { FirstTimersModule } from '../first-timers/first-timers.module';
       name: QueueName.FIRST_TIMER_AUTOMATION,
     }),
     forwardRef(() => MembersModule),
-    forwardRef(() => UsersModule),
     forwardRef(() => FirstTimersModule),
   ],
   controllers: [QueueController],

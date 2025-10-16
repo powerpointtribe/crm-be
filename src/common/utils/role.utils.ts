@@ -5,29 +5,29 @@ import {
   ROLE_MODULE_ACCESS,
   UnitType,
 } from '../enums/dashboard-modules.enums';
-import { User } from '../../users/schemas/user.schema';
+import { Member } from '../../members/schemas/member-unified.schema';
 import { Unit, UnitDocument } from '../../units/schemas/unit.schema';
 
 export class RoleUtils {
-  static hasRole(user: User, role: UserRole): boolean {
-    return user.roles.includes(role);
+  static hasRole(user: Member, role: UserRole): boolean {
+    return user.systemRoles.includes(role);
   }
 
-  static hasAnyRole(user: User, roles: UserRole[]): boolean {
-    return user.roles.some((userRole) => roles.includes(userRole));
+  static hasAnyRole(user: Member, roles: UserRole[]): boolean {
+    return user.systemRoles.some((userRole) => roles.includes(userRole));
   }
 
-  static hasAllRoles(user: User, roles: UserRole[]): boolean {
-    return roles.every((role) => user.roles.includes(role));
+  static hasAllRoles(user: Member, roles: UserRole[]): boolean {
+    return roles.every((role) => user.systemRoles.includes(role));
   }
 
-  static canAccessDashboard(user: User): boolean {
+  static canAccessDashboard(user: Member): boolean {
     // Only LXL members and above can access dashboard
     return this.isLXLMember(user) || this.hasRole(user, UserRole.ADMIN);
   }
 
   static canAccessModule(
-    user: User,
+    user: Member,
     module: DashboardModule,
     userUnit?: UnitDocument,
   ): boolean {
@@ -48,7 +48,7 @@ export class RoleUtils {
     // Check unit-based access for unit leaders
     if (
       userUnit &&
-      user.leaderOfUnit?.toString() === userUnit._id?.toString()
+      user.leadershipRoles?.leadsUnit?.toString() === userUnit._id?.toString()
     ) {
       const unitModules = UNIT_MODULE_ACCESS[userUnit.unitType];
       return unitModules?.includes(module) || false;
@@ -67,7 +67,7 @@ export class RoleUtils {
     return false;
   }
 
-  static getAccessibleModules(user: User, userUnit?: Unit): DashboardModule[] {
+  static getAccessibleModules(user: Member, userUnit?: Unit): DashboardModule[] {
     // Admin can access everything
     if (this.hasRole(user, UserRole.ADMIN)) {
       return ROLE_MODULE_ACCESS.admin;
@@ -85,7 +85,7 @@ export class RoleUtils {
     // Unit-based modules (for unit leaders)
     if (
       userUnit &&
-      user.leaderOfUnit?.toString() === userUnit?._id?.toString()
+      user.leadershipRoles?.leadsUnit?.toString() === userUnit?._id?.toString()
     ) {
       const unitModules = UNIT_MODULE_ACCESS[userUnit.unitType] || [];
       accessibleModules = [...new Set([...accessibleModules, ...unitModules])];
@@ -103,11 +103,11 @@ export class RoleUtils {
     return accessibleModules;
   }
 
-  static canBeUnitLeader(user: User): boolean {
+  static canBeUnitLeader(user: Member): boolean {
     return this.hasAnyRole(user, LXL_ROLES);
   }
 
-  static canManageMinistry(user: User, ministryId?: string): boolean {
+  static canManageMinistry(user: Member, ministryId?: string): boolean {
     if (this.hasRole(user, UserRole.ADMIN)) return true;
 
     if (this.hasRole(user, UserRole.DIRECTOR)) {
@@ -124,24 +124,24 @@ export class RoleUtils {
     return false;
   }
 
-  static canManageUser(currentUser: User, targetUser: User): boolean {
-    if (this.hasRole(currentUser, UserRole.ADMIN)) return true;
+  static canManageMember(currentMember: Member, targetMember: Member): boolean {
+    if (this.hasRole(currentMember, UserRole.ADMIN)) return true;
 
-    const currentUserMaxLevel = Math.max(
-      ...currentUser.roles.map((role) => ROLE_HIERARCHY[role]),
+    const currentMemberMaxLevel = Math.max(
+      ...currentMember.systemRoles.map((role) => ROLE_HIERARCHY[role]),
     );
-    const targetUserMaxLevel = Math.max(
-      ...targetUser.roles.map((role) => ROLE_HIERARCHY[role]),
+    const targetMemberMaxLevel = Math.max(
+      ...targetMember.systemRoles.map((role) => ROLE_HIERARCHY[role]),
     );
 
-    return currentUserMaxLevel > targetUserMaxLevel;
+    return currentMemberMaxLevel > targetMemberMaxLevel;
   }
 
-  static getHighestRole(user: User): UserRole {
+  static getHighestRole(user: Member): UserRole {
     let highestRole = UserRole.MEMBER;
     let highestLevel = ROLE_HIERARCHY[UserRole.MEMBER];
 
-    for (const role of user.roles) {
+    for (const role of user.systemRoles) {
       if (ROLE_HIERARCHY[role] > highestLevel) {
         highestLevel = ROLE_HIERARCHY[role];
         highestRole = role;
@@ -151,32 +151,32 @@ export class RoleUtils {
     return highestRole;
   }
 
-  static isLXLMember(user: User): boolean {
+  static isLXLMember(user: Member): boolean {
     return this.hasAnyRole(user, LXL_ROLES);
   }
 
-  static isDCWorker(user: User): boolean {
+  static isDCWorker(user: Member): boolean {
     return this.hasRole(user, UserRole.DC);
   }
 
-  static canViewUserDetails(currentUser: User, targetUser: User): boolean {
-    if (this.hasRole(currentUser, UserRole.ADMIN)) return true;
+  static canViewMemberDetails(currentMember: Member, targetMember: Member): boolean {
+    if (this.hasRole(currentMember, UserRole.ADMIN)) return true;
 
-    if (this.hasRole(currentUser, UserRole.PASTOR)) return true;
+    if (this.hasRole(currentMember, UserRole.PASTOR)) return true;
 
-    if (this.hasRole(currentUser, UserRole.DIRECTOR)) {
+    if (this.hasRole(currentMember, UserRole.DIRECTOR)) {
       return !!(
-        targetUser &&
-        targetUser.ministry &&
-        currentUser.directorOfMinistries?.some(
-          (id) => id.toString() === targetUser.ministry?.toString(),
+        targetMember &&
+        targetMember.ministries &&
+        currentMember.directorOfMinistries?.some(
+          (ministryId) => targetMember.ministries?.includes(ministryId.toString()),
         )
       );
     }
 
-    if (currentUser.leaderOfUnit) {
+    if (currentMember.leadershipRoles?.leadsUnit) {
       return (
-        targetUser.unit?.toString() === currentUser.leaderOfUnit.toString()
+        targetMember.unit?.toString() === currentMember.leadershipRoles.leadsUnit.toString()
       );
     }
 

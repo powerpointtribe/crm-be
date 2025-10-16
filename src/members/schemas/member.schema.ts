@@ -4,7 +4,7 @@ import { MembershipStatus } from '../../common/enums/member-status.enum';
 import { UserRole } from '../../common/enums/user-roles.enums';
 import { UnitType } from '../../common/enums/dashboard-modules.enums';
 
-export type MemberDocument = Member & Document;
+export type MemberDocument = Member & Document & { _id: Types.ObjectId };
 
 @Schema({
   timestamps: true,

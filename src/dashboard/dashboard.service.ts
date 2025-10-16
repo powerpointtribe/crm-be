@@ -16,12 +16,11 @@ import {
   ActivityItemDto,
   DemographicsDto,
 } from './dto/analytics.dto';
-import { Member, MemberDocument } from '../members/schemas/member.schema';
+import { Member, MemberDocument } from '../members/schemas/member-unified.schema';
 import {
   FirstTimer,
   FirstTimerDocument,
 } from '../first-timers/schemas/first-timer.schema';
-import { User, UserDocument } from '../users/schemas/user.schema';
 import { Group, GroupDocument } from '../groups/schemas/group.schema';
 // import { QueueService } from '../queue/queue.service';
 
@@ -31,7 +30,6 @@ export class DashboardService {
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
     @InjectModel(FirstTimer.name)
     private firstTimerModel: Model<FirstTimerDocument>,
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
     // private queueService: QueueService,
   ) {}
@@ -69,7 +67,7 @@ export class DashboardService {
       this.memberModel.countDocuments(),
       this.memberModel.countDocuments({ isActive: true }),
       this.firstTimerModel.countDocuments(),
-      this.userModel.countDocuments(),
+      this.memberModel.countDocuments(),
       this.groupModel.countDocuments(),
     ]);
 
@@ -503,7 +501,7 @@ export class DashboardService {
       this.groupModel.countDocuments({
         createdAt: { $gte: startDate, $lt: endDate },
       }),
-      this.userModel.countDocuments({
+      this.memberModel.countDocuments({
         createdAt: { $gte: startDate, $lt: endDate },
       }),
     ]);
@@ -679,7 +677,7 @@ export class DashboardService {
     });
 
     // Get recent users
-    const recentUsers = await this.userModel
+    const recentUsers = await this.memberModel
       .find({ createdAt: { $gte: startDate } })
       .sort({ createdAt: -1 })
       .limit(Math.floor(limit / 4))
@@ -689,12 +687,12 @@ export class DashboardService {
       activities.push({
         id: `user_${(user as any)._id}`,
         type: 'user_registered',
-        description: `${user.firstName} ${user.lastName} registered as ${JSON.stringify(user.roles)}`,
+        description: `${user.firstName} ${user.lastName} registered as ${JSON.stringify(user.systemRoles)}`,
         timestamp: user.createdAt,
         entityData: {
           id: (user as any)._id.toString(),
           name: `${user.firstName} ${user.lastName}`,
-          type: JSON.stringify(user.roles),
+          type: JSON.stringify(user.systemRoles),
         },
       });
     });
@@ -761,7 +759,7 @@ export class DashboardService {
       this.groupModel.countDocuments({
         createdAt: { $gte: startDate, $lt: endDate },
       }),
-      this.userModel.countDocuments({
+      this.memberModel.countDocuments({
         createdAt: { $gte: startDate, $lt: endDate },
       }),
     ]);
@@ -771,7 +769,7 @@ export class DashboardService {
 
   private async getMostActiveUsers(startDate: Date, limit: number) {
     // This is a simplified version - in a real app, you'd track user activities
-    const recentUsers = await this.userModel
+    const recentUsers = await this.memberModel
       .find({ createdAt: { $gte: startDate } })
       .sort({ createdAt: -1 })
       .limit(limit)

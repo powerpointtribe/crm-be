@@ -25,8 +25,7 @@ import { MembersService } from './members.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { Member } from './schemas/member-unified.schema';
-import { MemberDocument } from './schemas/member.schema';
+import { Member, MemberDocument } from './schemas/member-unified.schema';
 import { UserRole } from 'src/common/enums/user-roles.enums';
 
 @Controller('members')

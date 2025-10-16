@@ -6,7 +6,6 @@ import {
   FirstTimerNotificationJobData,
 } from '../../common/interfaces/queue-job.interface';
 import { FirstTimersService } from '../../first-timers/first-timers.service';
-import { UsersService } from '../../users/users.service';
 import { MembersService } from '../../members/members.service';
 
 @Injectable()
@@ -16,7 +15,6 @@ export class FirstTimerNotificationProcessor {
 
   constructor(
     private firstTimersService: FirstTimersService,
-    private usersService: UsersService,
     private membersService: MembersService,
   ) {}
 
@@ -53,7 +51,7 @@ export class FirstTimerNotificationProcessor {
 
       const [firstTimer, giaLeader, member] = await Promise.all([
         this.firstTimersService.findById(firstTimerId),
-        this.usersService.findById(giaLeaderId),
+        this.membersService.findById(giaLeaderId),
         this.membersService.findById(memberRecordId),
       ]);
 

@@ -14,14 +14,11 @@ import { BulkOperationType } from '../../common/interfaces/bulk-operation.interf
 
 // Import services
 import { MembersService } from '../../members/members.service';
-import { UsersService } from '../../users/users.service';
 import { FirstTimersService } from '../../first-timers/first-timers.service';
 
 // Import DTOs
 import { CreateMemberDto } from '../../members/dto/create-member.dto';
 import { UpdateMemberDto } from '../../members/dto/update-member.dto';
-import { CreateUserDto } from '../../users/dto/create-user.dto';
-import { UpdateUserDto } from '../../users/dto/update-user.dto';
 import { CreateFirstTimerDto } from '../../first-timers/dto/create-first-timer.dto';
 
 @Processor(QueueName.BULK_OPERATION)
@@ -31,7 +28,6 @@ export class BulkOperationProcessor {
 
   constructor(
     private readonly membersService: MembersService,
-    private readonly usersService: UsersService,
     private readonly firstTimersService: FirstTimersService,
   ) {}
 
@@ -292,27 +288,27 @@ export class BulkOperationProcessor {
       const result = await BulkOperationUtil.processBulkOperation(
         csvContent,
         operationType === BulkOperationType.CREATE
-          ? CreateUserDto
-          : UpdateUserDto,
+          ? CreateMemberDto
+          : UpdateMemberDto,
         userCSVMapping,
         // Create function
-        async (dto: CreateUserDto) => {
-          return await this.usersService.create(dto);
+        async (dto: CreateMemberDto) => {
+          return await this.membersService.create(dto);
         },
         // Update function
-        async (identifier: any, dto: Partial<UpdateUserDto>) => {
-          const user = await this.usersService.findByEmail(identifier);
-          if (!user) {
-            throw new Error(`User with email ${identifier} not found`);
+        async (identifier: any, dto: Partial<UpdateMemberDto>) => {
+          const member = await this.membersService.findByEmail(identifier);
+          if (!member) {
+            throw new Error(`Member with email ${identifier} not found`);
           }
-          return await this.usersService.update(
-            (user as any)._id.toString(),
+          return await this.membersService.update(
+            (member as any)._id.toString(),
             dto,
           );
         },
         // Find function
         async (identifier: any) => {
-          return await this.usersService.findByEmail(identifier);
+          return await this.membersService.findByEmail(identifier);
         },
         {
           ...options,

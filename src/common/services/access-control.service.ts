@@ -6,8 +6,7 @@ import {
   ROLE_MODULE_ACCESS
 } from '../enums/dashboard-modules.enums';
 import { UserRole } from '../enums/user-roles.enums';
-import { Member } from '../../members/schemas/member-unified.schema';
-import { MemberDocument } from 'src/members/schemas/member.schema';
+import { Member, MemberDocument } from '../../members/schemas/member-unified.schema';
 
 export interface AccessControlContext {
   member: Member;
