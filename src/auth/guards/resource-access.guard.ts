@@ -35,11 +35,7 @@ export class ResourceAccessGuard implements CanActivate {
     }
 
     // Super admins and pastors have access to everything
-    if (
-      [UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP].includes(
-        user.role,
-      )
-    ) {
+    if ([UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL].includes(user.roles)) {
       return true;
     }
 
@@ -53,13 +49,10 @@ export class ResourceAccessGuard implements CanActivate {
   ): Promise<boolean> {
     const { resource, operation, allowSelfAccess } = config;
 
-    switch (user.role) {
-      case UserRole.GROUP_LEADER:
+    switch (user.roles) {
+      case UserRole.LXL:
         // For now, allow GROUP_LEADER access - we'll implement detailed checks in the controller
         return true;
-
-      case UserRole.FOLLOW_UP_TEAM:
-        return this.checkFollowUpTeamAccess(resource, operation);
 
       case UserRole.MEMBER:
         return this.checkMemberAccess(user, resource, params, allowSelfAccess);

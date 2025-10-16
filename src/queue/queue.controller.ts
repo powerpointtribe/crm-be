@@ -32,12 +32,7 @@ export class QueueController {
   constructor(private readonly queueService: QueueService) {}
 
   @Get('jobs/:jobId/status')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get job status by ID' })
   @ApiParam({ name: 'jobId', description: 'Job ID' })
   @ApiResponse({
@@ -50,12 +45,7 @@ export class QueueController {
   }
 
   @Get('jobs/history')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get job history for current user' })
   @ApiQuery({
     name: 'limit',
@@ -77,12 +67,7 @@ export class QueueController {
   }
 
   @Delete('jobs/:jobId')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Cancel a job' })
   @ApiParam({ name: 'jobId', description: 'Job ID' })
   @ApiResponse({
@@ -100,7 +85,7 @@ export class QueueController {
   }
 
   @Get('stats')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR)
   @ApiOperation({ summary: 'Get queue statistics (admin only)' })
   @ApiResponse({
     status: 200,

@@ -260,7 +260,7 @@ export class UsersService {
     const user = new this.userModel({
       ...createUserDto,
       email: createUserDto.email.toLowerCase(),
-      role: createUserDto.role || UserRole.MEMBER,
+      role: createUserDto.roles || UserRole.MEMBER,
       isActive:
         createUserDto.isActive !== undefined ? createUserDto.isActive : true,
     });

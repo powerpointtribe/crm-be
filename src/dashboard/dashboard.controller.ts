@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, UseGuards, Query, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -14,47 +14,63 @@ import {
   DemographicsDto,
 } from './dto/analytics.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
+import {
+  Roles,
+  DashboardAccess,
+  FirstTimersAccess,
+  MembersAccess,
+  SystemSettingsAccess,
+  FinancesAccess,
+  ReportsAccess,
+  UserManagementAccess,
+} from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-roles.enums';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
+import { RoleUtils } from '../common/utils/role.utils';
+import { RequestWithUserUnit } from '../common/middleware/user-unit.middleware';
+import { DashboardDocs } from '../../docs/api/dashboard.docs';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
+@DashboardAccess() // Only LXL members and above can access dashboard
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
+  @Get('modules')
+  @ApiOperation(DashboardDocs.getAccessibleModules.operation)
+  getAccessibleModules(
+    @CurrentUser() user: any,
+    @Req() req: RequestWithUserUnit,
+  ) {
+    const accessibleModules = RoleUtils.getAccessibleModules(
+      user,
+      req.userUnit,
+    );
+    return ResponseUtil.success(
+      {
+        modules: accessibleModules,
+        userRole: RoleUtils.getHighestRole(user),
+        isUnitLeader: !!user.leaderOfUnit,
+        unitType: req.userUnit?.unitType || null,
+      },
+      'Accessible modules retrieved successfully',
+    );
+  }
+
   @Get('overview')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
-  )
-  @ApiOperation({
-    summary: 'Get dashboard overview with key metrics and statistics',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Dashboard overview retrieved successfully',
-    type: DashboardOverviewDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - User not authenticated',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - Insufficient permissions',
-  })
+  @ReportsAccess() // Reports module access required for overview
+  @ApiOperation(DashboardDocs.getDashboardOverview.operation)
+  @ApiResponse(DashboardDocs.getDashboardOverview.responses[0])
+  @ApiResponse(DashboardDocs.getDashboardOverview.responses[1])
+  @ApiResponse(DashboardDocs.getDashboardOverview.responses[2])
   async getDashboardOverview(@CurrentUser() user: any) {
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
-      user.role,
+      user.roles,
     );
 
     return ResponseUtil.success(
@@ -63,8 +79,54 @@ export class DashboardController {
     );
   }
 
+  @Get('first-timers')
+  @FirstTimersAccess() // Only GIA unit heads and above can access
+  @ApiOperation(DashboardDocs.getFirstTimers.operation)
+  async getFirstTimers(@CurrentUser() user: any) {
+    return ResponseUtil.success(
+      {
+        message:
+          'First timers data - accessible to GIA unit heads, pastors, and admin',
+      },
+      'First timers data retrieved successfully',
+    );
+  }
+
+  @Get('members')
+  @MembersAccess() // All unit heads, directors, pastors can access
+  @ApiOperation({ summary: 'Get members data' })
+  async getMembers(@CurrentUser() user: any) {
+    return ResponseUtil.success(
+      {
+        message:
+          'Members data - accessible to all unit heads, directors, pastors',
+      },
+      'Members data retrieved successfully',
+    );
+  }
+
+  @Get('finances')
+  @FinancesAccess() // Pastors and admin only
+  @ApiOperation({ summary: 'Get financial data' })
+  async getFinances(@CurrentUser() user: any) {
+    return ResponseUtil.success(
+      { message: 'Financial data - accessible to pastors and admin only' },
+      'Financial data retrieved successfully',
+    );
+  }
+
+  @Get('settings')
+  @SystemSettingsAccess() // Admin only
+  @ApiOperation({ summary: 'Get system settings' })
+  async getSystemSettings(@CurrentUser() user: any) {
+    return ResponseUtil.success(
+      { message: 'System settings - admin only' },
+      'System settings retrieved successfully',
+    );
+  }
+
   @Get('stats')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @ReportsAccess() // Reports module access
   @ApiOperation({ summary: 'Get detailed statistics (admin only)' })
   @ApiQuery({
     name: 'period',
@@ -83,7 +145,7 @@ export class DashboardController {
     // This endpoint can be extended for more detailed statistics
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
-      user.role,
+      user.roles,
     );
 
     return ResponseUtil.success(
@@ -98,13 +160,7 @@ export class DashboardController {
   }
 
   @Get('activity')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get recent activity feed' })
   @ApiQuery({
     name: 'limit',
@@ -122,7 +178,7 @@ export class DashboardController {
   ) {
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
-      user.role,
+      user.roles,
     );
 
     return ResponseUtil.success(
@@ -136,13 +192,7 @@ export class DashboardController {
   }
 
   @Get('tasks')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get pending tasks and notifications' })
   @ApiResponse({
     status: 200,
@@ -151,7 +201,7 @@ export class DashboardController {
   async getPendingTasks(@CurrentUser() user: any) {
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
-      user.role,
+      user.roles,
     );
 
     return ResponseUtil.success(
@@ -161,14 +211,7 @@ export class DashboardController {
   }
 
   @Get('quick-stats')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
-    UserRole.MEMBER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
   @ApiOperation({ summary: 'Get quick stats for header/sidebar display' })
   @ApiResponse({
     status: 200,
@@ -177,7 +220,7 @@ export class DashboardController {
   async getQuickStats(@CurrentUser() user: any) {
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
-      user.role,
+      user.roles,
     );
 
     return ResponseUtil.success(
@@ -192,7 +235,7 @@ export class DashboardController {
   }
 
   @Get('growth-analytics')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({
     summary: 'Get growth analytics and trends data',
     description:
@@ -222,13 +265,7 @@ export class DashboardController {
   }
 
   @Get('recent-activity')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({
     summary: 'Get recent activity analytics',
     description:
@@ -268,7 +305,7 @@ export class DashboardController {
   }
 
   @Get('demographics')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({
     summary: 'Get member demographics analytics',
     description:

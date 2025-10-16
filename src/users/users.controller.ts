@@ -28,6 +28,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../common/enums/user-roles.enums';
 import { ResponseUtil } from '../common/utils/response.util';
+import { UsersDocs } from '../../docs/api/users.docs';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -37,31 +38,28 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
-  @ApiOperation({ summary: 'Create a new user' })
-  @ApiResponse({ status: 201, description: 'User created successfully' })
-  @ApiResponse({ status: 409, description: 'Email already registered' })
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation(UsersDocs.create.operation)
+  @ApiResponse(UsersDocs.create.responses[0])
+  @ApiResponse(UsersDocs.create.responses[1])
   async create(@Body() createUserDto: CreateUserDto) {
     const user = await this.usersService.create(createUserDto);
     return ResponseUtil.success(user, 'User created successfully');
   }
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
-  @ApiOperation({ summary: 'Get all users with pagination and search' })
-  @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation(UsersDocs.findAll.operation)
+  @ApiResponse(UsersDocs.findAll.responses[0])
   async findAll(@Query() searchDto: SearchDto) {
     const users = await this.usersService.findAll(searchDto);
     return ResponseUtil.success(users, 'Users retrieved successfully');
   }
 
   @Get('stats')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
-  @ApiOperation({ summary: 'Get user statistics' })
-  @ApiResponse({
-    status: 200,
-    description: 'User stats retrieved successfully',
-  })
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation(UsersDocs.getUserStats.operation)
+  @ApiResponse(UsersDocs.getUserStats.responses[0])
   async getUserStats() {
     const stats = await this.usersService.getUserStats();
     return ResponseUtil.success(stats, 'User stats retrieved successfully');
@@ -76,7 +74,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiParam({ name: 'id', description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User retrieved successfully' })
@@ -87,7 +85,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Update user by ID' })
   @ApiParam({ name: 'id', description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
@@ -98,7 +96,7 @@ export class UsersController {
   }
 
   @Patch(':id/deactivate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Deactivate user' })
   @ApiParam({ name: 'id', description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User deactivated successfully' })
@@ -108,7 +106,7 @@ export class UsersController {
   }
 
   @Patch(':id/activate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Activate user' })
   @ApiParam({ name: 'id', description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User activated successfully' })
@@ -118,7 +116,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete user' })
   @ApiParam({ name: 'id', description: 'User ID' })

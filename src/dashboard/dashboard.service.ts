@@ -689,12 +689,12 @@ export class DashboardService {
       activities.push({
         id: `user_${(user as any)._id}`,
         type: 'user_registered',
-        description: `${user.firstName} ${user.lastName} registered as ${user.role}`,
+        description: `${user.firstName} ${user.lastName} registered as ${JSON.stringify(user.roles)}`,
         timestamp: user.createdAt,
         entityData: {
           id: (user as any)._id.toString(),
           name: `${user.firstName} ${user.lastName}`,
-          type: user.role,
+          type: JSON.stringify(user.roles),
         },
       });
     });

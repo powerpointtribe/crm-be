@@ -12,6 +12,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
+import { AuthDocs } from '../../docs/api/auth.docs';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -20,9 +21,9 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  @ApiOperation({ summary: 'User login' })
-  @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiOperation(AuthDocs.login.operation)
+  @ApiResponse(AuthDocs.login.responses[0])
+  @ApiResponse(AuthDocs.login.responses[1])
   async login(@Body() loginDto: LoginDto) {
     const result = await this.authService.login(loginDto);
     return ResponseUtil.success(result, 'Login successful');
@@ -30,9 +31,9 @@ export class AuthController {
 
   @Public()
   @Post('register')
-  @ApiOperation({ summary: 'User registration' })
-  @ApiResponse({ status: 201, description: 'Registration successful' })
-  @ApiResponse({ status: 409, description: 'Email already registered' })
+  @ApiOperation(AuthDocs.register.operation)
+  @ApiResponse(AuthDocs.register.responses[0])
+  @ApiResponse(AuthDocs.register.responses[1])
   async register(@Body() registerDto: RegisterDto) {
     const result = await this.authService.register(registerDto);
     return ResponseUtil.success(result, 'Registration successful');
@@ -41,15 +42,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('profile')
-  @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
+  @ApiOperation(AuthDocs.getProfile.operation)
+  @ApiResponse(AuthDocs.getProfile.responses[0])
   async getProfile(@CurrentUser() user: any) {
     const userProfile = {
       id: user._id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role,
+      role: user.roles,
       phone: user.phone,
       isActive: user.isActive,
       createdAt: user.createdAt,

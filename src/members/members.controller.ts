@@ -57,12 +57,7 @@ export class MembersController {
   ) {}
 
   @Post()
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Create a new member' })
   async create(@Body() createMemberDto: CreateMemberDto) {
     const member = await this.membersService.create(createMemberDto);
@@ -70,13 +65,7 @@ export class MembersController {
   }
 
   @Get()
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get all members with advanced filtering' })
   async findAll(@Query() searchDto: MemberSearchDto, @CurrentUser() user: any) {
     // Apply user-specific filters based on role
@@ -86,7 +75,7 @@ export class MembersController {
   }
 
   @Get('stats')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get comprehensive member statistics' })
   async getMemberStats() {
     const stats = await this.membersService.getMemberStats();
@@ -95,12 +84,7 @@ export class MembersController {
 
   // DISTRICT-SPECIFIC ENDPOINTS
   @Get('district/:districtId')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Get all members in a specific district' })
   @ApiParam({ name: 'districtId', description: 'District ID' })
   async getDistrictMembers(
@@ -108,7 +92,7 @@ export class MembersController {
     @CurrentUser() user: any,
   ) {
     // Check if user has access to this district
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       const hasAccess = await this.checkDistrictAccess(user.email, districtId);
       if (!hasAccess) {
         throw new ForbiddenException(
@@ -125,7 +109,7 @@ export class MembersController {
   }
 
   @Get('my-district')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.GROUP_LEADER)
+  @Roles(UserRole.ADMIN, UserRole.LXL)
   @ApiOperation({ summary: "Get members in current user's district" })
   async getMyDistrictMembers(@CurrentUser() user: any) {
     const member = await this.membersService.findByEmail(user.email);
@@ -143,12 +127,7 @@ export class MembersController {
 
   // UNIT-SPECIFIC ENDPOINTS
   @Get('unit/:unitId')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Get all members in a specific unit' })
   @ApiParam({ name: 'unitId', description: 'Unit ID' })
   async getUnitMembers(
@@ -156,7 +135,7 @@ export class MembersController {
     @CurrentUser() user: any,
   ) {
     // Check if user has access to this unit
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       const hasAccess = await this.checkUnitAccess(user.email, unitId);
       if (!hasAccess) {
         throw new ForbiddenException(
@@ -170,7 +149,7 @@ export class MembersController {
   }
 
   @Get('my-unit')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.GROUP_LEADER)
+  @Roles(UserRole.ADMIN, UserRole.LXL)
   @ApiOperation({ summary: "Get members in current user's unit" })
   async getMyUnitMembers(@CurrentUser() user: any) {
     const member = await this.membersService.findByEmail(user.email);
@@ -187,26 +166,12 @@ export class MembersController {
   }
 
   @Get(':id')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
-    UserRole.MEMBER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
   @ApiOperation({ summary: 'Get member by ID' })
   @ApiParam({ name: 'id', description: 'Member ID' })
   async findOne(@Param('id') id: string, @CurrentUser() user: any) {
     // Check access for non-admin roles
-    if (
-      ![
-        UserRole.SUPER_ADMIN,
-        UserRole.PASTOR,
-        UserRole.LEADERSHIP,
-        UserRole.FOLLOW_UP_TEAM,
-      ].includes(user.role)
-    ) {
+    if (![UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL].includes(user.roles)) {
       const hasAccess = await this.checkMemberAccess(user.email, id);
       if (!hasAccess) {
         throw new ForbiddenException(
@@ -220,13 +185,7 @@ export class MembersController {
   }
 
   @Patch(':id')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Update member' })
   @ApiParam({ name: 'id', description: 'Member ID' })
   async update(
@@ -235,7 +194,7 @@ export class MembersController {
     @CurrentUser() user: any,
   ) {
     // Check access for group leaders
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       const hasAccess = await this.checkMemberAccess(user.email, id);
       if (!hasAccess) {
         throw new ForbiddenException(
@@ -249,7 +208,7 @@ export class MembersController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete member (super admin only)' })
   @ApiParam({ name: 'id', description: 'Member ID' })
@@ -263,18 +222,11 @@ export class MembersController {
     searchDto: MemberSearchDto,
     user: any,
   ): Promise<MemberSearchDto> {
-    if (
-      [
-        UserRole.SUPER_ADMIN,
-        UserRole.PASTOR,
-        UserRole.LEADERSHIP,
-        UserRole.FOLLOW_UP_TEAM,
-      ].includes(user.role)
-    ) {
+    if ([UserRole.PASTOR, UserRole.LXL].includes(user.role)) {
       return searchDto; // No restrictions for senior roles
     }
 
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       const member = await this.membersService.findByEmail(user.email);
       if (member?.leadershipRoles) {
         // Restrict to their district or unit
@@ -342,7 +294,7 @@ export class MembersController {
   }
 
   @Post('bulk-operation')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Queue bulk create or update members from CSV file',
@@ -503,7 +455,7 @@ export class MembersController {
   }
 
   @Get('csv-templates/:operationType')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Download CSV template for bulk operations' })
   @ApiParam({
     name: 'operationType',

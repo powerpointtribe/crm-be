@@ -28,6 +28,7 @@ import {
 } from '@nestjs/swagger';
 import { FirstTimersService } from './first-timers.service';
 import { CreateFirstTimerDto } from './dto/create-first-timer.dto';
+import { PublicCreateFirstTimerDto } from './dto/public-first-timer.dto';
 import { AddFollowUpDto } from './dto/add-follow-up.dto';
 import { AssignFollowUpDto } from './dto/assign-follow-up.dto';
 import { FirstTimerSearchDto } from './dto/first-timer-search.dto';
@@ -41,6 +42,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-roles.enums';
 import { EngagementStatus } from '../common/enums/engagement-status.enum';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
 
 @ApiTags('First Timers')
@@ -53,14 +55,48 @@ export class FirstTimersController {
     private readonly queueService: QueueService,
   ) {}
 
+  @Post('public')
+  @Public()
+  @ApiTags('Public API')
+  @ApiOperation({
+    summary: 'Register a new first-time visitor (Public endpoint)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'First-timer registered successfully from public domain',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data',
+  })
+  async createPublic(@Body() createFirstTimerDto: PublicCreateFirstTimerDto) {
+    // Convert public DTO to internal DTO and add metadata
+    const internalDto: CreateFirstTimerDto = {
+      ...createFirstTimerDto,
+      dateOfVisit: new Date().toISOString().split('T')[0], // Set to today
+      notes: createFirstTimerDto.notes
+        ? `[PUBLIC DOMAIN] ${createFirstTimerDto.notes}`
+        : '[PUBLIC DOMAIN] Registration from website/public form',
+      howDidYouHear: createFirstTimerDto.howDidYouHear || 'website',
+      visitorType: createFirstTimerDto.visitorType || 'first_time',
+    };
+
+    const firstTimer = await this.firstTimersService.create(internalDto);
+
+    return ResponseUtil.success(
+      {
+        id: firstTimer._id,
+        firstName: firstTimer.firstName,
+        lastName: firstTimer.lastName,
+        status: firstTimer.status,
+        message: 'Thank you for your interest! Our team will contact you soon.',
+      },
+      'First-timer registration completed successfully',
+    );
+  }
+
   @Post()
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Register a new first-time visitor' })
   @ApiResponse({
     status: 201,
@@ -81,11 +117,9 @@ export class FirstTimersController {
 
   @Get()
   @Roles(
-    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
     UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
+    UserRole.LXL,
   )
   @ApiOperation({ summary: 'Get all first-timers with advanced filtering' })
   @ApiResponse({
@@ -97,7 +131,7 @@ export class FirstTimersController {
     @CurrentUser() user: any,
   ) {
     // Filter by assigned user for follow-up team members
-    if (user.role === UserRole.FOLLOW_UP_TEAM) {
+    if (user.roles === UserRole.LXL) {
       // If not specified, show their assigned first-timers
       if (!searchDto.assignedTo) {
         searchDto.assignedTo = user._id;
@@ -112,12 +146,7 @@ export class FirstTimersController {
   }
 
   @Get('stats')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR)
   @ApiOperation({ summary: 'Get first-timer statistics and analytics' })
   @ApiResponse({
     status: 200,
@@ -132,12 +161,7 @@ export class FirstTimersController {
   }
 
   @Get('needing-follow-up')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get first-timers needing follow-up' })
   @ApiResponse({
     status: 200,
@@ -147,7 +171,7 @@ export class FirstTimersController {
     let firstTimers = await this.firstTimersService.getNeedingFollowUp();
 
     // Filter by assigned user for follow-up team
-    if (user.role === UserRole.FOLLOW_UP_TEAM) {
+    if (user.roles === UserRole.LXL) {
       firstTimers = firstTimers.filter(
         (ft) => !ft.assignedTo || ft.assignedTo.toString() === user._id,
       );
@@ -161,11 +185,9 @@ export class FirstTimersController {
 
   @Get('recent')
   @Roles(
-    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
     UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
+    UserRole.LXL,
   )
   @ApiOperation({ summary: 'Get recent visitors' })
   @ApiQuery({
@@ -187,7 +209,7 @@ export class FirstTimersController {
   }
 
   @Get('my-assignments')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.FOLLOW_UP_TEAM, UserRole.GROUP_LEADER)
+  @Roles(UserRole.ADMIN, UserRole.LXL)
   @ApiOperation({ summary: 'Get first-timers assigned to current user' })
   @ApiResponse({
     status: 200,
@@ -205,11 +227,9 @@ export class FirstTimersController {
 
   @Get(':id')
   @Roles(
-    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
     UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
+    UserRole.LXL,
   )
   @ApiOperation({ summary: 'Get first-timer by ID' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
@@ -226,7 +246,7 @@ export class FirstTimersController {
     }
 
     // Check access for follow-up team - they can only see their assignments
-    if (user.role === UserRole.FOLLOW_UP_TEAM) {
+    if (user.roles === UserRole.LXL) {
       if (
         firstTimer.assignedTo &&
         firstTimer.assignedTo.toString() !== user._id
@@ -243,11 +263,9 @@ export class FirstTimersController {
 
   @Patch(':id/follow-up')
   @Roles(
-    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
     UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
+    UserRole.LXL,
   )
   @ApiOperation({ summary: 'Add follow-up record to first-timer' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
@@ -270,12 +288,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/status')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Update first-timer engagement status' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({ status: 200, description: 'Status updated successfully' })
@@ -291,7 +304,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/assign/:memberId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Assign first-timer to a follow-up team member' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiParam({ name: 'memberId', description: 'Member ID to assign to' })
@@ -299,8 +312,14 @@ export class FirstTimersController {
     status: 200,
     description: 'First-timer assigned successfully',
   })
-  async assignToMember(@Param('id') id: string, @Param('memberId') memberId: string) {
-    const firstTimer = await this.firstTimersService.assignToMember(id, memberId);
+  async assignToMember(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+  ) {
+    const firstTimer = await this.firstTimersService.assignToMember(
+      id,
+      memberId,
+    );
     return ResponseUtil.success(
       firstTimer,
       'First-timer assigned successfully',
@@ -308,12 +327,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/convert')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Convert first-timer to member' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({
@@ -335,7 +349,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/assign')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Assign follow-up person to first-timer' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({
@@ -357,7 +371,7 @@ export class FirstTimersController {
   }
 
   @Get('pending-district')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get first-timers pending district assignment' })
   @ApiResponse({
     status: 200,
@@ -374,11 +388,9 @@ export class FirstTimersController {
 
   @Patch(':id/notes')
   @Roles(
-    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
     UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
+    UserRole.LXL,
   )
   @ApiOperation({ summary: 'Update first-timer notes' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
@@ -389,7 +401,7 @@ export class FirstTimersController {
     @CurrentUser() user: any,
   ) {
     // Check access for follow-up team
-    if (user.role === UserRole.FOLLOW_UP_TEAM) {
+    if (user.roles === UserRole.LXL) {
       const firstTimer = await this.firstTimersService.findById(id);
       if (
         firstTimer?.assignedTo &&
@@ -407,7 +419,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/deactivate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Deactivate first-timer record' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({
@@ -423,7 +435,7 @@ export class FirstTimersController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete first-timer (super admin only)' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
@@ -435,7 +447,7 @@ export class FirstTimersController {
   }
 
   @Post('bulk-assign')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Bulk assign first-timers to users' })
   @ApiResponse({
     status: 200,
@@ -474,12 +486,7 @@ export class FirstTimersController {
   }
 
   @Patch('bulk-status')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Bulk update status for multiple first-timers' })
   @ApiResponse({
     status: 200,
@@ -515,12 +522,7 @@ export class FirstTimersController {
   }
 
   @Post('bulk-upload')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Queue bulk upload first-timers from CSV file' })
   @ApiConsumes('multipart/form-data')
@@ -635,12 +637,7 @@ export class FirstTimersController {
   }
 
   @Get('sample-csv')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Download sample CSV template for bulk upload' })
   @ApiResponse({
     status: 200,
@@ -659,5 +656,4 @@ export class FirstTimersController {
       message: 'Sample CSV template generated successfully',
     };
   }
-
 }

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 import { UserRole } from '../../common/enums/user-roles.enums';
 
 export type UserDocument = User & Document;
@@ -22,11 +22,11 @@ export class User {
   password: string;
 
   @Prop({
-    type: String,
+    type: [String],
     enum: Object.values(UserRole),
-    default: UserRole.MEMBER,
+    default: [UserRole.MEMBER],
   })
-  role: UserRole;
+  roles: UserRole[];
 
   @Prop({ trim: true })
   phone?: string;
@@ -42,11 +42,27 @@ export class User {
 
   @Prop({ type: Date })
   updatedAt: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'Ministry' })
+  ministry?: Types.ObjectId; // For DC workers grouped by ministry
+
+  @Prop({ type: Types.ObjectId, ref: 'Unit' })
+  unit?: Types.ObjectId; // Unit membership
+
+  @Prop({ type: Types.ObjectId, ref: 'Unit' })
+  leaderOfUnit?: Types.ObjectId; // Only for LXL members who lead units
+
+  @Prop({ type: [Types.ObjectId], ref: 'Ministry' })
+  directorOfMinistries?: Types.ObjectId[]; // For directors managing multiple ministries
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
 // Add indexes
 UserSchema.index({ email: 1 });
-UserSchema.index({ role: 1 });
+UserSchema.index({ roles: 1 });
+UserSchema.index({ ministry: 1 });
+UserSchema.index({ unit: 1 });
+UserSchema.index({ leaderOfUnit: 1 });
+UserSchema.index({ directorOfMinistries: 1 });
 UserSchema.index({ createdAt: -1 });

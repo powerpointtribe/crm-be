@@ -39,7 +39,7 @@ export class GroupsController {
   constructor(private readonly groupsService: GroupsService) {}
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Create a new group (district/unit)' })
   @ApiResponse({ status: 201, description: 'Group created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid group requirements' })
@@ -51,11 +51,9 @@ export class GroupsController {
 
   @Get()
   @Roles(
-    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
     UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
+    UserRole.LXL,
   )
   @ApiOperation({ summary: 'Get all groups with filtering' })
   @ApiResponse({ status: 200, description: 'Groups retrieved successfully' })
@@ -65,7 +63,7 @@ export class GroupsController {
   }
 
   @Get('stats')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get group statistics' })
   @ApiResponse({
     status: 200,
@@ -78,11 +76,10 @@ export class GroupsController {
 
   @Get('districts')
   @Roles(
-    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
     UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
+    UserRole.LXL,
+    UserRole.LXL,
   )
   @ApiOperation({ summary: 'Get all districts' })
   @ApiResponse({ status: 200, description: 'Districts retrieved successfully' })
@@ -93,11 +90,10 @@ export class GroupsController {
 
   @Get('units')
   @Roles(
-    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
     UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
+    UserRole.LXL,
+    UserRole.LXL,
   )
   @ApiOperation({ summary: 'Get all units' })
   @ApiResponse({ status: 200, description: 'Units retrieved successfully' })
@@ -107,7 +103,7 @@ export class GroupsController {
   }
 
   @Get('districts/needing-pastors')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get districts that need pastors' })
   @ApiResponse({
     status: 200,
@@ -122,7 +118,7 @@ export class GroupsController {
   }
 
   @Get('units/needing-heads')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get units that need heads' })
   @ApiResponse({
     status: 200,
@@ -137,7 +133,7 @@ export class GroupsController {
   }
 
   @Get('my-groups')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.GROUP_LEADER)
+  @Roles(UserRole.ADMIN, UserRole.LXL)
   @ApiOperation({ summary: 'Get groups led by current user' })
   @ApiResponse({
     status: 200,
@@ -156,11 +152,10 @@ export class GroupsController {
 
   @Get(':id')
   @Roles(
-    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
     UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.FOLLOW_UP_TEAM,
-    UserRole.GROUP_LEADER,
+    UserRole.LXL,
+    UserRole.LXL,
   )
   @ApiOperation({ summary: 'Get group by ID' })
   @ApiParam({ name: 'id', description: 'Group ID' })
@@ -175,7 +170,7 @@ export class GroupsController {
     }
 
     // Check if group leader has access to this specific group
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       // TODO: Implement proper authorization check
       // For now, allow access to all groups for group leaders
     }
@@ -184,12 +179,7 @@ export class GroupsController {
   }
 
   @Patch(':id')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Update group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Group updated successfully' })
@@ -200,7 +190,7 @@ export class GroupsController {
     @CurrentUser() user: any,
   ) {
     // Group leaders can only update their own groups
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       // TODO: Add authorization check to ensure user leads this group
     }
 
@@ -210,12 +200,7 @@ export class GroupsController {
 
   // MEMBER MANAGEMENT ENDPOINTS
   @Patch(':id/members/:memberId/add')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Add member to group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiParam({ name: 'memberId', description: 'Member ID' })
@@ -229,7 +214,7 @@ export class GroupsController {
     @CurrentUser() user: any,
   ) {
     // Authorization check for group leaders
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       // TODO: Check if user leads this group
     }
 
@@ -238,12 +223,7 @@ export class GroupsController {
   }
 
   @Patch(':id/members/:memberId/remove')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Remove member from group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiParam({ name: 'memberId', description: 'Member ID' })
@@ -257,7 +237,7 @@ export class GroupsController {
     @CurrentUser() user: any,
   ) {
     // Authorization check for group leaders
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       // TODO: Check if user leads this group
     }
 
@@ -270,7 +250,7 @@ export class GroupsController {
 
   // LEADERSHIP ASSIGNMENT ENDPOINTS
   @Patch(':id/assign-district-pastor/:pastorId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Assign district pastor to district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiParam({ name: 'pastorId', description: 'Pastor Member ID' })
@@ -287,7 +267,7 @@ export class GroupsController {
   }
 
   @Patch(':id/assign-unit-head/:headId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Assign unit head to unit' })
   @ApiParam({ name: 'id', description: 'Unit ID' })
   @ApiParam({ name: 'headId', description: 'Unit Head Member ID' })
@@ -301,7 +281,7 @@ export class GroupsController {
   }
 
   @Patch(':id/add-champ/:champId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Add champ to district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiParam({ name: 'champId', description: 'Champ Member ID' })
@@ -312,7 +292,7 @@ export class GroupsController {
   }
 
   @Patch(':id/remove-champ/:champId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Remove champ from district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiParam({ name: 'champId', description: 'Champ Member ID' })
@@ -327,12 +307,7 @@ export class GroupsController {
 
   // HOSTING MANAGEMENT (DISTRICTS)
   @Patch(':id/hosting')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Update hosting information for district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiResponse({
@@ -345,7 +320,7 @@ export class GroupsController {
     @CurrentUser() user: any,
   ) {
     // Group leaders can only update hosting for their districts
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       // TODO: Check if user is district pastor for this district
     }
 
@@ -357,18 +332,13 @@ export class GroupsController {
   }
 
   @Patch(':id/rotate-host')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.PASTOR,
-    UserRole.LEADERSHIP,
-    UserRole.GROUP_LEADER,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Rotate to next host for district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiResponse({ status: 200, description: 'Host rotated successfully' })
   async rotateHost(@Param('id') id: string, @CurrentUser() user: any) {
     // Group leaders can only rotate hosts for their districts
-    if (user.role === UserRole.GROUP_LEADER) {
+    if (user.roles === UserRole.LXL) {
       // TODO: Check if user is district pastor for this district
     }
 
@@ -377,7 +347,7 @@ export class GroupsController {
   }
 
   @Patch(':id/deactivate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Deactivate group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Group deactivated successfully' })
@@ -387,7 +357,7 @@ export class GroupsController {
   }
 
   @Patch(':id/activate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PASTOR, UserRole.LEADERSHIP)
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Activate group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Group activated successfully' })
@@ -397,7 +367,7 @@ export class GroupsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete group (super admin only)' })
   @ApiParam({ name: 'id', description: 'Group ID' })
