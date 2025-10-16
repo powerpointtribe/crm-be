@@ -7,7 +7,6 @@ import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
 import { MembersModule } from './members/members.module';
 import { GroupsModule } from './groups/groups.module';
 import { FirstTimersModule } from './first-timers/first-timers.module';
@@ -15,6 +14,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { QueueModule } from './queue/queue.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { BullBoardModule } from './bull-board/bull-board.module';
+// import { MigrationModule } from './migrations/migration.module';
 
 @Module({
   imports: [
@@ -44,7 +44,6 @@ import { BullBoardModule } from './bull-board/bull-board.module';
 
     // Feature modules
     AuthModule,
-    UsersModule,
     MembersModule,
     GroupsModule,
     FirstTimersModule,
@@ -52,6 +51,7 @@ import { BullBoardModule } from './bull-board/bull-board.module';
     QueueModule,
     DashboardModule,
     BullBoardModule,
+    // MigrationModule,
   ],
   controllers: [AppController],
   providers: [

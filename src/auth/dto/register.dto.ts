@@ -5,6 +5,7 @@ import {
   MinLength,
   IsEnum,
   IsOptional,
+  IsDate,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../../common/enums/user-roles.enums';
@@ -50,4 +51,10 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @IsDate()
+  dateOfBirth?: Date;
+
+  @IsEnum(['male', 'female'])
+  gender?: string;
 }

@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, FilterQuery } from 'mongoose';
+import { Model, FilterQuery, Types } from 'mongoose';
 import { Member, MemberDocument } from './schemas/member.schema';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
@@ -33,14 +33,15 @@ export class MembersService {
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<MemberDocument> {
-
     // District assignment is now optional
     // Members can be created without district assignment and assigned later
 
     // Validate and convert dateOfBirth
     const dateOfBirth = new Date(createMemberDto.dateOfBirth);
     if (isNaN(dateOfBirth.getTime())) {
-      throw new BadRequestException('Invalid date format for dateOfBirth. Use YYYY-MM-DD format.');
+      throw new BadRequestException(
+        'Invalid date format for dateOfBirth. Use YYYY-MM-DD format.',
+      );
     }
 
     // TODO: Add validation to ensure district exists and is of type 'district'
@@ -50,17 +51,21 @@ export class MembersService {
       ...createMemberDto,
       email: createMemberDto.email.toLowerCase(),
       dateOfBirth,
-      dateJoined: createMemberDto.dateJoined ? new Date(createMemberDto.dateJoined) : new Date(),
-      address: createMemberDto.address ? {
-        ...createMemberDto.address,
-        state: createMemberDto.address.state || 'Lagos',
-        country: createMemberDto.address.country || 'Nigeria',
-      } : {
-        street: '',
-        city: '',
-        state: 'Lagos',
-        country: 'Nigeria',
-      },
+      dateJoined: createMemberDto.dateJoined
+        ? new Date(createMemberDto.dateJoined)
+        : new Date(),
+      address: createMemberDto.address
+        ? {
+            ...createMemberDto.address,
+            state: createMemberDto.address.state || 'Lagos',
+            country: createMemberDto.address.country || 'Nigeria',
+          }
+        : {
+            street: '',
+            city: '',
+            state: 'Lagos',
+            country: 'Nigeria',
+          },
       leadershipRoles: createMemberDto.leadershipRoles || {
         isDistrictPastor: false,
         isChamp: false,
@@ -880,5 +885,84 @@ export class MembersService {
 
   generateMemberCSVTemplate(operationType: 'create' | 'update'): string {
     return MemberCSVMappingUtil.generateSampleCSV(operationType);
+  }
+
+  async updateLastLogin(memberId: string): Promise<MemberDocument> {
+    const member = await this.memberModel.findByIdAndUpdate(
+      memberId,
+      { $set: { lastLogin: new Date() } },
+      { new: true },
+    );
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${memberId} not found`);
+    }
+
+    return member;
+  }
+
+  async updateAccessFields(
+    memberId: string,
+    updateData: {
+      systemRoles?: string[];
+      unitType?: string;
+      unit?: string;
+      district?: string;
+      leadershipRoles?: {
+        isDistrictPastor?: boolean;
+        isChamp?: boolean;
+        isUnitHead?: boolean;
+        champForDistrict?: string;
+        leadsUnit?: string;
+        pastorsDistrict?: string;
+      };
+    },
+  ): Promise<MemberDocument> {
+    const member = await this.memberModel.findById(memberId);
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${memberId} not found`);
+    }
+
+    // --- Update system roles ---
+    if (updateData.systemRoles) {
+      member.systemRoles = updateData.systemRoles as any;
+    }
+
+    // --- Update structure fields (district/unit/unitType) ---
+    if (updateData.unitType) {
+      member.unitType = updateData.unitType as any;
+    }
+    if (updateData.unit) {
+      member.unit = new Types.ObjectId(updateData.unit);
+    }
+    if (updateData.district) {
+      member.district = new Types.ObjectId(updateData.district);
+    }
+
+    // --- Handle leadership roles ---
+    if (updateData.leadershipRoles) {
+      const { leadershipRoles } = updateData;
+
+      // Convert string IDs to ObjectIds safely
+      const updatedLeadershipRoles = {
+        ...member.leadershipRoles,
+        ...leadershipRoles,
+        champForDistrict: leadershipRoles.champForDistrict
+          ? new Types.ObjectId(leadershipRoles.champForDistrict)
+          : member.leadershipRoles?.champForDistrict,
+        leadsUnit: leadershipRoles.leadsUnit
+          ? new Types.ObjectId(leadershipRoles.leadsUnit)
+          : member.leadershipRoles?.leadsUnit,
+        pastorsDistrict: leadershipRoles.pastorsDistrict
+          ? new Types.ObjectId(leadershipRoles.pastorsDistrict)
+          : member.leadershipRoles?.pastorsDistrict,
+      };
+
+      member.leadershipRoles = updatedLeadershipRoles;
+    }
+
+    await member.save();
+    return member;
   }
 }

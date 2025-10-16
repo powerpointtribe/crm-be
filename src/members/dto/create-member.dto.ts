@@ -119,6 +119,11 @@ export class CreateMemberDto {
   @IsNotEmpty()
   email: string;
 
+  @ApiProperty({ description: 'Password', example: '123456abcd' })
+  @IsString()
+  @IsNotEmpty()
+  password: string;
+
   @ApiProperty({ description: 'Phone number', example: '+234801234567' })
   @IsString()
   @IsNotEmpty()
@@ -126,7 +131,9 @@ export class CreateMemberDto {
 
   @ApiProperty({ description: 'Date of birth', example: '1990-01-01' })
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateOfBirth must be in YYYY-MM-DD format' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'dateOfBirth must be in YYYY-MM-DD format',
+  })
   @IsNotEmpty()
   dateOfBirth: string;
 
@@ -144,7 +151,10 @@ export class CreateMemberDto {
   @IsEnum(['single', 'married', 'divorced', 'widowed'])
   maritalStatus?: string;
 
-  @ApiPropertyOptional({ description: 'Member address (optional - defaults will be used if not provided)' })
+  @ApiPropertyOptional({
+    description:
+      'Member address (optional - defaults will be used if not provided)',
+  })
   @IsOptional()
   @IsObject()
   @ValidateNested()
@@ -153,7 +163,8 @@ export class CreateMemberDto {
 
   // CHURCH STRUCTURE - District and Unit Assignments
   @ApiPropertyOptional({
-    description: 'District ID (optional - member can be created without district assignment)',
+    description:
+      'District ID (optional - member can be created without district assignment)',
   })
   @IsOptional()
   @IsMongoId()
