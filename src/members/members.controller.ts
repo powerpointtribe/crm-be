@@ -165,6 +165,31 @@ export class MembersController {
     );
   }
 
+  @Get('my-profile')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
+  @ApiOperation({ summary: "Get current user's profile" })
+  async getMyProfile(@CurrentUser() user: any) {
+    const member = await this.membersService.findByEmail(user.email);
+    if (!member) {
+      throw new ForbiddenException('Member profile not found');
+    }
+    return ResponseUtil.success(member, 'Profile retrieved successfully');
+  }
+
+  @Get('accessible-modules')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
+  @ApiOperation({ summary: "Get current user's accessible modules" })
+  async getAccessibleModules(@CurrentUser() user: any) {
+    const member = await this.membersService.findByEmail(user.email);
+    if (!member) {
+      throw new ForbiddenException('Member profile not found');
+    }
+
+    // For now, return basic modules - this should be enhanced with actual access control logic
+    const modules = ['members', 'groups', 'first_timers', 'reports'];
+    return ResponseUtil.success({ modules }, 'Accessible modules retrieved successfully');
+  }
+
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
   @ApiOperation({ summary: 'Get member by ID' })

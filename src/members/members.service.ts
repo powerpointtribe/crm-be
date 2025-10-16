@@ -23,13 +23,11 @@ import { BulkOperationUtil } from '../common/utils/bulk-operation.util';
 import { BulkOperationType } from '../common/interfaces/bulk-operation.interface';
 import { MemberCSVMappingUtil } from './utils/member-csv-mapping.util';
 import { MembershipStatus } from '../common/enums/member-status.enum';
-import { User, UserDocument } from 'src/users/schemas/user.schema';
 
 @Injectable()
 export class MembersService {
   constructor(
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<MemberDocument> {
