@@ -455,18 +455,6 @@ export class FirstTimersController {
     );
   }
 
-  @Delete(':id')
-  @Roles(UserRole.ADMIN)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete first-timer (super admin only)' })
-  @ApiParam({ name: 'id', description: 'First-timer ID' })
-  @ApiResponse({ status: 204, description: 'First-timer deleted successfully' })
-  @ApiResponse({ status: 404, description: 'First-timer not found' })
-  async remove(@Param('id') id: string) {
-    await this.firstTimersService.remove(id);
-    return ResponseUtil.success(null, 'First-timer deleted successfully');
-  }
-
   @Delete('bulk')
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -495,6 +483,18 @@ export class FirstTimersController {
       { deletedCount },
       'First-timers deleted successfully',
     );
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete first-timer (super admin only)' })
+  @ApiParam({ name: 'id', description: 'First-timer ID' })
+  @ApiResponse({ status: 204, description: 'First-timer deleted successfully' })
+  @ApiResponse({ status: 404, description: 'First-timer not found' })
+  async remove(@Param('id') id: string) {
+    await this.firstTimersService.remove(id);
+    return ResponseUtil.success(null, 'First-timer deleted successfully');
   }
 
   @Post('bulk-assign')
