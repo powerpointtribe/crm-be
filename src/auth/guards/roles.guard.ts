@@ -29,11 +29,13 @@ export class RolesGuard implements CanActivate {
     }
 
     // Super admins have access to everything
-    if (user.roles === UserRole.ADMIN) {
+    if (user.systemRoles && Array.isArray(user.systemRoles) && user.systemRoles.includes(UserRole.ADMIN)) {
       return true;
     }
 
-    const hasRole = requiredRoles.some((role) => user.roles === role);
+    // Check if user has any of the required roles
+    const hasRole = user.systemRoles && Array.isArray(user.systemRoles) &&
+      requiredRoles.some((role) => user.systemRoles.includes(role));
 
     if (!hasRole) {
       throw new ForbiddenException('Insufficient permissions');

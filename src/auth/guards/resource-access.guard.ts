@@ -35,8 +35,12 @@ export class ResourceAccessGuard implements CanActivate {
     }
 
     // Super admins and pastors have access to everything
-    if ([UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL].includes(user.roles)) {
-      return true;
+    if (user.systemRoles && Array.isArray(user.systemRoles)) {
+      if (user.systemRoles.includes(UserRole.ADMIN) ||
+          user.systemRoles.includes(UserRole.PASTOR) ||
+          user.systemRoles.includes(UserRole.LXL)) {
+        return true;
+      }
     }
 
     return this.checkResourceAccess(user, resourceConfig, params);
@@ -49,17 +53,31 @@ export class ResourceAccessGuard implements CanActivate {
   ): Promise<boolean> {
     const { resource, operation, allowSelfAccess } = config;
 
-    switch (user.roles) {
-      case UserRole.LXL:
-        // For now, allow GROUP_LEADER access - we'll implement detailed checks in the controller
+    // Handle systemRoles as an array
+    if (user.systemRoles && Array.isArray(user.systemRoles)) {
+      // Check if user has LXL role
+      if (user.systemRoles.includes(UserRole.LXL)) {
+        // For now, allow LXL access - we'll implement detailed checks in the controller
         return true;
+      }
 
-      case UserRole.MEMBER:
+      // Check if user has MEMBER role
+      if (user.systemRoles.includes(UserRole.MEMBER)) {
         return this.checkMemberAccess(user, resource, params, allowSelfAccess);
+      }
 
-      default:
-        return false;
+      // Check if user has DC role
+      if (user.systemRoles.includes(UserRole.DC)) {
+        return true; // DC members have broad access
+      }
+
+      // Check if user has DIRECTOR role
+      if (user.systemRoles.includes(UserRole.DIRECTOR)) {
+        return true; // Directors have broad access
+      }
     }
+
+    return false;
   }
 
   private checkFollowUpTeamAccess(
