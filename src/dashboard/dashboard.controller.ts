@@ -30,7 +30,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
 import { RoleUtils } from '../common/utils/role.utils';
 import { RequestWithUserUnit } from '../common/middleware/user-unit.middleware';
-import { DashboardDocs } from '../../docs/api/dashboard.docs';
+// import { DashboardDocs } from '../../docs/api/dashboard.docs';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
@@ -41,7 +41,7 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('modules')
-  @ApiOperation(DashboardDocs.getAccessibleModules.operation)
+  @ApiOperation({ summary: 'Get accessible modules for current user' })
   getAccessibleModules(
     @CurrentUser() user: any,
     @Req() req: RequestWithUserUnit,
@@ -63,10 +63,7 @@ export class DashboardController {
 
   @Get('overview')
   @ReportsAccess() // Reports module access required for overview
-  @ApiOperation(DashboardDocs.getDashboardOverview.operation)
-  @ApiResponse(DashboardDocs.getDashboardOverview.responses[0])
-  @ApiResponse(DashboardDocs.getDashboardOverview.responses[1])
-  @ApiResponse(DashboardDocs.getDashboardOverview.responses[2])
+  @ApiOperation({ summary: 'Get dashboard overview with metrics and analytics' })
   async getDashboardOverview(@CurrentUser() user: any) {
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
@@ -81,7 +78,7 @@ export class DashboardController {
 
   @Get('first-timers')
   @FirstTimersAccess() // Only GIA unit heads and above can access
-  @ApiOperation(DashboardDocs.getFirstTimers.operation)
+  @ApiOperation({ summary: 'Get first timers data and analytics' })
   async getFirstTimers(@CurrentUser() user: any) {
     return ResponseUtil.success(
       {

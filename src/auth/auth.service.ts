@@ -9,7 +9,7 @@ import { MembersService } from '../members/members.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { Member, MemberDocument } from '../members/schemas/member-unified.schema';
+import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { CreateMemberDto } from 'src/members/dto/create-member.dto';
 import { MembershipStatus } from 'src/common/enums/member-status.enum';
 import { UserRole } from 'src/common/enums/user-roles.enums';

@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Unit, UnitDocument } from '../../units/schemas/unit.schema';
-import { Member } from '../../members/schemas/member-unified.schema';
+import { Member } from '../../members/schemas/member.schema';
 
 export interface RequestWithUserUnit extends Request {
   user: Member;

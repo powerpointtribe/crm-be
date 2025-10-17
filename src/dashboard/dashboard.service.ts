@@ -16,7 +16,7 @@ import {
   ActivityItemDto,
   DemographicsDto,
 } from './dto/analytics.dto';
-import { Member, MemberDocument } from '../members/schemas/member-unified.schema';
+import { Member, MemberDocument } from '../members/schemas/member.schema';
 import {
   FirstTimer,
   FirstTimerDocument,

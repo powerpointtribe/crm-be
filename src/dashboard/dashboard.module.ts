@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DashboardService } from './dashboard.service';
 import { DashboardController } from './dashboard.controller';
-import { Member, MemberSchema } from '../members/schemas/member-unified.schema';
+import { Member, MemberSchema } from '../members/schemas/member.schema';
 import {
   FirstTimer,
   FirstTimerSchema,

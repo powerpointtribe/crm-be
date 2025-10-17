@@ -5,7 +5,7 @@ import {
   ROLE_MODULE_ACCESS,
   UnitType,
 } from '../enums/dashboard-modules.enums';
-import { Member } from '../../members/schemas/member-unified.schema';
+import { Member } from '../../members/schemas/member.schema';
 import { Unit, UnitDocument } from '../../units/schemas/unit.schema';
 
 export class RoleUtils {

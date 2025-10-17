@@ -6,511 +6,250 @@ import {
   Patch,
   Param,
   Delete,
-  Query,
   UseGuards,
-  HttpCode,
-  HttpStatus,
+  Request,
+  Query,
   ForbiddenException,
-  UseInterceptors,
-  UploadedFile,
-  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ModuleAccessGuard } from '../auth/guards/module-access.guard';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiParam,
-  ApiQuery,
-  ApiConsumes,
-  ApiBody,
-} from '@nestjs/swagger';
+  RequireMembersAccess,
+  RequireMemberEdit,
+  RequireMemberDelete,
+  RequireAdminOrPastor,
+  AllowSelfAccess,
+} from '../common/decorators/access-control.decorators';
 import { MembersService } from './members.service';
+import { AccessControlService } from '../common/services/access-control.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { MemberSearchDto } from './dto/member-search.dto';
-import { AssignLeadershipDto } from './dto/leadership-assignment.dto';
-import {
-  BulkMemberOperationDto,
-  BulkMemberResultDto,
-} from './dto/bulk-member.dto';
-import { BulkOperationType } from '../common/interfaces/bulk-operation.interface';
-import { CSVParserUtil } from '../common/utils/csv-parser.util';
-import { QueueService } from '../queue/queue.service';
-import { JobType } from '../common/interfaces/queue-job.interface';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-roles.enums';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { ResponseUtil } from '../common/utils/response.util';
+import { Member, MemberDocument } from './schemas/member.schema';
+import { UserRole } from 'src/common/enums/user-roles.enums';
 
-@ApiTags('Members')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('members')
+@UseGuards(JwtAuthGuard)
 export class MembersController {
   constructor(
     private readonly membersService: MembersService,
-    private readonly queueService: QueueService,
+    private readonly accessControlService: AccessControlService,
   ) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
-  @ApiOperation({ summary: 'Create a new member' })
-  async create(@Body() createMemberDto: CreateMemberDto) {
-    const member = await this.membersService.create(createMemberDto);
-    return ResponseUtil.success(member, 'Member created successfully');
+  @RequireMembersAccess()
+  @UseGuards(ModuleAccessGuard)
+  async create(@Body() createMemberDto: CreateMemberDto, @Request() req) {
+    // Additional check: only certain roles can create members
+    if (
+      !this.accessControlService.canPerformAction(req.user, 'create', 'member')
+    ) {
+      throw new ForbiddenException(
+        'Insufficient permissions to create members',
+      );
+    }
+
+    return this.membersService.create(createMemberDto);
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
-  @ApiOperation({ summary: 'Get all members with advanced filtering' })
-  async findAll(@Query() searchDto: MemberSearchDto, @CurrentUser() user: any) {
-    // Apply user-specific filters based on role
-    const filteredSearch = await this.applyUserFilters(searchDto, user);
-    const members = await this.membersService.findAll(filteredSearch);
-    return ResponseUtil.success(members, 'Members retrieved successfully');
-  }
+  @RequireMembersAccess()
+  @UseGuards(ModuleAccessGuard)
+  async findAll(@Query() query: any, @Request() req) {
+    const { user: currentMember } = req;
 
-  @Get('stats')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
-  @ApiOperation({ summary: 'Get comprehensive member statistics' })
-  async getMemberStats() {
-    const stats = await this.membersService.getMemberStats();
-    return ResponseUtil.success(stats, 'Member stats retrieved successfully');
-  }
+    // Get all members
+    const data = await this.membersService.findAll(query);
 
-  // DISTRICT-SPECIFIC ENDPOINTS
-  @Get('district/:districtId')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
-  @ApiOperation({ summary: 'Get all members in a specific district' })
-  @ApiParam({ name: 'districtId', description: 'District ID' })
-  async getDistrictMembers(
-    @Param('districtId') districtId: string,
-    @CurrentUser() user: any,
-  ) {
-    // Check if user has access to this district
-    if (user.roles === UserRole.LXL) {
-      const hasAccess = await this.checkDistrictAccess(user.email, districtId);
-      if (!hasAccess) {
-        throw new ForbiddenException(
-          'You can only access members in your own district',
-        );
-      }
-    }
+    // Filter based on member's access level
+    data.data = this.filterMembersByAccess(currentMember, data.data);
 
-    const members = await this.membersService.getDistrictMembers(districtId);
-    return ResponseUtil.success(
-      members,
-      'District members retrieved successfully',
-    );
-  }
-
-  @Get('my-district')
-  @Roles(UserRole.ADMIN, UserRole.LXL)
-  @ApiOperation({ summary: "Get members in current user's district" })
-  async getMyDistrictMembers(@CurrentUser() user: any) {
-    const member = await this.membersService.findByEmail(user.email);
-    if (!member?.district) {
-      throw new ForbiddenException('User is not assigned to a district');
-    }
-    const members = await this.membersService.getDistrictMembers(
-      member.district.toString(),
-    );
-    return ResponseUtil.success(
-      members,
-      'Your district members retrieved successfully',
-    );
-  }
-
-  // UNIT-SPECIFIC ENDPOINTS
-  @Get('unit/:unitId')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
-  @ApiOperation({ summary: 'Get all members in a specific unit' })
-  @ApiParam({ name: 'unitId', description: 'Unit ID' })
-  async getUnitMembers(
-    @Param('unitId') unitId: string,
-    @CurrentUser() user: any,
-  ) {
-    // Check if user has access to this unit
-    if (user.roles === UserRole.LXL) {
-      const hasAccess = await this.checkUnitAccess(user.email, unitId);
-      if (!hasAccess) {
-        throw new ForbiddenException(
-          'You can only access members in your own unit',
-        );
-      }
-    }
-
-    const members = await this.membersService.getUnitMembers(unitId);
-    return ResponseUtil.success(members, 'Unit members retrieved successfully');
-  }
-
-  @Get('my-unit')
-  @Roles(UserRole.ADMIN, UserRole.LXL)
-  @ApiOperation({ summary: "Get members in current user's unit" })
-  async getMyUnitMembers(@CurrentUser() user: any) {
-    const member = await this.membersService.findByEmail(user.email);
-    if (!member?.unit || !member?.leadershipRoles?.isUnitHead) {
-      throw new ForbiddenException('User does not lead a unit');
-    }
-    const members = await this.membersService.getUnitMembers(
-      member.unit.toString(),
-    );
-    return ResponseUtil.success(
-      members,
-      'Your unit members retrieved successfully',
-    );
+    return data;
   }
 
   @Get('my-profile')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
-  @ApiOperation({ summary: "Get current user's profile" })
-  async getMyProfile(@CurrentUser() user: any) {
-    const member = await this.membersService.findByEmail(user.email);
-    if (!member) {
-      throw new ForbiddenException('Member profile not found');
+  @AllowSelfAccess()
+  async getMyProfile(@Request() req) {
+    return this.membersService.findById(req.user.sub);
+  }
+
+  @Get('my-district')
+  @RequireMembersAccess()
+  @UseGuards(ModuleAccessGuard)
+  async getMyDistrictMembers(@Request() req, @Query() query: any) {
+    const { user: currentMember } = req;
+
+    // Only district pastors and unit heads can see their district/unit members
+    if (
+      !currentMember.leadershipRoles?.isDistrictPastor &&
+      !currentMember.leadershipRoles?.isUnitHead
+    ) {
+      throw new ForbiddenException(
+        'Only district pastors and unit heads can access this endpoint',
+      );
     }
-    return ResponseUtil.success(member, 'Profile retrieved successfully');
+
+    return this.membersService.getDistrictMembers(
+      currentMember.district,
+      // query,
+    );
   }
 
   @Get('accessible-modules')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
-  @ApiOperation({ summary: "Get current user's accessible modules" })
-  async getAccessibleModules(@CurrentUser() user: any) {
-    const member = await this.membersService.findByEmail(user.email);
-    if (!member) {
-      throw new ForbiddenException('Member profile not found');
-    }
-
-    // For now, return basic modules - this should be enhanced with actual access control logic
-    const modules = ['members', 'groups', 'first_timers', 'reports'];
-    return ResponseUtil.success({ modules }, 'Accessible modules retrieved successfully');
+  async getAccessibleModules(@Request() req) {
+    const modules = this.accessControlService.getAccessibleModules(req.user);
+    return { modules };
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
-  @ApiOperation({ summary: 'Get member by ID' })
-  @ApiParam({ name: 'id', description: 'Member ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    // Check access for non-admin roles
-    if (![UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL].includes(user.roles)) {
-      const hasAccess = await this.checkMemberAccess(user.email, id);
-      if (!hasAccess) {
-        throw new ForbiddenException(
-          'You can only access members under your authority',
-        );
-      }
+  @RequireMembersAccess()
+  @UseGuards(ModuleAccessGuard)
+  async findOne(@Param('id') id: string, @Request() req) {
+    const member = await this.membersService.findById(id);
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${id} not found`);
     }
 
-    const member = await this.membersService.findById(id);
-    return ResponseUtil.success(member, 'Member retrieved successfully');
+    // Check if user can access this specific member
+    if (!this.canAccessMember(req.user, member)) {
+      throw new ForbiddenException('Access denied to this member profile');
+    }
+
+    return member;
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
-  @ApiOperation({ summary: 'Update member' })
-  @ApiParam({ name: 'id', description: 'Member ID' })
+  @RequireMemberEdit()
+  @UseGuards(ModuleAccessGuard)
   async update(
     @Param('id') id: string,
     @Body() updateMemberDto: UpdateMemberDto,
-    @CurrentUser() user: any,
+    @Request() req,
   ) {
-    // Check access for group leaders
-    if (user.roles === UserRole.LXL) {
-      const hasAccess = await this.checkMemberAccess(user.email, id);
-      if (!hasAccess) {
-        throw new ForbiddenException(
-          'You can only update members under your authority',
-        );
-      }
+    const member = await this.membersService.findById(id);
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${id} not found`);
     }
 
-    const member = await this.membersService.update(id, updateMemberDto);
-    return ResponseUtil.success(member, 'Member updated successfully');
+    // Check if user can edit this specific member
+    if (!this.canEditMember(req.user, member)) {
+      throw new ForbiddenException('Access denied to edit this member');
+    }
+
+    return this.membersService.update(id, updateMemberDto);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete member (super admin only)' })
-  @ApiParam({ name: 'id', description: 'Member ID' })
-  async remove(@Param('id') id: string) {
-    await this.membersService.remove(id);
-    return ResponseUtil.success(null, 'Member deleted successfully');
-  }
-
-  // Helper methods for access control
-  private async applyUserFilters(
-    searchDto: MemberSearchDto,
-    user: any,
-  ): Promise<MemberSearchDto> {
-    if ([UserRole.PASTOR, UserRole.LXL].includes(user.role)) {
-      return searchDto; // No restrictions for senior roles
-    }
-
-    if (user.roles === UserRole.LXL) {
-      const member = await this.membersService.findByEmail(user.email);
-      if (member?.leadershipRoles) {
-        // Restrict to their district or unit
-        if (
-          member.leadershipRoles.isDistrictPastor ||
-          member.leadershipRoles.isChamp
-        ) {
-          const districtId =
-            member.leadershipRoles.pastorsDistrict ||
-            member.leadershipRoles.champForDistrict;
-          if (districtId) searchDto.districtId = districtId.toString();
-        }
-        if (member.leadershipRoles.isUnitHead) {
-          const unitId = member.leadershipRoles.leadsUnit;
-          if (unitId) searchDto.unitId = unitId.toString();
-        }
-      }
-    }
-
-    return searchDto;
-  }
-
-  private async checkDistrictAccess(
-    userEmail: string,
-    districtId: string,
-  ): Promise<boolean> {
-    const member = await this.membersService.findByEmail(userEmail);
-    if (!member?.leadershipRoles) return false;
-
-    const { leadershipRoles } = member;
-
-    // District pastor can access their district
-    if (leadershipRoles.isDistrictPastor && leadershipRoles.pastorsDistrict) {
-      return leadershipRoles.pastorsDistrict.toString() === districtId;
-    }
-
-    // Champ can access their assigned district
-    if (leadershipRoles.isChamp && leadershipRoles.champForDistrict) {
-      return leadershipRoles.champForDistrict.toString() === districtId;
-    }
-
-    return false;
-  }
-
-  private async checkUnitAccess(
-    userEmail: string,
-    unitId: string,
-  ): Promise<boolean> {
-    const member = await this.membersService.findByEmail(userEmail);
-    if (!member?.leadershipRoles) return false;
-
-    // Unit head can access their unit
-    if (member.leadershipRoles.isUnitHead && member.leadershipRoles.leadsUnit) {
-      return member.leadershipRoles.leadsUnit.toString() === unitId;
-    }
-
-    return false;
-  }
-
-  private async checkMemberAccess(
-    userEmail: string,
-    memberId: string,
-  ): Promise<boolean> {
-    return this.membersService.canAccessMember(userEmail, memberId);
-  }
-
-  @Post('bulk-operation')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({
-    summary: 'Queue bulk create or update members from CSV file',
-  })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    description: 'CSV file with member data and operation parameters',
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-        operationType: {
-          type: 'string',
-          enum: Object.values(BulkOperationType),
-          description: 'Type of operation to perform',
-        },
-        skipErrors: {
-          type: 'boolean',
-          description:
-            'Whether to skip validation errors and continue with valid records',
-          default: false,
-        },
-        identifierField: {
-          type: 'string',
-          description: 'Field to use as identifier for update operations',
-          default: 'email',
-        },
-        defaultDistrict: {
-          type: 'string',
-          description: 'Default district assignment for all members',
-        },
-        defaultUnit: {
-          type: 'string',
-          description: 'Default unit assignment for all members',
-        },
-        dryRun: {
-          type: 'boolean',
-          description: 'Preview changes without applying them',
-          default: false,
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 202,
-    description: 'Bulk operation job queued successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-        data: {
-          type: 'object',
-          properties: {
-            jobId: { type: 'string' },
-            status: { type: 'string' },
-          },
-        },
-        message: { type: 'string' },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid file format or content',
-  })
-  async bulkOperation(
-    @UploadedFile() file: any,
-    @Body('operationType') operationType: string,
-    @Body('skipErrors') skipErrors: string = 'false',
-    @Body('identifierField') identifierField: string = 'email',
-    @Body('defaultDistrict') defaultDistrict: string = '',
-    @Body('defaultUnit') defaultUnit: string = '',
-    @Body('dryRun') dryRun: string = 'false',
-    @CurrentUser() user: any,
-  ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
-    }
-
+  @RequireMemberDelete()
+  @UseGuards(ModuleAccessGuard)
+  async remove(@Param('id') id: string, @Request() req) {
+    // Only admins and pastors can delete members
     if (
-      !operationType ||
-      !Object.values(BulkOperationType).includes(
-        operationType as BulkOperationType,
-      )
+      !req.user.systemRoles.includes('admin') &&
+      !req.user.systemRoles.includes('pastor')
     ) {
-      throw new BadRequestException(
-        'Valid operationType is required (create or update)',
+      throw new ForbiddenException(
+        'Only admins and pastors can delete members',
       );
     }
 
-    // Validate file type
-    if (!CSVParserUtil.validateFileType(file.originalname)) {
-      throw new BadRequestException(
-        'Invalid file type. Only CSV files are allowed',
+    return this.membersService.remove(id);
+  }
+
+  @Patch(':id/assign-role')
+  @RequireAdminOrPastor()
+  @UseGuards(ModuleAccessGuard)
+  async assignRole(
+    @Param('id') id: string,
+    @Body() roleData: { systemRoles: string[]; leadershipRoles?: any },
+    @Request() req,
+  ) {
+    // Only high-level roles can assign system roles
+    return this.membersService.updateAccessFields(id, roleData);
+  }
+
+  @Patch(':id/assign-unit')
+  @RequireAdminOrPastor()
+  @UseGuards(ModuleAccessGuard)
+  async assignUnit(
+    @Param('id') id: string,
+    @Body() unitData: { unit: string; unitType: string; district?: string },
+    @Request() req,
+  ) {
+    return this.membersService.updateAccessFields(id, unitData);
+  }
+
+  // Private helper methods
+  private filterMembersByAccess(
+    currentMember: MemberDocument,
+    members: MemberDocument[],
+  ): MemberDocument[] {
+    // Admin sees all
+    if (currentMember.systemRoles.includes(UserRole.ADMIN)) {
+      return members;
+    }
+
+    // District pastors see their district
+    if (currentMember.leadershipRoles?.isDistrictPastor) {
+      return members.filter(
+        (member) =>
+          member.district?.toString() ===
+          currentMember.leadershipRoles.pastorsDistrict?.toString(),
       );
     }
 
-    // Validate file size (limit to 10MB for members)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      throw new BadRequestException(
-        'File size too large. Maximum allowed size is 10MB',
+    // Unit heads see their unit
+    if (currentMember.leadershipRoles?.isUnitHead) {
+      return members.filter(
+        (member) =>
+          member.unit?.toString() ===
+          currentMember.leadershipRoles.leadsUnit?.toString(),
       );
     }
 
-    const csvContent = file.buffer.toString('utf-8');
-
-    // Parse CSV to get row count for metadata
-    let totalRows = 0;
-    try {
-      const csvData = CSVParserUtil.parseCSV(csvContent, {
-        headerRow: true,
-        skipEmptyLines: true,
-      });
-      totalRows = csvData.length;
-    } catch (error) {
-      throw new BadRequestException(`CSV parsing failed: ${error.message}`);
+    // GIA sees all for integration purposes
+    if (currentMember.unitType === 'gia') {
+      return members;
     }
 
-    const options: BulkMemberOperationDto = {
-      operationType: operationType as BulkOperationType,
-      skipErrors: skipErrors === 'true',
-      identifierField: identifierField || 'email',
-      defaultDistrict,
-      defaultUnit,
-      dryRun: dryRun === 'true',
-    };
+    // Regular members see limited info or none
+    return [];
+  }
 
-    // Determine job type based on operation
-    const jobType =
-      operationType === BulkOperationType.CREATE
-        ? JobType.BULK_MEMBER_CREATE
-        : JobType.BULK_MEMBER_UPDATE;
+  private canAccessMember(
+    currentMember: MemberDocument,
+    targetMember: MemberDocument,
+  ): boolean {
+    // Self access
+    if (currentMember._id.toString() === targetMember._id.toString()) {
+      return true;
+    }
 
-    // Queue the job
-    const job = await this.queueService.addBulkOperationJob(
-      jobType,
-      csvContent,
-      options,
-      user.sub,
-      {
-        filename: file.originalname,
-        totalRows,
-      },
-    );
-
-    return ResponseUtil.success(
-      {
-        jobId: job.id,
-        status: 'queued',
-        estimatedRows: totalRows,
-      },
-      'Bulk operation job queued successfully. Use the job ID to check progress.',
+    // Use access control service
+    return this.accessControlService.canPerformAction(
+      currentMember,
+      'view',
+      'member',
+      targetMember._id.toString(),
     );
   }
 
-  @Get('csv-templates/:operationType')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
-  @ApiOperation({ summary: 'Download CSV template for bulk operations' })
-  @ApiParam({
-    name: 'operationType',
-    enum: ['create', 'update'],
-    description: 'Type of operation template to download',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'CSV template downloaded successfully',
-  })
-  getMemberCSVTemplate(
-    @Param('operationType') operationType: 'create' | 'update',
-  ) {
-    if (!['create', 'update'].includes(operationType)) {
-      throw new BadRequestException(
-        'Operation type must be either "create" or "update"',
-      );
+  private canEditMember(
+    currentMember: MemberDocument,
+    targetMember: MemberDocument,
+  ): boolean {
+    // Self edit (limited fields)
+    if (currentMember._id.toString() === targetMember._id.toString()) {
+      return true;
     }
 
-    const csvContent =
-      this.membersService.generateMemberCSVTemplate(operationType);
-
-    return {
-      success: true,
-      data: {
-        content: csvContent,
-        filename: `members-${operationType}-template.csv`,
-        contentType: 'text/csv',
-      },
-      message: `Member ${operationType} CSV template generated successfully`,
-    };
+    // Use access control service
+    return this.accessControlService.canPerformAction(
+      currentMember,
+      'edit',
+      'member',
+      targetMember._id.toString(),
+    );
   }
 }
