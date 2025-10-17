@@ -467,6 +467,36 @@ export class FirstTimersController {
     return ResponseUtil.success(null, 'First-timer deleted successfully');
   }
 
+  @Delete('bulk')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Bulk delete first-timers (super admin only)' })
+  @ApiBody({
+    description: 'Array of first-timer IDs to delete',
+    schema: {
+      type: 'object',
+      properties: {
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['6123456789abcdef01234567', '7123456789abcdef01234567'],
+        },
+      },
+      required: ['ids'],
+    },
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'First-timers deleted successfully',
+  })
+  async bulkRemove(@Body() body: { ids: string[] }) {
+    const deletedCount = await this.firstTimersService.bulkRemove(body.ids);
+    return ResponseUtil.success(
+      { deletedCount },
+      'First-timers deleted successfully',
+    );
+  }
+
   @Post('bulk-assign')
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Bulk assign first-timers to users' })

@@ -673,6 +673,11 @@ export class FirstTimersService {
     }
   }
 
+  async bulkRemove(ids: string[]): Promise<number> {
+    const result = await this.firstTimerModel.deleteMany({ _id: { $in: ids } });
+    return result.deletedCount || 0;
+  }
+
   async bulkUpload(
     csvContent: string,
     options: {
