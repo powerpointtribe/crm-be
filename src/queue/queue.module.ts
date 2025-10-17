@@ -20,6 +20,12 @@ import { FirstTimersModule } from '../first-timers/first-timers.module';
           port: configService.get('REDIS_PORT', 6379),
           password: configService.get('REDIS_PASSWORD'),
           db: configService.get('REDIS_DB', 0),
+          maxRetriesPerRequest: 3,
+          retryDelayOnFailover: 100,
+          enableReadyCheck: false,
+          maxLoadingTimeout: 1000,
+          lazyConnect: true,
+          keepAlive: 30000,
         },
         defaultJobOptions: {
           removeOnComplete: 50, // Keep 50 completed jobs
