@@ -37,6 +37,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Check if member has a password set
+    if (!member.password) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, member.password);
     if (!isPasswordValid) {
