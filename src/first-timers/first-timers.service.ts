@@ -188,7 +188,7 @@ export class FirstTimersService {
       page = 1,
       limit = 10,
       search,
-      sortBy = 'dateOfVisit',
+      sortBy = 'createdAt',
       sortOrder = 'desc',
       status,
       assignedTo,
