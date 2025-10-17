@@ -281,9 +281,9 @@ export class FirstTimersService {
       .exec();
   }
 
-  async findByPhone(phone: string): Promise<FirstTimerDocument | null> {
+  async findByPhoneAndEmail(phone: string, email: string): Promise<FirstTimerDocument | null> {
     return this.firstTimerModel
-      .findOne({ phone, isActive: true })
+      .findOne({ phone, email, isActive: true })
       .exec();
   }
 

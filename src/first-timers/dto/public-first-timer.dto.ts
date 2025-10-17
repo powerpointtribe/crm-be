@@ -77,9 +77,9 @@ export class PublicCreateFirstTimerDto {
   phone: string;
 
   @ApiPropertyOptional({ description: 'Email address' })
-  @IsOptional()
+  @IsNotEmpty()
   @IsEmail()
-  email?: string;
+  email: string;
 
   @ApiPropertyOptional({ description: 'Address information' })
   @IsOptional()

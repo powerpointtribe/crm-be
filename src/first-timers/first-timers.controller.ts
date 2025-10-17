@@ -73,10 +73,14 @@ export class FirstTimersController {
   async createPublic(@Body() createFirstTimerDto: PublicCreateFirstTimerDto) {
     try {
       // Check for duplicate phone number for public submissions
-      const existingFirstTimer = await this.firstTimersService.findByPhone(createFirstTimerDto.phone);
+      const existingFirstTimer =
+        await this.firstTimersService.findByPhoneAndEmail(
+          createFirstTimerDto.phone,
+          createFirstTimerDto.email,
+        );
       if (existingFirstTimer) {
         throw new ConflictException(
-          'This phone number has already been registered. If you need to update your information, please contact our team.',
+          'Exact phone number and email has already been registered. please use an alternative number or email.',
         );
       }
 
@@ -112,17 +116,15 @@ export class FirstTimersController {
           firstName: firstTimer.firstName,
           lastName: firstTimer.lastName,
           status: firstTimer.status,
-          message: 'Thank you for your interest! Our team will contact you soon.',
+          message:
+            'Thank you for your interest! Our team will contact you soon.',
         },
         'First-timer registration completed successfully',
       );
     } catch (error) {
-      // Log the error for debugging
-      console.error('Error in createPublic:', error);
-
       // Return a user-friendly error response
       throw new BadRequestException(
-        'We encountered an issue while processing your registration. Please try again or contact support if the problem persists.',
+        error.message || 'Failed to register first-timer from public domain',
       );
     }
   }
