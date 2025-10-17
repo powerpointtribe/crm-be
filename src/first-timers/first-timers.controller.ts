@@ -361,11 +361,11 @@ export class FirstTimersController {
   })
   async convertToMember(
     @Param('id') id: string,
-    @Body() body: { memberRecordId?: string },
+    @Body() body: { memberRecordId?: string } = {},
   ) {
     const firstTimer = await this.firstTimersService.convertToMember(
       id,
-      body.memberRecordId,
+      body?.memberRecordId,
     );
     return ResponseUtil.success(
       firstTimer,
