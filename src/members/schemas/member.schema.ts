@@ -52,6 +52,13 @@ export class Member {
   @Prop({ type: Date })
   lastLogin?: Date;
 
+  // PASSWORD RESET FIELDS
+  @Prop({ type: String })
+  resetPasswordOtp?: string;
+
+  @Prop({ type: Date })
+  resetPasswordOtpExpires?: Date;
+
   // CHURCH MEMBERSHIP STATUS
   @Prop({
     type: String,

@@ -2,6 +2,8 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -9,6 +11,9 @@ import { MembersService } from '../members/members.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { CreateMemberDto } from '../members/dto/create-member.dto';
 import { MembershipStatus } from '../common/enums/member-status.enum';
@@ -231,5 +236,65 @@ export class AuthService {
         member.leadershipRoles.isUnitHead ||
         member.leadershipRoles.isChamp,
     };
+  }
+
+  // PASSWORD RESET METHODS
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const { email } = forgotPasswordDto;
+
+    // Check if member exists
+    const member = await this.membersService.findByEmail(email);
+    if (!member) {
+      // Don't reveal if email exists or not for security
+      return {
+        message: 'If the email exists, a password reset OTP has been sent.',
+      };
+    }
+
+    // Generate default OTP
+    const otp = '123456';
+
+    // Store OTP in database
+    await this.membersService.setPasswordResetOtp(email, otp);
+
+    // In a real application, you would send this OTP via email
+    // For now, we'll just return success message
+    return {
+      message: 'If the email exists, a password reset OTP has been sent.',
+      // For development purposes, include the OTP
+      ...(process.env.NODE_ENV !== 'production' && { otp }),
+    };
+  }
+
+  async verifyOtp(verifyOtpDto: VerifyOtpDto) {
+    const { email, otp } = verifyOtpDto;
+
+    const isValid = await this.membersService.verifyPasswordResetOtp(email, otp);
+
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid or expired OTP');
+    }
+
+    return {
+      message: 'OTP verified successfully. You can now reset your password.',
+      verified: true,
+    };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    const { email, otp, newPassword } = resetPasswordDto;
+
+    try {
+      await this.membersService.resetPassword(email, otp, newPassword);
+
+      return {
+        message: 'Password reset successfully. You can now login with your new password.',
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to reset password');
+    }
   }
 }

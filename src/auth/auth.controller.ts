@@ -8,6 +8,9 @@ import {
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -90,5 +93,37 @@ export class AuthController {
     // For JWT, logout is typically handled client-side by removing the token
     // But we can log the logout event here if needed
     return ResponseUtil.success(null, 'Logout successful');
+  }
+
+  // PASSWORD RESET ENDPOINTS
+  @Public()
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request password reset OTP' })
+  @ApiResponse({ status: 200, description: 'Password reset OTP sent if email exists' })
+  @ApiResponse({ status: 400, description: 'Invalid email format' })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    const result = await this.authService.forgotPassword(forgotPasswordDto);
+    return ResponseUtil.success(result, result.message);
+  }
+
+  @Public()
+  @Post('verify-otp')
+  @ApiOperation({ summary: 'Verify password reset OTP' })
+  @ApiResponse({ status: 200, description: 'OTP verified successfully' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired OTP' })
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
+    const result = await this.authService.verifyOtp(verifyOtpDto);
+    return ResponseUtil.success(result, result.message);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password with OTP' })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid OTP or request' })
+  @ApiResponse({ status: 404, description: 'Member not found' })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    const result = await this.authService.resetPassword(resetPasswordDto);
+    return ResponseUtil.success(result, result.message);
   }
 }

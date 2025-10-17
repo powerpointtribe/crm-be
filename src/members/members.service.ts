@@ -959,4 +959,85 @@ export class MembersService {
     await member.save();
     return member;
   }
+
+  // PASSWORD RESET METHODS
+  async setPasswordResetOtp(email: string, otp: string): Promise<void> {
+    const member = await this.memberModel.findOne({
+      email: email.toLowerCase(),
+      isActive: true
+    });
+
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    // Set OTP to expire in 15 minutes
+    const expirationTime = new Date();
+    expirationTime.setMinutes(expirationTime.getMinutes() + 15);
+
+    member.resetPasswordOtp = otp;
+    member.resetPasswordOtpExpires = expirationTime;
+
+    await member.save();
+  }
+
+  async verifyPasswordResetOtp(email: string, otp: string): Promise<boolean> {
+    const member = await this.memberModel.findOne({
+      email: email.toLowerCase(),
+      isActive: true
+    });
+
+    if (!member || !member.resetPasswordOtp || !member.resetPasswordOtpExpires) {
+      return false;
+    }
+
+    // Check if OTP has expired
+    if (new Date() > member.resetPasswordOtpExpires) {
+      // Clear expired OTP
+      member.resetPasswordOtp = undefined;
+      member.resetPasswordOtpExpires = undefined;
+      await member.save();
+      return false;
+    }
+
+    return member.resetPasswordOtp === otp;
+  }
+
+  async resetPassword(email: string, otp: string, newPassword: string): Promise<void> {
+    const member = await this.memberModel.findOne({
+      email: email.toLowerCase(),
+      isActive: true
+    });
+
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    // Verify OTP
+    const isOtpValid = await this.verifyPasswordResetOtp(email, otp);
+    if (!isOtpValid) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    // Update password and clear OTP fields
+    const bcrypt = await import('bcryptjs');
+    member.password = await bcrypt.hash(newPassword, 10);
+    member.resetPasswordOtp = undefined;
+    member.resetPasswordOtpExpires = undefined;
+
+    await member.save();
+  }
+
+  async clearPasswordResetOtp(email: string): Promise<void> {
+    const member = await this.memberModel.findOne({
+      email: email.toLowerCase(),
+      isActive: true
+    });
+
+    if (member) {
+      member.resetPasswordOtp = undefined;
+      member.resetPasswordOtpExpires = undefined;
+      await member.save();
+    }
+  }
 }
