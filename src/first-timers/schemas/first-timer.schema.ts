@@ -111,6 +111,8 @@ export class FirstTimer {
       'online',
       'event',
       'walkby',
+      'website',
+      'social_media',
       'other',
     ],
   })

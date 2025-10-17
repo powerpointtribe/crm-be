@@ -281,9 +281,21 @@ export class FirstTimersService {
       .exec();
   }
 
+  async findByPhone(phone: string): Promise<FirstTimerDocument | null> {
+    return this.firstTimerModel
+      .findOne({ phone, isActive: true })
+      .exec();
+  }
+
   async findByPhoneAndEmail(phone: string, email: string): Promise<FirstTimerDocument | null> {
     return this.firstTimerModel
       .findOne({ phone, email, isActive: true })
+      .exec();
+  }
+
+  async findByEmail(email: string): Promise<FirstTimerDocument | null> {
+    return this.firstTimerModel
+      .findOne({ email: email.toLowerCase(), isActive: true })
       .exec();
   }
 
