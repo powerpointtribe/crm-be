@@ -6,7 +6,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { MembersModule } from '../members/members.module';
-import { AccessControlService } from '../common/services/access-control.service';
+import { CommonModule } from '../common/common.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { ModuleAccessGuard } from './guards/module-access.guard';
@@ -25,11 +25,11 @@ import { ModuleAccessGuard } from './guards/module-access.guard';
       }),
     }),
     MembersModule,
+    CommonModule,
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
-    AccessControlService,
     JwtStrategy,
     JwtAuthGuard,
     RolesGuard,
@@ -37,7 +37,6 @@ import { ModuleAccessGuard } from './guards/module-access.guard';
   ],
   exports: [
     AuthService,
-    AccessControlService,
     JwtAuthGuard,
     RolesGuard,
     ModuleAccessGuard,
