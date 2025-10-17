@@ -245,30 +245,35 @@ export class AuthService {
 
   // PASSWORD RESET METHODS
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
-    const { email } = forgotPasswordDto;
+    try {
+      const { email } = forgotPasswordDto;
 
-    // Check if member exists
-    const member = await this.membersService.findByEmail(email);
-    if (!member) {
-      // Don't reveal if email exists or not for security
+      // Check if member exists
+      const member = await this.membersService.findByEmail(email);
+      if (!member) {
+        // Don't reveal if email exists or not for security
+        return {
+          message: 'If the email exists, a password reset OTP has been sent.',
+        };
+      }
+
+      // Generate default OTP
+      const otp = '123456';
+
+      // Store OTP in database
+      await this.membersService.setPasswordResetOtp(email, otp);
+
+      // In a real application, you would send this OTP via email
+      // For now, we'll just return success message
       return {
         message: 'If the email exists, a password reset OTP has been sent.',
+        // For development purposes, include the OTP
+        ...(process.env.NODE_ENV !== 'production' && { otp }),
       };
+    } catch (error) {
+      console.error('Error in forgotPassword:', error);
+      throw new BadRequestException('Failed to process password reset request');
     }
-
-    // Generate default OTP
-    const otp = '123456';
-
-    // Store OTP in database
-    await this.membersService.setPasswordResetOtp(email, otp);
-
-    // In a real application, you would send this OTP via email
-    // For now, we'll just return success message
-    return {
-      message: 'If the email exists, a password reset OTP has been sent.',
-      // For development purposes, include the OTP
-      ...(process.env.NODE_ENV !== 'production' && { otp }),
-    };
   }
 
   async verifyOtp(verifyOtpDto: VerifyOtpDto) {

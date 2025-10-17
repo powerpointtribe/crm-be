@@ -30,6 +30,9 @@ import { BullBoardModule } from './bull-board/bull-board.module';
       useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>('MONGODB_URI'),
         dbName: configService.get<string>('DATABASE_NAME'),
+        ssl: true,
+        tls: true,
+        tlsInsecure: false,
       }),
     }),
 

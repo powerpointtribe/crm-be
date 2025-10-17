@@ -962,23 +962,41 @@ export class MembersService {
 
   // PASSWORD RESET METHODS
   async setPasswordResetOtp(email: string, otp: string): Promise<void> {
-    const member = await this.memberModel.findOne({
-      email: email.toLowerCase(),
-      isActive: true
-    });
+    try {
+      const member = await this.memberModel.findOne({
+        email: email.toLowerCase(),
+        isActive: true
+      });
 
-    if (!member) {
-      throw new NotFoundException('Member not found');
+      if (!member) {
+        throw new NotFoundException('Member not found');
+      }
+
+      // Set OTP to expire in 15 minutes
+      const expirationTime = new Date();
+      expirationTime.setMinutes(expirationTime.getMinutes() + 15);
+
+      // Use updateOne to bypass validation issues with members that might not have passwords
+      const result = await this.memberModel.updateOne(
+        { _id: member._id },
+        {
+          $set: {
+            resetPasswordOtp: otp,
+            resetPasswordOtpExpires: expirationTime
+          }
+        }
+      );
+
+      if (result.matchedCount === 0) {
+        throw new NotFoundException('Member not found for update');
+      }
+    } catch (error) {
+      console.error('Error in setPasswordResetOtp:', error);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to set password reset OTP');
     }
-
-    // Set OTP to expire in 15 minutes
-    const expirationTime = new Date();
-    expirationTime.setMinutes(expirationTime.getMinutes() + 15);
-
-    member.resetPasswordOtp = otp;
-    member.resetPasswordOtpExpires = expirationTime;
-
-    await member.save();
   }
 
   async verifyPasswordResetOtp(email: string, otp: string): Promise<boolean> {
