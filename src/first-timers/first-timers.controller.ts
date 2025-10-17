@@ -13,6 +13,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
@@ -70,42 +71,60 @@ export class FirstTimersController {
     description: 'Invalid input data',
   })
   async createPublic(@Body() createFirstTimerDto: PublicCreateFirstTimerDto) {
-    // Convert public DTO to internal DTO and add metadata
-    // Extract only the relevant properties and ignore the ones that should be handled internally
-    const {
-      dateOfBirth,
-      occupation,
-      serviceType,
-      status,
-      converted,
-      followUps,
-      tags,
-      dateOfVisit: ignoredDateOfVisit,
-      ...relevantData
-    } = createFirstTimerDto;
+    try {
+      // Check for duplicate phone number for public submissions
+      const existingFirstTimer = await this.firstTimersService.findByPhone(createFirstTimerDto.phone);
+      if (existingFirstTimer) {
+        throw new ConflictException(
+          'This phone number has already been registered. If you need to update your information, please contact our team.',
+        );
+      }
 
-    const internalDto: CreateFirstTimerDto = {
-      ...relevantData,
-      dateOfVisit: new Date().toISOString().split('T')[0], // Set to today
-      notes: createFirstTimerDto.notes
-        ? `[PUBLIC DOMAIN] ${createFirstTimerDto.notes}`
-        : '[PUBLIC DOMAIN] Registration from website/public form',
-      howDidYouHear: createFirstTimerDto.howDidYouHear || 'website',
-      visitorType: createFirstTimerDto.visitorType || 'first_time',
-    };
+      // Convert public DTO to internal DTO and add metadata
+      // Extract only the relevant properties and ignore the ones that should be handled internally
+      const {
+        dateOfBirth,
+        occupation,
+        serviceType,
+        status,
+        converted,
+        followUps,
+        tags,
+        dateOfVisit: ignoredDateOfVisit,
+        ...relevantData
+      } = createFirstTimerDto;
 
-    const firstTimer = await this.firstTimersService.create(internalDto);
+      const internalDto: CreateFirstTimerDto = {
+        ...relevantData,
+        dateOfVisit: new Date().toISOString().split('T')[0], // Set to today
+        notes: createFirstTimerDto.notes
+          ? `[PUBLIC DOMAIN] ${createFirstTimerDto.notes}`
+          : '[PUBLIC DOMAIN] Registration from website/public form',
+        howDidYouHear: createFirstTimerDto.howDidYouHear || 'website',
+        visitorType: createFirstTimerDto.visitorType || 'first_time',
+      };
 
-    return ResponseUtil.success(
-      {
-        id: firstTimer._id,
-        firstName: firstTimer.firstName,
-        lastName: firstTimer.lastName,
-        status: firstTimer.status,
-        message: 'Thank you for your interest! Our team will contact you soon.',
-      },
-      'First-timer registration completed successfully',
-    );
+      const firstTimer = await this.firstTimersService.create(internalDto);
+
+      return ResponseUtil.success(
+        {
+          id: firstTimer._id,
+          firstName: firstTimer.firstName,
+          lastName: firstTimer.lastName,
+          status: firstTimer.status,
+          message: 'Thank you for your interest! Our team will contact you soon.',
+        },
+        'First-timer registration completed successfully',
+      );
+    } catch (error) {
+      // Log the error for debugging
+      console.error('Error in createPublic:', error);
+
+      // Return a user-friendly error response
+      throw new BadRequestException(
+        'We encountered an issue while processing your registration. Please try again or contact support if the problem persists.',
+      );
+    }
   }
 
   @Post()

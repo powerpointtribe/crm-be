@@ -281,6 +281,12 @@ export class FirstTimersService {
       .exec();
   }
 
+  async findByPhone(phone: string): Promise<FirstTimerDocument | null> {
+    return this.firstTimerModel
+      .findOne({ phone, isActive: true })
+      .exec();
+  }
+
   async addFollowUp(
     id: string,
     followUpDto: AddFollowUpDto,
