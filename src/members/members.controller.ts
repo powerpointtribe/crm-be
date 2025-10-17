@@ -67,6 +67,23 @@ export class MembersController {
     return data;
   }
 
+  @Get('stats')
+  @RequireMembersAccess()
+  @UseGuards(ModuleAccessGuard)
+  async getMemberStats(@Request() req) {
+    // Only admins and pastors can access stats
+    if (
+      !req.user.systemRoles.includes('admin') &&
+      !req.user.systemRoles.includes('pastor')
+    ) {
+      throw new ForbiddenException(
+        'Only admins and pastors can access member statistics',
+      );
+    }
+
+    return this.membersService.getMemberStats();
+  }
+
   @Get('my-profile')
   @AllowSelfAccess()
   async getMyProfile(@Request() req) {
