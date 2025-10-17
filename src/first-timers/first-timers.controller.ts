@@ -71,8 +71,21 @@ export class FirstTimersController {
   })
   async createPublic(@Body() createFirstTimerDto: PublicCreateFirstTimerDto) {
     // Convert public DTO to internal DTO and add metadata
+    // Extract only the relevant properties and ignore the ones that should be handled internally
+    const {
+      dateOfBirth,
+      occupation,
+      serviceType,
+      status,
+      converted,
+      followUps,
+      tags,
+      dateOfVisit: ignoredDateOfVisit,
+      ...relevantData
+    } = createFirstTimerDto;
+
     const internalDto: CreateFirstTimerDto = {
-      ...createFirstTimerDto,
+      ...relevantData,
       dateOfVisit: new Date().toISOString().split('T')[0], // Set to today
       notes: createFirstTimerDto.notes
         ? `[PUBLIC DOMAIN] ${createFirstTimerDto.notes}`
@@ -116,11 +129,7 @@ export class FirstTimersController {
   }
 
   @Get()
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.PASTOR,
-    UserRole.LXL,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get all first-timers with advanced filtering' })
   @ApiResponse({
     status: 200,
@@ -184,11 +193,7 @@ export class FirstTimersController {
   }
 
   @Get('recent')
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.PASTOR,
-    UserRole.LXL,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get recent visitors' })
   @ApiQuery({
     name: 'days',
@@ -226,11 +231,7 @@ export class FirstTimersController {
   }
 
   @Get(':id')
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.PASTOR,
-    UserRole.LXL,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get first-timer by ID' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({
@@ -262,11 +263,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/follow-up')
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.PASTOR,
-    UserRole.LXL,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Add follow-up record to first-timer' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({ status: 200, description: 'Follow-up added successfully' })
@@ -387,11 +384,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/notes')
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.PASTOR,
-    UserRole.LXL,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Update first-timer notes' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({ status: 200, description: 'Notes updated successfully' })

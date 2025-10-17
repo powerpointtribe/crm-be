@@ -262,17 +262,17 @@ export class Member {
 export const MemberSchema = SchemaFactory.createForClass(Member);
 
 // Add virtual methods for access control
-MemberSchema.methods.canAccessModule = function(module: string): boolean {
+MemberSchema.methods.canAccessModule = function (module: string): boolean {
   // This will be implemented in the service layer using the access control logic
   return true; // Placeholder
 };
 
-MemberSchema.methods.hasPermission = function(permission: string): boolean {
+MemberSchema.methods.hasPermission = function (permission: string): boolean {
   // Check system roles, leadership roles, unit type, etc.
   return true; // Placeholder
 };
 
-MemberSchema.methods.getAccessibleModules = function(): string[] {
+MemberSchema.methods.getAccessibleModules = function (): string[] {
   // Return array of accessible modules based on roles and assignments
   return []; // Placeholder
 };

@@ -32,11 +32,14 @@ export class ModuleAccessGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
-    const hasAccess = this.accessControlService.canAccessModule(member, requiredModule);
+    const hasAccess = this.accessControlService.canAccessModule(
+      member,
+      requiredModule,
+    );
 
     if (!hasAccess) {
       throw new ForbiddenException(
-        `Access denied: You don't have permission to access the ${requiredModule} module`
+        `Access denied: You don't have permission to access the ${requiredModule} module`,
       );
     }
 

@@ -26,7 +26,7 @@ import { AccessControlService } from '../common/services/access-control.service'
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member, MemberDocument } from './schemas/member.schema';
-import { UserRole } from 'src/common/enums/user-roles.enums';
+import { UserRole } from '../common/enums/user-roles.enums';
 
 @Controller('members')
 @UseGuards(JwtAuthGuard)

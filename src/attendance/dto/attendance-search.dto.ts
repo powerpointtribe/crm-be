@@ -19,22 +19,34 @@ export class AttendanceSearchDto {
   @IsMongoId()
   member?: string;
 
-  @ApiPropertyOptional({ description: 'Start date for date range filter', example: '2024-01-01' })
+  @ApiPropertyOptional({
+    description: 'Start date for date range filter',
+    example: '2024-01-01',
+  })
   @IsOptional()
   @IsDateString()
   startDate?: string;
 
-  @ApiPropertyOptional({ description: 'End date for date range filter', example: '2024-01-31' })
+  @ApiPropertyOptional({
+    description: 'End date for date range filter',
+    example: '2024-01-31',
+  })
   @IsOptional()
   @IsDateString()
   endDate?: string;
 
-  @ApiPropertyOptional({ description: 'Service type filter', enum: ServiceType })
+  @ApiPropertyOptional({
+    description: 'Service type filter',
+    enum: ServiceType,
+  })
   @IsOptional()
   @IsEnum(ServiceType)
   serviceType?: ServiceType;
 
-  @ApiPropertyOptional({ description: 'Attendance status filter', enum: AttendanceStatus })
+  @ApiPropertyOptional({
+    description: 'Attendance status filter',
+    enum: AttendanceStatus,
+  })
   @IsOptional()
   @IsEnum(AttendanceStatus)
   status?: AttendanceStatus;
@@ -86,24 +98,36 @@ export class AttendanceSearchDto {
   @IsString()
   sortBy?: string = 'serviceDate';
 
-  @ApiPropertyOptional({ description: 'Sort order', enum: ['asc', 'desc'], default: 'desc' })
+  @ApiPropertyOptional({
+    description: 'Sort order',
+    enum: ['asc', 'desc'],
+    default: 'desc',
+  })
   @IsOptional()
   @IsEnum(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc' = 'desc';
 }
 
 export class AttendanceStatsDto {
-  @ApiPropertyOptional({ description: 'Start date for stats', example: '2024-01-01' })
+  @ApiPropertyOptional({
+    description: 'Start date for stats',
+    example: '2024-01-01',
+  })
   @IsOptional()
   @IsDateString()
   startDate?: string;
 
-  @ApiPropertyOptional({ description: 'End date for stats', example: '2024-01-31' })
+  @ApiPropertyOptional({
+    description: 'End date for stats',
+    example: '2024-01-31',
+  })
   @IsOptional()
   @IsDateString()
   endDate?: string;
 
-  @ApiPropertyOptional({ description: 'Ministry ID for ministry-specific stats' })
+  @ApiPropertyOptional({
+    description: 'Ministry ID for ministry-specific stats',
+  })
   @IsOptional()
   @IsMongoId()
   ministry?: string;
@@ -113,7 +137,10 @@ export class AttendanceStatsDto {
   @IsMongoId()
   unit?: string;
 
-  @ApiPropertyOptional({ description: 'Service type for service-specific stats', enum: ServiceType })
+  @ApiPropertyOptional({
+    description: 'Service type for service-specific stats',
+    enum: ServiceType,
+  })
   @IsOptional()
   @IsEnum(ServiceType)
   serviceType?: ServiceType;

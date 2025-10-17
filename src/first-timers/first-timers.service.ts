@@ -95,31 +95,41 @@ export class FirstTimersService {
         );
 
         if (!giaGroup) {
-          throw new Error('GIA unit group not found. Please create a GIA unit group in the groups module.');
+          throw new Error(
+            'GIA unit group not found. Please create a GIA unit group in the groups module.',
+          );
         }
 
         if (!giaGroup.unitHead) {
-          throw new Error('GIA unit group has no unit head assigned. Please assign a unit head to the GIA group.');
+          throw new Error(
+            'GIA unit group has no unit head assigned. Please assign a unit head to the GIA group.',
+          );
         }
 
         // The unitHead is populated, so we can access the member's email
         const unitHeadMember = giaGroup.unitHead as any;
 
         if (!unitHeadMember.email) {
-          throw new Error('GIA unit head member has no email address. Please ensure the unit head member has a valid email.');
+          throw new Error(
+            'GIA unit head member has no email address. Please ensure the unit head member has a valid email.',
+          );
         }
 
         // Find the member with the same email as the GIA unit head
-        const giaLeaderMember = await this.membersService.findByEmail(unitHeadMember.email);
+        const giaLeaderMember = await this.membersService.findByEmail(
+          unitHeadMember.email,
+        );
 
         if (!giaLeaderMember) {
-          throw new Error(`No active member found with email ${unitHeadMember.email}`);
+          throw new Error(
+            `No active member found with email ${unitHeadMember.email}`,
+          );
         }
 
         giaLeader = giaLeaderMember._id?.toString();
       } catch (error) {
         throw new BadRequestException(
-          `Failed to assign GIA leader: ${error.message}`
+          `Failed to assign GIA leader: ${error.message}`,
         );
       }
     }
@@ -127,7 +137,9 @@ export class FirstTimersService {
     // Validate and convert dateOfVisit
     const dateOfVisit = new Date(createFirstTimerDto.dateOfVisit);
     if (isNaN(dateOfVisit.getTime())) {
-      throw new BadRequestException('Invalid date format for dateOfVisit. Use YYYY-MM-DD format.');
+      throw new BadRequestException(
+        'Invalid date format for dateOfVisit. Use YYYY-MM-DD format.',
+      );
     }
 
     const firstTimer = new this.firstTimerModel({
@@ -395,19 +407,23 @@ export class FirstTimersService {
       const memberData = {
         firstName: firstTimer.firstName,
         lastName: firstTimer.lastName,
-        email: firstTimer.email || `${firstTimer.firstName.toLowerCase()}.${firstTimer.lastName.toLowerCase()}@church.com`,
+        email:
+          firstTimer.email ||
+          `${firstTimer.firstName.toLowerCase()}.${firstTimer.lastName.toLowerCase()}@church.com`,
         phone: firstTimer.phone,
         address: {
           street: firstTimer.address?.street || 'Unknown',
           city: firstTimer.address?.city || 'Unknown',
           state: firstTimer.address?.state || 'Unknown',
-          country: firstTimer.address?.country || 'Nigeria'
+          country: firstTimer.address?.country || 'Nigeria',
         },
         dateOfBirth: '1990-01-01', // Default date, will need to be updated later
         gender: 'male', // Default, will need to be updated
         password: Math.random().toString(36).slice(-8), // Temporary random password
         membershipStatus: MembershipStatus.NEW_CONVERT,
-        district: firstTimer.suggestedDistrict?.toString() || '507f1f77bcf86cd799439011', // Default district ID
+        district:
+          firstTimer.suggestedDistrict?.toString() ||
+          '507f1f77bcf86cd799439011', // Default district ID
       };
 
       const newMember = await this.membersService.create(memberData);
@@ -449,7 +465,10 @@ export class FirstTimersService {
     return updatedFirstTimer;
   }
 
-  async assignToMember(id: string, memberId: string): Promise<FirstTimerDocument> {
+  async assignToMember(
+    id: string,
+    memberId: string,
+  ): Promise<FirstTimerDocument> {
     const firstTimer = await this.firstTimerModel
       .findByIdAndUpdate(id, { $set: { assignedTo: memberId } }, { new: true })
       .populate('assignedTo', 'firstName lastName email');
@@ -786,7 +805,9 @@ export class FirstTimersService {
     // Validate and convert dateOfVisit
     const dateOfVisit = new Date(createFirstTimerDto.dateOfVisit);
     if (isNaN(dateOfVisit.getTime())) {
-      throw new BadRequestException('Invalid date format for dateOfVisit. Use YYYY-MM-DD format.');
+      throw new BadRequestException(
+        'Invalid date format for dateOfVisit. Use YYYY-MM-DD format.',
+      );
     }
 
     const firstTimer = new this.firstTimerModel({
@@ -857,5 +878,4 @@ export class FirstTimersService {
   async getGiaGroup() {
     return this.groupsService.findByNameAndType('GIA', GroupType.UNIT);
   }
-
 }

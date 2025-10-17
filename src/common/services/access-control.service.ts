@@ -3,7 +3,7 @@ import {
   DashboardModule,
   UnitType,
   UNIT_MODULE_ACCESS,
-  ROLE_MODULE_ACCESS
+  ROLE_MODULE_ACCESS,
 } from '../enums/dashboard-modules.enums';
 import { UserRole } from '../enums/user-roles.enums';
 import { Member, MemberDocument } from '../../members/schemas/member.schema';
@@ -16,7 +16,6 @@ export interface AccessControlContext {
 
 @Injectable()
 export class AccessControlService {
-
   /**
    * Check if a member can access a specific module
    */
@@ -65,7 +64,10 @@ export class AccessControlService {
   /**
    * Check role-based access (pastor, director, etc.)
    */
-  private checkRoleBasedAccess(member: Member, module: DashboardModule): boolean {
+  private checkRoleBasedAccess(
+    member: Member,
+    module: DashboardModule,
+  ): boolean {
     for (const role of member.systemRoles) {
       const roleModules = ROLE_MODULE_ACCESS[role];
       if (roleModules && roleModules.includes(module)) {
@@ -78,7 +80,10 @@ export class AccessControlService {
   /**
    * Check unit-based access (GIA can see first-timers, etc.)
    */
-  private checkUnitBasedAccess(member: Member, module: DashboardModule): boolean {
+  private checkUnitBasedAccess(
+    member: Member,
+    module: DashboardModule,
+  ): boolean {
     if (!member.unitType) {
       return false;
     }
@@ -90,43 +95,57 @@ export class AccessControlService {
   /**
    * Check leadership-based access (district pastors, unit heads, etc.)
    */
-  private checkLeadershipBasedAccess(member: Member, module: DashboardModule): boolean {
+  private checkLeadershipBasedAccess(
+    member: Member,
+    module: DashboardModule,
+  ): boolean {
     const { leadershipRoles } = member;
 
     switch (module) {
       case DashboardModule.FIRST_TIMERS:
         // Only GIA unit members and leadership can access
-        return member.unitType === UnitType.GIA ||
-               leadershipRoles.isDistrictPastor ||
-               leadershipRoles.isUnitHead;
+        return (
+          member.unitType === UnitType.GIA ||
+          leadershipRoles.isDistrictPastor ||
+          leadershipRoles.isUnitHead
+        );
 
       case DashboardModule.MEMBERS:
         // District pastors can see their district members
         // Unit heads can see their unit members
         // GIA can see all members for integration
-        return leadershipRoles.isDistrictPastor ||
-               leadershipRoles.isUnitHead ||
-               leadershipRoles.isChamp ||
-               member.unitType === UnitType.GIA;
+        return (
+          leadershipRoles.isDistrictPastor ||
+          leadershipRoles.isUnitHead ||
+          leadershipRoles.isChamp ||
+          member.unitType === UnitType.GIA
+        );
 
       case DashboardModule.UNITS:
         // Leadership and pastors can manage units
-        return leadershipRoles.isDistrictPastor ||
-               leadershipRoles.isUnitHead ||
-               member.systemRoles.includes(UserRole.PASTOR) ||
-               member.systemRoles.includes(UserRole.LXL);
+        return (
+          leadershipRoles.isDistrictPastor ||
+          leadershipRoles.isUnitHead ||
+          member.systemRoles.includes(UserRole.PASTOR) ||
+          member.systemRoles.includes(UserRole.LXL)
+        );
 
       case DashboardModule.MINISTRIES:
         // Directors can manage their ministries
-        return member.directorOfMinistries && member.directorOfMinistries.length > 0 ||
-               member.systemRoles.includes(UserRole.DIRECTOR) ||
-               member.systemRoles.includes(UserRole.PASTOR);
+        return (
+          (member.directorOfMinistries &&
+            member.directorOfMinistries.length > 0) ||
+          member.systemRoles.includes(UserRole.DIRECTOR) ||
+          member.systemRoles.includes(UserRole.PASTOR)
+        );
 
       case DashboardModule.USER_MANAGEMENT:
         // Only high-level leadership can manage users
-        return leadershipRoles.isDistrictPastor ||
-               member.systemRoles.includes(UserRole.PASTOR) ||
-               member.systemRoles.includes(UserRole.ADMIN);
+        return (
+          leadershipRoles.isDistrictPastor ||
+          member.systemRoles.includes(UserRole.PASTOR) ||
+          member.systemRoles.includes(UserRole.ADMIN)
+        );
 
       default:
         return false;
@@ -140,7 +159,7 @@ export class AccessControlService {
     member: Member,
     action: string,
     resourceType: string,
-    resourceId?: string
+    resourceId?: string,
   ): boolean {
     // Admin can do everything
     if (member.systemRoles.includes(UserRole.ADMIN)) {
@@ -162,7 +181,11 @@ export class AccessControlService {
     }
   }
 
-  private checkMemberResourceAccess(member: Member, action: string, resourceId?: string): boolean {
+  private checkMemberResourceAccess(
+    member: Member,
+    action: string,
+    resourceId?: string,
+  ): boolean {
     const { leadershipRoles } = member;
 
     switch (action) {
@@ -174,29 +197,43 @@ export class AccessControlService {
         // District pastors can edit their district members
         // Unit heads can edit their unit members
         // GIA can edit for integration purposes
-        return leadershipRoles.isDistrictPastor ||
-               leadershipRoles.isUnitHead ||
-               member.unitType === UnitType.GIA;
+        return (
+          leadershipRoles.isDistrictPastor ||
+          leadershipRoles.isUnitHead ||
+          member.unitType === UnitType.GIA
+        );
 
       case 'delete':
         // Only high-level roles can delete
-        return member.systemRoles.includes(UserRole.PASTOR) ||
-               member.systemRoles.includes(UserRole.ADMIN);
+        return (
+          member.systemRoles.includes(UserRole.PASTOR) ||
+          member.systemRoles.includes(UserRole.ADMIN)
+        );
 
       default:
         return false;
     }
   }
 
-  private checkFirstTimerResourceAccess(member: Member, action: string, resourceId?: string): boolean {
+  private checkFirstTimerResourceAccess(
+    member: Member,
+    action: string,
+    resourceId?: string,
+  ): boolean {
     // Only GIA and leadership can access first-timers
-    return member.unitType === UnitType.GIA ||
-           member.leadershipRoles.isDistrictPastor ||
-           member.leadershipRoles.isUnitHead ||
-           member.systemRoles.includes(UserRole.PASTOR);
+    return (
+      member.unitType === UnitType.GIA ||
+      member.leadershipRoles.isDistrictPastor ||
+      member.leadershipRoles.isUnitHead ||
+      member.systemRoles.includes(UserRole.PASTOR)
+    );
   }
 
-  private checkGroupResourceAccess(member: Member, action: string, resourceId?: string): boolean {
+  private checkGroupResourceAccess(
+    member: Member,
+    action: string,
+    resourceId?: string,
+  ): boolean {
     const { leadershipRoles } = member;
 
     switch (action) {
@@ -205,10 +242,12 @@ export class AccessControlService {
 
       case 'manage':
         // Can manage if they lead the group or are high-level leadership
-        return leadershipRoles.isDistrictPastor ||
-               leadershipRoles.isUnitHead ||
-               member.systemRoles.includes(UserRole.PASTOR) ||
-               member.systemRoles.includes(UserRole.LXL);
+        return (
+          leadershipRoles.isDistrictPastor ||
+          leadershipRoles.isUnitHead ||
+          member.systemRoles.includes(UserRole.PASTOR) ||
+          member.systemRoles.includes(UserRole.LXL)
+        );
 
       default:
         return false;

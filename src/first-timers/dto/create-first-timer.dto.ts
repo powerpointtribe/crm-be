@@ -87,7 +87,9 @@ export class CreateFirstTimerDto {
 
   @ApiProperty({ description: 'Date of visit', example: '2024-01-15' })
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateOfVisit must be in YYYY-MM-DD format' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'dateOfVisit must be in YYYY-MM-DD format',
+  })
   @IsNotEmpty()
   dateOfVisit: string;
 

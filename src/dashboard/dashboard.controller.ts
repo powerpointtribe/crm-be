@@ -63,7 +63,9 @@ export class DashboardController {
 
   @Get('overview')
   @ReportsAccess() // Reports module access required for overview
-  @ApiOperation({ summary: 'Get dashboard overview with metrics and analytics' })
+  @ApiOperation({
+    summary: 'Get dashboard overview with metrics and analytics',
+  })
   async getDashboardOverview(@CurrentUser() user: any) {
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,

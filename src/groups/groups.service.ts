@@ -178,7 +178,10 @@ export class GroupsService {
       .exec();
   }
 
-  async findByNameAndType(name: string, type: GroupType): Promise<GroupDocument | null> {
+  async findByNameAndType(
+    name: string,
+    type: GroupType,
+  ): Promise<GroupDocument | null> {
     return this.groupModel
       .findOne({ name, type, isActive: true })
       .populate('districtPastor', 'firstName lastName email phone')

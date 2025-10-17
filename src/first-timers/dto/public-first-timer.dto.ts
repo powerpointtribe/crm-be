@@ -31,6 +31,11 @@ class PublicAddressDto {
   @IsString()
   state?: string;
 
+  @ApiPropertyOptional({ description: 'ZIP/Postal code' })
+  @IsOptional()
+  @IsString()
+  zipCode?: string;
+
   @ApiPropertyOptional({ description: 'Country', default: 'Nigeria' })
   @IsOptional()
   @IsString()
@@ -180,4 +185,52 @@ export class PublicCreateFirstTimerDto {
   @IsOptional()
   @IsBoolean()
   interestedInJoining?: boolean;
+
+  // Additional optional properties to handle frontend form fields
+  @ApiPropertyOptional({
+    description: 'Date of birth (ignored in public form)',
+  })
+  @IsOptional()
+  @IsString()
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional({ description: 'Occupation (ignored in public form)' })
+  @IsOptional()
+  @IsString()
+  occupation?: string;
+
+  @ApiPropertyOptional({
+    description: 'Date of visit (ignored - auto-set to today)',
+  })
+  @IsOptional()
+  @IsString()
+  dateOfVisit?: string;
+
+  @ApiPropertyOptional({ description: 'Service type (ignored in public form)' })
+  @IsOptional()
+  @IsString()
+  serviceType?: string;
+
+  @ApiPropertyOptional({ description: 'Status (ignored in public form)' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({
+    description: 'Converted flag (ignored in public form)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  converted?: boolean;
+
+  @ApiPropertyOptional({ description: 'Follow-ups (ignored in public form)' })
+  @IsOptional()
+  @IsArray()
+  followUps?: any[];
+
+  @ApiPropertyOptional({ description: 'Tags (ignored in public form)' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
 }

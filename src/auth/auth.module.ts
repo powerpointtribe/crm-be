@@ -35,11 +35,6 @@ import { ModuleAccessGuard } from './guards/module-access.guard';
     RolesGuard,
     ModuleAccessGuard,
   ],
-  exports: [
-    AuthService,
-    JwtAuthGuard,
-    RolesGuard,
-    ModuleAccessGuard,
-  ],
+  exports: [AuthService, JwtAuthGuard, RolesGuard, ModuleAccessGuard],
 })
 export class AuthModule {}

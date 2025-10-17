@@ -44,7 +44,10 @@ export class AddFollowUpDto {
   @IsString()
   notes?: string;
 
-  @ApiPropertyOptional({ description: 'Member ID who made the contact (auto-set to current member if not provided)' })
+  @ApiPropertyOptional({
+    description:
+      'Member ID who made the contact (auto-set to current member if not provided)',
+  })
   @IsOptional()
   @IsMongoId()
   contactedBy?: string;

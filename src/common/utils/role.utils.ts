@@ -67,7 +67,10 @@ export class RoleUtils {
     return false;
   }
 
-  static getAccessibleModules(user: Member, userUnit?: Unit): DashboardModule[] {
+  static getAccessibleModules(
+    user: Member,
+    userUnit?: Unit,
+  ): DashboardModule[] {
     // Admin can access everything
     if (this.hasRole(user, UserRole.ADMIN)) {
       return ROLE_MODULE_ACCESS.admin;
@@ -159,7 +162,10 @@ export class RoleUtils {
     return this.hasRole(user, UserRole.DC);
   }
 
-  static canViewMemberDetails(currentMember: Member, targetMember: Member): boolean {
+  static canViewMemberDetails(
+    currentMember: Member,
+    targetMember: Member,
+  ): boolean {
     if (this.hasRole(currentMember, UserRole.ADMIN)) return true;
 
     if (this.hasRole(currentMember, UserRole.PASTOR)) return true;
@@ -168,15 +174,16 @@ export class RoleUtils {
       return !!(
         targetMember &&
         targetMember.ministries &&
-        currentMember.directorOfMinistries?.some(
-          (ministryId) => targetMember.ministries?.includes(ministryId.toString()),
+        currentMember.directorOfMinistries?.some((ministryId) =>
+          targetMember.ministries?.includes(ministryId.toString()),
         )
       );
     }
 
     if (currentMember.leadershipRoles?.leadsUnit) {
       return (
-        targetMember.unit?.toString() === currentMember.leadershipRoles.leadsUnit.toString()
+        targetMember.unit?.toString() ===
+        currentMember.leadershipRoles.leadsUnit.toString()
       );
     }
 

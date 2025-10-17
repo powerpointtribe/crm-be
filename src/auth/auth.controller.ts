@@ -12,7 +12,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
-import { CreateMemberDto } from 'src/members/dto/create-member.dto';
+import { CreateMemberDto } from '../members/dto/create-member.dto';
 
 @ApiTags('Authentication (Unified)')
 @Controller('auth')
@@ -53,22 +53,31 @@ export class AuthController {
   @ApiBearerAuth()
   @Get('permissions')
   @ApiOperation({ summary: 'Get current member permissions summary' })
-  @ApiResponse({ status: 200, description: 'Permissions retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Permissions retrieved successfully',
+  })
   async getPermissions(@CurrentUser() user: any) {
     const permissions = await this.authService.getPermissionsSummary(user.sub);
-    return ResponseUtil.success(permissions, 'Permissions retrieved successfully');
+    return ResponseUtil.success(
+      permissions,
+      'Permissions retrieved successfully',
+    );
   }
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('accessible-modules')
   @ApiOperation({ summary: 'Get modules accessible to current member' })
-  @ApiResponse({ status: 200, description: 'Accessible modules retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Accessible modules retrieved successfully',
+  })
   async getAccessibleModules(@CurrentUser() user: any) {
     const profile = await this.authService.getProfile(user.sub);
     return ResponseUtil.success(
       { modules: profile.accessibleModules },
-      'Accessible modules retrieved successfully'
+      'Accessible modules retrieved successfully',
     );
   }
 

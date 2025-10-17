@@ -10,9 +10,9 @@ import { AccessControlService } from '../common/services/access-control.service'
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
-import { CreateMemberDto } from 'src/members/dto/create-member.dto';
-import { MembershipStatus } from 'src/common/enums/member-status.enum';
-import { UserRole } from 'src/common/enums/user-roles.enums';
+import { CreateMemberDto } from '../members/dto/create-member.dto';
+import { MembershipStatus } from '../common/enums/member-status.enum';
+import { UserRole } from '../common/enums/user-roles.enums';
 
 @Injectable()
 export class AuthService {
@@ -26,7 +26,8 @@ export class AuthService {
     const { email, password } = loginDto;
 
     // Find member by email (replaces user lookup)
-    const member: MemberDocument | null = await this.membersService.findByEmail(email);
+    const member: MemberDocument | null =
+      await this.membersService.findByEmail(email);
     if (!member) {
       throw new UnauthorizedException('Invalid credentials');
     }

@@ -29,7 +29,11 @@ export class CreateAttendanceDto {
   @IsNotEmpty()
   serviceType: ServiceType;
 
-  @ApiPropertyOptional({ description: 'Attendance status', enum: AttendanceStatus, default: AttendanceStatus.PRESENT })
+  @ApiPropertyOptional({
+    description: 'Attendance status',
+    enum: AttendanceStatus,
+    default: AttendanceStatus.PRESENT,
+  })
   @IsOptional()
   @IsEnum(AttendanceStatus)
   status?: AttendanceStatus;
@@ -44,12 +48,18 @@ export class CreateAttendanceDto {
   @IsMongoId()
   unit?: string;
 
-  @ApiPropertyOptional({ description: 'Check-in time', example: '2024-01-15T09:30:00Z' })
+  @ApiPropertyOptional({
+    description: 'Check-in time',
+    example: '2024-01-15T09:30:00Z',
+  })
   @IsOptional()
   @IsDateString()
   checkInTime?: string;
 
-  @ApiPropertyOptional({ description: 'Check-out time', example: '2024-01-15T11:30:00Z' })
+  @ApiPropertyOptional({
+    description: 'Check-out time',
+    example: '2024-01-15T11:30:00Z',
+  })
   @IsOptional()
   @IsDateString()
   checkOutTime?: string;
@@ -59,7 +69,9 @@ export class CreateAttendanceDto {
   @IsString()
   notes?: string;
 
-  @ApiPropertyOptional({ description: 'Custom service name (if serviceType is OTHER)' })
+  @ApiPropertyOptional({
+    description: 'Custom service name (if serviceType is OTHER)',
+  })
   @IsOptional()
   @IsString()
   serviceName?: string;
@@ -69,24 +81,35 @@ export class CreateAttendanceDto {
   @IsString()
   location?: string;
 
-  @ApiPropertyOptional({ description: 'Is this their first time attending this service type?', default: false })
+  @ApiPropertyOptional({
+    description: 'Is this their first time attending this service type?',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   isFirstTimeAttendee?: boolean;
 
-  @ApiPropertyOptional({ description: 'Is this person a visitor?', default: false })
+  @ApiPropertyOptional({
+    description: 'Is this person a visitor?',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   isVisitor?: boolean;
 
-  @ApiPropertyOptional({ description: 'Who invited this visitor (if applicable)' })
+  @ApiPropertyOptional({
+    description: 'Who invited this visitor (if applicable)',
+  })
   @IsOptional()
   @IsMongoId()
   invitedBy?: string;
 }
 
 export class BulkCreateAttendanceDto {
-  @ApiProperty({ description: 'Array of attendance records to create', type: [CreateAttendanceDto] })
+  @ApiProperty({
+    description: 'Array of attendance records to create',
+    type: [CreateAttendanceDto],
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateAttendanceDto)
@@ -124,7 +147,9 @@ export class QuickAttendanceDto {
   @IsString()
   location?: string;
 
-  @ApiPropertyOptional({ description: 'Custom service name (if serviceType is OTHER)' })
+  @ApiPropertyOptional({
+    description: 'Custom service name (if serviceType is OTHER)',
+  })
   @IsOptional()
   @IsString()
   serviceName?: string;

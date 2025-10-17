@@ -17,7 +17,9 @@ export class UserUnitMiddleware implements NestMiddleware {
   async use(req: RequestWithUserUnit, res: Response, next: NextFunction) {
     if (req.user && req.user.leadershipRoles?.leadsUnit) {
       try {
-        const unit = await this.unitModel.findById(req.user.leadershipRoles.leadsUnit);
+        const unit = await this.unitModel.findById(
+          req.user.leadershipRoles.leadsUnit,
+        );
         if (!unit) return next();
 
         req.userUnit = unit;

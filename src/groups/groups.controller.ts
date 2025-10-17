@@ -50,11 +50,7 @@ export class GroupsController {
   }
 
   @Get()
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.PASTOR,
-    UserRole.LXL,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get all groups with filtering' })
   @ApiResponse({ status: 200, description: 'Groups retrieved successfully' })
   async findAll(@Query() searchDto: GroupSearchDto) {
@@ -75,12 +71,7 @@ export class GroupsController {
   }
 
   @Get('districts')
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.PASTOR,
-    UserRole.LXL,
-    UserRole.LXL,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Get all districts' })
   @ApiResponse({ status: 200, description: 'Districts retrieved successfully' })
   async getDistricts() {
@@ -89,12 +80,7 @@ export class GroupsController {
   }
 
   @Get('units')
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.PASTOR,
-    UserRole.LXL,
-    UserRole.LXL,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Get all units' })
   @ApiResponse({ status: 200, description: 'Units retrieved successfully' })
   async getUnits() {
@@ -151,12 +137,7 @@ export class GroupsController {
   }
 
   @Get(':id')
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.PASTOR,
-    UserRole.LXL,
-    UserRole.LXL,
-  )
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
   @ApiOperation({ summary: 'Get group by ID' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Group retrieved successfully' })
