@@ -760,6 +760,7 @@ export class MembersService {
       })
       .populate('district', 'name')
       .populate('unit', 'name')
+      .sort({ createdAt: -1 })
       .limit(10)
       .select('firstName lastName email phone membershipStatus district unit')
       .exec();
