@@ -290,6 +290,36 @@ export class FirstTimersController {
     );
   }
 
+  @Patch(':id')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Update first-timer details' })
+  @ApiParam({ name: 'id', description: 'First-timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'First-timer updated successfully',
+  })
+  async update(
+    @Param('id') id: string,
+    @Body() updateFirstTimerDto: Partial<CreateFirstTimerDto>,
+    @CurrentUser() user: any,
+  ) {
+    // Check access for follow-up team - they can only update their assignments
+    if (user.roles === UserRole.LXL) {
+      const firstTimer = await this.firstTimersService.findById(id);
+      if (
+        firstTimer?.assignedTo &&
+        firstTimer.assignedTo.toString() !== user._id
+      ) {
+        return ResponseUtil.error('Access denied - not your assignment');
+      }
+    }
+    const firstTimer = await this.firstTimersService.updateStatus(
+      id,
+      updateFirstTimerDto,
+    );
+    return ResponseUtil.success(firstTimer, 'First-timer updated successfully');
+  }
+
   @Patch(':id/follow-up')
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Add follow-up record to first-timer' })

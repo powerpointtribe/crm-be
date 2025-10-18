@@ -354,13 +354,13 @@ export class FirstTimersService {
 
   async updateStatus(
     id: string,
-    status: EngagementStatus,
+    data: Partial<CreateFirstTimerDto>,
   ): Promise<FirstTimerDocument> {
     const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
       id,
       {
         $set: {
-          status,
+          ...data,
           lastStatusChange: new Date(),
         },
       },
