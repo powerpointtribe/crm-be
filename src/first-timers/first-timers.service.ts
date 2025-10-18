@@ -352,9 +352,9 @@ export class FirstTimersService {
     return updatedFirstTimer!;
   }
 
-  async updateStatus(
+  async update(
     id: string,
-    data: Partial<CreateFirstTimerDto>,
+    data: Partial<FirstTimer>,
   ): Promise<FirstTimerDocument> {
     const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
       id,

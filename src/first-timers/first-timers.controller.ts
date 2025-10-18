@@ -42,6 +42,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-roles.enums';
 import { EngagementStatus } from '../common/enums/engagement-status.enum';
+import { FirstTimer } from './schemas/first-timer.schema';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
@@ -300,11 +301,11 @@ export class FirstTimersController {
   })
   async update(
     @Param('id') id: string,
-    @Body() updateFirstTimerDto: Partial<CreateFirstTimerDto>,
+    @Body() updateFirstTimerDto: Partial<FirstTimer>,
     @CurrentUser() user: any,
   ) {
     // Check access for follow-up team - they can only update their assignments
-    if (user.roles === UserRole.LXL) {
+    if (user.systemRoles.includes(UserRole.MEMBER)) {
       const firstTimer = await this.firstTimersService.findById(id);
       if (
         firstTimer?.assignedTo &&
@@ -313,7 +314,7 @@ export class FirstTimersController {
         return ResponseUtil.error('Access denied - not your assignment');
       }
     }
-    const firstTimer = await this.firstTimersService.updateStatus(
+    const firstTimer = await this.firstTimersService.update(
       id,
       updateFirstTimerDto,
     );
@@ -351,9 +352,9 @@ export class FirstTimersController {
     @Param('id') id: string,
     @Body() body: { status: EngagementStatus },
   ) {
-    const firstTimer = await this.firstTimersService.updateStatus(
+    const firstTimer = await this.firstTimersService.update(
       id,
-      body.status,
+      { status: body.status },
     );
     return ResponseUtil.success(firstTimer, 'Status updated successfully');
   }
@@ -585,9 +586,9 @@ export class FirstTimersController {
 
     for (const id of body.firstTimerIds) {
       try {
-        const firstTimer = await this.firstTimersService.updateStatus(
+        const firstTimer = await this.firstTimersService.update(
           id,
-          body.status,
+          { status: body.status },
         );
         results.push({ success: true, firstTimer });
       } catch (error: any) {

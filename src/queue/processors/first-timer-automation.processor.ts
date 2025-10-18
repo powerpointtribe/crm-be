@@ -36,9 +36,9 @@ export class FirstTimerAutomationProcessor {
           `Transitioning first-timer ${firstTimer._id} to NOT_JOINED status`,
         );
 
-        await this.firstTimersService.updateStatus(
+        await this.firstTimersService.update(
           (firstTimer._id as string).toString(),
-          EngagementStatus.NOT_JOINED,
+          { status: EngagementStatus.NOT_JOINED },
         );
       }
 
