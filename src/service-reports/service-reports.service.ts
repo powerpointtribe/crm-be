@@ -19,12 +19,14 @@ import {
   createPaginatedResult,
 } from '../common/utils/pagination.util';
 import { QueryBuilder } from '../common/utils/query-builder.util';
+import { ServiceReportsPdfService } from './service-reports-pdf.service';
 
 @Injectable()
 export class ServiceReportsService {
   constructor(
     @InjectModel(ServiceReport.name)
     private serviceReportModel: Model<ServiceReportDocument>,
+    private pdfService: ServiceReportsPdfService,
   ) {}
 
   async create(
@@ -337,5 +339,10 @@ export class ServiceReportsService {
     };
 
     return this.findAll(searchDto);
+  }
+
+  async generatePdfHtml(id: string): Promise<string> {
+    const report = await this.findById(id);
+    return this.pdfService.generatePdf(report);
   }
 }

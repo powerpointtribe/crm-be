@@ -227,13 +227,10 @@ export class ServiceReportsController {
   @ApiParam({ name: 'id', description: 'Service report ID' })
   @ApiResponse({
     status: 200,
-    description: 'PDF report generated successfully',
+    description: 'PDF HTML generated successfully',
     headers: {
       'Content-Type': {
-        description: 'application/pdf',
-      },
-      'Content-Disposition': {
-        description: 'attachment; filename="service-report.pdf"',
+        description: 'text/html',
       },
     },
   })
@@ -242,11 +239,10 @@ export class ServiceReportsController {
     description: 'Service report not found',
   })
   async generatePdf(@Param('id') id: string) {
-    // This will be implemented in the PDF generation task
-    const report = await this.serviceReportsService.findById(id);
+    const htmlContent = await this.serviceReportsService.generatePdfHtml(id);
     return ResponseUtil.success(
-      { message: 'PDF generation not yet implemented', reportId: id },
-      'PDF generation endpoint ready',
+      { html: htmlContent },
+      'PDF HTML generated successfully',
     );
   }
 }
