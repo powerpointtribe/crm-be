@@ -399,16 +399,30 @@ export class FirstTimersService {
     return firstTimer;
   }
 
-  async getPendingDistrictAssignments(): Promise<FirstTimerDocument[]> {
-    return this.firstTimerModel
-      .find({
-        isActive: true,
-        status: EngagementStatus.MEMBER,
-        pendingDistrictAssignment: true,
-      })
-      .populate('memberRecord', 'firstName lastName email phone')
-      .populate('giaLeader', 'firstName lastName email')
-      .sort({ memberCreatedAt: -1 });
+  async getPendingDistrictAssignments(
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<PaginatedResult<FirstTimerDocument>> {
+    const skip = (page - 1) * limit;
+
+    const filterQuery = {
+      isActive: true,
+      status: EngagementStatus.MEMBER,
+      pendingDistrictAssignment: true,
+    };
+
+    const [firstTimers, total] = await Promise.all([
+      this.firstTimerModel
+        .find(filterQuery)
+        .populate('memberRecord', 'firstName lastName email phone')
+        .populate('giaLeader', 'firstName lastName email')
+        .sort({ memberCreatedAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      this.firstTimerModel.countDocuments(filterQuery),
+    ]);
+
+    return createPaginatedResult(firstTimers, total, page, limit);
   }
 
   async convertToMember(
@@ -594,48 +608,89 @@ export class FirstTimersService {
     };
   }
 
-  async getNeedingFollowUp(): Promise<FirstTimerDocument[]> {
+  async getNeedingFollowUp(
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<PaginatedResult<FirstTimerDocument>> {
     const today = new Date();
+    const skip = (page - 1) * limit;
 
-    return this.firstTimerModel
-      .find({
-        isActive: true,
-        converted: false,
-        status: {
-          $nin: [EngagementStatus.CONVERTED, EngagementStatus.LOST_CONTACT],
-        },
-        $or: [
-          { status: EngagementStatus.NOT_CONTACTED },
-          { nextFollowUpDate: { $lte: today } },
-        ],
-      })
-      .populate('assignedTo', 'firstName lastName email')
-      .sort({ nextFollowUpDate: 1, dateOfVisit: 1 })
-      .limit(50);
+    const filterQuery = {
+      isActive: true,
+      converted: false,
+      status: {
+        $nin: [EngagementStatus.CONVERTED, EngagementStatus.LOST_CONTACT],
+      },
+      $or: [
+        { status: EngagementStatus.NOT_CONTACTED },
+        { nextFollowUpDate: { $lte: today } },
+      ],
+    };
+
+    const [firstTimers, total] = await Promise.all([
+      this.firstTimerModel
+        .find(filterQuery)
+        .populate('assignedTo', 'firstName lastName email')
+        .sort({ nextFollowUpDate: 1, dateOfVisit: 1 })
+        .skip(skip)
+        .limit(limit),
+      this.firstTimerModel.countDocuments(filterQuery),
+    ]);
+
+    return createPaginatedResult(firstTimers, total, page, limit);
   }
 
-  async getRecentVisitors(days: number = 7): Promise<FirstTimerDocument[]> {
+  async getRecentVisitors(
+    days: number = 7,
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<PaginatedResult<FirstTimerDocument>> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
+    const skip = (page - 1) * limit;
 
-    return this.firstTimerModel
-      .find({
-        isActive: true,
-        dateOfVisit: { $gte: startDate },
-      })
-      .populate('assignedTo', 'firstName lastName')
-      .populate('invitedByMember', 'firstName lastName')
-      .sort({ dateOfVisit: -1 });
+    const filterQuery = {
+      isActive: true,
+      dateOfVisit: { $gte: startDate },
+    };
+
+    const [firstTimers, total] = await Promise.all([
+      this.firstTimerModel
+        .find(filterQuery)
+        .populate('assignedTo', 'firstName lastName')
+        .populate('invitedByMember', 'firstName lastName')
+        .sort({ dateOfVisit: -1 })
+        .skip(skip)
+        .limit(limit),
+      this.firstTimerModel.countDocuments(filterQuery),
+    ]);
+
+    return createPaginatedResult(firstTimers, total, page, limit);
   }
 
-  async getByAssignedMember(memberId: string): Promise<FirstTimerDocument[]> {
-    return this.firstTimerModel
-      .find({
-        assignedTo: memberId,
-        isActive: true,
-        converted: false,
-      })
-      .sort({ nextFollowUpDate: 1, dateOfVisit: -1 });
+  async getByAssignedMember(
+    memberId: string,
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<PaginatedResult<FirstTimerDocument>> {
+    const skip = (page - 1) * limit;
+
+    const filterQuery = {
+      assignedTo: memberId,
+      isActive: true,
+      converted: false,
+    };
+
+    const [firstTimers, total] = await Promise.all([
+      this.firstTimerModel
+        .find(filterQuery)
+        .sort({ nextFollowUpDate: 1, dateOfVisit: -1 })
+        .skip(skip)
+        .limit(limit),
+      this.firstTimerModel.countDocuments(filterQuery),
+    ]);
+
+    return createPaginatedResult(firstTimers, total, page, limit);
   }
 
   async updateNotes(id: string, notes: string): Promise<FirstTimerDocument> {

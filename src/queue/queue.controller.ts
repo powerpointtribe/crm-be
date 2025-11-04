@@ -48,10 +48,16 @@ export class QueueController {
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get job history for current user' })
   @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
     name: 'limit',
     required: false,
     type: Number,
-    description: 'Number of jobs to retrieve',
+    description: 'Number of jobs to retrieve (default: 10)',
   })
   @ApiResponse({
     status: 200,
@@ -59,10 +65,18 @@ export class QueueController {
   })
   async getJobHistory(
     @CurrentUser() user: any,
-    @Query('limit') limit?: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
   ) {
-    const limitNum = limit ? parseInt(limit, 10) : 10;
-    const history = await this.queueService.getJobHistory(user.sub, limitNum);
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    const history = await this.queueService.getJobHistory(
+      user.sub,
+      limitNum,
+      skip,
+    );
     return ResponseUtil.success(history, 'Job history retrieved successfully');
   }
 

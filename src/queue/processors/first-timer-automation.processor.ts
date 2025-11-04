@@ -112,10 +112,10 @@ export class FirstTimerAutomationProcessor {
 
     try {
       // Find first-timers who need follow-up
-      const needingFollowUp =
+      const needingFollowUpResult =
         await this.firstTimersService.getNeedingFollowUp();
 
-      for (const firstTimer of needingFollowUp) {
+      for (const firstTimer of needingFollowUpResult.data) {
         // Send notification to assigned follow-up person or GIA leader
         const assignedPersonId =
           firstTimer.followUpPerson ||
@@ -137,7 +137,7 @@ export class FirstTimerAutomationProcessor {
 
       return {
         success: true,
-        processed: needingFollowUp.length,
+        processed: needingFollowUpResult.total,
       };
     } catch (error) {
       this.logger.error(`Failed to process follow-up checks: ${error.message}`);

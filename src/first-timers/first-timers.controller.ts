@@ -205,12 +205,22 @@ export class FirstTimersController {
     status: 200,
     description: 'First-timers needing follow-up retrieved successfully',
   })
-  async getNeedingFollowUp(@CurrentUser() user: any) {
-    let firstTimers = await this.firstTimersService.getNeedingFollowUp();
+  async getNeedingFollowUp(
+    @CurrentUser() user: any,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+  ) {
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+
+    let firstTimers = await this.firstTimersService.getNeedingFollowUp(
+      pageNum,
+      limitNum,
+    );
 
     // Filter by assigned user for follow-up team
     if (user.roles === UserRole.LXL) {
-      firstTimers = firstTimers.filter(
+      firstTimers.data = firstTimers.data.filter(
         (ft) => !ft.assignedTo || ft.assignedTo.toString() === user._id,
       );
     }
@@ -229,13 +239,34 @@ export class FirstTimersController {
     required: false,
     description: 'Number of days to look back (default: 7)',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 50)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Recent visitors retrieved successfully',
   })
-  async getRecentVisitors(@Query('days') days?: string) {
+  async getRecentVisitors(
+    @Query('days') days?: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+  ) {
     const daysBack = days ? parseInt(days) : 7;
-    const visitors = await this.firstTimersService.getRecentVisitors(daysBack);
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+
+    const visitors = await this.firstTimersService.getRecentVisitors(
+      daysBack,
+      pageNum,
+      limitNum,
+    );
     return ResponseUtil.success(
       visitors,
       'Recent visitors retrieved successfully',
@@ -245,13 +276,32 @@ export class FirstTimersController {
   @Get('my-assignments')
   @Roles(UserRole.ADMIN, UserRole.LXL)
   @ApiOperation({ summary: 'Get first-timers assigned to current user' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 50)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Assigned first-timers retrieved successfully',
   })
-  async getMyAssignments(@CurrentUser() user: any) {
+  async getMyAssignments(
+    @CurrentUser() user: any,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+  ) {
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+
     const assignments = await this.firstTimersService.getByAssignedMember(
       user._id,
+      pageNum,
+      limitNum,
     );
     return ResponseUtil.success(
       assignments,
@@ -429,13 +479,32 @@ export class FirstTimersController {
   @Get('pending-district')
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get first-timers pending district assignment' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 50)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Pending district assignments retrieved successfully',
   })
-  async getPendingDistrictAssignments() {
+  async getPendingDistrictAssignments(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+  ) {
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+
     const pendingMembers =
-      await this.firstTimersService.getPendingDistrictAssignments();
+      await this.firstTimersService.getPendingDistrictAssignments(
+        pageNum,
+        limitNum,
+      );
     return ResponseUtil.success(
       pendingMembers,
       'Pending district assignments retrieved successfully',

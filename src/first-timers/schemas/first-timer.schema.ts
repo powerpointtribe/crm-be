@@ -39,6 +39,46 @@ export class FirstTimer {
   @Prop({ type: Date, required: true })
   dateOfVisit: Date;
 
+  @Prop({ type: Date })
+  dateOfBirth?: Date;
+
+  @Prop({ trim: true })
+  occupation?: string;
+
+  @Prop({ trim: true })
+  alternateContactMethod?: string;
+
+  @Prop({ trim: true })
+  website?: string;
+
+  @Prop({
+    type: {
+      facebook: String,
+      instagram: String,
+      twitter: String,
+      linkedin: String,
+      tiktok: String,
+      other: String,
+    },
+  })
+  socialMediaHandles?: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+    linkedin?: string;
+    tiktok?: string;
+    other?: string;
+  };
+
+  @Prop({ trim: true })
+  referredBy?: string;
+
+  @Prop({ trim: true })
+  serviceExperience?: string;
+
+  @Prop({ trim: true })
+  profilePhotoUrl?: string;
+
   @Prop({ trim: true })
   invitedBy?: string;
 

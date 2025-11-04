@@ -88,6 +88,56 @@ export class PublicCreateFirstTimerDto {
   @Type(() => PublicAddressDto)
   address?: PublicAddressDto;
 
+  @ApiPropertyOptional({ description: 'Date of birth', example: '1990-01-15' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'dateOfBirth must be in YYYY-MM-DD format',
+  })
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional({ description: 'Occupation' })
+  @IsOptional()
+  @IsString()
+  occupation?: string;
+
+  @ApiPropertyOptional({ description: 'Alternate contact method' })
+  @IsOptional()
+  @IsString()
+  alternateContactMethod?: string;
+
+  @ApiPropertyOptional({ description: 'Website or personal page' })
+  @IsOptional()
+  @IsString()
+  website?: string;
+
+  @ApiPropertyOptional({ description: 'Social media handles' })
+  @IsOptional()
+  @IsObject()
+  socialMediaHandles?: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+    linkedin?: string;
+    tiktok?: string;
+    other?: string;
+  };
+
+  @ApiPropertyOptional({ description: 'Person who referred them (different from inviter)' })
+  @IsOptional()
+  @IsString()
+  referredBy?: string;
+
+  @ApiPropertyOptional({ description: 'What they enjoyed about the service' })
+  @IsOptional()
+  @IsString()
+  serviceExperience?: string;
+
+  @ApiPropertyOptional({ description: 'Profile photo URL' })
+  @IsOptional()
+  @IsString()
+  profilePhotoUrl?: string;
+
   @ApiPropertyOptional({ description: 'Name of person who invited them' })
   @IsOptional()
   @IsString()
@@ -187,17 +237,6 @@ export class PublicCreateFirstTimerDto {
   interestedInJoining?: boolean;
 
   // Additional optional properties to handle frontend form fields
-  @ApiPropertyOptional({
-    description: 'Date of birth (ignored in public form)',
-  })
-  @IsOptional()
-  @IsString()
-  dateOfBirth?: string;
-
-  @ApiPropertyOptional({ description: 'Occupation (ignored in public form)' })
-  @IsOptional()
-  @IsString()
-  occupation?: string;
 
   @ApiPropertyOptional({
     description: 'Date of visit (ignored - auto-set to today)',

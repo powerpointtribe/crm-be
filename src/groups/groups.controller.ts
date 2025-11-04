@@ -18,6 +18,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
@@ -91,12 +92,31 @@ export class GroupsController {
   @Get('districts/needing-pastors')
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get districts that need pastors' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 50)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Districts needing pastors retrieved successfully',
   })
-  async getDistrictsNeedingPastors() {
-    const districts = await this.groupsService.getDistrictsNeedingPastors();
+  async getDistrictsNeedingPastors(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+  ) {
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+
+    const districts = await this.groupsService.getDistrictsNeedingPastors(
+      pageNum,
+      limitNum,
+    );
     return ResponseUtil.success(
       districts,
       'Districts needing pastors retrieved successfully',
@@ -106,12 +126,31 @@ export class GroupsController {
   @Get('units/needing-heads')
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get units that need heads' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 50)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Units needing heads retrieved successfully',
   })
-  async getUnitsNeedingHeads() {
-    const units = await this.groupsService.getUnitsNeedingHeads();
+  async getUnitsNeedingHeads(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+  ) {
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+
+    const units = await this.groupsService.getUnitsNeedingHeads(
+      pageNum,
+      limitNum,
+    );
     return ResponseUtil.success(
       units,
       'Units needing heads retrieved successfully',

@@ -507,26 +507,54 @@ export class GroupsService {
     };
   }
 
-  async getDistrictsNeedingPastors(): Promise<GroupDocument[]> {
-    return this.groupModel
-      .find({
-        type: GroupType.DISTRICT,
-        isActive: true,
-        $or: [{ districtPastor: null }, { districtPastor: { $exists: false } }],
-      })
-      .sort({ name: 1 })
-      .exec();
+  async getDistrictsNeedingPastors(
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<PaginatedResult<GroupDocument>> {
+    const skip = (page - 1) * limit;
+
+    const filterQuery = {
+      type: GroupType.DISTRICT,
+      isActive: true,
+      $or: [{ districtPastor: null }, { districtPastor: { $exists: false } }],
+    };
+
+    const [districts, total] = await Promise.all([
+      this.groupModel
+        .find(filterQuery)
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.groupModel.countDocuments(filterQuery),
+    ]);
+
+    return createPaginatedResult(districts, total, page, limit);
   }
 
-  async getUnitsNeedingHeads(): Promise<GroupDocument[]> {
-    return this.groupModel
-      .find({
-        type: GroupType.UNIT,
-        isActive: true,
-        $or: [{ unitHead: null }, { unitHead: { $exists: false } }],
-      })
-      .sort({ name: 1 })
-      .exec();
+  async getUnitsNeedingHeads(
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<PaginatedResult<GroupDocument>> {
+    const skip = (page - 1) * limit;
+
+    const filterQuery = {
+      type: GroupType.UNIT,
+      isActive: true,
+      $or: [{ unitHead: null }, { unitHead: { $exists: false } }],
+    };
+
+    const [units, total] = await Promise.all([
+      this.groupModel
+        .find(filterQuery)
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.groupModel.countDocuments(filterQuery),
+    ]);
+
+    return createPaginatedResult(units, total, page, limit);
   }
 
   async getGroupsByLeader(leaderId: string): Promise<{

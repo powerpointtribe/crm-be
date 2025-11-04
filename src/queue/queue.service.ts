@@ -81,15 +81,20 @@ export class QueueService {
     }
   }
 
-  async getJobHistory(userId: string, limit: number = 10): Promise<Job[]> {
+  async getJobHistory(
+    userId: string,
+    limit: number = 10,
+    skip: number = 0,
+  ): Promise<Job[]> {
     try {
       const jobs = await this.bulkOperationQueue.getJobs(
         ['completed', 'failed', 'active', 'waiting'],
         0,
-        limit * 2, // Get more jobs to filter by user
+        limit * 5, // Get more jobs to filter by user and handle pagination
       );
 
-      return jobs.filter((job) => job.data.userId === userId).slice(0, limit);
+      const userJobs = jobs.filter((job) => job.data.userId === userId);
+      return userJobs.slice(skip, skip + limit);
     } catch (error) {
       this.logger.error(`Error getting job history for user ${userId}:`, error);
       return [];
