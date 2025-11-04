@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { MembersModule } from './members/members.module';
 import { GroupsModule } from './groups/groups.module';
 import { FirstTimersModule } from './first-timers/first-timers.module';
+import { ServiceReportsModule } from './service-reports/service-reports.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { QueueModule } from './queue/queue.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -49,6 +50,7 @@ import { BullBoardModule } from './bull-board/bull-board.module';
     MembersModule,
     GroupsModule,
     FirstTimersModule,
+    ServiceReportsModule,
     NotificationsModule,
     QueueModule,
     DashboardModule,
