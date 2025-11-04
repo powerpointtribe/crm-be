@@ -247,6 +247,7 @@ export class ServiceReportsService {
           _id: null,
           totalReports: { $sum: 1 },
           totalAttendance: { $sum: '$totalAttendance' },
+          highestAttendance: { $max: '$totalAttendance' },
           totalFirstTimers: { $sum: '$numberOfFirstTimers' },
           averageAttendance: { $avg: '$totalAttendance' },
           averageFirstTimers: { $avg: '$numberOfFirstTimers' },
@@ -302,6 +303,7 @@ export class ServiceReportsService {
       overall: stats[0] || {
         totalReports: 0,
         totalAttendance: 0,
+        highestAttendance: 0,
         totalFirstTimers: 0,
         averageAttendance: 0,
         averageFirstTimers: 0,
