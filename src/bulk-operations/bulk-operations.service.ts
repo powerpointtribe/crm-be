@@ -4,13 +4,14 @@ import { Model } from 'mongoose';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { Group, GroupDocument } from '../groups/schemas/group.schema';
 import { FirstTimer, FirstTimerDocument } from '../first-timers/schemas/first-timer.schema';
+import { BulkOperationHistory, BulkOperationHistoryDocument } from './schemas/bulk-operation-history.schema';
 import { BulkOperationType, BulkOperationResult, BulkOperationOptions } from '../common/interfaces/bulk-operation.interface';
 import { MembersService } from '../members/members.service';
 import { GroupsService } from '../groups/groups.service';
 import { FirstTimersService } from '../first-timers/first-timers.service';
 import { QueueService } from '../queue/queue.service';
 
-interface BulkOperationHistory {
+interface BulkOperationStats {
   _id: string;
   entityType: string;
   operation: BulkOperationType;
@@ -27,19 +28,49 @@ interface BulkOperationHistory {
 export class BulkOperationsService {
   private templates = {
     members: {
-      headers: ['firstName', 'lastName', 'email', 'phone', 'gender', 'dateOfBirth', 'maritalStatus', 'district', 'unit'],
-      required: ['firstName', 'lastName', 'email'],
-      example: ['John', 'Doe', 'john.doe@example.com', '+1234567890', 'male', '1990-01-01', 'single', 'District 1', 'Unit A']
+      headers: [
+        'firstName', 'lastName', 'email', 'phone', 'password', 'dateOfBirth', 'gender',
+        'maritalStatus', 'membershipStatus', 'occupation', 'street', 'city', 'state',
+        'zipCode', 'country', 'district', 'unit', 'ministries', 'skills', 'dateJoined',
+        'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelationship'
+      ],
+      required: ['firstName', 'lastName', 'email', 'phone', 'password', 'dateOfBirth', 'gender'],
+      example: [
+        'John', 'Doe', 'john.doe@example.com', '+1234567890', 'defaultPassword123',
+        '1990-01-01', 'male', 'single', 'new_convert', 'Engineer', '123 Main St',
+        'Lagos', 'Lagos', '100001', 'Nigeria', 'District Name', 'Unit Name',
+        'ushering,prayer', 'leadership,music', '2024-01-01', 'Jane Doe', '+1234567891', 'spouse'
+      ]
     },
     groups: {
-      headers: ['name', 'description', 'type', 'district', 'unit', 'capacity', 'meetingDay', 'meetingTime'],
+      headers: [
+        'name', 'type', 'description', 'maxCapacity', 'contactPhone', 'contactEmail',
+        'meetingDay', 'meetingTime', 'meetingLocation', 'isVirtual', 'virtualLink',
+        'vision', 'mission', 'goals'
+      ],
       required: ['name', 'type'],
-      example: ['Bible Study Group', 'Weekly Bible study and fellowship', 'bible_study', 'District 1', 'Unit A', '20', 'Wednesday', '19:00']
+      example: [
+        'Bible Study Group', 'district', 'Weekly Bible study and fellowship', '20',
+        '+1234567890', 'group@church.com', 'wednesday', '19:00', 'Church Hall A',
+        'false', '', 'Growing together in faith', 'Study the word together',
+        'increase biblical knowledge,fellowship'
+      ]
     },
     'first-timers': {
-      headers: ['firstName', 'lastName', 'email', 'phone', 'gender', 'ageGroup', 'maritalStatus', 'serviceDate', 'invitedBy'],
-      required: ['firstName', 'lastName', 'serviceDate'],
-      example: ['Jane', 'Smith', 'jane.smith@example.com', '+1234567890', 'female', 'adult', 'single', '2024-01-15', 'John Doe']
+      headers: [
+        'firstName', 'lastName', 'phone', 'email', 'dateOfVisit', 'dateOfBirth',
+        'occupation', 'street', 'city', 'state', 'country', 'maritalStatus',
+        'numberOfChildren', 'howDidYouHear', 'visitorType', 'previousChurch',
+        'invitedBy', 'interests', 'prayerRequests', 'servingInterests', 'notes'
+      ],
+      required: ['firstName', 'lastName', 'phone', 'dateOfVisit'],
+      example: [
+        'Jane', 'Smith', '+1234567890', 'jane.smith@example.com', '2024-01-15',
+        '1985-05-20', 'Teacher', '456 Oak St', 'Lagos', 'Lagos', 'Nigeria',
+        'married', '2', 'friend', 'first_time', 'Previous Church Name', 'John Doe',
+        'bible study,youth ministry', 'healing for family', 'children ministry',
+        'Very interested in joining'
+      ]
     }
   };
 
@@ -47,6 +78,7 @@ export class BulkOperationsService {
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
     @InjectModel(FirstTimer.name) private firstTimerModel: Model<FirstTimerDocument>,
+    @InjectModel(BulkOperationHistory.name) private bulkOperationHistoryModel: Model<BulkOperationHistoryDocument>,
     private membersService: MembersService,
     private groupsService: GroupsService,
     private firstTimersService: FirstTimersService,
@@ -344,9 +376,16 @@ export class BulkOperationsService {
   async exportEntities(entityType: string, filters: any, userId: string): Promise<string> {
     let data: any[] = [];
 
+    // Build the final query with user access control and filters
+    const finalFilters = await this.buildFilterQuery(filters, entityType, userId);
+
     switch (entityType) {
       case 'members':
-        const members = await this.memberModel.find(filters).lean();
+        const members = await this.memberModel
+          .find(finalFilters)
+          .populate('district', 'name')
+          .populate('unit', 'name')
+          .lean();
         data = members.map(member => ({
           firstName: member.firstName,
           lastName: member.lastName,
@@ -355,34 +394,58 @@ export class BulkOperationsService {
           gender: member.gender,
           dateOfBirth: member.dateOfBirth?.toISOString().split('T')[0],
           maritalStatus: member.maritalStatus,
+          membershipStatus: member.membershipStatus,
+          district: (member.district as any)?.name || '',
+          unit: (member.unit as any)?.name || '',
+          dateJoined: member.dateJoined?.toISOString().split('T')[0],
+          isActive: member.isActive,
           createdAt: member.createdAt?.toISOString().split('T')[0],
         }));
         break;
       case 'groups':
-        const groups = await this.groupModel.find(filters).lean();
+        const groups = await this.groupModel
+          .find(finalFilters)
+          .populate('districtPastor', 'firstName lastName')
+          .populate('unitHead', 'firstName lastName')
+          .lean();
         data = groups.map(group => ({
           name: group.name,
           description: group.description,
           type: group.type,
           maxCapacity: group.maxCapacity,
-          memberCount: group.members?.length || 0,
+          currentMemberCount: group.currentMemberCount,
           isActive: group.isActive,
+          districtPastor: group.districtPastor ? `${(group.districtPastor as any).firstName} ${(group.districtPastor as any).lastName}` : '',
+          unitHead: group.unitHead ? `${(group.unitHead as any).firstName} ${(group.unitHead as any).lastName}` : '',
+          contactPhone: group.contactPhone || '',
+          contactEmail: group.contactEmail || '',
           createdAt: group.createdAt?.toISOString().split('T')[0],
         }));
         break;
       case 'first-timers':
-        const firstTimers = await this.firstTimerModel.find(filters).lean();
+        const firstTimers = await this.firstTimerModel
+          .find(finalFilters)
+          .populate('assignedTo', 'firstName lastName')
+          .populate('invitedByMember', 'firstName lastName')
+          .lean();
         data = firstTimers.map(ft => ({
           firstName: ft.firstName,
           lastName: ft.lastName,
-          email: ft.email,
+          email: ft.email || '',
           phone: ft.phone,
-          maritalStatus: ft.maritalStatus,
+          maritalStatus: ft.maritalStatus || '',
           dateOfVisit: ft.dateOfVisit?.toISOString().split('T')[0],
-          dateOfBirth: ft.dateOfBirth?.toISOString().split('T')[0],
-          invitedBy: ft.invitedBy,
+          dateOfBirth: ft.dateOfBirth?.toISOString().split('T')[0] || '',
+          invitedBy: ft.invitedBy || '',
+          invitedByMember: ft.invitedByMember ? `${(ft.invitedByMember as any).firstName} ${(ft.invitedByMember as any).lastName}` : '',
           status: ft.status,
           interestedInJoining: ft.interestedInJoining,
+          converted: ft.converted,
+          howDidYouHear: ft.howDidYouHear || '',
+          visitorType: ft.visitorType || '',
+          assignedTo: ft.assignedTo ? `${(ft.assignedTo as any).firstName} ${(ft.assignedTo as any).lastName}` : '',
+          followUpCount: ft.followUpCount,
+          nextFollowUpDate: ft.nextFollowUpDate?.toISOString().split('T')[0] || '',
           createdAt: ft.createdAt?.toISOString().split('T')[0],
         }));
         break;
@@ -411,7 +474,25 @@ export class BulkOperationsService {
       csvLines.push(values.join(','));
     });
 
-    return csvLines.join('\n');
+    const csvContent = csvLines.join('\n');
+
+    // Record export operation in history
+    await this.recordOperationHistory(
+      entityType,
+      BulkOperationType.EXPORT,
+      {
+        totalCount: data.length,
+        successCount: data.length,
+        errorCount: 0,
+        successfulRecords: data,
+        failedRecords: [],
+        message: `Successfully exported ${data.length} ${entityType} records`,
+        operationType: BulkOperationType.EXPORT,
+      },
+      userId,
+    );
+
+    return csvContent;
   }
 
   async getOperationsHistory(params: {
@@ -421,29 +502,94 @@ export class BulkOperationsService {
     operation?: BulkOperationType;
     userId: string;
   }): Promise<any> {
-    // This would typically use a dedicated operations history collection
-    // For now, return mock data
+    const query: any = {};
+
+    // Build query based on user access (for now, show all operations for the user)
+    // In a real implementation, you might filter by user access rights
+
+    if (params.entityType) {
+      query.entityType = params.entityType;
+    }
+
+    if (params.operation) {
+      query.operation = params.operation;
+    }
+
+    const skip = (params.page - 1) * params.limit;
+
+    const [items, total] = await Promise.all([
+      this.bulkOperationHistoryModel
+        .find(query)
+        .populate('createdBy', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(params.limit)
+        .lean(),
+      this.bulkOperationHistoryModel.countDocuments(query),
+    ]);
+
+    const totalPages = Math.ceil(total / params.limit);
+
     return {
-      items: [],
+      items: items.map(item => ({
+        id: item._id,
+        type: item.operation,
+        entityType: item.entityType,
+        recordsProcessed: item.totalRecords,
+        successCount: item.successCount,
+        errorCount: item.errorCount,
+        status: item.status,
+        timestamp: item.createdAt.toISOString(),
+        user: item.createdBy ? `${(item.createdBy as any).firstName} ${(item.createdBy as any).lastName}` : 'Unknown',
+        message: item.message,
+        fileName: item.fileName,
+      })),
       pagination: {
         page: params.page,
         limit: params.limit,
-        total: 0,
-        totalPages: 0,
-        hasNext: false,
-        hasPrev: false,
+        total,
+        totalPages,
+        hasNext: params.page < totalPages,
+        hasPrev: params.page > 1,
       },
     };
   }
 
   async getOperationsStats(userId: string): Promise<any> {
-    // Mock stats for now
+    // Get real statistics from the database
+    const [
+      totalOperations,
+      successfulOperations,
+      failedOperations,
+      pendingOperations,
+      recentActivity
+    ] = await Promise.all([
+      this.bulkOperationHistoryModel.countDocuments({}),
+      this.bulkOperationHistoryModel.countDocuments({ status: 'completed' }),
+      this.bulkOperationHistoryModel.countDocuments({ status: 'failed' }),
+      this.bulkOperationHistoryModel.countDocuments({ status: 'pending' }),
+      this.bulkOperationHistoryModel
+        .find({})
+        .populate('createdBy', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean()
+    ]);
+
     return {
-      totalOperations: 156,
-      successfulOperations: 142,
-      failedOperations: 8,
-      pendingOperations: 6,
-      recentActivity: [],
+      totalOperations,
+      successfulOperations,
+      failedOperations,
+      pendingOperations,
+      recentActivity: recentActivity.map(activity => ({
+        id: activity._id,
+        type: activity.operation,
+        entityType: activity.entityType,
+        recordsProcessed: activity.totalRecords,
+        status: activity.status,
+        timestamp: activity.createdAt.toISOString(),
+        user: activity.createdBy ? `${(activity.createdBy as any).firstName} ${(activity.createdBy as any).lastName}` : 'Unknown',
+      })),
     };
   }
 
@@ -465,23 +611,55 @@ export class BulkOperationsService {
     }));
   }
 
+  private async buildFilterQuery(filters: any, entityType: string, userId: string): Promise<any> {
+    // Start with the provided filters
+    const query = { ...filters };
+
+    // Add user access control filtering here if needed
+    // For now, we'll just return the filters as-is
+    // In a real implementation, you would check user permissions
+    // and filter based on district/unit access rights
+
+    console.log('Built filter query for export:', { entityType, filters, query });
+
+    return query;
+  }
+
   private async recordOperationHistory(
     entityType: string,
     operation: BulkOperationType,
     result: BulkOperationResult,
     userId: string,
+    fileName?: string,
   ): Promise<void> {
-    // Record the operation in a history collection
-    // This would typically save to a BulkOperationHistory collection
-    console.log('Recording operation history:', {
-      entityType,
-      operation,
-      result: {
+    try {
+      // Save the operation to the history collection
+      const historyEntry = new this.bulkOperationHistoryModel({
+        entityType,
+        operation,
+        totalRecords: result.totalCount,
+        successCount: result.successCount,
+        errorCount: result.errorCount,
+        status: result.errorCount > 0 ? 'failed' : 'completed',
+        createdBy: userId,
+        message: result.message,
+        errors: result.failedRecords.map(fr => fr.errors.join(', ')),
+        fileName,
+      });
+
+      await historyEntry.save();
+
+      console.log('Operation history recorded successfully:', {
+        entityType,
+        operation,
         total: result.totalCount,
         success: result.successCount,
         errors: result.errorCount,
-      },
-      userId,
-    });
+        userId,
+      });
+    } catch (error) {
+      console.error('Failed to record operation history:', error);
+      // Don't throw error as this shouldn't fail the main operation
+    }
   }
 }

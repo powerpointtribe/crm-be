@@ -2,6 +2,7 @@ export enum BulkOperationType {
   CREATE = 'create',
   UPDATE = 'update',
   DELETE = 'delete',
+  EXPORT = 'export',
 }
 
 export interface BulkOperationResult<T = any> {
