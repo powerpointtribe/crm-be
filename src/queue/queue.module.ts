@@ -9,6 +9,7 @@ import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
 import { MembersModule } from '../members/members.module';
 import { FirstTimersModule } from '../first-timers/first-timers.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { FirstTimersModule } from '../first-timers/first-timers.module';
     }),
     forwardRef(() => MembersModule),
     forwardRef(() => FirstTimersModule),
+    NotificationsModule,
   ],
   controllers: [QueueController],
   providers: [

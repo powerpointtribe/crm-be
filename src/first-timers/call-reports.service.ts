@@ -214,8 +214,9 @@ export class CallReportsService {
       (a, b) => new Date(b.callDate).getTime() - new Date(a.callDate).getTime(),
     );
     const lastContactDate = sortedReports[0]?.callDate;
-    const nextFollowUpDate = sortedReports.find((r) => r.nextFollowUpDate)
-      ?.nextFollowUpDate;
+    const nextFollowUpDate = sortedReports.find(
+      (r) => r.nextFollowUpDate,
+    )?.nextFollowUpDate;
 
     return {
       totalReports: 4,

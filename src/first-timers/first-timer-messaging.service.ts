@@ -134,17 +134,20 @@ export class FirstTimerMessagingService {
     );
 
     // Group by unit leader
-    const groupedByLeader = firstTimersWithoutMessages.reduce((acc: any, ft) => {
-      const leaderId = ft.giaLeader?._id?.toString() || 'no-leader';
-      if (!acc[leaderId]) {
-        acc[leaderId] = {
-          leader: ft.giaLeader,
-          firstTimers: [],
-        };
-      }
-      acc[leaderId].firstTimers.push(ft);
-      return acc;
-    }, {});
+    const groupedByLeader = firstTimersWithoutMessages.reduce(
+      (acc: any, ft) => {
+        const leaderId = ft.giaLeader?._id?.toString() || 'no-leader';
+        if (!acc[leaderId]) {
+          acc[leaderId] = {
+            leader: ft.giaLeader,
+            firstTimers: [],
+          };
+        }
+        acc[leaderId].firstTimers.push(ft);
+        return acc;
+      },
+      {},
+    );
 
     // Send notifications to unit leaders
     for (const [leaderId, data] of Object.entries(groupedByLeader)) {
@@ -225,9 +228,7 @@ export class FirstTimerMessagingService {
     });
 
     // Get first timer details
-    const firstTimer = await this.firstTimerModel
-      .findById(firstTimerId)
-      .exec();
+    const firstTimer = await this.firstTimerModel.findById(firstTimerId).exec();
 
     if (!firstTimer) {
       this.logger.error(`First timer ${firstTimerId} not found`);
@@ -281,22 +282,30 @@ export class FirstTimerMessagingService {
     await Promise.all(promises);
 
     // Group assignments by assignee for bulk notification
-    const assignmentsByAssignee = assignments.reduce((acc, assignment) => {
-      if (!acc[assignment.assigneeId]) {
-        acc[assignment.assigneeId] = [];
-      }
-      acc[assignment.assigneeId].push(assignment.firstTimerId);
-      return acc;
-    }, {} as Record<string, string[]>);
+    const assignmentsByAssignee = assignments.reduce(
+      (acc, assignment) => {
+        if (!acc[assignment.assigneeId]) {
+          acc[assignment.assigneeId] = [];
+        }
+        acc[assignment.assigneeId].push(assignment.firstTimerId);
+        return acc;
+      },
+      {} as Record<string, string[]>,
+    );
 
     // Queue bulk notification jobs for each assignee
-    for (const [assigneeId, firstTimerIds] of Object.entries(assignmentsByAssignee)) {
+    for (const [assigneeId, firstTimerIds] of Object.entries(
+      assignmentsByAssignee,
+    )) {
       try {
-        await this.queueService.addJob(JobType.SEND_BULK_ASSIGNMENT_NOTIFICATION, {
-          assigneeId,
-          firstTimerIds,
-          assignedBy,
-        });
+        await this.queueService.addJob(
+          JobType.SEND_BULK_ASSIGNMENT_NOTIFICATION,
+          {
+            assigneeId,
+            firstTimerIds,
+            assignedBy,
+          },
+        );
       } catch (error) {
         this.logger.error(
           `Failed to queue bulk assignment notification for assignee ${assigneeId}:`,
@@ -327,19 +336,24 @@ export class FirstTimerMessagingService {
     // If being assigned to district, notify district pastor
     if (integrationStage === 'assigned_to_district' && assignedDistrict) {
       try {
-        const firstTimer = await this.firstTimerModel.findById(firstTimerId).exec();
+        const firstTimer = await this.firstTimerModel
+          .findById(firstTimerId)
+          .exec();
         if (firstTimer) {
-          await this.queueService.addJob(JobType.SEND_DISTRICT_ASSIGNMENT_NOTIFICATION, {
-            firstTimerId,
-            assignedDistrict,
-            newMemberData: {
-              firstName: firstTimer.firstName,
-              lastName: firstTimer.lastName,
-              phone: firstTimer.phone,
-              email: firstTimer.email,
-              integratedDate: new Date().toISOString().split('T')[0],
+          await this.queueService.addJob(
+            JobType.SEND_DISTRICT_ASSIGNMENT_NOTIFICATION,
+            {
+              firstTimerId,
+              assignedDistrict,
+              newMemberData: {
+                firstName: firstTimer.firstName,
+                lastName: firstTimer.lastName,
+                phone: firstTimer.phone,
+                email: firstTimer.email,
+                integratedDate: new Date().toISOString().split('T')[0],
+              },
             },
-          });
+          );
         }
 
         this.logger.log(
@@ -379,7 +393,9 @@ export class FirstTimerMessagingService {
   }
 
   async convertInterestedFirstTimersToMembers(): Promise<void> {
-    this.logger.log('Checking for interested first-timers to convert to members...');
+    this.logger.log(
+      'Checking for interested first-timers to convert to members...',
+    );
 
     // Find first-timers who are interested in joining but haven't been converted yet
     const interestedFirstTimers = await this.firstTimerModel
@@ -394,13 +410,10 @@ export class FirstTimerMessagingService {
           {
             // Check if they have call reports with service attendance
             $expr: {
-              $gt: [
-                { $size: { $ifNull: ['$followUps', []] } },
-                1
-              ]
-            }
-          }
-        ]
+              $gt: [{ $size: { $ifNull: ['$followUps', []] } }, 1],
+            },
+          },
+        ],
       })
       .exec();
 
@@ -409,7 +422,9 @@ export class FirstTimerMessagingService {
       return;
     }
 
-    this.logger.log(`Found ${interestedFirstTimers.length} first-timers ready for member conversion`);
+    this.logger.log(
+      `Found ${interestedFirstTimers.length} first-timers ready for member conversion`,
+    );
 
     // Queue job for creating member records
     for (const firstTimer of interestedFirstTimers) {
@@ -430,7 +445,9 @@ export class FirstTimerMessagingService {
           },
         });
 
-        this.logger.log(`Queued member creation for first timer ${firstTimer._id}`);
+        this.logger.log(
+          `Queued member creation for first timer ${firstTimer._id}`,
+        );
       } catch (error) {
         this.logger.error(
           `Failed to queue member creation for first timer ${firstTimer._id}:`,

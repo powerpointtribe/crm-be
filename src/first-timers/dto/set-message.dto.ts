@@ -13,8 +13,9 @@ export class SetPreFilledMessageDto {
   message: string;
 
   @ApiPropertyOptional({
-    description: 'Scheduled time to send message (defaults to 7PM today or 2hrs after form submission)',
-    example: '2024-01-15T19:00:00Z'
+    description:
+      'Scheduled time to send message (defaults to 7PM today or 2hrs after form submission)',
+    example: '2024-01-15T19:00:00Z',
   })
   @IsOptional()
   @IsDateString()
@@ -22,7 +23,9 @@ export class SetPreFilledMessageDto {
 }
 
 export class BulkSetMessageDto {
-  @ApiProperty({ description: 'Pre-filled message to be sent to all new first-timers' })
+  @ApiProperty({
+    description: 'Pre-filled message to be sent to all new first-timers',
+  })
   @IsString()
   @IsNotEmpty()
   message: string;
@@ -33,8 +36,9 @@ export class BulkSetMessageDto {
   firstTimerIds: string[];
 
   @ApiPropertyOptional({
-    description: 'Scheduled time to send message (defaults to 7PM today or 2hrs after form submission)',
-    example: '2024-01-15T19:00:00Z'
+    description:
+      'Scheduled time to send message (defaults to 7PM today or 2hrs after form submission)',
+    example: '2024-01-15T19:00:00Z',
   })
   @IsOptional()
   @IsDateString()

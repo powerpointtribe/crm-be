@@ -30,10 +30,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
     FirstTimerMessagingService,
     CallReportsService,
   ],
-  exports: [
-    FirstTimersService,
-    FirstTimerMessagingService,
-    CallReportsService,
-  ],
+  exports: [FirstTimersService, FirstTimerMessagingService, CallReportsService],
 })
 export class FirstTimersModule {}

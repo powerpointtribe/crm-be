@@ -6,7 +6,13 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiOperation, ApiResponse, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { CloudinaryService } from '../common/services/cloudinary.service';
 import { Public } from '../auth/decorators/public.decorator';
 
@@ -52,7 +58,9 @@ export class UploadController {
     // Validate file type
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException('Only JPEG, PNG, and WebP images are allowed');
+      throw new BadRequestException(
+        'Only JPEG, PNG, and WebP images are allowed',
+      );
     }
 
     // Validate file size (5MB max)
@@ -62,7 +70,10 @@ export class UploadController {
     }
 
     try {
-      const imageUrl = await this.cloudinaryService.uploadImage(file, 'first-timers/profile-photos');
+      const imageUrl = await this.cloudinaryService.uploadImage(
+        file,
+        'first-timers/profile-photos',
+      );
       return {
         url: imageUrl,
       };

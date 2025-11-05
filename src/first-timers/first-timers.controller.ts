@@ -37,7 +37,10 @@ import { AssignFollowUpDto } from './dto/assign-follow-up.dto';
 import { FirstTimerSearchDto } from './dto/first-timer-search.dto';
 import { BulkUploadResultDto } from './dto/bulk-upload-first-timer.dto';
 import { CreateCallReportDto } from './dto/create-call-report.dto';
-import { SetPreFilledMessageDto, BulkSetMessageDto } from './dto/set-message.dto';
+import {
+  SetPreFilledMessageDto,
+  BulkSetMessageDto,
+} from './dto/set-message.dto';
 import { UpdateIntegrationStageDto } from './dto/update-integration-stage.dto';
 import { CSVParserUtil } from '../common/utils/csv-parser.util';
 import { QueueService } from '../queue/queue.service';
@@ -78,8 +81,9 @@ export class FirstTimersController {
     return ResponseUtil.success(
       {
         title: 'Welcome to Our Church!',
-        subtitle: 'We\'re excited to connect with you',
-        successMessage: 'Thank you for your interest! Our team will contact you soon.',
+        subtitle: "We're excited to connect with you",
+        successMessage:
+          'Thank you for your interest! Our team will contact you soon.',
         fields: {
           firstName: { required: true, label: 'First Name' },
           lastName: { required: true, label: 'Last Name' },
@@ -91,13 +95,29 @@ export class FirstTimersController {
           howDidYouHear: {
             required: false,
             label: 'How did you hear about us?',
-            options: ['friend', 'family', 'advertisement', 'online', 'event', 'walkby', 'website', 'social_media', 'other']
+            options: [
+              'friend',
+              'family',
+              'advertisement',
+              'online',
+              'event',
+              'walkby',
+              'website',
+              'social_media',
+              'other',
+            ],
           },
-          interestedInJoining: { required: false, label: 'Interested in joining our church?' },
+          interestedInJoining: {
+            required: false,
+            label: 'Interested in joining our church?',
+          },
           prayerRequests: { required: false, label: 'Prayer Requests' },
-          servingInterests: { required: false, label: 'Areas of Interest for Serving' },
-          notes: { required: false, label: 'Additional Comments' }
-        }
+          servingInterests: {
+            required: false,
+            label: 'Areas of Interest for Serving',
+          },
+          notes: { required: false, label: 'Additional Comments' },
+        },
       },
       'Public form configuration retrieved successfully',
     );
@@ -166,12 +186,15 @@ export class FirstTimersController {
         );
       } catch (error) {
         // Log error but don't fail the registration
-        console.error('Failed to set pre-filled message for public registration:', error);
+        console.error(
+          'Failed to set pre-filled message for public registration:',
+          error,
+        );
       }
 
       return ResponseUtil.success(
         {
-          id: (firstTimer._id as any),
+          id: firstTimer._id as any,
           firstName: firstTimer.firstName,
           lastName: firstTimer.lastName,
           status: firstTimer.status,
@@ -896,8 +919,12 @@ export class FirstTimersController {
     description: 'Call reports retrieved successfully',
   })
   async getCallReports(@Param('id') firstTimerId: string) {
-    const callReports = await this.callReportsService.findByFirstTimer(firstTimerId);
-    return ResponseUtil.success(callReports, 'Call reports retrieved successfully');
+    const callReports =
+      await this.callReportsService.findByFirstTimer(firstTimerId);
+    return ResponseUtil.success(
+      callReports,
+      'Call reports retrieved successfully',
+    );
   }
 
   @Get(':id/call-reports/summary')
@@ -909,8 +936,12 @@ export class FirstTimersController {
     description: 'Call reports summary retrieved successfully',
   })
   async getCallReportsSummary(@Param('id') firstTimerId: string) {
-    const summary = await this.callReportsService.getCallReportsSummary(firstTimerId);
-    return ResponseUtil.success(summary, 'Call reports summary retrieved successfully');
+    const summary =
+      await this.callReportsService.getCallReportsSummary(firstTimerId);
+    return ResponseUtil.success(
+      summary,
+      'Call reports summary retrieved successfully',
+    );
   }
 
   @Patch('call-reports/:reportId')
@@ -925,7 +956,10 @@ export class FirstTimersController {
     @Param('reportId') reportId: string,
     @Body() updateData: Partial<CreateCallReportDto>,
   ) {
-    const callReport = await this.callReportsService.update(reportId, updateData);
+    const callReport = await this.callReportsService.update(
+      reportId,
+      updateData,
+    );
     return ResponseUtil.success(callReport, 'Call report updated successfully');
   }
 
@@ -986,7 +1020,10 @@ export class FirstTimersController {
       scheduledTime,
     );
 
-    return ResponseUtil.success(null, 'Bulk pre-filled message set successfully');
+    return ResponseUtil.success(
+      null,
+      'Bulk pre-filled message set successfully',
+    );
   }
 
   // Integration Stage Endpoints
@@ -1020,7 +1057,8 @@ export class FirstTimersController {
     description: 'Bulk assignment completed successfully',
   })
   async bulkAssignForFollowUp(
-    @Body() body: {
+    @Body()
+    body: {
       assignments: Array<{ firstTimerId: string; assigneeId: string }>;
     },
     @CurrentUser() user: any,
@@ -1043,7 +1081,8 @@ export class FirstTimersController {
   })
   async closeFirstTimer(
     @Param('id') firstTimerId: string,
-    @Body() body: {
+    @Body()
+    body: {
       reason: 'unwilling' | 'became_member';
       memberRecordId?: string;
     },

@@ -22,7 +22,10 @@ export class UpdateIntegrationStageDto {
   @IsString()
   assignedDistrict?: string;
 
-  @ApiPropertyOptional({ description: 'Stage change date', example: '2024-01-15T10:00:00Z' })
+  @ApiPropertyOptional({
+    description: 'Stage change date',
+    example: '2024-01-15T10:00:00Z',
+  })
   @IsOptional()
   @IsDateString()
   integrationStageDate?: string;

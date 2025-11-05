@@ -19,7 +19,15 @@ export class CallReport {
 
   @Prop({
     type: String,
-    enum: ['successful', 'no_answer', 'busy', 'not_interested', 'interested', 'follow_up_needed', 'completed'],
+    enum: [
+      'successful',
+      'no_answer',
+      'busy',
+      'not_interested',
+      'interested',
+      'follow_up_needed',
+      'completed',
+    ],
     required: true,
   })
   status: string;

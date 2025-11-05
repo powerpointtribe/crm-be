@@ -17,16 +17,35 @@ export class CreateCallReportDto {
   @IsNotEmpty()
   firstTimerId: string;
 
-  @ApiProperty({ description: 'Date of the call', example: '2024-01-15T10:00:00Z' })
+  @ApiProperty({
+    description: 'Date of the call',
+    example: '2024-01-15T10:00:00Z',
+  })
   @IsDateString()
   @IsNotEmpty()
   callDate: string;
 
   @ApiProperty({
     description: 'Call status',
-    enum: ['successful', 'no_answer', 'busy', 'not_interested', 'interested', 'follow_up_needed', 'completed'],
+    enum: [
+      'successful',
+      'no_answer',
+      'busy',
+      'not_interested',
+      'interested',
+      'follow_up_needed',
+      'completed',
+    ],
   })
-  @IsEnum(['successful', 'no_answer', 'busy', 'not_interested', 'interested', 'follow_up_needed', 'completed'])
+  @IsEnum([
+    'successful',
+    'no_answer',
+    'busy',
+    'not_interested',
+    'interested',
+    'follow_up_needed',
+    'completed',
+  ])
   @IsNotEmpty()
   status: string;
 
@@ -63,7 +82,10 @@ export class CreateCallReportDto {
   @IsBoolean()
   attended4thService?: boolean;
 
-  @ApiPropertyOptional({ description: 'Next follow-up date', example: '2024-01-22T10:00:00Z' })
+  @ApiPropertyOptional({
+    description: 'Next follow-up date',
+    example: '2024-01-22T10:00:00Z',
+  })
   @IsOptional()
   @IsDateString()
   nextFollowUpDate?: string;
@@ -71,7 +93,7 @@ export class CreateCallReportDto {
   @ApiProperty({
     description: 'Report number (1-4)',
     minimum: 1,
-    maximum: 4
+    maximum: 4,
   })
   @IsNumber()
   @Min(1)

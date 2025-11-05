@@ -6,6 +6,8 @@ import {
   FirstTimerAutomationJobData,
 } from '../../common/interfaces/queue-job.interface';
 import { FirstTimersService } from '../../first-timers/first-timers.service';
+import { MembersService } from '../../members/members.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { QueueService } from '../queue.service';
 import { EngagementStatus } from '../../common/enums/engagement-status.enum';
 
@@ -16,6 +18,8 @@ export class FirstTimerAutomationProcessor {
 
   constructor(
     private firstTimersService: FirstTimersService,
+    private membersService: MembersService,
+    private notificationsService: NotificationsService,
     private queueService: QueueService,
   ) {}
 
@@ -123,15 +127,34 @@ export class FirstTimerAutomationProcessor {
           firstTimer.giaLeader;
 
         if (assignedPersonId) {
-          await this.queueService.addJob('follow-up-task-notification', {
-            firstTimerId: firstTimer._id,
-            assignedPersonId,
-            type: 'follow_up_needed',
-          });
+          // Get assigned person details
+          const assignedPerson =
+            await this.membersService.findById(assignedPersonId.toString());
 
-          this.logger.log(
-            `Sent follow-up notification for ${firstTimer.firstName} ${firstTimer.lastName}`,
-          );
+          if (assignedPerson && assignedPerson.email) {
+            // Calculate urgency based on days since visit
+            const daysSinceVisit = Math.floor(
+              (Date.now() - firstTimer.createdAt.getTime()) /
+                (1000 * 60 * 60 * 24),
+            );
+
+            let urgency: 'low' | 'medium' | 'high' = 'low';
+            if (daysSinceVisit > 7) urgency = 'high';
+            else if (daysSinceVisit > 3) urgency = 'medium';
+
+            await this.notificationsService.sendFollowUpTaskNotification({
+              assignedPersonEmail: assignedPerson.email,
+              assignedPersonName: `${assignedPerson.firstName} ${assignedPerson.lastName}`,
+              firstTimerName: `${firstTimer.firstName} ${firstTimer.lastName}`,
+              taskType: 'follow_up_needed',
+              urgency,
+              daysOverdue: daysSinceVisit > 2 ? daysSinceVisit - 2 : undefined,
+            });
+
+            this.logger.log(
+              `Follow-up notification sent to ${assignedPerson.email} for ${firstTimer.firstName} ${firstTimer.lastName}`,
+            );
+          }
         }
       }
 

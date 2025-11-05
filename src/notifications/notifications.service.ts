@@ -218,7 +218,7 @@ export class NotificationsService {
         (ft) =>
           `<li><strong>${ft.firstName} ${ft.lastName}</strong> - ${ft.phone}${
             ft.email ? ` (${ft.email})` : ''
-          } - Visited: ${ft.dateOfVisit}</li>`
+          } - Visited: ${ft.dateOfVisit}</li>`,
       )
       .join('');
 
@@ -266,7 +266,7 @@ export class NotificationsService {
     const firstTimersList = data.noMessageFirstTimers
       .map(
         (ft) =>
-          `<li>${ft.firstName} ${ft.lastName} - Visited: ${ft.dateOfVisit}</li>`
+          `<li>${ft.firstName} ${ft.lastName} - Visited: ${ft.dateOfVisit}</li>`,
       )
       .join('');
 
@@ -313,7 +313,7 @@ export class NotificationsService {
             member.phone
           }${
             member.email ? ` (${member.email})` : ''
-          } - Integrated: ${member.integratedDate}</li>`
+          } - Integrated: ${member.integratedDate}</li>`,
       )
       .join('');
 
@@ -369,6 +369,235 @@ export class NotificationsService {
     await this.emailProvider.sendEmail({
       to: data.email,
       subject: 'A Special Message for You',
+      html,
+    });
+  }
+
+  // Job-specific email methods
+  async sendFirstTimerThankYouEmail(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+  }): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #2c3e50;">Thank You for Visiting!</h1>
+        <p>Dear ${data.firstName} ${data.lastName},</p>
+        <p>Thank you for visiting our church! We hope you felt the love of Christ and experienced meaningful worship with us.</p>
+        <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>We're Here for You</h3>
+          <p>Our follow-up team will be reaching out to you soon to:</p>
+          <ul>
+            <li>Answer any questions you might have</li>
+            <li>Help you get connected with our community</li>
+            <li>Share information about our ministries and activities</li>
+          </ul>
+        </div>
+        <p>We would love to have you visit again and become part of our church family!</p>
+        <p>God bless you,<br/>The Church Family</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.email,
+      subject: 'Thank You for Visiting Our Church!',
+      html,
+    });
+  }
+
+  async sendConversionNotification(data: {
+    giaLeaderEmail: string;
+    giaLeaderName: string;
+    firstTimerName: string;
+    memberName: string;
+    conversionDate: string;
+  }): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #28a745;">🎉 Praise Report: First-Timer Conversion!</h1>
+        <p>Dear ${data.giaLeaderName},</p>
+        <p>We have wonderful news to share with you!</p>
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>Conversion Update</h3>
+          <p><strong>First-Timer:</strong> ${data.firstTimerName}</p>
+          <p><strong>New Member Record:</strong> ${data.memberName}</p>
+          <p><strong>Conversion Date:</strong> ${data.conversionDate}</p>
+        </div>
+        <p>This first-timer has successfully been converted to a full member of our church! Thank you for your role in their spiritual journey.</p>
+        <p>Please continue to support and encourage them as they grow in their faith.</p>
+        <p>Blessings,<br/>The Church Leadership Team</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.giaLeaderEmail,
+      subject: '🎉 First-Timer Conversion Success!',
+      html,
+    });
+  }
+
+  async sendWeeklyMeetingReminder(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    meetingDetails?: {
+      date: string;
+      time: string;
+      location: string;
+    };
+  }): Promise<void> {
+    const meetingInfo = data.meetingDetails
+      ? `
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>Meeting Details</h3>
+          <p><strong>Date:</strong> ${data.meetingDetails.date}</p>
+          <p><strong>Time:</strong> ${data.meetingDetails.time}</p>
+          <p><strong>Location:</strong> ${data.meetingDetails.location}</p>
+        </div>
+      `
+      : `
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p>Please contact our church office for specific meeting details.</p>
+        </div>
+      `;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #2c3e50;">Weekly Meeting Reminder</h1>
+        <p>Dear ${data.firstName} ${data.lastName},</p>
+        <p>We hope you're doing well! This is a friendly reminder about our upcoming weekly meeting.</p>
+        ${meetingInfo}
+        <p>We would love to see you there! It's a great opportunity for fellowship, prayer, and spiritual growth.</p>
+        <p>If you have any questions or need directions, please don't hesitate to contact us.</p>
+        <p>Looking forward to seeing you,<br/>The Church Team</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.email,
+      subject: 'Weekly Meeting Reminder',
+      html,
+    });
+  }
+
+  async sendFollowUpTaskNotification(data: {
+    assignedPersonEmail: string;
+    assignedPersonName: string;
+    firstTimerName: string;
+    taskType: string;
+    urgency: 'low' | 'medium' | 'high';
+    daysOverdue?: number;
+  }): Promise<void> {
+    const urgencyColors = {
+      low: '#17a2b8',
+      medium: '#ffc107',
+      high: '#dc3545',
+    };
+
+    const urgencyMessages = {
+      low: 'Please follow up when convenient',
+      medium: 'Follow-up needed soon',
+      high: 'Urgent follow-up required',
+    };
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: ${urgencyColors[data.urgency]};">Follow-up Task Notification</h1>
+        <p>Dear ${data.assignedPersonName},</p>
+        <p>You have a follow-up task that requires your attention:</p>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${urgencyColors[data.urgency]};">
+          <h3>Task Details</h3>
+          <p><strong>First-Timer:</strong> ${data.firstTimerName}</p>
+          <p><strong>Task Type:</strong> ${data.taskType}</p>
+          <p><strong>Priority:</strong> ${urgencyMessages[data.urgency]}</p>
+          ${data.daysOverdue ? `<p><strong>Days Overdue:</strong> ${data.daysOverdue}</p>` : ''}
+        </div>
+        <p>Please log in to the church management system to complete this follow-up task.</p>
+        <p>Thank you for your dedication to following up with our visitors!</p>
+        <p>Blessings,<br/>The Church Management System</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.assignedPersonEmail,
+      subject: `Follow-up Task: ${data.firstTimerName} - ${data.urgency.toUpperCase()} Priority`,
+      html,
+    });
+  }
+
+  async sendBulkAssignmentNotification(data: {
+    assigneeEmail: string;
+    assigneeName: string;
+    assignments: Array<{
+      type: 'first_timer' | 'member' | 'district';
+      name: string;
+      details: string;
+    }>;
+    assignedBy: string;
+  }): Promise<void> {
+    const assignmentsList = data.assignments
+      .map(
+        (assignment) => `
+        <li style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+          <strong>${assignment.name}</strong> (${assignment.type.replace('_', ' ')})
+          <br><small>${assignment.details}</small>
+        </li>
+      `,
+      )
+      .join('');
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #2c3e50;">Bulk Assignment Notification</h1>
+        <p>Dear ${data.assigneeName},</p>
+        <p>You have received multiple new assignments from ${data.assignedBy}:</p>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>Your New Assignments:</h3>
+          <ul style="list-style: none; padding: 0;">
+            ${assignmentsList}
+          </ul>
+        </div>
+        <p>Please log in to the church management system to review and begin working on these assignments.</p>
+        <p>Thank you for your service!</p>
+        <p>Blessings,<br/>The Church Leadership Team</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.assigneeEmail,
+      subject: `New Assignments from ${data.assignedBy}`,
+      html,
+    });
+  }
+
+  async sendMemberCreationNotification(data: {
+    adminEmail: string;
+    adminName: string;
+    memberName: string;
+    memberEmail: string;
+    firstTimerId: string;
+    conversionDate: string;
+  }): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #28a745;">✅ Member Record Created Successfully</h1>
+        <p>Dear ${data.adminName},</p>
+        <p>A new member record has been successfully created from a first-timer conversion:</p>
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>New Member Details</h3>
+          <p><strong>Member Name:</strong> ${data.memberName}</p>
+          <p><strong>Email:</strong> ${data.memberEmail}</p>
+          <p><strong>Original First-Timer ID:</strong> ${data.firstTimerId}</p>
+          <p><strong>Conversion Date:</strong> ${data.conversionDate}</p>
+        </div>
+        <p>The first-timer record has been updated to reflect this conversion. The new member can now access member-specific features and services.</p>
+        <p>Best regards,<br/>Church Management System</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.adminEmail,
+      subject: `✅ New Member Created: ${data.memberName}`,
       html,
     });
   }
