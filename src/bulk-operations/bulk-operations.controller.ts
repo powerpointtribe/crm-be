@@ -11,6 +11,7 @@ import {
   UploadedFile,
   Res,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from '@nestjs/swagger';
@@ -21,9 +22,12 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-roles.enums';
 import { ResponseUtil } from '../common/utils/response.util';
 import { BulkOperationType } from '../common/interfaces/bulk-operation.interface';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 
 @ApiTags('Bulk Operations')
 @Controller('bulk-operations')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class BulkOperationsController {
   constructor(private readonly bulkOperationsService: BulkOperationsService) {}
 
