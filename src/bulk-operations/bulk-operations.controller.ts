@@ -14,7 +14,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { BulkOperationsService } from './bulk-operations.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -42,10 +47,14 @@ export class BulkOperationsController {
     @Param('entityType') entityType: string,
     @Res() res: Response,
   ) {
-    const csvContent = await this.bulkOperationsService.generateTemplate(entityType);
+    const csvContent =
+      await this.bulkOperationsService.generateTemplate(entityType);
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${entityType}-template.csv"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${entityType}-template.csv"`,
+    );
     res.send(csvContent);
   }
 
@@ -79,7 +88,10 @@ export class BulkOperationsController {
       user._id,
     );
 
-    return ResponseUtil.success(result, 'Bulk operation completed successfully');
+    return ResponseUtil.success(
+      result,
+      'Bulk operation completed successfully',
+    );
   }
 
   @Get('operations')
@@ -100,7 +112,10 @@ export class BulkOperationsController {
       userId: user._id,
     });
 
-    return ResponseUtil.success(history, 'Operations history retrieved successfully');
+    return ResponseUtil.success(
+      history,
+      'Operations history retrieved successfully',
+    );
   }
 
   @Get('stats')
@@ -108,7 +123,10 @@ export class BulkOperationsController {
   @ApiOperation({ summary: 'Get bulk operations statistics' })
   async getOperationsStats(@CurrentUser() user: any) {
     const stats = await this.bulkOperationsService.getOperationsStats(user._id);
-    return ResponseUtil.success(stats, 'Operations statistics retrieved successfully');
+    return ResponseUtil.success(
+      stats,
+      'Operations statistics retrieved successfully',
+    );
   }
 
   @Post('preview/:entityType')
@@ -137,7 +155,10 @@ export class BulkOperationsController {
       user._id,
     );
 
-    return ResponseUtil.success(preview, 'Bulk operation preview generated successfully');
+    return ResponseUtil.success(
+      preview,
+      'Bulk operation preview generated successfully',
+    );
   }
 
   @Get('export/:entityType')
@@ -160,7 +181,10 @@ export class BulkOperationsController {
     const timestamp = new Date().toISOString().split('T')[0];
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${entityType}-export-${timestamp}.csv"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${entityType}-export-${timestamp}.csv"`,
+    );
     res.send(csvContent);
   }
 

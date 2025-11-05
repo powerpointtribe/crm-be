@@ -36,9 +36,11 @@ export class ResourceAccessGuard implements CanActivate {
 
     // Super admins and pastors have access to everything
     if (user.systemRoles && Array.isArray(user.systemRoles)) {
-      if (user.systemRoles.includes(UserRole.ADMIN) ||
-          user.systemRoles.includes(UserRole.PASTOR) ||
-          user.systemRoles.includes(UserRole.LXL)) {
+      if (
+        user.systemRoles.includes(UserRole.ADMIN) ||
+        user.systemRoles.includes(UserRole.PASTOR) ||
+        user.systemRoles.includes(UserRole.LXL)
+      ) {
         return true;
       }
     }

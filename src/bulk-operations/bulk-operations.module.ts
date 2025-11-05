@@ -4,8 +4,14 @@ import { BulkOperationsController } from './bulk-operations.controller';
 import { BulkOperationsService } from './bulk-operations.service';
 import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { Group, GroupSchema } from '../groups/schemas/group.schema';
-import { FirstTimer, FirstTimerSchema } from '../first-timers/schemas/first-timer.schema';
-import { BulkOperationHistory, BulkOperationHistorySchema } from './schemas/bulk-operation-history.schema';
+import {
+  FirstTimer,
+  FirstTimerSchema,
+} from '../first-timers/schemas/first-timer.schema';
+import {
+  BulkOperationHistory,
+  BulkOperationHistorySchema,
+} from './schemas/bulk-operation-history.schema';
 import { MembersModule } from '../members/members.module';
 import { GroupsModule } from '../groups/groups.module';
 import { FirstTimersModule } from '../first-timers/first-timers.module';

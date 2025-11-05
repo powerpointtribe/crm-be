@@ -34,18 +34,24 @@ export class ServiceReportsService {
     reportedBy: string,
   ): Promise<ServiceReportDocument> {
     // Validate attendance numbers
-    const { totalAttendance, numberOfMales, numberOfFemales, numberOfChildren, numberOfFirstTimers } = createServiceReportDto;
+    const {
+      totalAttendance,
+      numberOfMales,
+      numberOfFemales,
+      numberOfChildren,
+      numberOfFirstTimers,
+    } = createServiceReportDto;
 
     const calculatedTotal = numberOfMales + numberOfFemales + numberOfChildren;
     if (calculatedTotal !== totalAttendance) {
       throw new BadRequestException(
-        `Total attendance (${totalAttendance}) must equal sum of males (${numberOfMales}) + females (${numberOfFemales}) + children (${numberOfChildren}) = ${calculatedTotal}`
+        `Total attendance (${totalAttendance}) must equal sum of males (${numberOfMales}) + females (${numberOfFemales}) + children (${numberOfChildren}) = ${calculatedTotal}`,
       );
     }
 
     if (numberOfFirstTimers > totalAttendance) {
       throw new BadRequestException(
-        `Number of first timers (${numberOfFirstTimers}) cannot exceed total attendance (${totalAttendance})`
+        `Number of first timers (${numberOfFirstTimers}) cannot exceed total attendance (${totalAttendance})`,
       );
     }
 
@@ -58,7 +64,7 @@ export class ServiceReportsService {
 
     if (existingReport) {
       throw new BadRequestException(
-        `A service report already exists for ${createServiceReportDto.serviceName} on ${createServiceReportDto.date}`
+        `A service report already exists for ${createServiceReportDto.serviceName} on ${createServiceReportDto.date}`,
       );
     }
 
@@ -131,10 +137,16 @@ export class ServiceReportsService {
 
     // Attendance filters
     if (minAttendance !== undefined) {
-      filterQuery.totalAttendance = { ...filterQuery.totalAttendance, $gte: minAttendance };
+      filterQuery.totalAttendance = {
+        ...filterQuery.totalAttendance,
+        $gte: minAttendance,
+      };
     }
     if (maxAttendance !== undefined) {
-      filterQuery.totalAttendance = { ...filterQuery.totalAttendance, $lte: maxAttendance };
+      filterQuery.totalAttendance = {
+        ...filterQuery.totalAttendance,
+        $lte: maxAttendance,
+      };
     }
 
     // First timers filter
@@ -178,33 +190,41 @@ export class ServiceReportsService {
     // Check if user has permission to update this report
     if (report.reportedBy.toString() !== userId) {
       throw new ForbiddenException(
-        'You can only update reports that you created'
+        'You can only update reports that you created',
       );
     }
 
     // Validate attendance numbers if provided
-    if (updateServiceReportDto.totalAttendance !== undefined ||
-        updateServiceReportDto.numberOfMales !== undefined ||
-        updateServiceReportDto.numberOfFemales !== undefined ||
-        updateServiceReportDto.numberOfChildren !== undefined ||
-        updateServiceReportDto.numberOfFirstTimers !== undefined) {
+    if (
+      updateServiceReportDto.totalAttendance !== undefined ||
+      updateServiceReportDto.numberOfMales !== undefined ||
+      updateServiceReportDto.numberOfFemales !== undefined ||
+      updateServiceReportDto.numberOfChildren !== undefined ||
+      updateServiceReportDto.numberOfFirstTimers !== undefined
+    ) {
+      const totalAttendance =
+        updateServiceReportDto.totalAttendance ?? report.totalAttendance;
+      const numberOfMales =
+        updateServiceReportDto.numberOfMales ?? report.numberOfMales;
+      const numberOfFemales =
+        updateServiceReportDto.numberOfFemales ?? report.numberOfFemales;
+      const numberOfChildren =
+        updateServiceReportDto.numberOfChildren ?? report.numberOfChildren;
+      const numberOfFirstTimers =
+        updateServiceReportDto.numberOfFirstTimers ??
+        report.numberOfFirstTimers;
 
-      const totalAttendance = updateServiceReportDto.totalAttendance ?? report.totalAttendance;
-      const numberOfMales = updateServiceReportDto.numberOfMales ?? report.numberOfMales;
-      const numberOfFemales = updateServiceReportDto.numberOfFemales ?? report.numberOfFemales;
-      const numberOfChildren = updateServiceReportDto.numberOfChildren ?? report.numberOfChildren;
-      const numberOfFirstTimers = updateServiceReportDto.numberOfFirstTimers ?? report.numberOfFirstTimers;
-
-      const calculatedTotal = numberOfMales + numberOfFemales + numberOfChildren;
+      const calculatedTotal =
+        numberOfMales + numberOfFemales + numberOfChildren;
       if (calculatedTotal !== totalAttendance) {
         throw new BadRequestException(
-          `Total attendance (${totalAttendance}) must equal sum of males (${numberOfMales}) + females (${numberOfFemales}) + children (${numberOfChildren}) = ${calculatedTotal}`
+          `Total attendance (${totalAttendance}) must equal sum of males (${numberOfMales}) + females (${numberOfFemales}) + children (${numberOfChildren}) = ${calculatedTotal}`,
         );
       }
 
       if (numberOfFirstTimers > totalAttendance) {
         throw new BadRequestException(
-          `Number of first timers (${numberOfFirstTimers}) cannot exceed total attendance (${totalAttendance})`
+          `Number of first timers (${numberOfFirstTimers}) cannot exceed total attendance (${totalAttendance})`,
         );
       }
     }
@@ -232,7 +252,7 @@ export class ServiceReportsService {
     // Check if user has permission to delete this report
     if (report.reportedBy.toString() !== userId) {
       throw new ForbiddenException(
-        'You can only delete reports that you created'
+        'You can only delete reports that you created',
       );
     }
 
@@ -352,14 +372,14 @@ export class ServiceReportsService {
       .lean()
       .exec();
 
-    return reports.reverse().map(report => ({
+    return reports.reverse().map((report) => ({
       date: report.date.toISOString().split('T')[0],
       serviceName: report.serviceName,
       attendance: report.totalAttendance,
       formattedDate: new Date(report.date).toLocaleDateString('en-US', {
         month: 'short',
-        day: 'numeric'
-      })
+        day: 'numeric',
+      }),
     }));
   }
 

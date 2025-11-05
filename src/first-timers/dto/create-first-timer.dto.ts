@@ -72,7 +72,8 @@ export class CreateFirstTimerDto {
   @IsString()
   @IsNotEmpty()
   @Matches(/^(\+234|0)[789][01]\d{8}$/, {
-    message: 'Phone number must be a valid Nigerian number (e.g., +2348012345678 or 08012345678)',
+    message:
+      'Phone number must be a valid Nigerian number (e.g., +2348012345678 or 08012345678)',
   })
   phone: string;
 
@@ -104,6 +105,14 @@ export class CreateFirstTimerDto {
   })
   dateOfBirth?: string;
 
+  @ApiPropertyOptional({
+    description: 'Gender',
+    enum: ['male', 'female'],
+  })
+  @IsOptional()
+  @IsEnum(['male', 'female'])
+  gender?: string;
+
   @ApiPropertyOptional({ description: 'Occupation' })
   @IsOptional()
   @IsString()
@@ -131,7 +140,9 @@ export class CreateFirstTimerDto {
     other?: string;
   };
 
-  @ApiPropertyOptional({ description: 'Person who referred them (different from inviter)' })
+  @ApiPropertyOptional({
+    description: 'Person who referred them (different from inviter)',
+  })
   @IsOptional()
   @IsString()
   referredBy?: string;

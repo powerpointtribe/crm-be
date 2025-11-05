@@ -99,7 +99,10 @@ export class AuthController {
   @Public()
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request password reset OTP' })
-  @ApiResponse({ status: 200, description: 'Password reset OTP sent if email exists' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset OTP sent if email exists',
+  })
   @ApiResponse({ status: 400, description: 'Invalid email format' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     const result = await this.authService.forgotPassword(forgotPasswordDto);

@@ -1,11 +1,25 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { Group, GroupDocument } from '../groups/schemas/group.schema';
-import { FirstTimer, FirstTimerDocument } from '../first-timers/schemas/first-timer.schema';
-import { BulkOperationHistory, BulkOperationHistoryDocument } from './schemas/bulk-operation-history.schema';
-import { BulkOperationType, BulkOperationResult, BulkOperationOptions } from '../common/interfaces/bulk-operation.interface';
+import {
+  FirstTimer,
+  FirstTimerDocument,
+} from '../first-timers/schemas/first-timer.schema';
+import {
+  BulkOperationHistory,
+  BulkOperationHistoryDocument,
+} from './schemas/bulk-operation-history.schema';
+import {
+  BulkOperationType,
+  BulkOperationResult,
+  BulkOperationOptions,
+} from '../common/interfaces/bulk-operation.interface';
 import { MembersService } from '../members/members.service';
 import { GroupsService } from '../groups/groups.service';
 import { FirstTimersService } from '../first-timers/first-timers.service';
@@ -29,56 +43,158 @@ export class BulkOperationsService {
   private templates = {
     members: {
       headers: [
-        'firstName', 'lastName', 'email', 'phone', 'password', 'dateOfBirth', 'gender',
-        'maritalStatus', 'membershipStatus', 'occupation', 'street', 'city', 'state',
-        'zipCode', 'country', 'district', 'unit', 'ministries', 'skills', 'dateJoined',
-        'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelationship'
+        'firstName',
+        'lastName',
+        'email',
+        'phone',
+        'password',
+        'dateOfBirth',
+        'gender',
+        'maritalStatus',
+        'membershipStatus',
+        'occupation',
+        'street',
+        'city',
+        'state',
+        'zipCode',
+        'country',
+        'district',
+        'unit',
+        'ministries',
+        'skills',
+        'dateJoined',
+        'emergencyContactName',
+        'emergencyContactPhone',
+        'emergencyContactRelationship',
       ],
-      required: ['firstName', 'lastName', 'email', 'phone', 'password', 'dateOfBirth', 'gender'],
+      required: [
+        'firstName',
+        'lastName',
+        'email',
+        'phone',
+        'password',
+        'dateOfBirth',
+        'gender',
+      ],
       example: [
-        'John', 'Doe', 'john.doe@example.com', '+1234567890', 'defaultPassword123',
-        '1990-01-01', 'male', 'single', 'new_convert', 'Engineer', '123 Main St',
-        'Lagos', 'Lagos', '100001', 'Nigeria', 'District Name', 'Unit Name',
-        'ushering,prayer', 'leadership,music', '2024-01-01', 'Jane Doe', '+1234567891', 'spouse'
-      ]
+        'John',
+        'Doe',
+        'john.doe@example.com',
+        '+1234567890',
+        'defaultPassword123',
+        '1990-01-01',
+        'male',
+        'single',
+        'new_convert',
+        'Engineer',
+        '123 Main St',
+        'Lagos',
+        'Lagos',
+        '100001',
+        'Nigeria',
+        'District Name',
+        'Unit Name',
+        'ushering,prayer',
+        'leadership,music',
+        '2024-01-01',
+        'Jane Doe',
+        '+1234567891',
+        'spouse',
+      ],
     },
     groups: {
       headers: [
-        'name', 'type', 'description', 'maxCapacity', 'contactPhone', 'contactEmail',
-        'meetingDay', 'meetingTime', 'meetingLocation', 'isVirtual', 'virtualLink',
-        'vision', 'mission', 'goals'
+        'name',
+        'type',
+        'description',
+        'maxCapacity',
+        'contactPhone',
+        'contactEmail',
+        'meetingDay',
+        'meetingTime',
+        'meetingLocation',
+        'isVirtual',
+        'virtualLink',
+        'vision',
+        'mission',
+        'goals',
       ],
       required: ['name', 'type'],
       example: [
-        'Bible Study Group', 'district', 'Weekly Bible study and fellowship', '20',
-        '+1234567890', 'group@church.com', 'wednesday', '19:00', 'Church Hall A',
-        'false', '', 'Growing together in faith', 'Study the word together',
-        'increase biblical knowledge,fellowship'
-      ]
+        'Bible Study Group',
+        'district',
+        'Weekly Bible study and fellowship',
+        '20',
+        '+1234567890',
+        'group@church.com',
+        'wednesday',
+        '19:00',
+        'Church Hall A',
+        'false',
+        '',
+        'Growing together in faith',
+        'Study the word together',
+        'increase biblical knowledge,fellowship',
+      ],
     },
     'first-timers': {
       headers: [
-        'firstName', 'lastName', 'phone', 'email', 'dateOfVisit', 'dateOfBirth',
-        'occupation', 'street', 'city', 'state', 'country', 'maritalStatus',
-        'numberOfChildren', 'howDidYouHear', 'visitorType', 'previousChurch',
-        'invitedBy', 'interests', 'prayerRequests', 'servingInterests', 'notes'
+        'firstName',
+        'lastName',
+        'phone',
+        'email',
+        'dateOfVisit',
+        'dateOfBirth',
+        'occupation',
+        'street',
+        'city',
+        'state',
+        'country',
+        'maritalStatus',
+        'numberOfChildren',
+        'howDidYouHear',
+        'visitorType',
+        'previousChurch',
+        'invitedBy',
+        'interests',
+        'prayerRequests',
+        'servingInterests',
+        'notes',
       ],
       required: ['firstName', 'lastName', 'phone', 'dateOfVisit'],
       example: [
-        'Jane', 'Smith', '+1234567890', 'jane.smith@example.com', '2024-01-15',
-        '1985-05-20', 'Teacher', '456 Oak St', 'Lagos', 'Lagos', 'Nigeria',
-        'married', '2', 'friend', 'first_time', 'Previous Church Name', 'John Doe',
-        'bible study,youth ministry', 'healing for family', 'children ministry',
-        'Very interested in joining'
-      ]
-    }
+        'Jane',
+        'Smith',
+        '+1234567890',
+        'jane.smith@example.com',
+        '2024-01-15',
+        '1985-05-20',
+        'Teacher',
+        '456 Oak St',
+        'Lagos',
+        'Lagos',
+        'Nigeria',
+        'married',
+        '2',
+        'friend',
+        'first_time',
+        'Previous Church Name',
+        'John Doe',
+        'bible study,youth ministry',
+        'healing for family',
+        'children ministry',
+        'Very interested in joining',
+      ],
+    },
   };
 
   constructor(
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
-    @InjectModel(FirstTimer.name) private firstTimerModel: Model<FirstTimerDocument>,
-    @InjectModel(BulkOperationHistory.name) private bulkOperationHistoryModel: Model<BulkOperationHistoryDocument>,
+    @InjectModel(FirstTimer.name)
+    private firstTimerModel: Model<FirstTimerDocument>,
+    @InjectModel(BulkOperationHistory.name)
+    private bulkOperationHistoryModel: Model<BulkOperationHistoryDocument>,
     private membersService: MembersService,
     private groupsService: GroupsService,
     private firstTimersService: FirstTimersService,
@@ -88,14 +204,18 @@ export class BulkOperationsService {
   async generateTemplate(entityType: string): Promise<string> {
     const template = this.templates[entityType];
     if (!template) {
-      throw new BadRequestException(`Template not found for entity type: ${entityType}`);
+      throw new BadRequestException(
+        `Template not found for entity type: ${entityType}`,
+      );
     }
 
     // Generate CSV manually without external dependencies
     const headers = template.headers.join(',');
-    const example = template.example.map(value =>
-      typeof value === 'string' && value.includes(',') ? `"${value}"` : value
-    ).join(',');
+    const example = template.example
+      .map((value) =>
+        typeof value === 'string' && value.includes(',') ? `"${value}"` : value,
+      )
+      .join(',');
 
     return `${headers}\n${example}`;
   }
@@ -116,7 +236,9 @@ export class BulkOperationsService {
 
     const validationErrors = this.validateCsvData(csvData, template);
     if (validationErrors.length > 0 && !options.skipErrors) {
-      throw new BadRequestException(`Validation errors: ${validationErrors.join(', ')}`);
+      throw new BadRequestException(
+        `Validation errors: ${validationErrors.join(', ')}`,
+      );
     }
 
     // If dry run, return preview without executing
@@ -125,15 +247,23 @@ export class BulkOperationsService {
     }
 
     // Process the operation
-    return await this.executeOperation(csvData, entityType, operation, options, userId);
+    return await this.executeOperation(
+      csvData,
+      entityType,
+      operation,
+      options,
+      userId,
+    );
   }
 
   private async parseCsvFile(file: any): Promise<any[]> {
     const csvContent = file.buffer.toString('utf-8');
-    const lines = csvContent.split('\n').filter(line => line.trim() !== '');
+    const lines = csvContent.split('\n').filter((line) => line.trim() !== '');
 
     if (lines.length < 2) {
-      throw new BadRequestException('CSV file must contain at least headers and one data row');
+      throw new BadRequestException(
+        'CSV file must contain at least headers and one data row',
+      );
     }
 
     const headers = this.parseCsvLine(lines[0]);
@@ -201,12 +331,16 @@ export class BulkOperationsService {
     operation: BulkOperationType,
     template: any,
   ): BulkOperationResult {
-    const validRows = data.filter(row => {
-      return template.required.every((field: string) => row[field] && row[field].trim() !== '');
+    const validRows = data.filter((row) => {
+      return template.required.every(
+        (field: string) => row[field] && row[field].trim() !== '',
+      );
     });
 
-    const invalidRows = data.filter(row => {
-      return !template.required.every((field: string) => row[field] && row[field].trim() !== '');
+    const invalidRows = data.filter((row) => {
+      return !template.required.every(
+        (field: string) => row[field] && row[field].trim() !== '',
+      );
     });
 
     return {
@@ -288,7 +422,11 @@ export class BulkOperationsService {
     return result;
   }
 
-  private async processMemberRow(row: any, operation: BulkOperationType, options: BulkOperationOptions) {
+  private async processMemberRow(
+    row: any,
+    operation: BulkOperationType,
+    options: BulkOperationOptions,
+  ) {
     const memberData = {
       firstName: row.firstName?.trim(),
       lastName: row.lastName?.trim(),
@@ -308,19 +446,30 @@ export class BulkOperationsService {
         return await this.membersService.create(memberData);
       case BulkOperationType.UPDATE:
         const identifier = options.identifierField || 'email';
-        const existingMember = await this.memberModel.findOne({ [identifier]: memberData[identifier] });
+        const existingMember = await this.memberModel.findOne({
+          [identifier]: memberData[identifier],
+        });
         if (!existingMember) {
-          throw new Error(`Member not found with ${identifier}: ${memberData[identifier]}`);
+          throw new Error(
+            `Member not found with ${identifier}: ${memberData[identifier]}`,
+          );
         }
         const updateData = { ...memberData };
         delete updateData.password; // Don't update password in bulk operations
-        return await this.membersService.update(existingMember._id.toString(), updateData);
+        return await this.membersService.update(
+          existingMember._id.toString(),
+          updateData,
+        );
       default:
         throw new Error(`Operation ${operation} not supported for members`);
     }
   }
 
-  private async processGroupRow(row: any, operation: BulkOperationType, options: BulkOperationOptions) {
+  private async processGroupRow(
+    row: any,
+    operation: BulkOperationType,
+    options: BulkOperationOptions,
+  ) {
     const groupData = {
       name: row.name?.trim(),
       description: row.description?.trim(),
@@ -336,17 +485,28 @@ export class BulkOperationsService {
         return await this.groupsService.create(groupData);
       case BulkOperationType.UPDATE:
         const identifier = options.identifierField || 'name';
-        const existingGroup = await this.groupModel.findOne({ [identifier]: groupData[identifier] });
+        const existingGroup = await this.groupModel.findOne({
+          [identifier]: groupData[identifier],
+        });
         if (!existingGroup) {
-          throw new Error(`Group not found with ${identifier}: ${groupData[identifier]}`);
+          throw new Error(
+            `Group not found with ${identifier}: ${groupData[identifier]}`,
+          );
         }
-        return await this.groupsService.update(existingGroup._id as string, groupData);
+        return await this.groupsService.update(
+          existingGroup._id as string,
+          groupData,
+        );
       default:
         throw new Error(`Operation ${operation} not supported for groups`);
     }
   }
 
-  private async processFirstTimerRow(row: any, operation: BulkOperationType, options: BulkOperationOptions) {
+  private async processFirstTimerRow(
+    row: any,
+    operation: BulkOperationType,
+    options: BulkOperationOptions,
+  ) {
     const firstTimerData = {
       firstName: row.firstName?.trim(),
       lastName: row.lastName?.trim(),
@@ -363,21 +523,38 @@ export class BulkOperationsService {
         return await this.firstTimersService.create(firstTimerData);
       case BulkOperationType.UPDATE:
         const identifier = options.identifierField || 'email';
-        const existingFirstTimer = await this.firstTimerModel.findOne({ [identifier]: firstTimerData[identifier] });
+        const existingFirstTimer = await this.firstTimerModel.findOne({
+          [identifier]: firstTimerData[identifier],
+        });
         if (!existingFirstTimer) {
-          throw new Error(`First timer not found with ${identifier}: ${firstTimerData[identifier]}`);
+          throw new Error(
+            `First timer not found with ${identifier}: ${firstTimerData[identifier]}`,
+          );
         }
-        return await this.firstTimersService.update(existingFirstTimer._id as string, firstTimerData);
+        return await this.firstTimersService.update(
+          existingFirstTimer._id as string,
+          firstTimerData,
+        );
       default:
-        throw new Error(`Operation ${operation} not supported for first-timers`);
+        throw new Error(
+          `Operation ${operation} not supported for first-timers`,
+        );
     }
   }
 
-  async exportEntities(entityType: string, filters: any, userId: string): Promise<string> {
+  async exportEntities(
+    entityType: string,
+    filters: any,
+    userId: string,
+  ): Promise<string> {
     let data: any[] = [];
 
     // Build the final query with user access control and filters
-    const finalFilters = await this.buildFilterQuery(filters, entityType, userId);
+    const finalFilters = await this.buildFilterQuery(
+      filters,
+      entityType,
+      userId,
+    );
 
     switch (entityType) {
       case 'members':
@@ -386,7 +563,7 @@ export class BulkOperationsService {
           .populate('district', 'name')
           .populate('unit', 'name')
           .lean();
-        data = members.map(member => ({
+        data = members.map((member) => ({
           firstName: member.firstName,
           lastName: member.lastName,
           email: member.email,
@@ -408,15 +585,19 @@ export class BulkOperationsService {
           .populate('districtPastor', 'firstName lastName')
           .populate('unitHead', 'firstName lastName')
           .lean();
-        data = groups.map(group => ({
+        data = groups.map((group) => ({
           name: group.name,
           description: group.description,
           type: group.type,
           maxCapacity: group.maxCapacity,
           currentMemberCount: group.currentMemberCount,
           isActive: group.isActive,
-          districtPastor: group.districtPastor ? `${(group.districtPastor as any).firstName} ${(group.districtPastor as any).lastName}` : '',
-          unitHead: group.unitHead ? `${(group.unitHead as any).firstName} ${(group.unitHead as any).lastName}` : '',
+          districtPastor: group.districtPastor
+            ? `${(group.districtPastor as any).firstName} ${(group.districtPastor as any).lastName}`
+            : '',
+          unitHead: group.unitHead
+            ? `${(group.unitHead as any).firstName} ${(group.unitHead as any).lastName}`
+            : '',
           contactPhone: group.contactPhone || '',
           contactEmail: group.contactEmail || '',
           createdAt: group.createdAt?.toISOString().split('T')[0],
@@ -428,7 +609,7 @@ export class BulkOperationsService {
           .populate('assignedTo', 'firstName lastName')
           .populate('invitedByMember', 'firstName lastName')
           .lean();
-        data = firstTimers.map(ft => ({
+        data = firstTimers.map((ft) => ({
           firstName: ft.firstName,
           lastName: ft.lastName,
           email: ft.email || '',
@@ -437,20 +618,27 @@ export class BulkOperationsService {
           dateOfVisit: ft.dateOfVisit?.toISOString().split('T')[0],
           dateOfBirth: ft.dateOfBirth?.toISOString().split('T')[0] || '',
           invitedBy: ft.invitedBy || '',
-          invitedByMember: ft.invitedByMember ? `${(ft.invitedByMember as any).firstName} ${(ft.invitedByMember as any).lastName}` : '',
+          invitedByMember: ft.invitedByMember
+            ? `${(ft.invitedByMember as any).firstName} ${(ft.invitedByMember as any).lastName}`
+            : '',
           status: ft.status,
           interestedInJoining: ft.interestedInJoining,
           converted: ft.converted,
           howDidYouHear: ft.howDidYouHear || '',
           visitorType: ft.visitorType || '',
-          assignedTo: ft.assignedTo ? `${(ft.assignedTo as any).firstName} ${(ft.assignedTo as any).lastName}` : '',
+          assignedTo: ft.assignedTo
+            ? `${(ft.assignedTo as any).firstName} ${(ft.assignedTo as any).lastName}`
+            : '',
           followUpCount: ft.followUpCount,
-          nextFollowUpDate: ft.nextFollowUpDate?.toISOString().split('T')[0] || '',
+          nextFollowUpDate:
+            ft.nextFollowUpDate?.toISOString().split('T')[0] || '',
           createdAt: ft.createdAt?.toISOString().split('T')[0],
         }));
         break;
       default:
-        throw new BadRequestException(`Export not supported for entity type: ${entityType}`);
+        throw new BadRequestException(
+          `Export not supported for entity type: ${entityType}`,
+        );
     }
 
     if (data.length === 0) {
@@ -462,11 +650,14 @@ export class BulkOperationsService {
     const csvLines = [headers.join(',')];
 
     // Add data rows
-    data.forEach(row => {
-      const values = headers.map(header => {
+    data.forEach((row) => {
+      const values = headers.map((header) => {
         const value = row[header] || '';
         // Escape values that contain commas or quotes
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+        if (
+          typeof value === 'string' &&
+          (value.includes(',') || value.includes('"'))
+        ) {
           return `"${value.replace(/"/g, '""')}"`;
         }
         return value;
@@ -531,7 +722,7 @@ export class BulkOperationsService {
     const totalPages = Math.ceil(total / params.limit);
 
     return {
-      items: items.map(item => ({
+      items: items.map((item) => ({
         id: item._id,
         type: item.operation,
         entityType: item.entityType,
@@ -540,7 +731,9 @@ export class BulkOperationsService {
         errorCount: item.errorCount,
         status: item.status,
         timestamp: item.createdAt.toISOString(),
-        user: item.createdBy ? `${(item.createdBy as any).firstName} ${(item.createdBy as any).lastName}` : 'Unknown',
+        user: item.createdBy
+          ? `${(item.createdBy as any).firstName} ${(item.createdBy as any).lastName}`
+          : 'Unknown',
         message: item.message,
         fileName: item.fileName,
       })),
@@ -562,7 +755,7 @@ export class BulkOperationsService {
       successfulOperations,
       failedOperations,
       pendingOperations,
-      recentActivity
+      recentActivity,
     ] = await Promise.all([
       this.bulkOperationHistoryModel.countDocuments({}),
       this.bulkOperationHistoryModel.countDocuments({ status: 'completed' }),
@@ -573,7 +766,7 @@ export class BulkOperationsService {
         .populate('createdBy', 'firstName lastName')
         .sort({ createdAt: -1 })
         .limit(10)
-        .lean()
+        .lean(),
     ]);
 
     return {
@@ -581,29 +774,40 @@ export class BulkOperationsService {
       successfulOperations,
       failedOperations,
       pendingOperations,
-      recentActivity: recentActivity.map(activity => ({
+      recentActivity: recentActivity.map((activity) => ({
         id: activity._id,
         type: activity.operation,
         entityType: activity.entityType,
         recordsProcessed: activity.totalRecords,
         status: activity.status,
         timestamp: activity.createdAt.toISOString(),
-        user: activity.createdBy ? `${(activity.createdBy as any).firstName} ${(activity.createdBy as any).lastName}` : 'Unknown',
+        user: activity.createdBy
+          ? `${(activity.createdBy as any).firstName} ${(activity.createdBy as any).lastName}`
+          : 'Unknown',
       })),
     };
   }
 
-  async updateTemplate(entityType: string, templateConfig: any, userId: string): Promise<any> {
+  async updateTemplate(
+    entityType: string,
+    templateConfig: any,
+    userId: string,
+  ): Promise<any> {
     // Update template configuration
     if (this.templates[entityType]) {
-      this.templates[entityType] = { ...this.templates[entityType], ...templateConfig };
+      this.templates[entityType] = {
+        ...this.templates[entityType],
+        ...templateConfig,
+      };
       return { message: 'Template updated successfully' };
     }
-    throw new NotFoundException(`Template not found for entity type: ${entityType}`);
+    throw new NotFoundException(
+      `Template not found for entity type: ${entityType}`,
+    );
   }
 
   async getAvailableTemplates(): Promise<any> {
-    return Object.keys(this.templates).map(entityType => ({
+    return Object.keys(this.templates).map((entityType) => ({
       entityType,
       name: `${entityType.charAt(0).toUpperCase() + entityType.slice(1)} Template`,
       headers: this.templates[entityType].headers,
@@ -611,7 +815,11 @@ export class BulkOperationsService {
     }));
   }
 
-  private async buildFilterQuery(filters: any, entityType: string, userId: string): Promise<any> {
+  private async buildFilterQuery(
+    filters: any,
+    entityType: string,
+    userId: string,
+  ): Promise<any> {
     // Start with the provided filters
     const query = { ...filters };
 
@@ -620,7 +828,11 @@ export class BulkOperationsService {
     // In a real implementation, you would check user permissions
     // and filter based on district/unit access rights
 
-    console.log('Built filter query for export:', { entityType, filters, query });
+    console.log('Built filter query for export:', {
+      entityType,
+      filters,
+      query,
+    });
 
     return query;
   }
@@ -643,7 +855,7 @@ export class BulkOperationsService {
         status: result.errorCount > 0 ? 'failed' : 'completed',
         createdBy: userId,
         message: result.message,
-        errors: result.failedRecords.map(fr => fr.errors.join(', ')),
+        errors: result.failedRecords.map((fr) => fr.errors.join(', ')),
         fileName,
       });
 

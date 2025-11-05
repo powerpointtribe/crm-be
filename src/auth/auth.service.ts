@@ -279,7 +279,10 @@ export class AuthService {
   async verifyOtp(verifyOtpDto: VerifyOtpDto) {
     const { email, otp } = verifyOtpDto;
 
-    const isValid = await this.membersService.verifyPasswordResetOtp(email, otp);
+    const isValid = await this.membersService.verifyPasswordResetOtp(
+      email,
+      otp,
+    );
 
     if (!isValid) {
       throw new UnauthorizedException('Invalid or expired OTP');
@@ -298,10 +301,14 @@ export class AuthService {
       await this.membersService.resetPassword(email, otp, newPassword);
 
       return {
-        message: 'Password reset successfully. You can now login with your new password.',
+        message:
+          'Password reset successfully. You can now login with your new password.',
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new BadRequestException('Failed to reset password');

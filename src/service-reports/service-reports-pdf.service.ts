@@ -3,15 +3,64 @@ import { ServiceReportDocument } from './schemas/service-report.schema';
 
 @Injectable()
 export class ServiceReportsPdfService {
+  private generatePieChart(report: ServiceReportDocument): string {
+    const data = [
+      { label: 'Male', value: report.numberOfMales, color: '#3b82f6' },
+      { label: 'Female', value: report.numberOfFemales, color: '#ec4899' },
+      { label: 'Children', value: report.numberOfChildren, color: '#10b981' },
+      {
+        label: 'First Timers',
+        value: report.numberOfFirstTimers,
+        color: '#f59e0b',
+      },
+    ];
+
+    const total = report.totalAttendance;
+    let cumulativePercentage = 0;
+    const center = 100;
+    const radius = 80;
+
+    const paths = data
+      .map((item) => {
+        const percentage = (item.value / total) * 100;
+        if (percentage === 0) return '';
+
+        const startAngle = (cumulativePercentage / 100) * 360;
+        const endAngle = ((cumulativePercentage + percentage) / 100) * 360;
+
+        const startAngleRad = (startAngle - 90) * (Math.PI / 180);
+        const endAngleRad = (endAngle - 90) * (Math.PI / 180);
+
+        const x1 = center + radius * Math.cos(startAngleRad);
+        const y1 = center + radius * Math.sin(startAngleRad);
+        const x2 = center + radius * Math.cos(endAngleRad);
+        const y2 = center + radius * Math.sin(endAngleRad);
+
+        const largeArcFlag = percentage > 50 ? 1 : 0;
+
+        cumulativePercentage += percentage;
+
+        return `<path d="M ${center} ${center} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z" fill="${item.color}" stroke="white" stroke-width="2"/>`;
+      })
+      .join('');
+
+    return `
+      <svg class="pie-chart" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        ${paths}
+      </svg>
+    `;
+  }
+
   generatePdfHtml(report: ServiceReportDocument): string {
-    const reportedByName = report.reportedBy && typeof report.reportedBy === 'object'
-      ? `${(report.reportedBy as any).firstName} ${(report.reportedBy as any).lastName}`
-      : 'Unknown Reporter';
+    const reportedByName =
+      report.reportedBy && typeof report.reportedBy === 'object'
+        ? `${(report.reportedBy as any).firstName} ${(report.reportedBy as any).lastName}`
+        : 'Unknown Reporter';
     const formattedDate = new Date(report.date).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
     });
 
     return `
@@ -164,32 +213,72 @@ export class ServiceReportsPdfService {
             font-size: 1.4em;
         }
 
-        .demo-grid {
+        .pie-chart-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 30px;
+        }
+
+        .pie-chart {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .pie-legend {
+            flex: 1;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 15px;
         }
 
-        .demo-item {
+        .legend-item {
             background: white;
             padding: 15px;
             border-radius: 8px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            gap: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        .demo-percentage {
-            font-size: 1.5em;
-            font-weight: 700;
-            color: #3b82f6;
-            margin-bottom: 5px;
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            flex-shrink: 0;
         }
 
-        .demo-label {
-            font-size: 0.85em;
+        .legend-info {
+            flex: 1;
+        }
+
+        .legend-label {
+            font-size: 0.9em;
             color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .legend-percentage {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        @media (max-width: 600px) {
+            .pie-chart-container {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .pie-chart {
+                width: 180px;
+                height: 180px;
+            }
         }
 
         .tags-section {
@@ -319,60 +408,80 @@ export class ServiceReportsPdfService {
 
     <div class="demographics">
         <h3>Demographics Breakdown</h3>
-        <div class="demo-grid">
-            <div class="demo-item">
-                <div class="demo-percentage">${((report.numberOfMales / report.totalAttendance) * 100).toFixed(1)}%</div>
-                <div class="demo-label">Male</div>
-            </div>
-            <div class="demo-item">
-                <div class="demo-percentage">${((report.numberOfFemales / report.totalAttendance) * 100).toFixed(1)}%</div>
-                <div class="demo-label">Female</div>
-            </div>
-            <div class="demo-item">
-                <div class="demo-percentage">${((report.numberOfChildren / report.totalAttendance) * 100).toFixed(1)}%</div>
-                <div class="demo-label">Children</div>
-            </div>
-            <div class="demo-item">
-                <div class="demo-percentage">${(((report.numberOfMales + report.numberOfFemales) / report.totalAttendance) * 100).toFixed(1)}%</div>
-                <div class="demo-label">Adults</div>
-            </div>
-            <div class="demo-item">
-                <div class="demo-percentage">${((report.numberOfFirstTimers / report.totalAttendance) * 100).toFixed(1)}%</div>
-                <div class="demo-label">First Timers</div>
-            </div>
-            <div class="demo-item">
-                <div class="demo-percentage">${(((report.totalAttendance - report.numberOfFirstTimers) / report.totalAttendance) * 100).toFixed(1)}%</div>
-                <div class="demo-label">Returning</div>
+        <div class="pie-chart-container">
+            ${this.generatePieChart(report)}
+            <div class="pie-legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #3b82f6;"></div>
+                    <div class="legend-info">
+                        <div class="legend-label">Male</div>
+                        <div class="legend-percentage">${((report.numberOfMales / report.totalAttendance) * 100).toFixed(1)}%</div>
+                    </div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ec4899;"></div>
+                    <div class="legend-info">
+                        <div class="legend-label">Female</div>
+                        <div class="legend-percentage">${((report.numberOfFemales / report.totalAttendance) * 100).toFixed(1)}%</div>
+                    </div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #10b981;"></div>
+                    <div class="legend-info">
+                        <div class="legend-label">Children</div>
+                        <div class="legend-percentage">${((report.numberOfChildren / report.totalAttendance) * 100).toFixed(1)}%</div>
+                    </div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #f59e0b;"></div>
+                    <div class="legend-info">
+                        <div class="legend-label">First Timers</div>
+                        <div class="legend-percentage">${((report.numberOfFirstTimers / report.totalAttendance) * 100).toFixed(1)}%</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    ${report.serviceTags && report.serviceTags.length > 0 ? `
+    ${
+      report.serviceTags && report.serviceTags.length > 0
+        ? `
     <div class="tags-section">
         <h2 class="attendance-title">Service Tags</h2>
         <div class="tags-container">
-            ${report.serviceTags.map(tag => {
-              const labels = {
-                'invited_guest_minister': 'Invited Guest Minister',
-                'sunday_after_saturday_outreach': 'Sunday after Saturday Outreach',
-                'themed_service': 'Themed Service',
-                'beginning_of_new_series': 'Beginning of New Series',
-                'celebration_service': 'Celebration Service (Thanksgiving, Wedding, Baby Dedication etc.)',
-                'sunday_after_viral_post': 'Sunday after Viral/Promoted Post on WhatsApp/Social Media',
-                'others': 'Others'
-              };
-              return `<span class="tag">${labels[tag] || tag}</span>`;
-            }).join('')}
+            ${report.serviceTags
+              .map((tag) => {
+                const labels = {
+                  invited_guest_minister: 'Invited Guest Minister',
+                  sunday_after_saturday_outreach:
+                    'Sunday after Saturday Outreach',
+                  themed_service: 'Themed Service',
+                  beginning_of_new_series: 'Beginning of New Series',
+                  celebration_service:
+                    'Celebration Service (Thanksgiving, Wedding, Baby Dedication etc.)',
+                  sunday_after_viral_post:
+                    'Sunday after Viral/Promoted Post on WhatsApp/Social Media',
+                  others: 'Others',
+                };
+                return `<span class="tag">${labels[tag] || tag}</span>`;
+              })
+              .join('')}
         </div>
     </div>
-    ` : ''}
+    `
+        : ''
+    }
 
-    ${report.notes ? `
+    ${
+      report.notes
+        ? `
     <div class="notes-section">
         <h3 class="notes-title">Additional Notes</h3>
         <div class="notes-content">${report.notes}</div>
     </div>
-    ` : ''}
+    `
+        : ''
+    }
 
     <div class="footer">
         <div>Church Management System - Service Report</div>

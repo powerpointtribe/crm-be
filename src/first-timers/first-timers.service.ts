@@ -282,12 +282,13 @@ export class FirstTimersService {
   }
 
   async findByPhone(phone: string): Promise<FirstTimerDocument | null> {
-    return this.firstTimerModel
-      .findOne({ phone, isActive: true })
-      .exec();
+    return this.firstTimerModel.findOne({ phone, isActive: true }).exec();
   }
 
-  async findByPhoneAndEmail(phone: string, email: string): Promise<FirstTimerDocument | null> {
+  async findByPhoneAndEmail(
+    phone: string,
+    email: string,
+  ): Promise<FirstTimerDocument | null> {
     return this.firstTimerModel
       .findOne({ phone, email, isActive: true })
       .exec();

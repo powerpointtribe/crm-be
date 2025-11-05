@@ -61,7 +61,7 @@ ServiceReportSchema.index({ reportedBy: 1 });
 ServiceReportSchema.index({ isActive: 1 });
 
 // Virtual to calculate attendance breakdown
-ServiceReportSchema.virtual('attendanceBreakdown').get(function() {
+ServiceReportSchema.virtual('attendanceBreakdown').get(function () {
   return {
     total: this.totalAttendance,
     males: this.numberOfMales,
@@ -74,19 +74,20 @@ ServiceReportSchema.virtual('attendanceBreakdown').get(function() {
 });
 
 // Validation to ensure attendance numbers add up correctly
-ServiceReportSchema.pre('save', function(next) {
-  const calculatedTotal = this.numberOfMales + this.numberOfFemales + this.numberOfChildren;
+ServiceReportSchema.pre('save', function (next) {
+  const calculatedTotal =
+    this.numberOfMales + this.numberOfFemales + this.numberOfChildren;
 
   if (calculatedTotal !== this.totalAttendance) {
     const error = new Error(
-      `Total attendance (${this.totalAttendance}) must equal sum of males (${this.numberOfMales}) + females (${this.numberOfFemales}) + children (${this.numberOfChildren}) = ${calculatedTotal}`
+      `Total attendance (${this.totalAttendance}) must equal sum of males (${this.numberOfMales}) + females (${this.numberOfFemales}) + children (${this.numberOfChildren}) = ${calculatedTotal}`,
     );
     return next(error);
   }
 
   if (this.numberOfFirstTimers > this.totalAttendance) {
     const error = new Error(
-      `Number of first timers (${this.numberOfFirstTimers}) cannot exceed total attendance (${this.totalAttendance})`
+      `Number of first timers (${this.numberOfFirstTimers}) cannot exceed total attendance (${this.totalAttendance})`,
     );
     return next(error);
   }

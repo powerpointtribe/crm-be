@@ -96,6 +96,14 @@ export class PublicCreateFirstTimerDto {
   })
   dateOfBirth?: string;
 
+  @ApiPropertyOptional({
+    description: 'Gender',
+    enum: ['male', 'female'],
+  })
+  @IsOptional()
+  @IsEnum(['male', 'female'])
+  gender?: string;
+
   @ApiPropertyOptional({ description: 'Occupation' })
   @IsOptional()
   @IsString()
@@ -123,7 +131,9 @@ export class PublicCreateFirstTimerDto {
     other?: string;
   };
 
-  @ApiPropertyOptional({ description: 'Person who referred them (different from inviter)' })
+  @ApiPropertyOptional({
+    description: 'Person who referred them (different from inviter)',
+  })
   @IsOptional()
   @IsString()
   referredBy?: string;

@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { EngagementStatus } from '../../common/enums/engagement-status.enum';
+import { IntegrationStage } from '../../common/enums/integration-stage.enum';
 
 export type FirstTimerDocument = FirstTimer & Document;
 
@@ -41,6 +42,12 @@ export class FirstTimer {
 
   @Prop({ type: Date })
   dateOfBirth?: Date;
+
+  @Prop({
+    type: String,
+    enum: ['male', 'female'],
+  })
+  gender?: string;
 
   @Prop({ trim: true })
   occupation?: string;
@@ -92,6 +99,14 @@ export class FirstTimer {
   })
   status: EngagementStatus;
 
+  // New status field to track progress (new, engaged, closed)
+  @Prop({
+    type: String,
+    enum: ['new', 'engaged', 'closed'],
+    default: 'new',
+  })
+  stage: string;
+
   @Prop({ type: Types.ObjectId, ref: 'Member' })
   assignedTo?: Types.ObjectId;
 
@@ -103,6 +118,40 @@ export class FirstTimer {
 
   @Prop({ type: Boolean, default: false })
   interestedInJoining: boolean;
+
+  // Integration stage tracking
+  @Prop({
+    type: String,
+    enum: Object.values(IntegrationStage),
+    default: IntegrationStage.NONE,
+  })
+  integrationStage: IntegrationStage;
+
+  @Prop({ type: Date })
+  integrationStageDate?: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'Group' })
+  assignedDistrict?: Types.ObjectId;
+
+  @Prop({ type: Date })
+  districtAssignmentDate?: Date;
+
+  // Pre-filled message system
+  @Prop({ type: String })
+  preFilledMessage?: string;
+
+  @Prop({ type: Date })
+  messageScheduledTime?: Date;
+
+  @Prop({ type: Boolean, default: false })
+  messageSent: boolean;
+
+  @Prop({ type: Date })
+  messageSentAt?: Date;
+
+  // Call reports count (should be max 4)
+  @Prop({ type: Number, default: 0, max: 4 })
+  callReportsCount: number;
 
   // Follow-up tracking
   @Prop([
@@ -279,3 +328,9 @@ FirstTimerSchema.index({ followUpPerson: 1 });
 FirstTimerSchema.index({ pendingDistrictAssignment: 1 });
 FirstTimerSchema.index({ interestedInJoining: 1 });
 FirstTimerSchema.index({ lastStatusChange: -1 });
+FirstTimerSchema.index({ stage: 1 });
+FirstTimerSchema.index({ integrationStage: 1 });
+FirstTimerSchema.index({ assignedDistrict: 1 });
+FirstTimerSchema.index({ messageScheduledTime: 1 });
+FirstTimerSchema.index({ messageSent: 1 });
+FirstTimerSchema.index({ callReportsCount: 1 });

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -16,6 +17,7 @@ import { QueueModule } from './queue/queue.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { BullBoardModule } from './bull-board/bull-board.module';
 import { BulkOperationsModule } from './bulk-operations/bulk-operations.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -38,6 +40,9 @@ import { BulkOperationsModule } from './bulk-operations/bulk-operations.module';
       }),
     }),
 
+    // Scheduling
+    ScheduleModule.forRoot(),
+
     // Rate limiting
     ThrottlerModule.forRoot([
       {
@@ -57,6 +62,7 @@ import { BulkOperationsModule } from './bulk-operations/bulk-operations.module';
     DashboardModule,
     BullBoardModule,
     BulkOperationsModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [

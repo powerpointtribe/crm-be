@@ -65,14 +65,19 @@ export class ServiceReportsController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
-  @ApiOperation({ summary: 'Get all service reports with filtering and pagination' })
+  @ApiOperation({
+    summary: 'Get all service reports with filtering and pagination',
+  })
   @ApiResponse({
     status: 200,
     description: 'Service reports retrieved successfully',
   })
   async findAll(@Query() searchDto: ServiceReportSearchDto) {
     const reports = await this.serviceReportsService.findAll(searchDto);
-    return ResponseUtil.success(reports, 'Service reports retrieved successfully');
+    return ResponseUtil.success(
+      reports,
+      'Service reports retrieved successfully',
+    );
   }
 
   @Get('stats')
@@ -93,13 +98,20 @@ export class ServiceReportsController {
   @Get('chart-data')
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get attendance chart data' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of records to return (default: 10)' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of records to return (default: 10)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Attendance chart data retrieved successfully',
   })
   async getAttendanceChartData(@Query('limit') limit?: number) {
-    const chartData = await this.serviceReportsService.getAttendanceChartData(limit || 10);
+    const chartData = await this.serviceReportsService.getAttendanceChartData(
+      limit || 10,
+    );
     return ResponseUtil.success(
       chartData,
       'Attendance chart data retrieved successfully',
@@ -183,7 +195,10 @@ export class ServiceReportsController {
   })
   async findOne(@Param('id') id: string) {
     const report = await this.serviceReportsService.findById(id);
-    return ResponseUtil.success(report, 'Service report retrieved successfully');
+    return ResponseUtil.success(
+      report,
+      'Service report retrieved successfully',
+    );
   }
 
   @Patch(':id')

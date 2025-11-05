@@ -18,6 +18,13 @@ export enum JobType {
   FIRST_TIMER_STATUS_TRANSITION = 'first-timer-status-transition',
   FIRST_TIMER_WEEKLY_REMINDER = 'first-timer-weekly-reminder',
   DISTRICT_PASTOR_NOTIFICATION = 'district-pastor-notification',
+
+  // New assignment and messaging jobs
+  SEND_FIRST_TIMER_MESSAGE = 'send-first-timer-message',
+  SEND_ASSIGNMENT_NOTIFICATION = 'send-assignment-notification',
+  SEND_BULK_ASSIGNMENT_NOTIFICATION = 'send-bulk-assignment-notification',
+  SEND_DISTRICT_ASSIGNMENT_NOTIFICATION = 'send-district-assignment-notification',
+  CREATE_MEMBER_FROM_FIRST_TIMER = 'create-member-from-first-timer',
 }
 
 export interface BulkOperationJobData {

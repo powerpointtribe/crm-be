@@ -199,4 +199,177 @@ export class NotificationsService {
       html,
     });
   }
+
+  // New methods for first-timer management
+  async sendFirstTimerAssignmentNotification(data: {
+    assigneeEmail: string;
+    assigneeName: string;
+    firstTimers: Array<{
+      firstName: string;
+      lastName: string;
+      phone: string;
+      email?: string;
+      dateOfVisit: string;
+    }>;
+    assignedBy: string;
+  }): Promise<void> {
+    const firstTimersList = data.firstTimers
+      .map(
+        (ft) =>
+          `<li><strong>${ft.firstName} ${ft.lastName}</strong> - ${ft.phone}${
+            ft.email ? ` (${ft.email})` : ''
+          } - Visited: ${ft.dateOfVisit}</li>`
+      )
+      .join('');
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #2c3e50;">First-Timer Assignment Notification</h1>
+        <p>Dear ${data.assigneeName},</p>
+        <p>You have been assigned to follow up with the following first-timer(s) by ${data.assignedBy}:</p>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>Assigned First-Timers:</h3>
+          <ul style="list-style-type: none; padding: 0;">
+            ${firstTimersList}
+          </ul>
+        </div>
+        <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>Follow-up Guidelines:</h3>
+          <ul>
+            <li>Contact each person within 24-48 hours</li>
+            <li>Complete 4 call reports for each first-timer</li>
+            <li>Track service attendance (2nd, 3rd, and 4th services)</li>
+            <li>Update their integration stage as they progress</li>
+          </ul>
+        </div>
+        <p>Thank you for your commitment to following up with our visitors!</p>
+        <p>Blessings,<br/>The Church Leadership Team</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.assigneeEmail,
+      subject: 'First-Timer Follow-up Assignment',
+      html,
+    });
+  }
+
+  async sendUnitLeaderNotification(data: {
+    leaderEmail: string;
+    leaderName: string;
+    noMessageFirstTimers: Array<{
+      firstName: string;
+      lastName: string;
+      dateOfVisit: string;
+    }>;
+  }): Promise<void> {
+    const firstTimersList = data.noMessageFirstTimers
+      .map(
+        (ft) =>
+          `<li>${ft.firstName} ${ft.lastName} - Visited: ${ft.dateOfVisit}</li>`
+      )
+      .join('');
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #e74c3c;">Action Required: Pre-filled Message Missing</h1>
+        <p>Dear ${data.leaderName},</p>
+        <p>The following first-timer(s) do not have a pre-filled message set and it's been more than 2 hours since their last submission:</p>
+        <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>First-Timers Requiring Attention:</h3>
+          <ul>
+            ${firstTimersList}
+          </ul>
+        </div>
+        <p>Please log in to the church management system to set pre-filled messages for these visitors.</p>
+        <p>This ensures they receive timely follow-up communication.</p>
+        <p>Best regards,<br/>Church Management System</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.leaderEmail,
+      subject: 'Action Required: Set Pre-filled Messages for First-Timers',
+      html,
+    });
+  }
+
+  async sendDistrictPastorNotification(data: {
+    pastorEmail: string;
+    pastorName: string;
+    newMembers: Array<{
+      firstName: string;
+      lastName: string;
+      phone: string;
+      email?: string;
+      integratedDate: string;
+    }>;
+    districtName: string;
+  }): Promise<void> {
+    const membersList = data.newMembers
+      .map(
+        (member) =>
+          `<li><strong>${member.firstName} ${member.lastName}</strong> - ${
+            member.phone
+          }${
+            member.email ? ` (${member.email})` : ''
+          } - Integrated: ${member.integratedDate}</li>`
+      )
+      .join('');
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #28a745;">New District Members Assignment</h1>
+        <p>Dear Pastor ${data.pastorName},</p>
+        <p>We're excited to inform you that new members have been assigned to your district: <strong>${data.districtName}</strong></p>
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>New Members:</h3>
+          <ul style="list-style-type: none; padding: 0;">
+            ${membersList}
+          </ul>
+        </div>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>Next Steps:</h3>
+          <ul>
+            <li>Welcome them to your district</li>
+            <li>Invite them to district activities</li>
+            <li>Help them connect with other district members</li>
+            <li>Continue their spiritual growth journey</li>
+          </ul>
+        </div>
+        <p>Thank you for your leadership and commitment to nurturing our new members!</p>
+        <p>Blessings,<br/>The Church Leadership Team</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.pastorEmail,
+      subject: `New Members Assigned to ${data.districtName}`,
+      html,
+    });
+  }
+
+  async sendCustomFirstTimerMessage(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    customMessage: string;
+  }): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #2c3e50;">Message from Our Church</h1>
+        <p>Dear ${data.firstName} ${data.lastName},</p>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; white-space: pre-wrap;">
+          ${data.customMessage}
+        </div>
+        <p>Blessings,<br/>The Church Team</p>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.email,
+      subject: 'A Special Message for You',
+      html,
+    });
+  }
 }

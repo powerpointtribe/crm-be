@@ -966,7 +966,7 @@ export class MembersService {
     try {
       const member = await this.memberModel.findOne({
         email: email.toLowerCase(),
-        isActive: true
+        isActive: true,
       });
 
       if (!member) {
@@ -983,9 +983,9 @@ export class MembersService {
         {
           $set: {
             resetPasswordOtp: otp,
-            resetPasswordOtpExpires: expirationTime
-          }
-        }
+            resetPasswordOtpExpires: expirationTime,
+          },
+        },
       );
 
       if (result.matchedCount === 0) {
@@ -1003,10 +1003,14 @@ export class MembersService {
   async verifyPasswordResetOtp(email: string, otp: string): Promise<boolean> {
     const member = await this.memberModel.findOne({
       email: email.toLowerCase(),
-      isActive: true
+      isActive: true,
     });
 
-    if (!member || !member.resetPasswordOtp || !member.resetPasswordOtpExpires) {
+    if (
+      !member ||
+      !member.resetPasswordOtp ||
+      !member.resetPasswordOtpExpires
+    ) {
       return false;
     }
 
@@ -1022,10 +1026,14 @@ export class MembersService {
     return member.resetPasswordOtp === otp;
   }
 
-  async resetPassword(email: string, otp: string, newPassword: string): Promise<void> {
+  async resetPassword(
+    email: string,
+    otp: string,
+    newPassword: string,
+  ): Promise<void> {
     const member = await this.memberModel.findOne({
       email: email.toLowerCase(),
-      isActive: true
+      isActive: true,
     });
 
     if (!member) {
@@ -1050,7 +1058,7 @@ export class MembersService {
   async clearPasswordResetOtp(email: string): Promise<void> {
     const member = await this.memberModel.findOne({
       email: email.toLowerCase(),
-      isActive: true
+      isActive: true,
     });
 
     if (member) {

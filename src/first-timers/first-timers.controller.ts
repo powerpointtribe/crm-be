@@ -28,12 +28,17 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { FirstTimersService } from './first-timers.service';
+import { FirstTimerMessagingService } from './first-timer-messaging.service';
+import { CallReportsService } from './call-reports.service';
 import { CreateFirstTimerDto } from './dto/create-first-timer.dto';
 import { PublicCreateFirstTimerDto } from './dto/public-first-timer.dto';
 import { AddFollowUpDto } from './dto/add-follow-up.dto';
 import { AssignFollowUpDto } from './dto/assign-follow-up.dto';
 import { FirstTimerSearchDto } from './dto/first-timer-search.dto';
 import { BulkUploadResultDto } from './dto/bulk-upload-first-timer.dto';
+import { CreateCallReportDto } from './dto/create-call-report.dto';
+import { SetPreFilledMessageDto, BulkSetMessageDto } from './dto/set-message.dto';
+import { UpdateIntegrationStageDto } from './dto/update-integration-stage.dto';
 import { CSVParserUtil } from '../common/utils/csv-parser.util';
 import { QueueService } from '../queue/queue.service';
 import { JobType } from '../common/interfaces/queue-job.interface';
@@ -54,8 +59,49 @@ import { ResponseUtil } from '../common/utils/response.util';
 export class FirstTimersController {
   constructor(
     private readonly firstTimersService: FirstTimersService,
+    private readonly firstTimerMessagingService: FirstTimerMessagingService,
+    private readonly callReportsService: CallReportsService,
     private readonly queueService: QueueService,
   ) {}
+
+  @Get('public/form-config')
+  @Public()
+  @ApiTags('Public API')
+  @ApiOperation({
+    summary: 'Get public registration form configuration',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Public form configuration retrieved successfully',
+  })
+  async getPublicFormConfig() {
+    return ResponseUtil.success(
+      {
+        title: 'Welcome to Our Church!',
+        subtitle: 'We\'re excited to connect with you',
+        successMessage: 'Thank you for your interest! Our team will contact you soon.',
+        fields: {
+          firstName: { required: true, label: 'First Name' },
+          lastName: { required: true, label: 'Last Name' },
+          phone: { required: true, label: 'Phone Number' },
+          email: { required: true, label: 'Email Address' },
+          address: { required: false, label: 'Address' },
+          dateOfBirth: { required: false, label: 'Date of Birth' },
+          occupation: { required: false, label: 'Occupation' },
+          howDidYouHear: {
+            required: false,
+            label: 'How did you hear about us?',
+            options: ['friend', 'family', 'advertisement', 'online', 'event', 'walkby', 'website', 'social_media', 'other']
+          },
+          interestedInJoining: { required: false, label: 'Interested in joining our church?' },
+          prayerRequests: { required: false, label: 'Prayer Requests' },
+          servingInterests: { required: false, label: 'Areas of Interest for Serving' },
+          notes: { required: false, label: 'Additional Comments' }
+        }
+      },
+      'Public form configuration retrieved successfully',
+    );
+  }
 
   @Post('public')
   @Public()
@@ -110,9 +156,22 @@ export class FirstTimersController {
 
       const firstTimer = await this.firstTimersService.create(internalDto);
 
+      // Automatically set up message scheduling for public registrations
+      const defaultMessage = `Hello ${firstTimer.firstName},\n\nThank you so much for visiting our church! We're thrilled that you chose to worship with us.\n\nOur follow-up team will be reaching out to you soon to help you get better connected with our church family. In the meantime, we hope you'll consider joining us again for our next service.\n\nIf you have any questions or need anything at all, please don't hesitate to reach out.\n\nBlessings,\nThe Church Team`;
+
+      try {
+        await this.firstTimerMessagingService.setPreFilledMessage(
+          (firstTimer._id as any).toString(),
+          defaultMessage,
+        );
+      } catch (error) {
+        // Log error but don't fail the registration
+        console.error('Failed to set pre-filled message for public registration:', error);
+      }
+
       return ResponseUtil.success(
         {
-          id: firstTimer._id,
+          id: (firstTimer._id as any),
           firstName: firstTimer.firstName,
           lastName: firstTimer.lastName,
           status: firstTimer.status,
@@ -213,7 +272,7 @@ export class FirstTimersController {
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 50;
 
-    let firstTimers = await this.firstTimersService.getNeedingFollowUp(
+    const firstTimers = await this.firstTimersService.getNeedingFollowUp(
       pageNum,
       limitNum,
     );
@@ -402,10 +461,9 @@ export class FirstTimersController {
     @Param('id') id: string,
     @Body() body: { status: EngagementStatus },
   ) {
-    const firstTimer = await this.firstTimersService.update(
-      id,
-      { status: body.status },
-    );
+    const firstTimer = await this.firstTimersService.update(id, {
+      status: body.status,
+    });
     return ResponseUtil.success(firstTimer, 'Status updated successfully');
   }
 
@@ -655,10 +713,9 @@ export class FirstTimersController {
 
     for (const id of body.firstTimerIds) {
       try {
-        const firstTimer = await this.firstTimersService.update(
-          id,
-          { status: body.status },
-        );
+        const firstTimer = await this.firstTimersService.update(id, {
+          status: body.status,
+        });
         results.push({ success: true, firstTimer });
       } catch (error: any) {
         results.push({
@@ -806,5 +863,197 @@ export class FirstTimersController {
       },
       message: 'Sample CSV template generated successfully',
     };
+  }
+
+  // Call Reports Endpoints
+  @Post(':id/call-reports')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
+  @ApiOperation({ summary: 'Create a call report for a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 201,
+    description: 'Call report created successfully',
+  })
+  async createCallReport(
+    @Param('id') firstTimerId: string,
+    @Body() createCallReportDto: CreateCallReportDto,
+    @CurrentUser() user: any,
+  ) {
+    createCallReportDto.firstTimerId = firstTimerId;
+    const callReport = await this.callReportsService.create(
+      createCallReportDto,
+      user.id,
+    );
+    return ResponseUtil.success(callReport, 'Call report created successfully');
+  }
+
+  @Get(':id/call-reports')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
+  @ApiOperation({ summary: 'Get all call reports for a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Call reports retrieved successfully',
+  })
+  async getCallReports(@Param('id') firstTimerId: string) {
+    const callReports = await this.callReportsService.findByFirstTimer(firstTimerId);
+    return ResponseUtil.success(callReports, 'Call reports retrieved successfully');
+  }
+
+  @Get(':id/call-reports/summary')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
+  @ApiOperation({ summary: 'Get call reports summary for a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Call reports summary retrieved successfully',
+  })
+  async getCallReportsSummary(@Param('id') firstTimerId: string) {
+    const summary = await this.callReportsService.getCallReportsSummary(firstTimerId);
+    return ResponseUtil.success(summary, 'Call reports summary retrieved successfully');
+  }
+
+  @Patch('call-reports/:reportId')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
+  @ApiOperation({ summary: 'Update a call report' })
+  @ApiParam({ name: 'reportId', description: 'Call report ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Call report updated successfully',
+  })
+  async updateCallReport(
+    @Param('reportId') reportId: string,
+    @Body() updateData: Partial<CreateCallReportDto>,
+  ) {
+    const callReport = await this.callReportsService.update(reportId, updateData);
+    return ResponseUtil.success(callReport, 'Call report updated successfully');
+  }
+
+  @Delete('call-reports/:reportId')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Delete a call report' })
+  @ApiParam({ name: 'reportId', description: 'Call report ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Call report deleted successfully',
+  })
+  async deleteCallReport(@Param('reportId') reportId: string) {
+    await this.callReportsService.delete(reportId);
+    return ResponseUtil.success(null, 'Call report deleted successfully');
+  }
+
+  // Pre-filled Message Endpoints
+  @Post(':id/set-message')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Set pre-filled message for a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Pre-filled message set successfully',
+  })
+  async setPreFilledMessage(
+    @Param('id') firstTimerId: string,
+    @Body() setMessageDto: SetPreFilledMessageDto,
+  ) {
+    const scheduledTime = setMessageDto.scheduledTime
+      ? new Date(setMessageDto.scheduledTime)
+      : undefined;
+
+    await this.firstTimerMessagingService.setPreFilledMessage(
+      firstTimerId,
+      setMessageDto.message,
+      scheduledTime,
+    );
+
+    return ResponseUtil.success(null, 'Pre-filled message set successfully');
+  }
+
+  @Post('bulk-set-message')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Set pre-filled message for multiple first timers' })
+  @ApiResponse({
+    status: 200,
+    description: 'Bulk pre-filled message set successfully',
+  })
+  async setBulkPreFilledMessage(@Body() bulkSetMessageDto: BulkSetMessageDto) {
+    const scheduledTime = bulkSetMessageDto.scheduledTime
+      ? new Date(bulkSetMessageDto.scheduledTime)
+      : undefined;
+
+    await this.firstTimerMessagingService.setBulkPreFilledMessage(
+      bulkSetMessageDto.firstTimerIds,
+      bulkSetMessageDto.message,
+      scheduledTime,
+    );
+
+    return ResponseUtil.success(null, 'Bulk pre-filled message set successfully');
+  }
+
+  // Integration Stage Endpoints
+  @Patch(':id/integration-stage')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Update integration stage for a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Integration stage updated successfully',
+  })
+  async updateIntegrationStage(
+    @Param('id') firstTimerId: string,
+    @Body() updateIntegrationStageDto: UpdateIntegrationStageDto,
+  ) {
+    await this.firstTimerMessagingService.updateIntegrationStage(
+      firstTimerId,
+      updateIntegrationStageDto.integrationStage,
+      updateIntegrationStageDto.assignedDistrict,
+    );
+
+    return ResponseUtil.success(null, 'Integration stage updated successfully');
+  }
+
+  // Assignment Endpoints
+  @Post('bulk-assign-followup')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Bulk assign first timers for follow-up' })
+  @ApiResponse({
+    status: 200,
+    description: 'Bulk assignment completed successfully',
+  })
+  async bulkAssignForFollowUp(
+    @Body() body: {
+      assignments: Array<{ firstTimerId: string; assigneeId: string }>;
+    },
+    @CurrentUser() user: any,
+  ) {
+    await this.firstTimerMessagingService.bulkAssignFirstTimers(
+      body.assignments,
+      user.id,
+    );
+
+    return ResponseUtil.success(null, 'Bulk assignment completed successfully');
+  }
+
+  @Post(':id/close')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Close a first timer (unwilling or became member)' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'First timer closed successfully',
+  })
+  async closeFirstTimer(
+    @Param('id') firstTimerId: string,
+    @Body() body: {
+      reason: 'unwilling' | 'became_member';
+      memberRecordId?: string;
+    },
+  ) {
+    await this.firstTimerMessagingService.closeFirstTimer(
+      firstTimerId,
+      body.reason,
+      body.memberRecordId,
+    );
+
+    return ResponseUtil.success(null, 'First timer closed successfully');
   }
 }

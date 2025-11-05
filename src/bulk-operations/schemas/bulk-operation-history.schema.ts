@@ -54,7 +54,8 @@ export class BulkOperationHistory {
   updatedAt: Date;
 }
 
-export const BulkOperationHistorySchema = SchemaFactory.createForClass(BulkOperationHistory);
+export const BulkOperationHistorySchema =
+  SchemaFactory.createForClass(BulkOperationHistory);
 
 // Add indexes for better performance
 BulkOperationHistorySchema.index({ entityType: 1 });
