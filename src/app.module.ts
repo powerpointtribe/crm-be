@@ -15,6 +15,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { QueueModule } from './queue/queue.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { BullBoardModule } from './bull-board/bull-board.module';
+import { BulkOperationsModule } from './bulk-operations/bulk-operations.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { BullBoardModule } from './bull-board/bull-board.module';
     QueueModule,
     DashboardModule,
     BullBoardModule,
+    BulkOperationsModule,
   ],
   controllers: [AppController],
   providers: [

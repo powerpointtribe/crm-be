@@ -343,6 +343,26 @@ export class ServiceReportsService {
     return this.findAll(searchDto);
   }
 
+  async getAttendanceChartData(limit: number = 10): Promise<any[]> {
+    const reports = await this.serviceReportModel
+      .find({ isActive: true })
+      .select('date serviceName totalAttendance')
+      .sort({ date: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+
+    return reports.reverse().map(report => ({
+      date: report.date.toISOString().split('T')[0],
+      serviceName: report.serviceName,
+      attendance: report.totalAttendance,
+      formattedDate: new Date(report.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      })
+    }));
+  }
+
   async generatePdfHtml(id: string): Promise<string> {
     const report = await this.findById(id);
     return this.pdfService.generatePdf(report);

@@ -90,6 +90,22 @@ export class ServiceReportsController {
     );
   }
 
+  @Get('chart-data')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Get attendance chart data' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of records to return (default: 10)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Attendance chart data retrieved successfully',
+  })
+  async getAttendanceChartData(@Query('limit') limit?: number) {
+    const chartData = await this.serviceReportsService.getAttendanceChartData(limit || 10);
+    return ResponseUtil.success(
+      chartData,
+      'Attendance chart data retrieved successfully',
+    );
+  }
+
   @Get('my-reports')
   @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
   @ApiOperation({ summary: 'Get service reports created by current user' })

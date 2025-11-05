@@ -57,11 +57,14 @@ class EmergencyContactDto {
   @ApiPropertyOptional({ description: 'Emergency contact phone' })
   @IsString()
   @IsOptional()
+  @Matches(/^(\+234|0)[789][01]\d{8}$/, {
+    message: 'Emergency contact phone must be a valid Nigerian number (e.g., +2348012345678 or 08012345678)',
+  })
   phone?: string;
 
   @ApiPropertyOptional({ description: 'Emergency contact email' })
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'Please provide a valid email address for emergency contact' })
   email?: string;
 }
 
@@ -115,7 +118,7 @@ export class CreateMemberDto {
     description: 'Email address',
     example: 'john.doe@example.com',
   })
-  @IsEmail()
+  @IsEmail({}, { message: 'Please provide a valid email address' })
   @IsNotEmpty()
   email: string;
 
@@ -127,6 +130,9 @@ export class CreateMemberDto {
   @ApiProperty({ description: 'Phone number', example: '+234801234567' })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^(\+234|0)[789][01]\d{8}$/, {
+    message: 'Phone number must be a valid Nigerian number (e.g., +2348012345678 or 08012345678)',
+  })
   phone: string;
 
   @ApiProperty({ description: 'Date of birth', example: '1990-01-01' })

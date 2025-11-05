@@ -71,11 +71,14 @@ export class CreateFirstTimerDto {
   @ApiProperty({ description: 'Phone number', example: '+234801234567' })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^(\+234|0)[789][01]\d{8}$/, {
+    message: 'Phone number must be a valid Nigerian number (e.g., +2348012345678 or 08012345678)',
+  })
   phone: string;
 
   @ApiPropertyOptional({ description: 'Email address' })
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'Please provide a valid email address' })
   email?: string;
 
   @ApiPropertyOptional({ description: 'Address information' })
