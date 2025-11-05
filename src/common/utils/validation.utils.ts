@@ -14,7 +14,8 @@ export class ValidationUtils {
   /**
    * Email regex pattern (RFC 5322 compliant)
    */
-  static readonly EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  static readonly EMAIL_REGEX =
+    /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 
   /**
    * Validates Nigerian phone number
@@ -83,7 +84,7 @@ export class ValidationUtils {
   static validatePhone(phone: string, fieldName: string = 'phone'): void {
     if (!this.isValidNigerianPhone(phone)) {
       throw new BadRequestException(
-        `${fieldName} must be a valid Nigerian number (e.g., +2348012345678 or 08012345678)`
+        `${fieldName} must be a valid Nigerian number (e.g., +2348012345678 or 08012345678)`,
       );
     }
   }
@@ -96,7 +97,9 @@ export class ValidationUtils {
    */
   static validateEmail(email: string, fieldName: string = 'email'): void {
     if (!this.isValidEmail(email)) {
-      throw new BadRequestException(`Please provide a valid ${fieldName} address`);
+      throw new BadRequestException(
+        `Please provide a valid ${fieldName} address`,
+      );
     }
   }
 
@@ -110,10 +113,12 @@ export class ValidationUtils {
   static validateContactInfo(
     email?: string,
     phone?: string,
-    requireAtLeastOne: boolean = false
+    requireAtLeastOne: boolean = false,
   ): void {
     if (requireAtLeastOne && !email && !phone) {
-      throw new BadRequestException('At least one contact method (email or phone) is required');
+      throw new BadRequestException(
+        'At least one contact method (email or phone) is required',
+      );
     }
 
     if (email) {
@@ -133,14 +138,18 @@ export class ValidationUtils {
    */
   static bulkValidate<T>(
     data: T[],
-    validator: (item: T, index: number) => { isValid: boolean; errors: string[] }
+    validator: (
+      item: T,
+      index: number,
+    ) => { isValid: boolean; errors: string[] },
   ): {
     validItems: T[];
     invalidItems: Array<{ item: T; index: number; errors: string[] }>;
     summary: { total: number; valid: number; invalid: number };
   } {
     const validItems: T[] = [];
-    const invalidItems: Array<{ item: T; index: number; errors: string[] }> = [];
+    const invalidItems: Array<{ item: T; index: number; errors: string[] }> =
+      [];
 
     data.forEach((item, index) => {
       const result = validator(item, index);
@@ -157,8 +166,8 @@ export class ValidationUtils {
       summary: {
         total: data.length,
         valid: validItems.length,
-        invalid: invalidItems.length
-      }
+        invalid: invalidItems.length,
+      },
     };
   }
 }
