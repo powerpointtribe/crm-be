@@ -41,6 +41,14 @@ import {
   SetPreFilledMessageDto,
   BulkSetMessageDto,
 } from './dto/set-message.dto';
+import {
+  EditScheduledMessageDto,
+  MessageHistoryQueryDto,
+} from './dto/edit-message.dto';
+import {
+  CreateDailyMessageDto,
+  DailyMessageQueryDto,
+} from './dto/daily-message.dto';
 import { UpdateIntegrationStageDto } from './dto/update-integration-stage.dto';
 import { CSVParserUtil } from '../common/utils/csv-parser.util';
 import { QueueService } from '../queue/queue.service';
@@ -176,6 +184,18 @@ export class FirstTimersController {
 
       const firstTimer = await this.firstTimersService.create(internalDto);
 
+      // Auto-create daily message entry for the visit date
+      try {
+        const visitDate = new Date(internalDto.dateOfVisit);
+        await this.firstTimerMessagingService.ensureDailyMessageEntry(
+          visitDate,
+          [(firstTimer._id as any).toString()]
+        );
+      } catch (error) {
+        // Log error but don't fail the creation
+        console.error('Failed to auto-create daily message entry:', error);
+      }
+
       // Automatically set up message scheduling for public registrations
       const defaultMessage = `Hello ${firstTimer.firstName},\n\nThank you so much for visiting our church! We're thrilled that you chose to worship with us.\n\nOur follow-up team will be reaching out to you soon to help you get better connected with our church family. In the meantime, we hope you'll consider joining us again for our next service.\n\nIf you have any questions or need anything at all, please don't hesitate to reach out.\n\nBlessings,\nThe Church Team`;
 
@@ -233,6 +253,19 @@ export class FirstTimersController {
   async create(@Body() createFirstTimerDto: CreateFirstTimerDto) {
     const firstTimer =
       await this.firstTimersService.create(createFirstTimerDto);
+
+    // Auto-create daily message entry for the visit date
+    try {
+      const visitDate = new Date(createFirstTimerDto.dateOfVisit);
+      await this.firstTimerMessagingService.ensureDailyMessageEntry(
+        visitDate,
+        [(firstTimer._id as any).toString()]
+      );
+    } catch (error) {
+      // Log error but don't fail the creation
+      console.error('Failed to auto-create daily message entry:', error);
+    }
+
     return ResponseUtil.success(
       firstTimer,
       'First-timer registered successfully',
@@ -389,6 +422,141 @@ export class FirstTimersController {
       assignments,
       'Your assignments retrieved successfully',
     );
+  }
+
+  // Daily Messaging Endpoints (must be before :id route)
+  @Get('daily-messages')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Get all daily messages with pagination' })
+  @ApiResponse({
+    status: 200,
+    description: 'Daily messages retrieved successfully',
+  })
+  async getDailyMessages(@Query() query: DailyMessageQueryDto) {
+    const result = await this.firstTimerMessagingService.getDailyMessages(
+      query.page,
+      query.limit,
+      query.status,
+    );
+    return ResponseUtil.success(result, 'Daily messages retrieved successfully');
+  }
+
+  @Post('daily-message')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Create a daily message for first timers' })
+  @ApiResponse({
+    status: 201,
+    description: 'Daily message created successfully',
+  })
+  async createDailyMessage(
+    @Body() createDailyMessageDto: CreateDailyMessageDto,
+    @CurrentUser() user: any,
+  ) {
+    const date = new Date(createDailyMessageDto.date);
+    const scheduledTime = createDailyMessageDto.scheduledTime
+      ? new Date(createDailyMessageDto.scheduledTime)
+      : undefined;
+
+    const dailyMessage = await this.firstTimerMessagingService.createDailyMessage(
+      date,
+      createDailyMessageDto.message,
+      createDailyMessageDto.firstTimerIds,
+      user?.id,
+      scheduledTime,
+      createDailyMessageDto.autoSend,
+    );
+
+    // If auto-send is enabled, send immediately
+    if (createDailyMessageDto.autoSend) {
+      await this.firstTimerMessagingService.sendDailyMessageNow(
+        (dailyMessage._id as any).toString(),
+        user?.id,
+      );
+    }
+
+    return ResponseUtil.success(dailyMessage, 'Daily message created successfully');
+  }
+
+  @Get('daily-message/:date')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Get or create daily message for a specific date' })
+  @ApiParam({ name: 'date', description: 'Date in YYYY-MM-DD format' })
+  @ApiResponse({
+    status: 200,
+    description: 'Daily message retrieved or created successfully',
+  })
+  async getDailyMessage(@Param('date') dateString: string) {
+    // Try to get existing message or create one if there are first timers for this date
+    const dailyMessage = await this.firstTimerMessagingService.getOrCreateDailyMessageEntry(dateString);
+
+    if (!dailyMessage) {
+      return ResponseUtil.success(null, 'No first timers found for this date');
+    }
+
+    return ResponseUtil.success(dailyMessage, 'Daily message retrieved successfully');
+  }
+
+  @Patch('daily-message/:id')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Update a daily message' })
+  @ApiParam({ name: 'id', description: 'Daily message ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Daily message updated successfully',
+  })
+  async updateDailyMessage(
+    @Param('id') dailyMessageId: string,
+    @Body() updateData: { message: string; scheduledTime?: string; autoSend: boolean },
+    @CurrentUser() user: any,
+  ) {
+    const scheduledTime = updateData.scheduledTime
+      ? new Date(updateData.scheduledTime)
+      : undefined;
+
+    const updatedMessage = await this.firstTimerMessagingService.updateDailyMessage(
+      dailyMessageId,
+      updateData.message,
+      scheduledTime,
+      updateData.autoSend,
+      user?.id,
+    );
+
+    return ResponseUtil.success(updatedMessage, 'Daily message updated successfully');
+  }
+
+  @Delete('daily-message/:id')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Delete a daily message' })
+  @ApiParam({ name: 'id', description: 'Daily message ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Daily message deleted successfully',
+  })
+  async deleteDailyMessage(
+    @Param('id') dailyMessageId: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.firstTimerMessagingService.deleteDailyMessage(dailyMessageId, user?.id);
+    return ResponseUtil.success(null, 'Daily message deleted successfully');
+  }
+
+  @Post('daily-message/:id/send-now')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Send a scheduled daily message immediately' })
+  @ApiParam({ name: 'id', description: 'Daily message ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Daily message sent successfully',
+  })
+  async sendDailyMessageNow(
+    @Param('id') dailyMessageId: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.firstTimerMessagingService.sendDailyMessageNow(
+      dailyMessageId,
+      user?.id,
+    );
+    return ResponseUtil.success(null, 'Daily message sent successfully');
   }
 
   @Get(':id')
@@ -988,6 +1156,7 @@ export class FirstTimersController {
   async setPreFilledMessage(
     @Param('id') firstTimerId: string,
     @Body() setMessageDto: SetPreFilledMessageDto,
+    @CurrentUser() user: any,
   ) {
     const scheduledTime = setMessageDto.scheduledTime
       ? new Date(setMessageDto.scheduledTime)
@@ -997,6 +1166,7 @@ export class FirstTimersController {
       firstTimerId,
       setMessageDto.message,
       scheduledTime,
+      user?.id,
     );
 
     return ResponseUtil.success(null, 'Pre-filled message set successfully');
@@ -1009,7 +1179,7 @@ export class FirstTimersController {
     status: 200,
     description: 'Bulk pre-filled message set successfully',
   })
-  async setBulkPreFilledMessage(@Body() bulkSetMessageDto: BulkSetMessageDto) {
+  async setBulkPreFilledMessage(@Body() bulkSetMessageDto: BulkSetMessageDto, @CurrentUser() user: any) {
     const scheduledTime = bulkSetMessageDto.scheduledTime
       ? new Date(bulkSetMessageDto.scheduledTime)
       : undefined;
@@ -1018,6 +1188,7 @@ export class FirstTimersController {
       bulkSetMessageDto.firstTimerIds,
       bulkSetMessageDto.message,
       scheduledTime,
+      user?.id,
     );
 
     return ResponseUtil.success(
@@ -1025,6 +1196,92 @@ export class FirstTimersController {
       'Bulk pre-filled message set successfully',
     );
   }
+
+  @Get(':id/message-history')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Get message history for a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message history retrieved successfully',
+  })
+  async getMessageHistory(@Param('id') firstTimerId: string) {
+    const history = await this.firstTimerMessagingService.getMessageHistory(firstTimerId);
+    return ResponseUtil.success(history, 'Message history retrieved successfully');
+  }
+
+  @Get(':id/scheduled-message')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Get current scheduled message for a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Scheduled message retrieved successfully',
+  })
+  async getScheduledMessage(@Param('id') firstTimerId: string) {
+    const scheduledMessage = await this.firstTimerMessagingService.getScheduledMessage(firstTimerId);
+    return ResponseUtil.success(scheduledMessage, 'Scheduled message retrieved successfully');
+  }
+
+  @Patch(':id/edit-message')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Edit scheduled message for a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Scheduled message updated successfully',
+  })
+  async editScheduledMessage(
+    @Param('id') firstTimerId: string,
+    @Body() editMessageDto: EditScheduledMessageDto,
+    @CurrentUser() user: any,
+  ) {
+    const scheduledTime = editMessageDto.scheduledTime
+      ? new Date(editMessageDto.scheduledTime)
+      : undefined;
+
+    await this.firstTimerMessagingService.editScheduledMessage(
+      firstTimerId,
+      editMessageDto.message,
+      scheduledTime,
+      user?.id,
+    );
+
+    return ResponseUtil.success(null, 'Scheduled message updated successfully');
+  }
+
+  @Delete(':id/cancel-message')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Cancel scheduled message for a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Scheduled message cancelled successfully',
+  })
+  async cancelScheduledMessage(
+    @Param('id') firstTimerId: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.firstTimerMessagingService.cancelScheduledMessage(firstTimerId, user?.id);
+    return ResponseUtil.success(null, 'Scheduled message cancelled successfully');
+  }
+
+  @Get('messages/history')
+  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @ApiOperation({ summary: 'Get all message history with pagination' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message history retrieved successfully',
+  })
+  async getAllMessageHistory(@Query() query: MessageHistoryQueryDto) {
+    const result = await this.firstTimerMessagingService.getAllMessageHistory(
+      query.page,
+      query.limit,
+      query.status,
+    );
+    return ResponseUtil.success(result, 'Message history retrieved successfully');
+  }
+
 
   // Integration Stage Endpoints
   @Patch(':id/integration-stage')

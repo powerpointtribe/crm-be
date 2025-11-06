@@ -7,6 +7,7 @@ import {
   JobType,
 } from '../../common/interfaces/queue-job.interface';
 import { FirstTimersService } from '../../first-timers/first-timers.service';
+import { FirstTimerMessagingService } from '../../first-timers/first-timer-messaging.service';
 import { MembersService } from '../../members/members.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 
@@ -17,6 +18,7 @@ export class FirstTimerNotificationProcessor {
 
   constructor(
     private firstTimersService: FirstTimersService,
+    private firstTimerMessagingService: FirstTimerMessagingService,
     private membersService: MembersService,
     private notificationsService: NotificationsService,
   ) {}
@@ -198,11 +200,11 @@ export class FirstTimerNotificationProcessor {
   // New processors for additional job types
   @Process(JobType.SEND_FIRST_TIMER_MESSAGE)
   async handleSendFirstTimerMessage(job: Job<FirstTimerNotificationJobData>) {
-    this.logger.log(`Processing custom first-timer message for job: ${job.id}`);
+    this.logger.log(`Processing first-timer message for job: ${job.id}`);
 
     try {
       const { firstTimerId, additionalData } = job.data;
-      const { customMessage } = additionalData || {};
+      const { message, scheduledTime } = additionalData || {};
 
       const firstTimer = await this.firstTimersService.findById(firstTimerId);
       if (!firstTimer || !firstTimer.email) {
@@ -212,18 +214,57 @@ export class FirstTimerNotificationProcessor {
         return { success: false, reason: 'First-timer not found or no email' };
       }
 
-      await this.notificationsService.sendCustomFirstTimerMessage({
-        email: firstTimer.email,
-        firstName: firstTimer.firstName,
-        lastName: firstTimer.lastName,
-        customMessage: customMessage || 'Thank you for visiting our church!',
-      });
+      // Check if message was already sent
+      if (firstTimer.messageSent) {
+        this.logger.warn(`Message already sent to first-timer ${firstTimerId}`);
+        return { success: false, reason: 'Message already sent' };
+      }
 
-      this.logger.log(`Custom message sent to ${firstTimer.email}`);
-      return { success: true, email: firstTimer.email };
+      // Use the pre-filled message or provided message
+      const messageToSend = message || firstTimer.preFilledMessage || 'Thank you for visiting our church!';
+
+      try {
+        await this.notificationsService.sendCustomFirstTimerMessage({
+          email: firstTimer.email,
+          firstName: firstTimer.firstName,
+          lastName: firstTimer.lastName,
+          customMessage: messageToSend,
+        });
+
+        // Update first timer as message sent
+        await this.firstTimersService.updateMessageSent(firstTimerId);
+
+        // Update message history to mark as sent
+        const sentAt = new Date();
+        await this.firstTimerMessagingService.updateMessageHistoryAsSent(
+          firstTimerId,
+          sentAt,
+          messageToSend
+        );
+
+        this.logger.log(`Message sent to ${firstTimer.email}`);
+        return { success: true, email: firstTimer.email };
+      } catch (emailError) {
+        this.logger.error(
+          `Failed to send first-timer message: ${emailError.message}`,
+        );
+
+        // Update message history to mark as failed
+        try {
+          await this.firstTimerMessagingService.updateMessageHistoryAsFailed(
+            firstTimerId,
+            messageToSend,
+            emailError.message
+          );
+        } catch (historyError) {
+          this.logger.error(`Failed to update message history as failed: ${historyError.message}`);
+        }
+
+        throw emailError;
+      }
     } catch (error) {
       this.logger.error(
-        `Failed to send custom first-timer message: ${error.message}`,
+        `Failed to process first-timer message job: ${error.message}`,
       );
       throw error;
     }

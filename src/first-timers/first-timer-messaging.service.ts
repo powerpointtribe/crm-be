@@ -1,8 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { FirstTimer, FirstTimerDocument } from './schemas/first-timer.schema';
+import { MessageHistory, MessageHistoryDocument } from './schemas/message-history.schema';
+import { DailyMessage, DailyMessageDocument } from './schemas/daily-message.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { QueueService } from '../queue/queue.service';
 import { JobType } from '../common/interfaces/queue-job.interface';
@@ -14,6 +16,10 @@ export class FirstTimerMessagingService {
   constructor(
     @InjectModel(FirstTimer.name)
     private firstTimerModel: Model<FirstTimerDocument>,
+    @InjectModel(MessageHistory.name)
+    private messageHistoryModel: Model<MessageHistoryDocument>,
+    @InjectModel(DailyMessage.name)
+    private dailyMessageModel: Model<DailyMessageDocument>,
     private notificationsService: NotificationsService,
     private queueService: QueueService,
   ) {}
@@ -22,6 +28,7 @@ export class FirstTimerMessagingService {
     firstTimerId: string,
     message: string,
     scheduledTime?: Date,
+    createdBy?: string,
   ): Promise<void> {
     const now = new Date();
     let messageScheduledTime = scheduledTime;
@@ -45,6 +52,15 @@ export class FirstTimerMessagingService {
       messageSent: false,
     });
 
+    // Create message history record
+    await this.messageHistoryModel.create({
+      firstTimerId,
+      message,
+      scheduledTime: messageScheduledTime,
+      createdBy: createdBy || null,
+      status: 'scheduled',
+    });
+
     // Schedule the message job
     await this.queueService.addJob(JobType.SEND_FIRST_TIMER_MESSAGE, {
       firstTimerId,
@@ -61,45 +77,90 @@ export class FirstTimerMessagingService {
     firstTimerIds: string[],
     message: string,
     scheduledTime?: Date,
+    createdBy?: string,
   ): Promise<void> {
     const promises = firstTimerIds.map((id) =>
-      this.setPreFilledMessage(id, message, scheduledTime),
+      this.setPreFilledMessage(id, message, scheduledTime, createdBy),
     );
     await Promise.all(promises);
   }
 
-  async sendScheduledMessage(firstTimerId: string): Promise<void> {
-    const firstTimer = await this.firstTimerModel.findById(firstTimerId);
-    if (!firstTimer || firstTimer.messageSent || !firstTimer.preFilledMessage) {
-      return;
-    }
-
-    if (!firstTimer.email) {
-      this.logger.warn(
-        `Cannot send message to first timer ${firstTimerId} - no email address`,
+  // Update message history to mark as sent (called from queue processor)
+  async updateMessageHistoryAsSent(firstTimerId: string, sentAt: Date, messageContent: string): Promise<void> {
+    try {
+      await this.messageHistoryModel.findOneAndUpdate(
+        {
+          firstTimerId,
+          message: messageContent,
+          status: 'scheduled',
+          isCancelled: false
+        },
+        {
+          status: 'sent',
+          sentAt,
+          isSent: true
+        }
       );
-      return;
+
+      this.logger.log(`Message history updated as sent for first-timer ${firstTimerId}`);
+    } catch (error) {
+      this.logger.error(`Failed to update message history for ${firstTimerId}:`, error);
     }
+  }
+
+  // Update message history to mark as failed (called from queue processor)
+  async updateMessageHistoryAsFailed(firstTimerId: string, messageContent: string, failureReason: string): Promise<void> {
+    try {
+      await this.messageHistoryModel.findOneAndUpdate(
+        {
+          firstTimerId,
+          message: messageContent,
+          status: 'scheduled',
+          isCancelled: false
+        },
+        {
+          status: 'failed',
+          failureReason
+        }
+      );
+
+      this.logger.log(`Message history updated as failed for first-timer ${firstTimerId}`);
+    } catch (error) {
+      this.logger.error(`Failed to update message history as failed for ${firstTimerId}:`, error);
+    }
+  }
+
+  // Cron job to create daily message entries for dates that have first timers but no entry
+  @Cron(CronExpression.EVERY_2_HOURS)
+  async createMissingDailyMessageEntries(): Promise<void> {
+    this.logger.log('Checking for missing daily message entries...');
 
     try {
-      await this.notificationsService.sendCustomFirstTimerMessage({
-        email: firstTimer.email,
-        firstName: firstTimer.firstName,
-        lastName: firstTimer.lastName,
-        customMessage: firstTimer.preFilledMessage,
+      // Get all unique visit dates from first timers in the last 60 days
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+      const visitDates = await this.firstTimerModel.distinct('dateOfVisit', {
+        dateOfVisit: { $gte: sixtyDaysAgo },
+        isActive: true
       });
 
-      await this.firstTimerModel.findByIdAndUpdate(firstTimerId, {
-        messageSent: true,
-        messageSentAt: new Date(),
-      });
+      let entriesCreated = 0;
 
-      this.logger.log(`Message sent to first timer ${firstTimerId}`);
+      for (const visitDate of visitDates) {
+        try {
+          const result = await this.ensureDailyMessageEntry(new Date(visitDate));
+          if (result) {
+            entriesCreated++;
+          }
+        } catch (error) {
+          this.logger.error(`Failed to ensure daily message entry for ${visitDate}:`, error);
+        }
+      }
+
+      this.logger.log(`Created ${entriesCreated} missing daily message entries`);
     } catch (error) {
-      this.logger.error(
-        `Failed to send message to first timer ${firstTimerId}:`,
-        error,
-      );
+      this.logger.error('Failed to create missing daily message entries:', error);
     }
   }
 
@@ -204,11 +265,16 @@ export class FirstTimerMessagingService {
     }
 
     this.logger.log(
-      `Sending scheduled messages to ${firstTimersToMessage.length} first-timers`,
+      `Queuing scheduled messages for ${firstTimersToMessage.length} first-timers`,
     );
 
+    // Queue each message for processing instead of sending directly
     const promises = firstTimersToMessage.map((ft: any) =>
-      this.sendScheduledMessage(ft._id.toString()),
+      this.queueService.addJob(JobType.SEND_FIRST_TIMER_MESSAGE, {
+        firstTimerId: ft._id.toString(),
+        message: ft.preFilledMessage,
+        scheduledTime: ft.messageScheduledTime,
+      }),
     );
 
     await Promise.allSettled(promises);
@@ -461,5 +527,451 @@ export class FirstTimerMessagingService {
   @Cron(CronExpression.EVERY_HOUR)
   async checkForMemberConversion(): Promise<void> {
     await this.convertInterestedFirstTimersToMembers();
+  }
+
+  // New messaging history and management methods
+  async getMessageHistory(firstTimerId: string): Promise<MessageHistoryDocument[]> {
+    return await this.messageHistoryModel
+      .find({ firstTimerId })
+      .populate('createdBy', 'firstName lastName')
+      .populate('editedBy', 'firstName lastName')
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  async getScheduledMessage(firstTimerId: string): Promise<MessageHistoryDocument | null> {
+    return await this.messageHistoryModel
+      .findOne({
+        firstTimerId,
+        status: 'scheduled',
+        isCancelled: false
+      })
+      .populate('createdBy', 'firstName lastName')
+      .exec();
+  }
+
+  async editScheduledMessage(
+    firstTimerId: string,
+    newMessage: string,
+    newScheduledTime?: Date,
+    editedBy?: string
+  ): Promise<void> {
+    const existingMessage = await this.getScheduledMessage(firstTimerId);
+
+    if (!existingMessage) {
+      throw new NotFoundException('No scheduled message found for this first timer');
+    }
+
+    const now = new Date();
+    let messageScheduledTime = newScheduledTime;
+
+    if (!messageScheduledTime) {
+      // Default to 7PM today or 2 hours after current time if past 7PM
+      const todayAt7PM = new Date();
+      todayAt7PM.setHours(19, 0, 0, 0);
+
+      if (now > todayAt7PM) {
+        messageScheduledTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+      } else {
+        messageScheduledTime = todayAt7PM;
+      }
+    }
+
+    // Update first timer with new message
+    await this.firstTimerModel.findByIdAndUpdate(firstTimerId, {
+      preFilledMessage: newMessage,
+      messageScheduledTime,
+      messageSent: false,
+    });
+
+    // Update message history
+    await this.messageHistoryModel.findByIdAndUpdate(existingMessage._id, {
+      message: newMessage,
+      scheduledTime: messageScheduledTime,
+      editedBy: editedBy || null,
+      editedAt: now,
+    });
+
+    this.logger.log(
+      `Scheduled message updated for first timer ${firstTimerId}, new schedule: ${messageScheduledTime}`,
+    );
+  }
+
+  async cancelScheduledMessage(firstTimerId: string, cancelledBy?: string): Promise<void> {
+    const existingMessage = await this.getScheduledMessage(firstTimerId);
+
+    if (!existingMessage) {
+      throw new NotFoundException('No scheduled message found for this first timer');
+    }
+
+    // Clear message from first timer
+    await this.firstTimerModel.findByIdAndUpdate(firstTimerId, {
+      preFilledMessage: null,
+      messageScheduledTime: null,
+      messageSent: false,
+    });
+
+    // Mark message as cancelled in history
+    await this.messageHistoryModel.findByIdAndUpdate(existingMessage._id, {
+      status: 'cancelled',
+      isCancelled: true,
+      editedBy: cancelledBy || null,
+      editedAt: new Date(),
+    });
+
+    this.logger.log(`Scheduled message cancelled for first timer ${firstTimerId}`);
+  }
+
+  async getAllMessageHistory(
+    page: number = 1,
+    limit: number = 20,
+    status?: string
+  ): Promise<{ messages: MessageHistoryDocument[], total: number }> {
+    const skip = (page - 1) * limit;
+    const filter: any = {};
+
+    if (status) {
+      filter.status = status;
+    }
+
+    const [messages, total] = await Promise.all([
+      this.messageHistoryModel
+        .find(filter)
+        .populate('firstTimerId', 'firstName lastName phone email')
+        .populate('createdBy', 'firstName lastName')
+        .populate('editedBy', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.messageHistoryModel.countDocuments(filter)
+    ]);
+
+    return { messages, total };
+  }
+
+  // Daily messaging methods
+  async createDailyMessage(
+    date: Date,
+    message: string,
+    firstTimerIds: string[],
+    createdBy: string,
+    scheduledTime?: Date,
+    autoSend: boolean = true
+  ): Promise<DailyMessageDocument> {
+    // Check if daily message already exists for this date
+    const existingDaily = await this.dailyMessageModel.findOne({
+      date: {
+        $gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+        $lt: new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
+      }
+    });
+
+    if (existingDaily) {
+      // If it's an auto-generated draft, update it with the provided message
+      if (existingDaily.status === 'draft' && (!existingDaily.message || existingDaily.message === '')) {
+        existingDaily.message = message;
+        existingDaily.scheduledTime = scheduledTime;
+        existingDaily.autoSend = autoSend;
+        existingDaily.createdBy = new Types.ObjectId(createdBy);
+        existingDaily.status = autoSend ? 'sending' : 'scheduled';
+
+        // Update first timer IDs if provided
+        if (firstTimerIds && firstTimerIds.length > 0) {
+          existingDaily.firstTimerIds = firstTimerIds.map(id => new Types.ObjectId(id));
+          existingDaily.recipientCount = firstTimerIds.length;
+        }
+
+        await existingDaily.save();
+        this.logger.log(`Updated existing draft daily message for ${date.toDateString()}`);
+        return existingDaily;
+      } else {
+        throw new BadRequestException('Daily message already exists for this date');
+      }
+    }
+
+    const dailyMessage = await this.dailyMessageModel.create({
+      date,
+      message,
+      scheduledTime,
+      autoSend,
+      firstTimerIds: firstTimerIds.map(id => new Types.ObjectId(id)),
+      createdBy: new Types.ObjectId(createdBy),
+      recipientCount: firstTimerIds.length,
+      status: autoSend ? 'sending' : 'scheduled',
+    });
+
+    this.logger.log(`Daily message created for ${date.toDateString()} with ${firstTimerIds.length} recipients`);
+
+    return dailyMessage;
+  }
+
+  async getDailyMessage(date: Date): Promise<DailyMessageDocument | null> {
+    return await this.dailyMessageModel
+      .findOne({
+        date: {
+          $gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+          $lt: new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
+        }
+      })
+      .populate('createdBy', 'firstName lastName')
+      .exec();
+  }
+
+  async sendDailyMessageNow(dailyMessageId: string, sentBy?: string): Promise<void> {
+    const dailyMessage = await this.dailyMessageModel.findById(dailyMessageId);
+
+    if (!dailyMessage) {
+      throw new NotFoundException('Daily message not found');
+    }
+
+    if (dailyMessage.isSent) {
+      throw new BadRequestException('Daily message has already been sent');
+    }
+
+    // Update status to sending
+    await this.dailyMessageModel.findByIdAndUpdate(dailyMessageId, {
+      status: 'sending',
+      sentBy: sentBy || null,
+    });
+
+    try {
+      // Send to all first timers
+      const promises = dailyMessage.firstTimerIds.map((firstTimerId) =>
+        this.setPreFilledMessage(
+          firstTimerId.toString(),
+          dailyMessage.message,
+          undefined, // Send immediately
+          sentBy
+        )
+      );
+
+      await Promise.all(promises);
+
+      // Update daily message as sent
+      await this.dailyMessageModel.findByIdAndUpdate(dailyMessageId, {
+        status: 'sent',
+        isSent: true,
+        sentAt: new Date(),
+        sentCount: dailyMessage.firstTimerIds.length,
+      });
+
+      this.logger.log(`Daily message ${dailyMessageId} sent to ${dailyMessage.firstTimerIds.length} first timers`);
+
+    } catch (error) {
+      // Update status to failed
+      await this.dailyMessageModel.findByIdAndUpdate(dailyMessageId, {
+        status: 'failed',
+        failureReason: error.message,
+      });
+
+      this.logger.error(`Failed to send daily message ${dailyMessageId}:`, error);
+      throw error;
+    }
+  }
+
+  async getDailyMessages(
+    page: number = 1,
+    limit: number = 20,
+    status?: string
+  ): Promise<{ messages: DailyMessageDocument[], total: number }> {
+    const skip = (page - 1) * limit;
+    const filter: any = {};
+
+    if (status) {
+      filter.status = status;
+    }
+
+    const [messages, total] = await Promise.all([
+      this.dailyMessageModel
+        .find(filter)
+        .populate('createdBy', 'firstName lastName')
+        .populate('sentBy', 'firstName lastName')
+        .sort({ date: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.dailyMessageModel.countDocuments(filter)
+    ]);
+
+    return { messages, total };
+  }
+
+  // Cron job to send scheduled daily messages
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async sendScheduledDailyMessages(): Promise<void> {
+    const now = new Date();
+
+    const scheduledDailyMessages = await this.dailyMessageModel
+      .find({
+        status: 'scheduled',
+        scheduledTime: { $lte: now },
+        isSent: false,
+      })
+      .exec();
+
+    if (scheduledDailyMessages.length === 0) {
+      return;
+    }
+
+    this.logger.log(`Sending ${scheduledDailyMessages.length} scheduled daily messages`);
+
+    const promises = scheduledDailyMessages.map((dailyMessage) =>
+      this.sendDailyMessageNow((dailyMessage._id as any).toString())
+    );
+
+    await Promise.allSettled(promises);
+  }
+
+  async updateDailyMessage(
+    dailyMessageId: string,
+    message: string,
+    scheduledTime?: Date,
+    autoSend: boolean = true,
+    editedBy?: string
+  ): Promise<DailyMessageDocument> {
+    const dailyMessage = await this.dailyMessageModel.findById(dailyMessageId);
+
+    if (!dailyMessage) {
+      throw new NotFoundException('Daily message not found');
+    }
+
+    if (dailyMessage.isSent) {
+      throw new BadRequestException('Cannot update a message that has already been sent');
+    }
+
+    const updateData: any = {
+      message,
+      scheduledTime,
+      autoSend,
+      status: autoSend ? 'sending' : 'scheduled',
+      editedBy: editedBy || null,
+      editedAt: new Date(),
+    };
+
+    const updatedMessage = await this.dailyMessageModel.findByIdAndUpdate(
+      dailyMessageId,
+      updateData,
+      { new: true }
+    );
+
+    // If auto-send is enabled, send immediately
+    if (autoSend && !dailyMessage.isSent) {
+      await this.sendDailyMessageNow(dailyMessageId, editedBy);
+    }
+
+    this.logger.log(`Daily message ${dailyMessageId} updated`);
+
+    return updatedMessage!;
+  }
+
+  async deleteDailyMessage(dailyMessageId: string, deletedBy?: string): Promise<void> {
+    const dailyMessage = await this.dailyMessageModel.findById(dailyMessageId);
+
+    if (!dailyMessage) {
+      throw new NotFoundException('Daily message not found');
+    }
+
+    if (dailyMessage.isSent) {
+      throw new BadRequestException('Cannot delete a message that has already been sent');
+    }
+
+    await this.dailyMessageModel.findByIdAndDelete(dailyMessageId);
+
+    this.logger.log(`Daily message ${dailyMessageId} deleted by ${deletedBy || 'unknown'}`);
+  }
+
+  // Auto-create or update daily message entry when first timers visit
+  async ensureDailyMessageEntry(visitDate: Date, firstTimerIds?: string[]): Promise<DailyMessageDocument | null> {
+    try {
+      // Check if a daily message already exists for this date
+      const existingDaily = await this.dailyMessageModel.findOne({
+        date: {
+          $gte: new Date(visitDate.getFullYear(), visitDate.getMonth(), visitDate.getDate()),
+          $lt: new Date(visitDate.getFullYear(), visitDate.getMonth(), visitDate.getDate() + 1)
+        }
+      });
+
+      if (existingDaily) {
+        // Update existing entry with new first timer IDs if provided
+        if (firstTimerIds && firstTimerIds.length > 0) {
+          // Get current first timers for this date
+          const currentFirstTimers = await this.firstTimerModel.find({
+            dateOfVisit: {
+              $gte: new Date(visitDate.getFullYear(), visitDate.getMonth(), visitDate.getDate()),
+              $lt: new Date(visitDate.getFullYear(), visitDate.getMonth(), visitDate.getDate() + 1)
+            },
+            isActive: true
+          });
+
+          const allFirstTimerIds = currentFirstTimers.map(ft => ft._id as Types.ObjectId);
+
+          // Update the existing daily message with current first timer IDs
+          existingDaily.firstTimerIds = allFirstTimerIds;
+          existingDaily.recipientCount = allFirstTimerIds.length;
+          await existingDaily.save();
+
+          this.logger.log(`Updated daily message entry for ${visitDate.toDateString()} with ${allFirstTimerIds.length} first timers`);
+        }
+        return existingDaily;
+      }
+
+      // Get all first timers for this date
+      const dateFirstTimers = await this.firstTimerModel.find({
+        dateOfVisit: {
+          $gte: new Date(visitDate.getFullYear(), visitDate.getMonth(), visitDate.getDate()),
+          $lt: new Date(visitDate.getFullYear(), visitDate.getMonth(), visitDate.getDate() + 1)
+        },
+        isActive: true
+      });
+
+      if (dateFirstTimers.length === 0) {
+        return null; // No first timers for this date
+      }
+
+      const firstTimerObjectIds = dateFirstTimers.map(ft => ft._id as Types.ObjectId);
+
+      // Create a new daily message entry (draft status)
+      const dailyMessage = await this.dailyMessageModel.create({
+        date: visitDate,
+        message: '', // Empty message - to be filled by admin
+        status: 'draft',
+        autoSend: false,
+        isSent: false,
+        recipientCount: firstTimerObjectIds.length,
+        firstTimerIds: firstTimerObjectIds,
+        createdBy: undefined, // System generated
+      });
+
+      this.logger.log(`Auto-created daily message entry for ${visitDate.toDateString()} with ${firstTimerObjectIds.length} first timers`);
+      return dailyMessage;
+
+    } catch (error) {
+      this.logger.error(`Failed to ensure daily message entry for ${visitDate.toDateString()}:`, error);
+      return null;
+    }
+  }
+
+  // Get or create daily message entry for a specific date
+  async getOrCreateDailyMessageEntry(dateString: string): Promise<DailyMessageDocument | null> {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        throw new BadRequestException('Invalid date format');
+      }
+
+      // First try to get existing message
+      let dailyMessage = await this.getDailyMessage(date);
+
+      if (!dailyMessage) {
+        // Create one if it doesn't exist and there are first timers for this date
+        dailyMessage = await this.ensureDailyMessageEntry(date);
+      }
+
+      return dailyMessage;
+    } catch (error) {
+      this.logger.error(`Failed to get or create daily message entry for ${dateString}:`, error);
+      throw error;
+    }
   }
 }

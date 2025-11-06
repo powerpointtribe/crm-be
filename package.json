@@ -34,6 +34,9 @@
     "@nestjs/schedule": "^6.0.1",
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/throttler": "^6.4.0",
+    "@sendgrid/mail": "^8.1.6",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^1.4.12",
     "bcryptjs": "^3.0.2",
     "bull-board": "^1.7.2",
     "bullmq": "^5.61.0",
@@ -51,9 +54,7 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^6.1.0",
     "rxjs": "^7.8.1",
-    "swagger-ui-express": "^4.6.3",
-    "@types/express": "^5.0.0",
-    "@types/multer": "^1.4.12"
+    "swagger-ui-express": "^4.6.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

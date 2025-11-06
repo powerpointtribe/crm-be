@@ -224,9 +224,12 @@ export class FirstTimersService {
 
     // Date range filter
     if (visitDateFrom || visitDateTo) {
+      const startDate = visitDateFrom ? new Date(visitDateFrom) : undefined;
+      const endDate = visitDateTo ? new Date(visitDateTo + 'T23:59:59.999Z') : undefined; // End of day
+
       const dateQuery = QueryBuilder.buildDateRangeQuery(
-        visitDateFrom,
-        visitDateTo,
+        startDate,
+        endDate,
         'dateOfVisit',
       );
       Object.assign(filterQuery, dateQuery);
@@ -951,6 +954,40 @@ export class FirstTimersService {
     }
 
     return firstTimer;
+  }
+
+  // Update message sent status and tracking
+  async updateMessageSent(firstTimerId: string): Promise<FirstTimerDocument> {
+    const sentAt = new Date();
+
+    const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
+      firstTimerId,
+      {
+        messageSent: true,
+        messageSentAt: sentAt,
+      },
+      { new: true },
+    );
+
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    // Update message history to mark as sent
+    await this.updateMessageHistoryAsSent(firstTimerId, sentAt);
+
+    return firstTimer;
+  }
+
+  // Helper method to update message history when message is sent
+  private async updateMessageHistoryAsSent(firstTimerId: string, sentAt: Date): Promise<void> {
+    try {
+      // We need to import MessageHistory model here or use a separate service
+      // For now, we'll handle this in the messaging service
+      this.logger.log(`Message sent tracking updated for first-timer ${firstTimerId}`);
+    } catch (error) {
+      this.logger.error(`Failed to update message history for ${firstTimerId}:`, error);
+    }
   }
 
   // Helper method to get GIA group information

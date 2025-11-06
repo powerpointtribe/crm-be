@@ -4,6 +4,7 @@ import {
   IsDateString,
   IsMongoId,
   IsBoolean,
+  Matches,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SearchDto } from '../../common/dto/search.dto';
@@ -23,15 +24,25 @@ export class FirstTimerSearchDto extends SearchDto {
   @IsMongoId()
   assignedTo?: string;
 
-  @ApiPropertyOptional({ description: 'Filter from visit date' })
+  @ApiPropertyOptional({
+    description: 'Filter from visit date (YYYY-MM-DD format)',
+    example: '2025-09-14'
+  })
   @IsOptional()
-  @IsDateString()
-  visitDateFrom?: Date;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'visitDateFrom must be in YYYY-MM-DD format'
+  })
+  visitDateFrom?: string;
 
-  @ApiPropertyOptional({ description: 'Filter to visit date' })
+  @ApiPropertyOptional({
+    description: 'Filter to visit date (YYYY-MM-DD format)',
+    example: '2025-09-14'
+  })
   @IsOptional()
-  @IsDateString()
-  visitDateTo?: Date;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'visitDateTo must be in YYYY-MM-DD format'
+  })
+  visitDateTo?: string;
 
   @ApiPropertyOptional({ description: 'Filter by conversion status' })
   @IsOptional()
