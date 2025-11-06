@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, FilterQuery } from 'mongoose';
+import { Model, FilterQuery, Types } from 'mongoose';
 import { FirstTimer, FirstTimerDocument } from './schemas/first-timer.schema';
 import { CreateFirstTimerDto } from './dto/create-first-timer.dto';
 import { AddFollowUpDto } from './dto/add-follow-up.dto';
@@ -679,8 +679,12 @@ export class FirstTimersService {
   ): Promise<PaginatedResult<FirstTimerDocument>> {
     const skip = (page - 1) * limit;
 
+    // The assignedTo field is stored as a string in the database, not ObjectId
     const filterQuery = {
-      assignedTo: memberId,
+      $or: [
+        { assignedTo: memberId },
+        { followUpPerson: memberId }
+      ],
       isActive: true,
       converted: false,
     };
@@ -688,6 +692,8 @@ export class FirstTimersService {
     const [firstTimers, total] = await Promise.all([
       this.firstTimerModel
         .find(filterQuery)
+        .populate('assignedTo', 'firstName lastName email')
+        .populate('followUpPerson', 'firstName lastName email')
         .sort({ nextFollowUpDate: 1, dateOfVisit: -1 })
         .skip(skip)
         .limit(limit),

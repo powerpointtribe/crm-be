@@ -4,7 +4,7 @@ const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey('wSsVR61z+hT2W6woyj2qdeoxkVkEVV6kE0wu0FahuHL1S/zF9cc5w0KaVACnSvFKQmQ8HDIV8Op/zBwF2zUIioh5wlADCCiF9mqRe1U4J3x17qnvhDzKW2pclhSKL4oPzwljmGdpFc0m+g==');
 
 const msg = {
-  to: 'test@example.com', // Change to your recipient
+  to: 'gthankgod@gmail.coom', // Change to your recipient
   from: 'hello@comtrova.com', // Change to your verified sender
   subject: 'Test SendGrid Integration',
   text: 'This is a test email from SendGrid integration',
