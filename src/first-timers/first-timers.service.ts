@@ -322,7 +322,7 @@ export class FirstTimersService {
       notes: followUpDto.notes,
       outcome: followUpDto.outcome,
       contactedBy: followUpDto.contactedBy,
-      nextFollowUpDate: followUpDto?.nextFollowUpDate?.toISOString().split('T')[0] || '',
+      nextFollowUpDate: followUpDto?.nextFollowUpDate ? new Date(followUpDto.nextFollowUpDate) : undefined,
     };
 
     // Update status based on outcome
@@ -349,7 +349,7 @@ export class FirstTimersService {
           $inc: { followUpCount: 1 },
           $set: {
             status: newStatus,
-            nextFollowUpDate: followUpDto.nextFollowUpDate || null,
+            nextFollowUpDate: followUpDto.nextFollowUpDate ? new Date(followUpDto.nextFollowUpDate) : null,
           },
         },
         { new: true },
