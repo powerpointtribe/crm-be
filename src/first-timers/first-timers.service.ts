@@ -322,7 +322,7 @@ export class FirstTimersService {
       notes: followUpDto.notes,
       outcome: followUpDto.outcome,
       contactedBy: followUpDto.contactedBy,
-      nextFollowUpDate: followUpDto.nextFollowUpDate,
+      nextFollowUpDate: followUpDto?.nextFollowUpDate?.toISOString().split('T')[0] || '',
     };
 
     // Update status based on outcome
