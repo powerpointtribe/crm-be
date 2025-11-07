@@ -72,7 +72,7 @@ export class BulkOperationsService {
         'lastName',
         'email',
         'phone',
-        'password',
+        // 'password',
         'dateOfBirth',
         'gender',
       ],
