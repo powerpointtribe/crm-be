@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsDateString,
   IsMongoId,
+  ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -52,8 +53,12 @@ export class AddFollowUpDto {
   @IsMongoId()
   contactedBy?: string;
 
-  @ApiPropertyOptional({ description: 'Next follow-up date' })
+  @ApiPropertyOptional({
+    description: 'Next follow-up date',
+    example: '2024-12-25T10:30:00.000Z'
+  })
   @IsOptional()
+  @ValidateIf((o) => o.nextFollowUpDate !== '' && o.nextFollowUpDate !== null)
   @IsDateString()
-  nextFollowUpDate?: Date;
+  nextFollowUpDate?: string;
 }
