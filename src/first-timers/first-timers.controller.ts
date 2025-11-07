@@ -765,10 +765,13 @@ export class FirstTimersController {
   async assignToMember(
     @Param('id') id: string,
     @Param('memberId') memberId: string,
+    @CurrentUser() user: any,
   ) {
+    const assignedBy = `${user.firstName} ${user.lastName}`;
     const firstTimer = await this.firstTimersService.assignToMember(
       id,
       memberId,
+      assignedBy,
     );
     return ResponseUtil.success(
       firstTimer,
@@ -809,10 +812,13 @@ export class FirstTimersController {
   async assignFollowUp(
     @Param('id') id: string,
     @Body() assignDto: AssignFollowUpDto,
+    @CurrentUser() user: any,
   ) {
+    const assignedBy = `${user.firstName} ${user.lastName}`;
     const firstTimer = await this.firstTimersService.assignFollowUp(
       id,
       assignDto.followUpPersonId,
+      assignedBy,
     );
     return ResponseUtil.success(
       firstTimer,
@@ -953,6 +959,7 @@ export class FirstTimersController {
     body: {
       assignments: Array<{ firstTimerId: string; memberId: string }>;
     },
+    @CurrentUser() user: any,
   ) {
     const results: Array<{
       success: boolean;
@@ -961,11 +968,14 @@ export class FirstTimersController {
       firstTimerId?: string;
     }> = [];
 
+    const assignedBy = `${user.firstName} ${user.lastName}`;
+
     for (const assignment of body.assignments) {
       try {
         const firstTimer = await this.firstTimersService.assignToMember(
           assignment.firstTimerId,
           assignment.memberId,
+          assignedBy,
         );
         results.push({ success: true, firstTimer });
       } catch (error: any) {

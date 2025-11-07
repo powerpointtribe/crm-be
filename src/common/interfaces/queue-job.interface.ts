@@ -25,6 +25,7 @@ export enum JobType {
   SEND_BULK_ASSIGNMENT_NOTIFICATION = 'send-bulk-assignment-notification',
   SEND_DISTRICT_ASSIGNMENT_NOTIFICATION = 'send-district-assignment-notification',
   CREATE_MEMBER_FROM_FIRST_TIMER = 'create-member-from-first-timer',
+  SEND_MEMBER_FOLLOWUP_ASSIGNMENT = 'send-member-followup-assignment',
 }
 
 export interface BulkOperationJobData {

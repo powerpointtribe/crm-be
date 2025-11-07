@@ -381,6 +381,7 @@ export class FirstTimersService {
   async assignFollowUp(
     id: string,
     followUpPersonId: string,
+    assignedBy?: string,
   ): Promise<FirstTimerDocument> {
     const firstTimer = await this.firstTimerModel
       .findByIdAndUpdate(
@@ -398,6 +399,16 @@ export class FirstTimersService {
 
     if (!firstTimer) {
       throw new NotFoundException('First-timer not found');
+    }
+
+    // Trigger email notification job as a side effect
+    if (firstTimer.followUpPerson) {
+      await this.triggerMemberAssignmentNotification(
+        [firstTimer],
+        firstTimer.followUpPerson as any,
+        'followup',
+        assignedBy,
+      );
     }
 
     return firstTimer;
@@ -504,6 +515,7 @@ export class FirstTimersService {
   async assignToMember(
     id: string,
     memberId: string,
+    assignedBy?: string,
   ): Promise<FirstTimerDocument> {
     const firstTimer = await this.firstTimerModel
       .findByIdAndUpdate(id, { $set: { assignedTo: memberId } }, { new: true })
@@ -513,7 +525,55 @@ export class FirstTimersService {
       throw new NotFoundException('First-timer not found');
     }
 
+    // Trigger email notification job as a side effect
+    if (firstTimer.assignedTo) {
+      await this.triggerMemberAssignmentNotification(
+        [firstTimer],
+        firstTimer.assignedTo as any,
+        'assignment',
+        assignedBy,
+      );
+    }
+
     return firstTimer;
+  }
+
+  // Helper method to trigger email notification for member assignments
+  private async triggerMemberAssignmentNotification(
+    firstTimers: FirstTimerDocument[],
+    assignedMember: any,
+    assignmentType: 'assignment' | 'followup',
+    assignedBy?: string,
+  ): Promise<void> {
+    try {
+      const { JobType } = await import('../common/interfaces/queue-job.interface');
+
+      await this.queueService.addJob(JobType.SEND_MEMBER_FOLLOWUP_ASSIGNMENT, {
+        type: 'member_assignment',
+        additionalData: {
+          memberEmail: assignedMember.email,
+          memberName: `${assignedMember.firstName} ${assignedMember.lastName}`,
+          firstTimers: firstTimers.map(ft => ({
+            firstName: ft.firstName,
+            lastName: ft.lastName,
+            phone: ft.phone,
+            email: ft.email,
+            dateOfVisit: ft.dateOfVisit,
+          })),
+          assignmentType,
+          assignedBy: assignedBy || 'Church Leadership',
+        },
+      });
+
+      this.logger.log(
+        `Enqueued ${assignmentType} assignment notification for ${assignedMember.email} with ${firstTimers.length} first-timer(s)`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to enqueue assignment notification: ${error.message}`,
+      );
+      // Don't throw here to avoid disrupting the main assignment flow
+    }
   }
 
   // Analytics and Reports

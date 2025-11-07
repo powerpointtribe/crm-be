@@ -601,4 +601,86 @@ export class NotificationsService {
       html,
     });
   }
+
+  async sendMemberFollowupAssignmentNotification(data: {
+    memberEmail: string;
+    memberName: string;
+    firstTimers: Array<{
+      firstName: string;
+      lastName: string;
+      phone: string;
+      email?: string;
+      dateOfVisit: string;
+    }>;
+    assignmentType: 'assignment' | 'followup';
+    assignedBy: string;
+  }): Promise<void> {
+    const firstTimersList = data.firstTimers
+      .map(
+        (ft) =>
+          `<li style="margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+            <strong>${ft.firstName} ${ft.lastName}</strong><br/>
+            📞 ${ft.phone}${ft.email ? `<br/>📧 ${ft.email}` : ''}<br/>
+            🗓️ Visit Date: ${ft.dateOfVisit}
+          </li>`,
+      )
+      .join('');
+
+    const actionType = data.assignmentType === 'followup' ? 'follow up with' : 'assigned to';
+    const titleType = data.assignmentType === 'followup' ? 'Follow-Up' : 'Assignment';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0; font-size: 24px;">📋 New First-Timer ${titleType}</h1>
+        </div>
+
+        <div style="padding: 30px; background: white; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+          <p style="font-size: 16px; margin-bottom: 20px;">Dear ${data.memberName},</p>
+
+          <p>You have been <strong>${actionType}</strong> the following first-timer(s) by ${data.assignedBy}:</p>
+
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="color: #333; margin-top: 0;">👥 Your Assigned First-Timers:</h3>
+            <ul style="list-style-type: none; padding: 0; margin: 0;">
+              ${firstTimersList}
+            </ul>
+          </div>
+
+          <div style="background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%); padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #667eea;">
+            <h3 style="color: #333; margin-top: 0;">📝 ${titleType} Guidelines:</h3>
+            <ul style="color: #555; margin-bottom: 0;">
+              <li style="margin-bottom: 8px;">✅ <strong>Contact within 24-48 hours</strong> - First impressions matter!</li>
+              <li style="margin-bottom: 8px;">📞 <strong>Complete 4 call reports</strong> for each first-timer to track progress</li>
+              <li style="margin-bottom: 8px;">⛪ <strong>Track service attendance</strong> (2nd, 3rd, and 4th services)</li>
+              <li style="margin-bottom: 8px;">📈 <strong>Update integration stages</strong> as they progress in their journey</li>
+              <li style="margin-bottom: 8px;">❤️ <strong>Show genuine care</strong> and help them feel welcomed in our church family</li>
+            </ul>
+          </div>
+
+          <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 25px 0;">
+            <p style="margin: 0; color: #2d5f2d; font-weight: 500;">
+              💡 <strong>Remember:</strong> Your role is crucial in helping these visitors feel connected and welcomed.
+              Each person represents someone God has brought to our church family!
+            </p>
+          </div>
+
+          <p style="margin-top: 30px;">Thank you for your heart for people and your commitment to excellent follow-up!</p>
+
+          <div style="border-top: 2px solid #f0f0f0; padding-top: 20px; margin-top: 30px;">
+            <p style="margin: 0; color: #777;">
+              Blessings,<br/>
+              <strong>The Church Leadership Team</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.memberEmail,
+      subject: `🔔 ${titleType} Notification: ${data.firstTimers.length} First-Timer(s) Assigned to You`,
+      html,
+    });
+  }
 }

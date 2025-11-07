@@ -388,4 +388,50 @@ export class FirstTimerNotificationProcessor {
       throw error;
     }
   }
+
+  @Process(JobType.SEND_MEMBER_FOLLOWUP_ASSIGNMENT)
+  async handleMemberFollowupAssignment(job: Job<FirstTimerNotificationJobData>) {
+    this.logger.log(`Processing member followup assignment notification for job: ${job.id}`);
+
+    try {
+      const { additionalData } = job.data;
+      const {
+        memberEmail,
+        memberName,
+        firstTimers,
+        assignmentType,
+        assignedBy
+      } = additionalData || {};
+
+      if (!memberEmail || !firstTimers?.length) {
+        this.logger.warn('Missing required data for member followup assignment notification');
+        return {
+          success: false,
+          reason: 'Missing member email or first-timers data',
+        };
+      }
+
+      await this.notificationsService.sendMemberFollowupAssignmentNotification({
+        memberEmail,
+        memberName: memberName || 'Team Member',
+        firstTimers: firstTimers.map((ft: any) => ({
+          firstName: ft.firstName,
+          lastName: ft.lastName,
+          phone: ft.phone,
+          email: ft.email,
+          dateOfVisit: ft.dateOfVisit ? new Date(ft.dateOfVisit).toLocaleDateString() : new Date().toLocaleDateString(),
+        })),
+        assignmentType: assignmentType || 'followup', // 'followup' or 'assignment'
+        assignedBy: assignedBy || 'Church Leadership',
+      });
+
+      this.logger.log(`Member followup assignment notification sent to ${memberEmail}`);
+      return { success: true, memberEmail, count: firstTimers.length };
+    } catch (error) {
+      this.logger.error(
+        `Failed to send member followup assignment notification: ${error.message}`,
+      );
+      throw error;
+    }
+  }
 }
