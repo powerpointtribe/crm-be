@@ -13,14 +13,14 @@ export class EmailProvider {
   private emailProvider: 'resend' | 'sendgrid' | 'nodemailer';
 
   constructor(private configService: ConfigService) {
-    this.emailProvider = this.configService.get<string>('EMAIL_PROVIDER') as 'resend' | 'sendgrid' | 'nodemailer' || 'resend';
+    this.emailProvider = this.configService.get<string>('EMAIL_PROVIDER') as 'resend' | 'sendgrid' | 'nodemailer' || 'nodemailer';
 
     if (this.emailProvider === 'sendgrid') {
       this.initializeSendGrid();
-    } else if (this.emailProvider === 'nodemailer') {
-      this.initializeNodemailer();
-    } else {
+    } else if (this.emailProvider === 'resend') {
       this.initializeResend();
+    } else {
+      this.initializeNodemailer();
     }
   }
 
