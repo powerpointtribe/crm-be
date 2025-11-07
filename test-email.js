@@ -28,7 +28,7 @@ async function testEmail() {
 
   // Test email
   const mailOptions = {
-    from: 'Church Management System <hello@comtrova.com>',
+    from: `Church Management System <${process.env.SENDER_EMAIL}>`,
     to: 'gthankgod@gmail.com', // Your email address
     subject: 'Test Email - Nodemailer + SendGrid',
     html: `

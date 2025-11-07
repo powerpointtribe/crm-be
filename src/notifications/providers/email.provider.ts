@@ -66,13 +66,10 @@ export class EmailProvider {
     this.nodemailerTransporter = nodemailer.createTransport({
       host: smtpHost,
       port: smtpPort,
-      secure: false, // true for 465, false for other ports
+      secure: true,
       auth: {
         user: smtpUser,
         pass: apiKey, // SendGrid API key as password
-      },
-      tls: {
-        rejectUnauthorized: false
       },
       debug: process.env.NODE_ENV === 'development',
       logger: process.env.NODE_ENV === 'development'
