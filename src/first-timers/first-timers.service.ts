@@ -549,16 +549,20 @@ export class FirstTimersService {
       const { JobType } = await import('../common/interfaces/queue-job.interface');
 
       await this.queueService.addJob(JobType.SEND_MEMBER_FOLLOWUP_ASSIGNMENT, {
+        firstTimerId: firstTimers[0]?._id?.toString() || 'bulk',
         type: 'member_assignment',
         additionalData: {
           memberEmail: assignedMember.email,
           memberName: `${assignedMember.firstName} ${assignedMember.lastName}`,
+          // Also add fields that processors expect
+          assigneeEmail: assignedMember.email,
+          assigneeName: `${assignedMember.firstName} ${assignedMember.lastName}`,
           firstTimers: firstTimers.map(ft => ({
             firstName: ft.firstName,
             lastName: ft.lastName,
             phone: ft.phone,
             email: ft.email,
-            dateOfVisit: ft.dateOfVisit,
+            dateOfVisit: ft.dateOfVisit ? ft.dateOfVisit.toISOString() : new Date().toISOString(),
           })),
           assignmentType,
           assignedBy: assignedBy || 'Church Leadership',

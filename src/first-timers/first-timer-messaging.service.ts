@@ -280,106 +280,7 @@ export class FirstTimerMessagingService {
     await Promise.allSettled(promises);
   }
 
-  async assignFirstTimerForFollowUp(
-    firstTimerId: string,
-    assigneeId: string,
-    assignedBy: string,
-  ): Promise<void> {
-    // Update first timer with assignment
-    await this.firstTimerModel.findByIdAndUpdate(firstTimerId, {
-      assignedTo: assigneeId,
-      followUpPerson: assigneeId,
-      stage: 'engaged',
-      lastStatusChange: new Date(),
-    });
-
-    // Get first timer details
-    const firstTimer = await this.firstTimerModel.findById(firstTimerId).exec();
-
-    if (!firstTimer) {
-      this.logger.error(`First timer ${firstTimerId} not found`);
-      return;
-    }
-
-    // Get assignee details from members collection
-    try {
-      // This would need to be imported from members service
-      // For now, we'll add a queue job to handle the notification
-      await this.queueService.addJob(JobType.SEND_ASSIGNMENT_NOTIFICATION, {
-        firstTimerId,
-        assigneeId,
-        assignedBy,
-        firstTimerData: {
-          firstName: firstTimer.firstName,
-          lastName: firstTimer.lastName,
-          phone: firstTimer.phone,
-          email: firstTimer.email,
-          dateOfVisit: firstTimer.dateOfVisit.toISOString().split('T')[0],
-        },
-      });
-
-      this.logger.log(
-        `First timer ${firstTimerId} assigned to ${assigneeId} by ${assignedBy}`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to queue assignment notification for ${firstTimerId}:`,
-        error,
-      );
-    }
-  }
-
-  async bulkAssignFirstTimers(
-    assignments: Array<{
-      firstTimerId: string;
-      assigneeId: string;
-    }>,
-    assignedBy: string,
-  ): Promise<void> {
-    // Process assignments individually
-    const promises = assignments.map((assignment) =>
-      this.assignFirstTimerForFollowUp(
-        assignment.firstTimerId,
-        assignment.assigneeId,
-        assignedBy,
-      ),
-    );
-
-    await Promise.all(promises);
-
-    // Group assignments by assignee for bulk notification
-    const assignmentsByAssignee = assignments.reduce(
-      (acc, assignment) => {
-        if (!acc[assignment.assigneeId]) {
-          acc[assignment.assigneeId] = [];
-        }
-        acc[assignment.assigneeId].push(assignment.firstTimerId);
-        return acc;
-      },
-      {} as Record<string, string[]>,
-    );
-
-    // Queue bulk notification jobs for each assignee
-    for (const [assigneeId, firstTimerIds] of Object.entries(
-      assignmentsByAssignee,
-    )) {
-      try {
-        await this.queueService.addJob(
-          JobType.SEND_BULK_ASSIGNMENT_NOTIFICATION,
-          {
-            assigneeId,
-            firstTimerIds,
-            assignedBy,
-          },
-        );
-      } catch (error) {
-        this.logger.error(
-          `Failed to queue bulk assignment notification for assignee ${assigneeId}:`,
-          error,
-        );
-      }
-    }
-  }
+  // Legacy assignment methods removed - use FirstTimersService.assignToMember() instead
 
   async updateIntegrationStage(
     firstTimerId: string,
@@ -406,28 +307,16 @@ export class FirstTimerMessagingService {
           .findById(firstTimerId)
           .exec();
         if (firstTimer) {
-          await this.queueService.addJob(
-            JobType.SEND_DISTRICT_ASSIGNMENT_NOTIFICATION,
-            {
-              firstTimerId,
-              assignedDistrict,
-              newMemberData: {
-                firstName: firstTimer.firstName,
-                lastName: firstTimer.lastName,
-                phone: firstTimer.phone,
-                email: firstTimer.email,
-                integratedDate: new Date().toISOString().split('T')[0],
-              },
-            },
-          );
+          // District assignment notification would be handled separately
+          // Legacy SEND_DISTRICT_ASSIGNMENT_NOTIFICATION job type removed
         }
 
         this.logger.log(
-          `First timer ${firstTimerId} assigned to district ${assignedDistrict} - notification queued`,
+          `First timer ${firstTimerId} assigned to district ${assignedDistrict}`,
         );
       } catch (error) {
         this.logger.error(
-          `Failed to queue district assignment notification for ${firstTimerId}:`,
+          `Failed to process district assignment for ${firstTimerId}:`,
           error,
         );
       }

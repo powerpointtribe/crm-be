@@ -1411,27 +1411,7 @@ export class FirstTimersController {
   }
 
   // Assignment Endpoints
-  @Post('bulk-assign-followup')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
-  @ApiOperation({ summary: 'Bulk assign first timers for follow-up' })
-  @ApiResponse({
-    status: 200,
-    description: 'Bulk assignment completed successfully',
-  })
-  async bulkAssignForFollowUp(
-    @Body()
-    body: {
-      assignments: Array<{ firstTimerId: string; assigneeId: string }>;
-    },
-    @CurrentUser() user: any,
-  ) {
-    await this.firstTimerMessagingService.bulkAssignFirstTimers(
-      body.assignments,
-      user.id,
-    );
-
-    return ResponseUtil.success(null, 'Bulk assignment completed successfully');
-  }
+  // Legacy bulk-assign-followup endpoint removed - use POST /bulk-assign instead
 
   @Post(':id/close')
   // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED

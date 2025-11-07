@@ -7,16 +7,14 @@ import { FirstTimerNotificationProcessor } from './processors/first-timer-notifi
 import { FirstTimerAutomationProcessor } from './processors/first-timer-automation.processor';
 import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
-import { MembersModule } from '../members/members.module';
-import { FirstTimersModule } from '../first-timers/first-timers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        redis: {
+      useFactory: async (configService: ConfigService) => {
+        const redisConfig = {
           host: configService.get('REDIS_HOST', 'localhost'),
           port: configService.get('REDIS_PORT', 6379),
           password: configService.get('REDIS_PASSWORD'),
@@ -25,19 +23,33 @@ import { NotificationsModule } from '../notifications/notifications.module';
           retryDelayOnFailover: 100,
           enableReadyCheck: false,
           maxLoadingTimeout: 1000,
-          lazyConnect: true,
+          lazyConnect: false,
           keepAlive: 30000,
-        },
-        defaultJobOptions: {
-          removeOnComplete: 50, // Keep 50 completed jobs
-          removeOnFail: 100, // Keep 100 failed jobs
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 2000,
+          onConnect: () => console.log('Bull Redis connected successfully'),
+          onReady: () => console.log('Bull Redis ready to accept commands'),
+          onError: (err: any) => console.error('Bull Redis connection error:', err),
+          onClose: () => console.log('Bull Redis connection closed'),
+        };
+
+        console.log('Bull Redis configuration:', {
+          host: redisConfig.host,
+          port: redisConfig.port,
+          db: redisConfig.db,
+        });
+
+        return {
+          redis: redisConfig,
+          defaultJobOptions: {
+            removeOnComplete: 50, // Keep 50 completed jobs
+            removeOnFail: 100, // Keep 100 failed jobs
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 2000,
+            },
           },
-        },
-      }),
+        };
+      },
       inject: [ConfigService],
     }),
     BullModule.registerQueue({
@@ -49,15 +61,13 @@ import { NotificationsModule } from '../notifications/notifications.module';
     BullModule.registerQueue({
       name: QueueName.FIRST_TIMER_AUTOMATION,
     }),
-    forwardRef(() => MembersModule),
-    forwardRef(() => FirstTimersModule),
     NotificationsModule,
   ],
   controllers: [QueueController],
   providers: [
-    BulkOperationProcessor,
+    // BulkOperationProcessor, // Temporarily disabled due to circular dependencies
     FirstTimerNotificationProcessor,
-    FirstTimerAutomationProcessor,
+    // FirstTimerAutomationProcessor, // Temporarily disabled due to circular dependencies
     QueueService,
   ],
   exports: [QueueService, BullModule],

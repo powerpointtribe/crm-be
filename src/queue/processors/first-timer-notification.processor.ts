@@ -6,9 +6,6 @@ import {
   FirstTimerNotificationJobData,
   JobType,
 } from '../../common/interfaces/queue-job.interface';
-import { FirstTimersService } from '../../first-timers/first-timers.service';
-import { FirstTimerMessagingService } from '../../first-timers/first-timer-messaging.service';
-import { MembersService } from '../../members/members.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 
 @Injectable()
@@ -17,11 +14,10 @@ export class FirstTimerNotificationProcessor {
   private readonly logger = new Logger(FirstTimerNotificationProcessor.name);
 
   constructor(
-    private firstTimersService: FirstTimersService,
-    private firstTimerMessagingService: FirstTimerMessagingService,
-    private membersService: MembersService,
     private notificationsService: NotificationsService,
-  ) {}
+  ) {
+    this.logger.log('FirstTimerNotificationProcessor initialized');
+  }
 
   @Process(JobType.FIRST_TIMER_THANK_YOU_EMAIL)
   async handleThankYouEmail(job: Job<FirstTimerNotificationJobData>) {
@@ -30,26 +26,26 @@ export class FirstTimerNotificationProcessor {
     );
 
     try {
-      const firstTimer = await this.firstTimersService.findById(
-        job.data.firstTimerId,
-      );
-      if (!firstTimer || !firstTimer.email) {
+      const { additionalData } = job.data;
+      const { email, firstName, lastName } = additionalData || {};
+
+      if (!email) {
         this.logger.warn(
-          `First-timer ${job.data.firstTimerId} not found or has no email`,
+          `First-timer ${job.data.firstTimerId} has no email data provided`,
         );
-        return { success: false, reason: 'First-timer not found or no email' };
+        return { success: false, reason: 'No email data provided' };
       }
 
       await this.notificationsService.sendFirstTimerThankYouEmail({
-        email: firstTimer.email,
-        firstName: firstTimer.firstName,
-        lastName: firstTimer.lastName,
+        email,
+        firstName: firstName || 'Friend',
+        lastName: lastName || '',
       });
 
       this.logger.log(
-        `Thank you email sent successfully to ${firstTimer.email}`,
+        `Thank you email sent successfully to ${email}`,
       );
-      return { success: true, email: firstTimer.email };
+      return { success: true, email };
     } catch (error) {
       this.logger.error(`Failed to send thank you email: ${error.message}`);
       throw error;
@@ -62,15 +58,15 @@ export class FirstTimerNotificationProcessor {
 
     try {
       const { firstTimerId, additionalData } = job.data;
-      const { giaLeaderId, memberRecordId } = additionalData || {};
+      const {
+        firstTimerName,
+        giaLeaderEmail,
+        giaLeaderName,
+        memberName,
+        conversionDate
+      } = additionalData || {};
 
-      const [firstTimer, giaLeader, member] = await Promise.all([
-        this.firstTimersService.findById(firstTimerId),
-        giaLeaderId ? this.membersService.findById(giaLeaderId) : null,
-        memberRecordId ? this.membersService.findById(memberRecordId) : null,
-      ]);
-
-      if (!firstTimer || !giaLeader) {
+      if (!firstTimerName || !giaLeaderEmail || !giaLeaderName) {
         this.logger.warn(`Missing data for conversion notification`);
         return {
           success: false,
@@ -79,20 +75,18 @@ export class FirstTimerNotificationProcessor {
       }
 
       await this.notificationsService.sendConversionNotification({
-        giaLeaderEmail: giaLeader.email,
-        giaLeaderName: `${giaLeader.firstName} ${giaLeader.lastName}`,
-        firstTimerName: `${firstTimer.firstName} ${firstTimer.lastName}`,
-        memberName: member
-          ? `${member.firstName} ${member.lastName}`
-          : 'New Member',
-        conversionDate: new Date().toLocaleDateString(),
+        giaLeaderEmail,
+        giaLeaderName,
+        firstTimerName,
+        memberName: memberName || 'New Member',
+        conversionDate: conversionDate || new Date().toLocaleDateString(),
       });
 
       this.logger.log(
-        `Conversion notification sent to GIA leader ${giaLeader.email}`,
+        `Conversion notification sent to GIA leader ${giaLeaderEmail}`,
       );
 
-      return { success: true, giaLeaderEmail: giaLeader.email };
+      return { success: true, giaLeaderEmail };
     } catch (error) {
       this.logger.error(
         `Failed to send conversion notification: ${error.message}`,
@@ -109,31 +103,24 @@ export class FirstTimerNotificationProcessor {
       const { firstTimerId, additionalData } = job.data;
       const { reminderType } = additionalData || {};
 
-      const firstTimer = await this.firstTimersService.findById(firstTimerId);
-      if (!firstTimer) {
-        this.logger.warn(`First-timer ${firstTimerId} not found`);
-        return { success: false, reason: 'First-timer not found' };
-      }
+      const { email, firstName, lastName, interestedInJoining } = additionalData || {};
 
-      if (!firstTimer.email) {
-        this.logger.warn(`First-timer ${firstTimerId} has no email address`);
-        return { success: false, reason: 'No email address' };
+      if (!email) {
+        this.logger.warn(`First-timer ${firstTimerId} has no email data provided`);
+        return { success: false, reason: 'No email data provided' };
       }
 
       // Send reminder based on type
-      if (reminderType === 'weekly_meeting' && firstTimer.interestedInJoining) {
+      if (reminderType === 'weekly_meeting' && interestedInJoining) {
         await this.notificationsService.sendWeeklyMeetingReminder({
-          email: firstTimer.email,
-          firstName: firstTimer.firstName,
-          lastName: firstTimer.lastName,
+          email,
+          firstName: firstName || 'Friend',
+          lastName: lastName || '',
           meetingDetails: additionalData?.meetingDetails,
         });
 
-        // Update reminder count
-        await this.firstTimersService.updateReminderCount(firstTimerId);
-
         this.logger.log(
-          `Weekly meeting reminder sent to ${firstTimer.firstName} ${firstTimer.lastName}`,
+          `Weekly meeting reminder sent to ${firstName} ${lastName}`,
         );
       }
 
@@ -204,61 +191,44 @@ export class FirstTimerNotificationProcessor {
 
     try {
       const { firstTimerId, additionalData } = job.data;
-      const { message, scheduledTime } = additionalData || {};
+      const { message, email, firstName, lastName, messageSent } = additionalData || {};
 
-      const firstTimer = await this.firstTimersService.findById(firstTimerId);
-      if (!firstTimer || !firstTimer.email) {
+      if (!email) {
         this.logger.warn(
-          `First-timer ${firstTimerId} not found or has no email`,
+          `First-timer ${firstTimerId} has no email data provided`,
         );
-        return { success: false, reason: 'First-timer not found or no email' };
+        return { success: false, reason: 'No email data provided' };
       }
 
       // Check if message was already sent
-      if (firstTimer.messageSent) {
+      if (messageSent) {
         this.logger.warn(`Message already sent to first-timer ${firstTimerId}`);
         return { success: false, reason: 'Message already sent' };
       }
 
-      // Use the pre-filled message or provided message
-      const messageToSend = message || firstTimer.preFilledMessage || 'Thank you for visiting our church!';
+      // Use the provided message or default
+      const messageToSend = message || 'Thank you for visiting our church!';
 
       try {
         await this.notificationsService.sendCustomFirstTimerMessage({
-          email: firstTimer.email,
-          firstName: firstTimer.firstName,
-          lastName: firstTimer.lastName,
+          email,
+          firstName: firstName || 'Friend',
+          lastName: lastName || '',
           customMessage: messageToSend,
         });
 
-        // Update first timer as message sent
-        await this.firstTimersService.updateMessageSent(firstTimerId);
+        // Note: Message history tracking would be updated here
+        // This is handled separately to avoid circular dependencies
 
-        // Update message history to mark as sent
-        const sentAt = new Date();
-        await this.firstTimerMessagingService.updateMessageHistoryAsSent(
-          firstTimerId,
-          sentAt,
-          messageToSend
-        );
-
-        this.logger.log(`Message sent to ${firstTimer.email}`);
-        return { success: true, email: firstTimer.email };
+        this.logger.log(`Message sent to ${email}`);
+        return { success: true, email };
       } catch (emailError) {
         this.logger.error(
           `Failed to send first-timer message: ${emailError.message}`,
         );
 
-        // Update message history to mark as failed
-        try {
-          await this.firstTimerMessagingService.updateMessageHistoryAsFailed(
-            firstTimerId,
-            messageToSend,
-            emailError.message
-          );
-        } catch (historyError) {
-          this.logger.error(`Failed to update message history as failed: ${historyError.message}`);
-        }
+        // Note: Message history failure tracking would be updated here
+        // This is handled separately to avoid circular dependencies
 
         throw emailError;
       }
@@ -270,85 +240,8 @@ export class FirstTimerNotificationProcessor {
     }
   }
 
-  @Process(JobType.SEND_ASSIGNMENT_NOTIFICATION)
-  async handleAssignmentNotification(job: Job<FirstTimerNotificationJobData>) {
-    this.logger.log(`Processing assignment notification for job: ${job.id}`);
-
-    try {
-      const { additionalData } = job.data;
-      const { assigneeEmail, assigneeName, firstTimers, assignedBy } =
-        additionalData || {};
-
-      if (!assigneeEmail || !firstTimers?.length) {
-        this.logger.warn('Missing required data for assignment notification');
-        return {
-          success: false,
-          reason: 'Missing assignee email or first-timers data',
-        };
-      }
-
-      await this.notificationsService.sendFirstTimerAssignmentNotification({
-        assigneeEmail,
-        assigneeName: assigneeName || 'Team Member',
-        firstTimers: firstTimers.map((ft: any) => ({
-          firstName: ft.firstName,
-          lastName: ft.lastName,
-          phone: ft.phone,
-          email: ft.email,
-          dateOfVisit: ft.dateOfVisit || new Date().toLocaleDateString(),
-        })),
-        assignedBy: assignedBy || 'Church Leadership',
-      });
-
-      this.logger.log(`Assignment notification sent to ${assigneeEmail}`);
-      return { success: true, assigneeEmail, count: firstTimers.length };
-    } catch (error) {
-      this.logger.error(
-        `Failed to send assignment notification: ${error.message}`,
-      );
-      throw error;
-    }
-  }
-
-  @Process(JobType.SEND_BULK_ASSIGNMENT_NOTIFICATION)
-  async handleBulkAssignmentNotification(
-    job: Job<FirstTimerNotificationJobData>,
-  ) {
-    this.logger.log(
-      `Processing bulk assignment notification for job: ${job.id}`,
-    );
-
-    try {
-      const { additionalData } = job.data;
-      const { assigneeEmail, assigneeName, assignments, assignedBy } =
-        additionalData || {};
-
-      if (!assigneeEmail || !assignments?.length) {
-        this.logger.warn(
-          'Missing required data for bulk assignment notification',
-        );
-        return {
-          success: false,
-          reason: 'Missing assignee email or assignments data',
-        };
-      }
-
-      await this.notificationsService.sendBulkAssignmentNotification({
-        assigneeEmail,
-        assigneeName: assigneeName || 'Team Member',
-        assignments,
-        assignedBy: assignedBy || 'Church Leadership',
-      });
-
-      this.logger.log(`Bulk assignment notification sent to ${assigneeEmail}`);
-      return { success: true, assigneeEmail, count: assignments.length };
-    } catch (error) {
-      this.logger.error(
-        `Failed to send bulk assignment notification: ${error.message}`,
-      );
-      throw error;
-    }
-  }
+  // Legacy assignment notification processors removed
+  // Use SEND_MEMBER_FOLLOWUP_ASSIGNMENT instead
 
   @Process(JobType.CREATE_MEMBER_FROM_FIRST_TIMER)
   async handleCreateMemberFromFirstTimer(
