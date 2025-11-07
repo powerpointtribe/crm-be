@@ -116,8 +116,12 @@ export class FirstTimer {
   @Prop({ type: Types.ObjectId, ref: 'Member' })
   followUpPerson?: Types.ObjectId;
 
-  @Prop({ type: Boolean, default: false })
-  interestedInJoining: boolean;
+  @Prop({
+    type: String,
+    enum: ['yes', 'no', 'maybe'],
+    default: undefined
+  })
+  interestedInJoining?: string;
 
   // Integration stage tracking
   @Prop({

@@ -259,12 +259,12 @@ export class CreateFirstTimerDto {
   notes?: string;
 
   @ApiPropertyOptional({
-    description: 'Is interested in joining the tribe',
-    default: false,
+    description: 'Interest in joining PowerPoint Tribe',
+    enum: ['yes', 'no', 'maybe']
   })
   @IsOptional()
-  @IsBoolean()
-  interestedInJoining?: boolean;
+  @IsEnum(['yes', 'no', 'maybe'])
+  interestedInJoining?: string;
 
   @ApiPropertyOptional({
     description: 'GIA leader Member ID (auto-assigned if not provided)',

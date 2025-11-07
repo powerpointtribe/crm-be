@@ -172,9 +172,18 @@ export class FirstTimersController {
         ...relevantData
       } = createFirstTimerDto;
 
+      // Handle interestedInJoining field properly
+      const interestedInJoining = createFirstTimerDto.interestedInJoining;
+      let validInterestedInJoining: string | undefined = undefined;
+
+      if (interestedInJoining && ['yes', 'no', 'maybe'].includes(interestedInJoining as string)) {
+        validInterestedInJoining = interestedInJoining as string;
+      }
+
       const internalDto: CreateFirstTimerDto = {
         ...relevantData,
         dateOfVisit: new Date().toISOString().split('T')[0], // Set to today
+        interestedInJoining: validInterestedInJoining,
         notes: createFirstTimerDto.notes
           ? `[PUBLIC DOMAIN] ${createFirstTimerDto.notes}`
           : '[PUBLIC DOMAIN] Registration from website/public form',
@@ -184,17 +193,7 @@ export class FirstTimersController {
 
       const firstTimer = await this.firstTimersService.create(internalDto);
 
-      // Auto-create daily message entry for the visit date
-      try {
-        const visitDate = new Date(internalDto.dateOfVisit);
-        await this.firstTimerMessagingService.ensureDailyMessageEntry(
-          visitDate,
-          [(firstTimer._id as any).toString()]
-        );
-      } catch (error) {
-        // Log error but don't fail the creation
-        console.error('Failed to auto-create daily message entry:', error);
-      }
+      // Skip auto-creation of daily message entry - messages will be created manually
 
       // Automatically set up message scheduling for public registrations
       const defaultMessage = `Hello ${firstTimer.firstName},\n\nThank you so much for visiting our church! We're thrilled that you chose to worship with us.\n\nOur follow-up team will be reaching out to you soon to help you get better connected with our church family. In the meantime, we hope you'll consider joining us again for our next service.\n\nIf you have any questions or need anything at all, please don't hesitate to reach out.\n\nBlessings,\nThe Church Team`;
@@ -254,17 +253,7 @@ export class FirstTimersController {
     const firstTimer =
       await this.firstTimersService.create(createFirstTimerDto);
 
-    // Auto-create daily message entry for the visit date
-    try {
-      const visitDate = new Date(createFirstTimerDto.dateOfVisit);
-      await this.firstTimerMessagingService.ensureDailyMessageEntry(
-        visitDate,
-        [(firstTimer._id as any).toString()]
-      );
-    } catch (error) {
-      // Log error but don't fail the creation
-      console.error('Failed to auto-create daily message entry:', error);
-    }
+    // Skip auto-creation of daily message entry - messages will be created manually
 
     return ResponseUtil.success(
       firstTimer,
@@ -957,7 +946,13 @@ export class FirstTimersController {
   async bulkAssign(
     @Body()
     body: {
-      assignments: Array<{ firstTimerId: string; memberId: string }>;
+      assignments: Array<{
+        firstTimerId: string;
+        memberId?: string;
+        followUpPersonId?: string;
+        assigneeId?: string;
+      }>;
+      assignmentType?: 'assignment' | 'followup';
     },
     @CurrentUser() user: any,
   ) {
@@ -971,23 +966,41 @@ export class FirstTimersController {
     const assignedBy = `${user.firstName} ${user.lastName}`;
 
     // Group assignments by member to send consolidated notifications
-    const memberAssignments = new Map<string, string[]>();
+    const memberAssignments = new Map<string, Array<any>>();
 
-    for (const assignment of body.assignments) {
-      if (!memberAssignments.has(assignment.memberId)) {
-        memberAssignments.set(assignment.memberId, []);
-      }
-      memberAssignments.get(assignment.memberId)!.push(assignment.firstTimerId);
-    }
+    // Determine assignment type and target member field
+    const isFollowUpAssignment = body.assignmentType === 'followup' ||
+                                body.assignments.some(a => a.followUpPersonId || a.assigneeId);
 
     // Process assignments without triggering individual notifications
     for (const assignment of body.assignments) {
       try {
-        const firstTimer = await this.firstTimersService.assignToMemberWithoutNotification(
-          assignment.firstTimerId,
-          assignment.memberId,
-        );
+        let firstTimer: any;
+        const targetMemberId = assignment.memberId || assignment.followUpPersonId || assignment.assigneeId;
+
+        if (!targetMemberId) {
+          throw new Error('Either memberId, followUpPersonId, or assigneeId must be provided');
+        }
+
+        if (isFollowUpAssignment || assignment.followUpPersonId || assignment.assigneeId) {
+          firstTimer = await this.firstTimersService.assignFollowUpWithoutNotification(
+            assignment.firstTimerId,
+            targetMemberId,
+          );
+        } else {
+          firstTimer = await this.firstTimersService.assignToMemberWithoutNotification(
+            assignment.firstTimerId,
+            targetMemberId,
+          );
+        }
+
         results.push({ success: true, firstTimer });
+
+        // Group successful assignments by member
+        if (!memberAssignments.has(targetMemberId)) {
+          memberAssignments.set(targetMemberId, []);
+        }
+        memberAssignments.get(targetMemberId)!.push(firstTimer);
       } catch (error: any) {
         results.push({
           success: false,
@@ -998,16 +1011,11 @@ export class FirstTimersController {
     }
 
     // Send consolidated notifications for each member
-    for (const [memberId, firstTimerIds] of memberAssignments) {
+    for (const [memberId, firstTimers] of memberAssignments) {
       try {
-        const successfulAssignments = results
-          .filter(r => r.success && firstTimerIds.includes(r.firstTimer?._id?.toString()))
-          .map(r => r.firstTimer);
-
-        if (successfulAssignments.length > 0) {
+        if (firstTimers.length > 0) {
           await this.firstTimersService.sendBulkAssignmentNotification(
-            successfulAssignments,
-            memberId,
+            firstTimers,
             assignedBy
           );
         }

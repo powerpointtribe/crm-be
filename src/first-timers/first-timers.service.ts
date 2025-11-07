@@ -556,25 +556,52 @@ export class FirstTimersService {
     return firstTimer;
   }
 
+  async assignFollowUpWithoutNotification(
+    id: string,
+    followUpPersonId: string,
+  ): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            followUpPerson: followUpPersonId,
+            status: EngagementStatus.FOLLOWING_UP,
+            lastStatusChange: new Date(),
+          },
+        },
+        { new: true },
+      )
+      .populate('followUpPerson', 'firstName lastName email');
+
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    return firstTimer;
+  }
+
   async sendBulkAssignmentNotification(
     firstTimers: FirstTimerDocument[],
-    memberId: string,
     assignedBy: string,
   ): Promise<void> {
     if (firstTimers.length === 0) return;
 
-    // Get member details from the first first-timer's assignedTo field
-    const assignedMember = firstTimers[0].assignedTo as any;
+    // Get member details from either assignedTo or followUpPerson field
+    const assignedMember = (firstTimers[0].assignedTo || firstTimers[0].followUpPerson) as any;
 
     if (!assignedMember) {
       this.logger.warn(`No assigned member found for bulk notification`);
       return;
     }
 
+    // Determine assignment type based on which field is populated
+    const assignmentType = firstTimers[0].assignedTo ? 'assignment' : 'followup';
+
     await this.triggerMemberAssignmentNotification(
       firstTimers,
       assignedMember,
-      'assignment',
+      assignmentType,
       assignedBy,
     );
   }

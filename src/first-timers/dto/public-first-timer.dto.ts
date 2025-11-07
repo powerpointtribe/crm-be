@@ -114,10 +114,6 @@ export class PublicCreateFirstTimerDto {
   @IsString()
   alternateContactMethod?: string;
 
-  @ApiPropertyOptional({ description: 'Website or personal page' })
-  @IsOptional()
-  @IsString()
-  website?: string;
 
   @ApiPropertyOptional({ description: 'Social media handles' })
   @IsOptional()
@@ -131,12 +127,6 @@ export class PublicCreateFirstTimerDto {
     other?: string;
   };
 
-  @ApiPropertyOptional({
-    description: 'Person who referred them (different from inviter)',
-  })
-  @IsOptional()
-  @IsString()
-  referredBy?: string;
 
   @ApiPropertyOptional({ description: 'What they enjoyed about the service' })
   @IsOptional()
@@ -221,11 +211,6 @@ export class PublicCreateFirstTimerDto {
   @IsString({ each: true })
   interests?: string[];
 
-  @ApiPropertyOptional({ description: 'Prayer requests' })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  prayerRequests?: string[];
 
   @ApiPropertyOptional({ description: 'Areas interested in serving' })
   @IsOptional()
@@ -239,12 +224,12 @@ export class PublicCreateFirstTimerDto {
   notes?: string;
 
   @ApiPropertyOptional({
-    description: 'Is interested in joining the church',
-    default: false,
+    description: 'Interest in joining PowerPoint Tribe',
+    enum: ['yes', 'no', 'maybe']
   })
   @IsOptional()
-  @IsBoolean()
-  interestedInJoining?: boolean;
+  @IsEnum(['yes', 'no', 'maybe'])
+  interestedInJoining?: string;
 
   // Additional optional properties to handle frontend form fields
 

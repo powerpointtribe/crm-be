@@ -1,9 +1,11 @@
 export enum EngagementStatus {
   NEW = 'new',
+  ENGAGED = 'engaged',
+  CLOSED = 'closed',
+  // Legacy statuses for backward compatibility
   FOLLOWING_UP = 'following_up',
   MEMBER = 'member',
   NOT_JOINED = 'not_joined',
-  // Legacy statuses for backward compatibility
   NOT_CONTACTED = 'not_contacted',
   CONTACTED = 'contacted',
   SCHEDULED_VISIT = 'scheduled_visit',
