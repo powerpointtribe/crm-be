@@ -25,6 +25,7 @@ import { plainToClass } from 'class-transformer';
 import { MembersService } from '../members/members.service';
 import { QueueService } from '../queue/queue.service';
 import { GroupsService } from '../groups/groups.service';
+import { CallReportsService } from './call-reports.service';
 import { GroupType } from '../common/enums/group-types.enum';
 import { JobType } from '../common/interfaces/queue-job.interface';
 
@@ -38,6 +39,7 @@ export class FirstTimersService {
     private membersService: MembersService,
     private queueService: QueueService,
     private groupsService: GroupsService,
+    private callReportsService: CallReportsService,
   ) {}
 
   async create(
@@ -355,6 +357,25 @@ export class FirstTimersService {
         { new: true },
       )
       .populate('followUps.contactedBy', 'firstName lastName');
+
+    // Create a corresponding call report
+    try {
+      const callReportData = {
+        firstTimerId: id,
+        callDate: new Date().toISOString(),
+        status: this.mapFollowUpOutcomeToCallReportStatus(followUpDto.outcome),
+        notes: followUpDto.notes || '',
+        contactMethod: followUpDto.method,
+        nextFollowUpDate: followUpDto.nextFollowUpDate,
+        reportNumber: updatedFirstTimer!.followUpCount, // Use the updated count
+      };
+
+      await this.callReportsService.create(callReportData, followUpDto.contactedBy || '');
+      this.logger.log(`Call report created for first-timer ${id} follow-up`);
+    } catch (error) {
+      this.logger.error(`Failed to create call report for first-timer ${id}:`, error);
+      // Don't fail the follow-up if call report creation fails
+    }
 
     return updatedFirstTimer!;
   }
@@ -1074,6 +1095,22 @@ export class FirstTimersService {
       status: { $nin: [EngagementStatus.CLOSED] },
       remindersSent: { $lt: 3 },
     });
+  }
+
+  private mapFollowUpOutcomeToCallReportStatus(outcome: string): string {
+    switch (outcome) {
+      case 'successful':
+      case 'interested':
+        return 'willing_to_join';
+      case 'not_interested':
+        return 'committed_to_another_church';
+      case 'no_answer':
+      case 'busy':
+        return 'unreachable';
+      case 'follow_up_needed':
+      default:
+        return 'others';
+    }
   }
 
   async updateReminderCount(id: string): Promise<FirstTimerDocument> {

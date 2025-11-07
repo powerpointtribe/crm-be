@@ -982,17 +982,12 @@ export class FirstTimersController {
           throw new Error('Either memberId, followUpPersonId, or assigneeId must be provided');
         }
 
-        if (isFollowUpAssignment || assignment.followUpPersonId || assignment.assigneeId) {
-          firstTimer = await this.firstTimersService.assignFollowUpWithoutNotification(
-            assignment.firstTimerId,
-            targetMemberId,
-          );
-        } else {
-          firstTimer = await this.firstTimersService.assignToMemberWithoutNotification(
-            assignment.firstTimerId,
-            targetMemberId,
-          );
-        }
+         
+        firstTimer = await this.firstTimersService.assignToMemberWithoutNotification(
+          assignment.firstTimerId,
+          targetMemberId,
+        );
+        
 
         results.push({ success: true, firstTimer });
 

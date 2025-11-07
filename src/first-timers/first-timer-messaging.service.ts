@@ -246,39 +246,39 @@ export class FirstTimerMessagingService {
   }
 
   // Cron job to send scheduled messages
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  async sendScheduledMessages(): Promise<void> {
-    const now = new Date();
+  // @Cron(CronExpression.EVERY_5_MINUTES)
+  // async sendScheduledMessages(): Promise<void> {
+  //   const now = new Date();
 
-    const firstTimersToMessage = await this.firstTimerModel
-      .find({
-        messageScheduledTime: { $lte: now },
-        messageSent: false,
-        preFilledMessage: { $exists: true, $nin: [null, ''] },
-        email: { $exists: true, $nin: [null, ''] },
-        isActive: true,
-      })
-      .exec();
+  //   const firstTimersToMessage = await this.firstTimerModel
+  //     .find({
+  //       messageScheduledTime: { $lte: now },
+  //       messageSent: false,
+  //       preFilledMessage: { $exists: true, $nin: [null, ''] },
+  //       email: { $exists: true, $nin: [null, ''] },
+  //       isActive: true,
+  //     })
+  //     .exec();
 
-    if (firstTimersToMessage.length === 0) {
-      return;
-    }
+  //   if (firstTimersToMessage.length === 0) {
+  //     return;
+  //   }
 
-    this.logger.log(
-      `Queuing scheduled messages for ${firstTimersToMessage.length} first-timers`,
-    );
+  //   this.logger.log(
+  //     `Queuing scheduled messages for ${firstTimersToMessage.length} first-timers`,
+  //   );
 
-    // Queue each message for processing instead of sending directly
-    // const promises = firstTimersToMessage.map((ft: any) =>
-    //   this.queueService.addJob(JobType.SEND_FIRST_TIMER_MESSAGE, {
-    //     firstTimerId: ft._id.toString(),
-    //     message: ft.preFilledMessage,
-    //     scheduledTime: ft.messageScheduledTime,
-    //   }),
-    // );
+  //   // Queue each message for processing instead of sending directly
+  //   // const promises = firstTimersToMessage.map((ft: any) =>
+  //   //   this.queueService.addJob(JobType.SEND_FIRST_TIMER_MESSAGE, {
+  //   //     firstTimerId: ft._id.toString(),
+  //   //     message: ft.preFilledMessage,
+  //   //     scheduledTime: ft.messageScheduledTime,
+  //   //   }),
+  //   // );
 
-    // await Promise.allSettled(promises);
-  }
+  //   // await Promise.allSettled(promises);
+  // }
 
   // Legacy assignment methods removed - use FirstTimersService.assignToMember() instead
 
