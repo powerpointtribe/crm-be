@@ -60,10 +60,9 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   // Setup Bull Board (only in development for security)
-  if (process.env.NODE_ENV !== 'production') {
-    const bullBoardService = app.get(BullBoardService);
-    app.use('/admin/queues', bullBoardService.getRouter());
-  }
+
+  const bullBoardService = app.get(BullBoardService);
+  app.use('/admin/queues', bullBoardService.getRouter());
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port, '0.0.0.0');
