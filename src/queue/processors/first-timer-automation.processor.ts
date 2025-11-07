@@ -37,12 +37,12 @@ export class FirstTimerAutomationProcessor {
 
       for (const firstTimer of staleFirstTimers) {
         this.logger.log(
-          `Transitioning first-timer ${firstTimer._id} to NOT_JOINED status`,
+          `Transitioning first-timer ${firstTimer._id} to CLOSED status`,
         );
 
         await this.firstTimersService.update(
           (firstTimer._id as string).toString(),
-          { status: EngagementStatus.NOT_JOINED },
+          { status: EngagementStatus.CLOSED },
         );
       }
 

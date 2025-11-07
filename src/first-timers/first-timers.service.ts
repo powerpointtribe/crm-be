@@ -241,11 +241,11 @@ export class FirstTimersService {
     // Special filters
     if (needsFollowUp) {
       filterQuery.$or = [
-        { status: EngagementStatus.NOT_CONTACTED },
+        { status: EngagementStatus.NEW },
         {
           nextFollowUpDate: { $lte: new Date() },
           status: {
-            $nin: [EngagementStatus.CONVERTED, EngagementStatus.LOST_CONTACT],
+            $nin: [EngagementStatus.CLOSED],
           },
         },
       ];
@@ -329,15 +329,15 @@ export class FirstTimersService {
     let newStatus = firstTimer.status;
     switch (followUpDto.outcome) {
       case 'successful':
-        if (firstTimer.status === EngagementStatus.NOT_CONTACTED) {
-          newStatus = EngagementStatus.CONTACTED;
+        if (firstTimer.status === EngagementStatus.NEW) {
+          newStatus = EngagementStatus.ENGAGED;
         }
         break;
       case 'interested':
-        newStatus = EngagementStatus.SCHEDULED_VISIT;
+        newStatus = EngagementStatus.ENGAGED;
         break;
       case 'not_interested':
-        newStatus = EngagementStatus.LOST_CONTACT;
+        newStatus = EngagementStatus.CLOSED;
         break;
     }
 
@@ -392,7 +392,8 @@ export class FirstTimersService {
         {
           $set: {
             followUpPerson: followUpPersonId,
-            status: EngagementStatus.FOLLOWING_UP,
+            assignedTo: followUpPersonId,
+            status: EngagementStatus.NEW,
             lastStatusChange: new Date(),
           },
         },
@@ -425,7 +426,7 @@ export class FirstTimersService {
 
     const filterQuery = {
       isActive: true,
-      status: EngagementStatus.MEMBER,
+      status: EngagementStatus.CLOSED,
       pendingDistrictAssignment: true,
     };
 
@@ -488,7 +489,7 @@ export class FirstTimersService {
             converted: true,
             conversionDate: new Date(),
             memberRecord: memberRecordId,
-            status: EngagementStatus.MEMBER,
+            status: EngagementStatus.CLOSED,
             lastStatusChange: new Date(),
             memberCreatedAt: new Date(),
             pendingDistrictAssignment: true,
@@ -566,7 +567,8 @@ export class FirstTimersService {
         {
           $set: {
             followUpPerson: followUpPersonId,
-            status: EngagementStatus.FOLLOWING_UP,
+            assignedTo: followUpPersonId,
+            status: EngagementStatus.NEW,
             lastStatusChange: new Date(),
           },
         },
@@ -755,10 +757,10 @@ export class FirstTimersService {
       isActive: true,
       converted: false,
       status: {
-        $nin: [EngagementStatus.CONVERTED, EngagementStatus.LOST_CONTACT],
+        $nin: [EngagementStatus.CLOSED],
       },
       $or: [
-        { status: EngagementStatus.NOT_CONTACTED },
+        { status: EngagementStatus.NEW },
         { nextFollowUpDate: { $lte: today } },
       ],
     };
@@ -1060,7 +1062,7 @@ export class FirstTimersService {
   async findStaleFirstTimers(cutoffDate: Date): Promise<FirstTimerDocument[]> {
     return this.firstTimerModel.find({
       isActive: true,
-      status: { $in: [EngagementStatus.NEW, EngagementStatus.FOLLOWING_UP] },
+      status: { $in: [EngagementStatus.NEW, EngagementStatus.ENGAGED] },
       lastStatusChange: { $lte: cutoffDate },
     });
   }
@@ -1069,7 +1071,7 @@ export class FirstTimersService {
     return this.firstTimerModel.find({
       isActive: true,
       interestedInJoining: true,
-      status: { $nin: [EngagementStatus.MEMBER, EngagementStatus.NOT_JOINED] },
+      status: { $nin: [EngagementStatus.CLOSED] },
       remindersSent: { $lt: 3 },
     });
   }
