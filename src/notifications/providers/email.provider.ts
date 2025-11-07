@@ -315,8 +315,8 @@ export class EmailProvider {
 
     this.logger.log(`[Nodemailer] Sending bulk email to ${options.recipients.length} recipients`);
 
-    const results = [];
-    const errors = [];
+    const results: Array<{ email: string; messageId: string; success: boolean }> = [];
+    const errors: Array<{ email: string; error: string; success: boolean }> = [];
 
     // Send emails one by one (for better error handling and delivery tracking)
     for (const recipient of options.recipients) {
