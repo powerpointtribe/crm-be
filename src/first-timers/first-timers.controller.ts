@@ -970,12 +970,22 @@ export class FirstTimersController {
 
     const assignedBy = `${user.firstName} ${user.lastName}`;
 
+    // Group assignments by member to send consolidated notifications
+    const memberAssignments = new Map<string, string[]>();
+
+    for (const assignment of body.assignments) {
+      if (!memberAssignments.has(assignment.memberId)) {
+        memberAssignments.set(assignment.memberId, []);
+      }
+      memberAssignments.get(assignment.memberId)!.push(assignment.firstTimerId);
+    }
+
+    // Process assignments without triggering individual notifications
     for (const assignment of body.assignments) {
       try {
-        const firstTimer = await this.firstTimersService.assignToMember(
+        const firstTimer = await this.firstTimersService.assignToMemberWithoutNotification(
           assignment.firstTimerId,
           assignment.memberId,
-          assignedBy,
         );
         results.push({ success: true, firstTimer });
       } catch (error: any) {
@@ -984,6 +994,26 @@ export class FirstTimersController {
           error: error.message,
           firstTimerId: assignment.firstTimerId,
         });
+      }
+    }
+
+    // Send consolidated notifications for each member
+    for (const [memberId, firstTimerIds] of memberAssignments) {
+      try {
+        const successfulAssignments = results
+          .filter(r => r.success && firstTimerIds.includes(r.firstTimer?._id?.toString()))
+          .map(r => r.firstTimer);
+
+        if (successfulAssignments.length > 0) {
+          await this.firstTimersService.sendBulkAssignmentNotification(
+            successfulAssignments,
+            memberId,
+            assignedBy
+          );
+        }
+      } catch (error: any) {
+        // Log error but don't fail the assignment
+        console.error(`Failed to send notification to member ${memberId}:`, error.message);
       }
     }
 

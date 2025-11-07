@@ -26,6 +26,7 @@ import { MembersService } from '../members/members.service';
 import { QueueService } from '../queue/queue.service';
 import { GroupsService } from '../groups/groups.service';
 import { GroupType } from '../common/enums/group-types.enum';
+import { JobType } from '../common/interfaces/queue-job.interface';
 
 @Injectable()
 export class FirstTimersService {
@@ -225,7 +226,9 @@ export class FirstTimersService {
     // Date range filter
     if (visitDateFrom || visitDateTo) {
       const startDate = visitDateFrom ? new Date(visitDateFrom) : undefined;
-      const endDate = visitDateTo ? new Date(visitDateTo + 'T23:59:59.999Z') : undefined; // End of day
+      const endDate = visitDateTo
+        ? new Date(visitDateTo + 'T23:59:59.999Z')
+        : undefined; // End of day
 
       const dateQuery = QueryBuilder.buildDateRangeQuery(
         startDate,
@@ -538,6 +541,44 @@ export class FirstTimersService {
     return firstTimer;
   }
 
+  async assignToMemberWithoutNotification(
+    id: string,
+    memberId: string,
+  ): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel
+      .findByIdAndUpdate(id, { $set: { assignedTo: memberId } }, { new: true })
+      .populate('assignedTo', 'firstName lastName email');
+
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    return firstTimer;
+  }
+
+  async sendBulkAssignmentNotification(
+    firstTimers: FirstTimerDocument[],
+    memberId: string,
+    assignedBy: string,
+  ): Promise<void> {
+    if (firstTimers.length === 0) return;
+
+    // Get member details from the first first-timer's assignedTo field
+    const assignedMember = firstTimers[0].assignedTo as any;
+
+    if (!assignedMember) {
+      this.logger.warn(`No assigned member found for bulk notification`);
+      return;
+    }
+
+    await this.triggerMemberAssignmentNotification(
+      firstTimers,
+      assignedMember,
+      'assignment',
+      assignedBy,
+    );
+  }
+
   // Helper method to trigger email notification for member assignments
   private async triggerMemberAssignmentNotification(
     firstTimers: FirstTimerDocument[],
@@ -546,8 +587,6 @@ export class FirstTimersService {
     assignedBy?: string,
   ): Promise<void> {
     try {
-      const { JobType } = await import('../common/interfaces/queue-job.interface');
-
       await this.queueService.addJob(JobType.SEND_MEMBER_FOLLOWUP_ASSIGNMENT, {
         firstTimerId: firstTimers[0]?._id?.toString() || 'bulk',
         type: 'member_assignment',
@@ -557,12 +596,14 @@ export class FirstTimersService {
           // Also add fields that processors expect
           assigneeEmail: assignedMember.email,
           assigneeName: `${assignedMember.firstName} ${assignedMember.lastName}`,
-          firstTimers: firstTimers.map(ft => ({
+          firstTimers: firstTimers.map((ft) => ({
             firstName: ft.firstName,
             lastName: ft.lastName,
             phone: ft.phone,
             email: ft.email,
-            dateOfVisit: ft.dateOfVisit ? ft.dateOfVisit.toISOString() : new Date().toISOString(),
+            dateOfVisit: ft.dateOfVisit
+              ? ft.dateOfVisit.toISOString()
+              : new Date().toISOString(),
           })),
           assignmentType,
           assignedBy: assignedBy || 'Church Leadership',
@@ -745,10 +786,7 @@ export class FirstTimersService {
 
     // The assignedTo field is stored as a string in the database, not ObjectId
     const filterQuery = {
-      $or: [
-        { assignedTo: memberId },
-        { followUpPerson: memberId }
-      ],
+      $or: [{ assignedTo: memberId }, { followUpPerson: memberId }],
       isActive: true,
       converted: false,
     };
@@ -1050,13 +1088,21 @@ export class FirstTimersService {
   }
 
   // Helper method to update message history when message is sent
-  private async updateMessageHistoryAsSent(firstTimerId: string, sentAt: Date): Promise<void> {
+  private async updateMessageHistoryAsSent(
+    firstTimerId: string,
+    sentAt: Date,
+  ): Promise<void> {
     try {
       // We need to import MessageHistory model here or use a separate service
       // For now, we'll handle this in the messaging service
-      this.logger.log(`Message sent tracking updated for first-timer ${firstTimerId}`);
+      this.logger.log(
+        `Message sent tracking updated for first-timer ${firstTimerId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to update message history for ${firstTimerId}:`, error);
+      this.logger.error(
+        `Failed to update message history for ${firstTimerId}:`,
+        error,
+      );
     }
   }
 
