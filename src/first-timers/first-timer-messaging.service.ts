@@ -62,11 +62,11 @@ export class FirstTimerMessagingService {
     });
 
     // Schedule the message job
-    await this.queueService.addJob(JobType.SEND_FIRST_TIMER_MESSAGE, {
-      firstTimerId,
-      message,
-      scheduledTime: messageScheduledTime,
-    });
+    // await this.queueService.addJob(JobType.SEND_FIRST_TIMER_MESSAGE, {
+    //   firstTimerId,
+    //   message,
+    //   scheduledTime: messageScheduledTime,
+    // });
 
     this.logger.log(
       `Pre-filled message set for first timer ${firstTimerId}, scheduled for ${messageScheduledTime}`,
@@ -269,15 +269,15 @@ export class FirstTimerMessagingService {
     );
 
     // Queue each message for processing instead of sending directly
-    const promises = firstTimersToMessage.map((ft: any) =>
-      this.queueService.addJob(JobType.SEND_FIRST_TIMER_MESSAGE, {
-        firstTimerId: ft._id.toString(),
-        message: ft.preFilledMessage,
-        scheduledTime: ft.messageScheduledTime,
-      }),
-    );
+    // const promises = firstTimersToMessage.map((ft: any) =>
+    //   this.queueService.addJob(JobType.SEND_FIRST_TIMER_MESSAGE, {
+    //     firstTimerId: ft._id.toString(),
+    //     message: ft.preFilledMessage,
+    //     scheduledTime: ft.messageScheduledTime,
+    //   }),
+    // );
 
-    await Promise.allSettled(promises);
+    // await Promise.allSettled(promises);
   }
 
   // Legacy assignment methods removed - use FirstTimersService.assignToMember() instead
