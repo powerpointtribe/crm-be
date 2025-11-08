@@ -1,8 +1,8 @@
 export enum MembershipStatus {
-  NEW_CONVERT = 'new_convert',
-  WORKER = 'worker',
+  NEW_CONVERT = 'NEW',
+  WORKER = 'DC',
   VOLUNTEER = 'volunteer',
-  LEADER = 'leader',
+  LEADER = 'LXL',
   DISTRICT_PASTOR = 'district_pastor', // NEW: District leadership
   CHAMP = 'champ', // NEW: District assistant
   UNIT_HEAD = 'unit_head', // NEW: Unit leadership

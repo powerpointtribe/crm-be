@@ -436,7 +436,7 @@ export class BulkOperationsService {
       dateOfBirth: row.dateOfBirth?.trim(),
       maritalStatus: row.maritalStatus?.trim().toLowerCase(),
       password: row.password || 'TempPassword123!',
-      membershipStatus: row.membershipStatus || 'active',
+      membershipStatus: row.membershipStatus || 'NEW',
       district: row.district?.trim(),
       unit: row.unit?.trim(),
     };

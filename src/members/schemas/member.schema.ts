@@ -63,7 +63,7 @@ export class Member {
   @Prop({
     type: String,
     enum: Object.values(MembershipStatus),
-    default: MembershipStatus.NEW_CONVERT,
+    default: MembershipStatus.NEW_CONVERT
   })
   membershipStatus: MembershipStatus;
 
