@@ -181,8 +181,8 @@ export class MembersService {
     const [members, total] = await Promise.all([
       this.memberModel
         .find(filterQuery)
-        .populate('district', 'name type')
-        .populate('unit', 'name type')
+        // .populate('district', '_id name type')
+        // .populate('unit', 'name type')
         .populate('spouse', 'firstName lastName')
         .populate('children', 'firstName lastName')
         .populate('parent', 'firstName lastName')

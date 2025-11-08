@@ -11,6 +11,7 @@ import {
   Query,
   ForbiddenException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../auth/guards/module-access.guard';
@@ -56,15 +57,21 @@ export class MembersController {
   @RequireMembersAccess()
   @UseGuards(ModuleAccessGuard)
   async findAll(@Query() query: any, @Request() req) {
-    const { user: currentMember } = req;
+    try {
+       const { user: currentMember } = req;
 
-    // Get all members
-    const data = await this.membersService.findAll(query);
+      // Get all members
+      const data = await this.membersService.findAll(query);
 
-    // Filter based on member's access level
-    data.data = this.filterMembersByAccess(currentMember, data.data);
+      // Filter based on member's access level
+      data.data = this.filterMembersByAccess(currentMember, data.data);
 
-    return data;
+      return data;
+    } catch (error) {
+      console.log(error)
+      throw new BadRequestException('Failed to fetch members')
+    }
+   
   }
 
   @Get('stats')
