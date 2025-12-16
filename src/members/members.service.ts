@@ -34,6 +34,9 @@ export class MembersService {
     // District assignment is now optional
     // Members can be created without district assignment and assigned later
 
+    // Check for duplicate data before creating member
+    await this.checkForDuplicates(createMemberDto.email, createMemberDto.phone);
+
     // Validate and convert dateOfBirth
     const dateOfBirth = new Date(createMemberDto.dateOfBirth);
     if (isNaN(dateOfBirth.getTime())) {
@@ -72,6 +75,225 @@ export class MembersService {
     });
 
     return member.save();
+  }
+
+  // Duplicate checking methods
+  async checkForDuplicates(email: string, phone: string): Promise<void> {
+    const existingMembers = await this.findDuplicates(email, phone);
+
+    if (existingMembers.length > 0) {
+      const duplicateInfo = existingMembers.map((member) => {
+        const duplicateFields: string[] = [];
+        if (member.email === email.toLowerCase()) duplicateFields.push('email');
+        if (member.phone === phone) duplicateFields.push('phone');
+
+        return {
+          id: member._id,
+          name: `${member.firstName} ${member.lastName}`,
+          duplicateFields,
+          membershipStatus: member.membershipStatus,
+          dateJoined: member.dateJoined,
+        };
+      });
+
+      throw new BadRequestException({
+        message: 'Duplicate data found',
+        duplicates: duplicateInfo,
+        suggestion:
+          'Please review existing records or update them instead of creating new ones',
+      });
+    }
+  }
+
+  async findDuplicates(
+    email?: string,
+    phone?: string,
+  ): Promise<MemberDocument[]> {
+    const query = { isActive: true };
+    const orConditions: any[] = [];
+
+    if (email) {
+      orConditions.push({ email: email.toLowerCase() });
+    }
+
+    if (phone) {
+      orConditions.push({ phone: phone });
+    }
+
+    if (orConditions.length > 0) {
+      (query as any).$or = orConditions;
+    } else {
+      return [];
+    }
+
+    return this.memberModel
+      .find(query)
+      .select('firstName lastName email phone membershipStatus dateJoined')
+      .exec();
+  }
+
+  async findPotentialDuplicates(): Promise<{
+    emailDuplicates: any[];
+    phoneDuplicates: any[];
+    nameDuplicates: any[];
+  }> {
+    // Find email duplicates
+    const emailDuplicates = await this.memberModel.aggregate([
+      { $match: { isActive: true, email: { $exists: true, $ne: '' } } },
+      {
+        $group: {
+          _id: '$email',
+          count: { $sum: 1 },
+          members: { $push: '$$ROOT' },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+      {
+        $project: {
+          email: '$_id',
+          count: 1,
+          members: {
+            firstName: 1,
+            lastName: 1,
+            email: 1,
+            phone: 1,
+            membershipStatus: 1,
+            dateJoined: 1,
+          },
+        },
+      },
+    ]);
+
+    // Find phone duplicates
+    const phoneDuplicates = await this.memberModel.aggregate([
+      { $match: { isActive: true, phone: { $exists: true, $ne: '' } } },
+      {
+        $group: {
+          _id: '$phone',
+          count: { $sum: 1 },
+          members: { $push: '$$ROOT' },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+      {
+        $project: {
+          phone: '$_id',
+          count: 1,
+          members: {
+            firstName: 1,
+            lastName: 1,
+            email: 1,
+            phone: 1,
+            membershipStatus: 1,
+            dateJoined: 1,
+          },
+        },
+      },
+    ]);
+
+    // Find potential name duplicates (same first and last name)
+    const nameDuplicates = await this.memberModel.aggregate([
+      { $match: { isActive: true } },
+      {
+        $group: {
+          _id: {
+            firstName: { $toLower: '$firstName' },
+            lastName: { $toLower: '$lastName' },
+          },
+          count: { $sum: 1 },
+          members: { $push: '$$ROOT' },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+      {
+        $project: {
+          name: { $concat: ['$_id.firstName', ' ', '$_id.lastName'] },
+          count: 1,
+          members: {
+            firstName: 1,
+            lastName: 1,
+            email: 1,
+            phone: 1,
+            membershipStatus: 1,
+            dateJoined: 1,
+            dateOfBirth: 1,
+          },
+        },
+      },
+    ]);
+
+    return {
+      emailDuplicates,
+      phoneDuplicates,
+      nameDuplicates,
+    };
+  }
+
+  async mergeMemberRecords(
+    primaryMemberId: string,
+    duplicateMemberIds: string[],
+  ): Promise<MemberDocument> {
+    const primaryMember = await this.findById(primaryMemberId);
+    if (!primaryMember) {
+      throw new NotFoundException('Primary member not found');
+    }
+
+    const duplicateMembers = await this.memberModel.find({
+      _id: { $in: duplicateMemberIds },
+      isActive: true,
+    });
+
+    if (duplicateMembers.length !== duplicateMemberIds.length) {
+      throw new BadRequestException('Some duplicate members not found');
+    }
+
+    // Merge data from duplicate records to primary record
+    const mergeData: any = {};
+
+    // Collect all unique ministries, skills, and additional groups
+    const allMinistries = new Set(primaryMember.ministries || []);
+    const allSkills = new Set(primaryMember.skills || []);
+    const allAdditionalGroups = new Set(
+      primaryMember.additionalGroups?.map((id) => id.toString()) || [],
+    );
+
+    duplicateMembers.forEach((duplicate) => {
+      duplicate.ministries?.forEach((ministry) => allMinistries.add(ministry));
+      duplicate.skills?.forEach((skill) => allSkills.add(skill));
+      duplicate.additionalGroups?.forEach((group) =>
+        allAdditionalGroups.add(group.toString()),
+      );
+    });
+
+    mergeData.ministries = Array.from(allMinistries);
+    mergeData.skills = Array.from(allSkills);
+    mergeData.additionalGroups = Array.from(allAdditionalGroups).map(
+      (id) => new Types.ObjectId(id),
+    );
+
+    // Update primary member with merged data
+    await this.memberModel.findByIdAndUpdate(
+      primaryMemberId,
+      { $set: mergeData },
+      { new: true },
+    );
+
+    // Deactivate duplicate members with merge notes
+    await this.memberModel.updateMany(
+      { _id: { $in: duplicateMemberIds } },
+      {
+        $set: {
+          isActive: false,
+          notes: `Merged with member ${primaryMemberId} on ${new Date().toISOString()}`,
+        },
+      },
+    );
+
+    const mergedMember = await this.findById(primaryMemberId);
+    if (!mergedMember) {
+      throw new NotFoundException('Primary member not found after merge operation');
+    }
+    return mergedMember;
   }
 
   async findAll(
@@ -203,6 +425,7 @@ export class MembersService {
   async findById(id: string): Promise<MemberDocument | null> {
     return this.memberModel
       .findById(id)
+      .populate('role')
       .populate('district', 'name type description meetingSchedule')
       .populate('unit', 'name type description')
       .populate('spouse', 'firstName lastName email phone')
@@ -223,6 +446,7 @@ export class MembersService {
   async findByEmail(email: string): Promise<MemberDocument | null> {
     return this.memberModel
       .findOne({ email: email.toLowerCase(), isActive: true })
+      .populate('role')
       .populate('district', 'name type')
       .populate('unit', 'name type')
       .populate('leadershipRoles.champForDistrict', 'name type')
@@ -280,6 +504,15 @@ export class MembersService {
     id: string,
     updateMemberDto: UpdateMemberDto,
   ): Promise<MemberDocument> {
+    // Check for duplicates when updating email or phone
+    if (updateMemberDto.email || updateMemberDto.phone) {
+      await this.checkForDuplicatesExcludingMember(
+        id,
+        updateMemberDto.email,
+        updateMemberDto.phone,
+      );
+    }
+
     // Normalize email if provided
     if (updateMemberDto.email) {
       updateMemberDto.email = updateMemberDto.email.toLowerCase();
@@ -300,6 +533,55 @@ export class MembersService {
     }
 
     return member;
+  }
+
+  private async checkForDuplicatesExcludingMember(
+    excludeMemberId: string,
+    email?: string,
+    phone?: string,
+  ): Promise<void> {
+    if (!email && !phone) return;
+
+    const query: any = {
+      isActive: true,
+      _id: { $ne: excludeMemberId },
+    };
+
+    const orConditions: any[] = [];
+    if (email) orConditions.push({ email: email.toLowerCase() });
+    if (phone) orConditions.push({ phone: phone });
+
+    if (orConditions.length > 0) {
+      query.$or = orConditions;
+    }
+
+    const existingMembers = await this.memberModel
+      .find(query)
+      .select('firstName lastName email phone membershipStatus dateJoined')
+      .exec();
+
+    if (existingMembers.length > 0) {
+      const duplicateInfo = existingMembers.map((member) => {
+        const duplicateFields: string[] = [];
+        if (email && member.email === email.toLowerCase())
+          duplicateFields.push('email');
+        if (phone && member.phone === phone) duplicateFields.push('phone');
+
+        return {
+          id: member._id,
+          name: `${member.firstName} ${member.lastName}`,
+          duplicateFields,
+          membershipStatus: member.membershipStatus,
+          dateJoined: member.dateJoined,
+        };
+      });
+
+      throw new BadRequestException({
+        message: 'Duplicate data found',
+        duplicates: duplicateInfo,
+        suggestion: 'Please review existing records or merge them instead',
+      });
+    }
   }
 
   // District and Unit Management
@@ -820,6 +1102,14 @@ export class MembersService {
     const processedDto =
       MemberCSVMappingUtil.postProcessMappedData(createMemberDto);
 
+    // Check for duplicates in bulk operations
+    try {
+      await this.checkForDuplicates(processedDto.email, processedDto.phone);
+    } catch (error) {
+      // For bulk operations, we'll log duplicates but continue processing
+      throw new Error(`Duplicate found: ${error.message}`);
+    }
+
     // Validate district assignment
     if (!processedDto.district) {
       throw new Error('Every member must be assigned to a district');
@@ -959,6 +1249,36 @@ export class MembersService {
 
     await member.save();
     return member;
+  }
+
+  /**
+   * Assign a single role to a member (NEW PERMISSION SYSTEM)
+   */
+  async assignRole(memberId: string, roleId: string): Promise<MemberDocument> {
+    if (!Types.ObjectId.isValid(memberId)) {
+      throw new BadRequestException('Invalid member ID');
+    }
+
+    if (!Types.ObjectId.isValid(roleId)) {
+      throw new BadRequestException('Invalid role ID');
+    }
+
+    const member = await this.memberModel.findById(memberId);
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${memberId} not found`);
+    }
+
+    member.role = new Types.ObjectId(roleId);
+    await member.save();
+
+    const updatedMember = await this.findById(memberId); // Return with populated role
+
+    if (!updatedMember) {
+      throw new NotFoundException(`Member with ID ${memberId} not found after update`);
+    }
+
+    return updatedMember;
   }
 
   // PASSWORD RESET METHODS

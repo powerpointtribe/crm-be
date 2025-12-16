@@ -128,8 +128,9 @@ export class FirstTimerAutomationProcessor {
 
         if (assignedPersonId) {
           // Get assigned person details
-          const assignedPerson =
-            await this.membersService.findById(assignedPersonId.toString());
+          const assignedPerson = await this.membersService.findById(
+            assignedPersonId.toString(),
+          );
 
           if (assignedPerson && assignedPerson.email) {
             // Calculate urgency based on days since visit

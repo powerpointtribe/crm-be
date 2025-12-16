@@ -214,16 +214,22 @@ export class CallReportsService {
     };
 
     // Status breakdown
-    const statusBreakdown = reports.reduce((acc, report) => {
-      acc[report.status] = (acc[report.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const statusBreakdown = reports.reduce(
+      (acc, report) => {
+        acc[report.status] = (acc[report.status] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     // Contact method breakdown
-    const contactMethodBreakdown = reports.reduce((acc, report) => {
-      acc[report.contactMethod] = (acc[report.contactMethod] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const contactMethodBreakdown = reports.reduce(
+      (acc, report) => {
+        acc[report.contactMethod] = (acc[report.contactMethod] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     // Get dates
     const sortedReports = reports.sort(
@@ -238,23 +244,29 @@ export class CallReportsService {
     let avgDaysBetweenReports: number | undefined;
     if (reports.length > 1) {
       const chronologicalReports = reports.sort(
-        (a, b) => new Date(a.callDate).getTime() - new Date(b.callDate).getTime(),
+        (a, b) =>
+          new Date(a.callDate).getTime() - new Date(b.callDate).getTime(),
       );
       let totalDays = 0;
       for (let i = 1; i < chronologicalReports.length; i++) {
         const daysDiff = Math.abs(
           (new Date(chronologicalReports[i].callDate).getTime() -
-           new Date(chronologicalReports[i-1].callDate).getTime()) /
-           (1000 * 60 * 60 * 24)
+            new Date(chronologicalReports[i - 1].callDate).getTime()) /
+            (1000 * 60 * 60 * 24),
         );
         totalDays += daysDiff;
       }
-      avgDaysBetweenReports = Math.round(totalDays / (chronologicalReports.length - 1));
+      avgDaysBetweenReports = Math.round(
+        totalDays / (chronologicalReports.length - 1),
+      );
     }
 
     // Check if overdue (if last contact was more than 14 days ago and reports incomplete)
-    const isOverdue = lastContactDate && remainingReports > 0 &&
-      (Date.now() - new Date(lastContactDate).getTime()) > (14 * 24 * 60 * 60 * 1000);
+    const isOverdue =
+      lastContactDate &&
+      remainingReports > 0 &&
+      Date.now() - new Date(lastContactDate).getTime() >
+        14 * 24 * 60 * 60 * 1000;
 
     return {
       totalReports: 4,
@@ -294,78 +306,98 @@ export class CallReportsService {
             statusCounts: {
               $push: {
                 k: '$status',
-                v: 1
-              }
+                v: 1,
+              },
             },
             contactMethodCounts: {
               $push: {
                 k: '$contactMethod',
-                v: 1
-              }
+                v: 1,
+              },
             },
-            uniqueFirstTimers: { $addToSet: '$firstTimerId' }
-          }
+            uniqueFirstTimers: { $addToSet: '$firstTimerId' },
+          },
         },
         {
           $project: {
             statusDistribution: { $arrayToObject: '$statusCounts' },
-            contactMethodDistribution: { $arrayToObject: '$contactMethodCounts' },
-            totalFirstTimers: { $size: '$uniqueFirstTimers' }
-          }
-        }
+            contactMethodDistribution: {
+              $arrayToObject: '$contactMethodCounts',
+            },
+            totalFirstTimers: { $size: '$uniqueFirstTimers' },
+          },
+        },
       ]),
       this.callReportModel.aggregate([
         {
           $group: {
             _id: {
               year: { $year: '$createdAt' },
-              month: { $month: '$createdAt' }
+              month: { $month: '$createdAt' },
             },
             reportsCreated: { $sum: 1 },
-            firstTimersWithReports: { $addToSet: '$firstTimerId' }
-          }
+            firstTimersWithReports: { $addToSet: '$firstTimerId' },
+          },
         },
         {
           $project: {
             _id: 1,
             reportsCreated: 1,
-            firstTimersWithReports: { $size: '$firstTimersWithReports' }
-          }
+            firstTimersWithReports: { $size: '$firstTimersWithReports' },
+          },
         },
         { $sort: { '_id.year': -1, '_id.month': -1 } },
-        { $limit: 12 }
-      ])
+        { $limit: 12 },
+      ]),
     ]);
 
     const breakdown = reportsBreakdown[0] || {};
     const totalFirstTimers = breakdown.totalFirstTimers || 0;
-    const avgReportsPerFirstTimer = totalFirstTimers > 0 ? totalReports / totalFirstTimers : 0;
+    const avgReportsPerFirstTimer =
+      totalFirstTimers > 0 ? totalReports / totalFirstTimers : 0;
 
     // Calculate completion rate (first timers with all 4 reports)
-    const firstTimersWithAllReports = await this.firstTimerModel.countDocuments({
-      callReportsCount: 4
-    });
-    const completionRate = totalFirstTimers > 0 ? (firstTimersWithAllReports / totalFirstTimers) * 100 : 0;
+    const firstTimersWithAllReports = await this.firstTimerModel.countDocuments(
+      {
+        callReportsCount: 4,
+      },
+    );
+    const completionRate =
+      totalFirstTimers > 0
+        ? (firstTimersWithAllReports / totalFirstTimers) * 100
+        : 0;
 
     // Count overdue first timers
-    const twoWeeksAgo = new Date(Date.now() - (14 * 24 * 60 * 60 * 1000));
+    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const overdueFirstTimers = await this.firstTimerModel.countDocuments({
       callReportsCount: { $lt: 4 },
       lastStatusChange: { $lt: twoWeeksAgo },
       isActive: true,
-      stage: { $ne: 'closed' }
+      stage: { $ne: 'closed' },
     });
 
     // Format monthly trends
     const monthNames = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
-    const monthlyTrends = monthlyData.map(item => ({
-      month: `${monthNames[item._id.month - 1]} ${item._id.year}`,
-      reportsCreated: item.reportsCreated,
-      firstTimersWithReports: item.firstTimersWithReports
-    })).reverse();
+    const monthlyTrends = monthlyData
+      .map((item) => ({
+        month: `${monthNames[item._id.month - 1]} ${item._id.year}`,
+        reportsCreated: item.reportsCreated,
+        firstTimersWithReports: item.firstTimersWithReports,
+      }))
+      .reverse();
 
     return {
       totalReports,
@@ -375,35 +407,37 @@ export class CallReportsService {
       statusDistribution: breakdown.statusDistribution || {},
       contactMethodDistribution: breakdown.contactMethodDistribution || {},
       overdueFirstTimers,
-      monthlyTrends
+      monthlyTrends,
     };
   }
 
-  async getTeamPerformanceAnalytics(): Promise<Array<{
-    callMadeBy: {
-      _id: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-    };
-    totalReports: number;
-    avgReportsPerFirstTimer: number;
-    successRate: number;
-    firstTimersManaged: number;
-    avgDaysBetweenReports: number;
-    overdueFirstTimers: number;
-  }>> {
+  async getTeamPerformanceAnalytics(): Promise<
+    Array<{
+      callMadeBy: {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+      };
+      totalReports: number;
+      avgReportsPerFirstTimer: number;
+      successRate: number;
+      firstTimersManaged: number;
+      avgDaysBetweenReports: number;
+      overdueFirstTimers: number;
+    }>
+  > {
     const teamStats = await this.callReportModel.aggregate([
       {
         $lookup: {
           from: 'members',
           localField: 'callMadeBy',
           foreignField: '_id',
-          as: 'memberInfo'
-        }
+          as: 'memberInfo',
+        },
       },
       {
-        $unwind: '$memberInfo'
+        $unwind: '$memberInfo',
       },
       {
         $group: {
@@ -415,13 +449,13 @@ export class CallReportsService {
               $cond: [
                 { $in: ['$status', ['successful', 'interested', 'completed']] },
                 1,
-                0
-              ]
-            }
+                0,
+              ],
+            },
           },
           firstTimersManaged: { $addToSet: '$firstTimerId' },
-          reports: { $push: '$$ROOT' }
-        }
+          reports: { $push: '$$ROOT' },
+        },
       },
       {
         $project: {
@@ -430,9 +464,9 @@ export class CallReportsService {
           totalReports: 1,
           successfulReports: 1,
           firstTimersManaged: { $size: '$firstTimersManaged' },
-          reports: 1
-        }
-      }
+          reports: 1,
+        },
+      },
     ]);
 
     const result: Array<{
@@ -450,13 +484,19 @@ export class CallReportsService {
       overdueFirstTimers: number;
     }> = [];
     for (const stat of teamStats) {
-      const successRate = stat.totalReports > 0 ? (stat.successfulReports / stat.totalReports) * 100 : 0;
-      const avgReportsPerFirstTimer = stat.firstTimersManaged > 0 ?
-        stat.totalReports / stat.firstTimersManaged : 0;
+      const successRate =
+        stat.totalReports > 0
+          ? (stat.successfulReports / stat.totalReports) * 100
+          : 0;
+      const avgReportsPerFirstTimer =
+        stat.firstTimersManaged > 0
+          ? stat.totalReports / stat.firstTimersManaged
+          : 0;
 
       // Calculate average days between reports
-      const reports = stat.reports.sort((a, b) =>
-        new Date(a.callDate).getTime() - new Date(b.callDate).getTime()
+      const reports = stat.reports.sort(
+        (a, b) =>
+          new Date(a.callDate).getTime() - new Date(b.callDate).getTime(),
       );
       let avgDaysBetweenReports = 0;
       if (reports.length > 1) {
@@ -464,8 +504,8 @@ export class CallReportsService {
         for (let i = 1; i < reports.length; i++) {
           const daysDiff = Math.abs(
             (new Date(reports[i].callDate).getTime() -
-             new Date(reports[i-1].callDate).getTime()) /
-             (1000 * 60 * 60 * 24)
+              new Date(reports[i - 1].callDate).getTime()) /
+              (1000 * 60 * 60 * 24),
           );
           totalDays += daysDiff;
         }
@@ -473,13 +513,13 @@ export class CallReportsService {
       }
 
       // Count overdue first timers for this team member
-      const twoWeeksAgo = new Date(Date.now() - (14 * 24 * 60 * 60 * 1000));
+      const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
       const overdueFirstTimers = await this.firstTimerModel.countDocuments({
         assignedTo: stat._id,
         callReportsCount: { $lt: 4 },
         lastStatusChange: { $lt: twoWeeksAgo },
         isActive: true,
-        stage: { $ne: 'closed' }
+        stage: { $ne: 'closed' },
       });
 
       result.push({
@@ -487,48 +527,51 @@ export class CallReportsService {
           _id: stat.memberInfo._id,
           firstName: stat.memberInfo.firstName,
           lastName: stat.memberInfo.lastName,
-          email: stat.memberInfo.email
+          email: stat.memberInfo.email,
         },
         totalReports: stat.totalReports,
-        avgReportsPerFirstTimer: Math.round(avgReportsPerFirstTimer * 100) / 100,
+        avgReportsPerFirstTimer:
+          Math.round(avgReportsPerFirstTimer * 100) / 100,
         successRate: Math.round(successRate * 100) / 100,
         firstTimersManaged: stat.firstTimersManaged,
         avgDaysBetweenReports,
-        overdueFirstTimers
+        overdueFirstTimers,
       });
     }
 
     return result.sort((a, b) => b.totalReports - a.totalReports);
   }
 
-  async getOverdueReports(): Promise<Array<{
-    firstTimer: {
-      _id: string;
-      firstName: string;
-      lastName: string;
-      phone: string;
-      email?: string;
-      dateOfVisit: Date;
-    };
-    assignedTo?: {
-      _id: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-    };
-    lastContactDate?: Date;
-    daysSinceLastContact: number;
-    completedReports: number;
-    remainingReports: number;
-  }>> {
-    const twoWeeksAgo = new Date(Date.now() - (14 * 24 * 60 * 60 * 1000));
+  async getOverdueReports(): Promise<
+    Array<{
+      firstTimer: {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        phone: string;
+        email?: string;
+        dateOfVisit: Date;
+      };
+      assignedTo?: {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+      };
+      lastContactDate?: Date;
+      daysSinceLastContact: number;
+      completedReports: number;
+      remainingReports: number;
+    }>
+  > {
+    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
     const overdueFirstTimers = await this.firstTimerModel
       .find({
         callReportsCount: { $lt: 4 },
         lastStatusChange: { $lt: twoWeeksAgo },
         isActive: true,
-        stage: { $ne: 'closed' }
+        stage: { $ne: 'closed' },
       })
       .populate('assignedTo', 'firstName lastName email')
       .exec();
@@ -560,9 +603,15 @@ export class CallReportsService {
         .exec();
 
       const lastContactDate = lastReport?.callDate;
-      const daysSinceLastContact = lastContactDate ?
-        Math.floor((Date.now() - new Date(lastContactDate).getTime()) / (1000 * 60 * 60 * 24)) :
-        Math.floor((Date.now() - new Date(firstTimer.dateOfVisit).getTime()) / (1000 * 60 * 60 * 24));
+      const daysSinceLastContact = lastContactDate
+        ? Math.floor(
+            (Date.now() - new Date(lastContactDate).getTime()) /
+              (1000 * 60 * 60 * 24),
+          )
+        : Math.floor(
+            (Date.now() - new Date(firstTimer.dateOfVisit).getTime()) /
+              (1000 * 60 * 60 * 24),
+          );
 
       result.push({
         firstTimer: {
@@ -571,22 +620,26 @@ export class CallReportsService {
           lastName: firstTimer.lastName,
           phone: firstTimer.phone,
           email: firstTimer.email,
-          dateOfVisit: firstTimer.dateOfVisit
+          dateOfVisit: firstTimer.dateOfVisit,
         },
-        assignedTo: firstTimer.assignedTo ? {
-          _id: (firstTimer.assignedTo as any)._id,
-          firstName: (firstTimer.assignedTo as any).firstName,
-          lastName: (firstTimer.assignedTo as any).lastName,
-          email: (firstTimer.assignedTo as any).email
-        } : undefined,
+        assignedTo: firstTimer.assignedTo
+          ? {
+              _id: (firstTimer.assignedTo as any)._id,
+              firstName: (firstTimer.assignedTo as any).firstName,
+              lastName: (firstTimer.assignedTo as any).lastName,
+              email: (firstTimer.assignedTo as any).email,
+            }
+          : undefined,
         lastContactDate,
         daysSinceLastContact,
         completedReports: firstTimer.callReportsCount,
-        remainingReports: 4 - firstTimer.callReportsCount
+        remainingReports: 4 - firstTimer.callReportsCount,
       });
     }
 
-    return result.sort((a, b) => b.daysSinceLastContact - a.daysSinceLastContact);
+    return result.sort(
+      (a, b) => b.daysSinceLastContact - a.daysSinceLastContact,
+    );
   }
 
   async searchCallReports(params: {
@@ -617,7 +670,7 @@ export class CallReportsService {
       callMadeBy,
       fromDate,
       toDate,
-      firstTimerName
+      firstTimerName,
     } = params;
 
     const skip = (page - 1) * limit;
@@ -633,30 +686,30 @@ export class CallReportsService {
       if (toDate) filter.callDate.$lte = toDate;
     }
 
-    let pipeline: any[] = [
+    const pipeline: any[] = [
       { $match: filter },
       {
         $lookup: {
           from: 'firsttimers',
           localField: 'firstTimerId',
           foreignField: '_id',
-          as: 'firstTimerInfo'
-        }
+          as: 'firstTimerInfo',
+        },
       },
       {
         $lookup: {
           from: 'members',
           localField: 'callMadeBy',
           foreignField: '_id',
-          as: 'memberInfo'
-        }
+          as: 'memberInfo',
+        },
       },
       {
-        $unwind: '$firstTimerInfo'
+        $unwind: '$firstTimerInfo',
       },
       {
-        $unwind: '$memberInfo'
-      }
+        $unwind: '$memberInfo',
+      },
     ];
 
     // Add name search if provided
@@ -664,21 +717,35 @@ export class CallReportsService {
       pipeline.push({
         $match: {
           $or: [
-            { 'firstTimerInfo.firstName': { $regex: firstTimerName, $options: 'i' } },
-            { 'firstTimerInfo.lastName': { $regex: firstTimerName, $options: 'i' } },
+            {
+              'firstTimerInfo.firstName': {
+                $regex: firstTimerName,
+                $options: 'i',
+              },
+            },
+            {
+              'firstTimerInfo.lastName': {
+                $regex: firstTimerName,
+                $options: 'i',
+              },
+            },
             {
               $expr: {
                 $regexMatch: {
                   input: {
-                    $concat: ['$firstTimerInfo.firstName', ' ', '$firstTimerInfo.lastName']
+                    $concat: [
+                      '$firstTimerInfo.firstName',
+                      ' ',
+                      '$firstTimerInfo.lastName',
+                    ],
                   },
                   regex: firstTimerName,
-                  options: 'i'
-                }
-              }
-            }
-          ]
-        }
+                  options: 'i',
+                },
+              },
+            },
+          ],
+        },
       });
     }
 
@@ -687,12 +754,9 @@ export class CallReportsService {
         ...pipeline,
         { $sort: { callDate: -1, createdAt: -1 } },
         { $skip: skip },
-        { $limit: limit }
+        { $limit: limit },
       ]),
-      this.callReportModel.aggregate([
-        ...pipeline,
-        { $count: 'total' }
-      ])
+      this.callReportModel.aggregate([...pipeline, { $count: 'total' }]),
     ]);
 
     const total = totalCount[0]?.total || 0;
@@ -706,8 +770,8 @@ export class CallReportsService {
         limit,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     };
   }
 }

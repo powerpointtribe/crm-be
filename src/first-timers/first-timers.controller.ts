@@ -54,18 +54,23 @@ import { CSVParserUtil } from '../common/utils/csv-parser.util';
 import { QueueService } from '../queue/queue.service';
 import { JobType } from '../common/interfaces/queue-job.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-roles.enums';
+import { PermissionGuard } from '../roles/guards/permission.guard';
+import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import { FirstTimersPermission } from './permissions';
 import { EngagementStatus } from '../common/enums/engagement-status.enum';
 import { FirstTimer } from './schemas/first-timer.schema';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { UserRole } from '../common/enums/user-roles.enums';
 import { Public } from '../common/decorators/public.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
+import { AuditLog } from '../common/decorators/audit-log.decorator';
+import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
+import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
 
 @ApiTags('First Timers')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseInterceptors(AuditLogInterceptor)
 @Controller('first-timers')
 export class FirstTimersController {
   constructor(
@@ -176,8 +181,11 @@ export class FirstTimersController {
       const interestedInJoining = createFirstTimerDto.interestedInJoining;
       let validInterestedInJoining: string | undefined = undefined;
 
-      if (interestedInJoining && ['yes', 'no', 'maybe'].includes(interestedInJoining as string)) {
-        validInterestedInJoining = interestedInJoining as string;
+      if (
+        interestedInJoining &&
+        ['yes', 'no', 'maybe'].includes(interestedInJoining)
+      ) {
+        validInterestedInJoining = interestedInJoining;
       }
 
       const internalDto: CreateFirstTimerDto = {
@@ -239,7 +247,13 @@ export class FirstTimersController {
   }
 
   @Post()
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.CREATE_FIRST_TIMER)
+  @AuditLog({
+    action: AuditAction.CREATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Registered a new first-time visitor',
+    getEntityId: (result) => result.data._id.toString(),
+  })
   @ApiOperation({ summary: 'Register a new first-time visitor' })
   @ApiResponse({
     status: 201,
@@ -262,7 +276,7 @@ export class FirstTimersController {
   }
 
   @Get()
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
   @ApiOperation({ summary: 'Get all first-timers with advanced filtering' })
   @ApiResponse({
     status: 200,
@@ -288,7 +302,7 @@ export class FirstTimersController {
   }
 
   @Get('stats')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMER_STATS)
   @ApiOperation({ summary: 'Get first-timer statistics and analytics' })
   @ApiResponse({
     status: 200,
@@ -303,7 +317,7 @@ export class FirstTimersController {
   }
 
   @Get('needing-follow-up')
-  // @Roles(UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
   @ApiOperation({ summary: 'Get first-timers needing follow-up' })
   @ApiResponse({
     status: 200,
@@ -336,7 +350,7 @@ export class FirstTimersController {
   }
 
   @Get('recent')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
   @ApiOperation({ summary: 'Get recent visitors' })
   @ApiQuery({
     name: 'days',
@@ -378,6 +392,7 @@ export class FirstTimersController {
   }
 
   @Get('my-assignments')
+  @RequirePermission(FirstTimersPermission.VIEW_ASSIGNED_FIRST_TIMERS)
   @ApiOperation({ summary: 'Get first-timers assigned to current user' })
   @ApiQuery({
     name: 'page',
@@ -406,7 +421,7 @@ export class FirstTimersController {
       userEmail: user.email,
       userRoles: user.roles,
       page: pageNum,
-      limit: limitNum
+      limit: limitNum,
     });
 
     const assignments = await this.firstTimersService.getByAssignedMember(
@@ -421,7 +436,7 @@ export class FirstTimersController {
       page: assignments.page,
       totalPages: assignments.totalPages,
       hasNext: assignments.hasNext,
-      hasPrev: assignments.hasPrev
+      hasPrev: assignments.hasPrev,
     });
 
     return ResponseUtil.success(
@@ -432,7 +447,7 @@ export class FirstTimersController {
 
   // Daily Messaging Endpoints (must be before :id route)
   @Get('daily-messages')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
   @ApiOperation({ summary: 'Get all daily messages with pagination' })
   @ApiResponse({
     status: 200,
@@ -444,11 +459,14 @@ export class FirstTimersController {
       query.limit,
       query.status,
     );
-    return ResponseUtil.success(result, 'Daily messages retrieved successfully');
+    return ResponseUtil.success(
+      result,
+      'Daily messages retrieved successfully',
+    );
   }
 
   @Post('daily-message')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
   @ApiOperation({ summary: 'Create a daily message for first timers' })
   @ApiResponse({
     status: 201,
@@ -463,14 +481,15 @@ export class FirstTimersController {
       ? new Date(createDailyMessageDto.scheduledTime)
       : undefined;
 
-    const dailyMessage = await this.firstTimerMessagingService.createDailyMessage(
-      date,
-      createDailyMessageDto.message,
-      createDailyMessageDto.firstTimerIds,
-      user?.id,
-      scheduledTime,
-      createDailyMessageDto.autoSend,
-    );
+    const dailyMessage =
+      await this.firstTimerMessagingService.createDailyMessage(
+        date,
+        createDailyMessageDto.message,
+        createDailyMessageDto.firstTimerIds,
+        user?.id,
+        scheduledTime,
+        createDailyMessageDto.autoSend,
+      );
 
     // If auto-send is enabled, send immediately
     if (createDailyMessageDto.autoSend) {
@@ -480,11 +499,14 @@ export class FirstTimersController {
       );
     }
 
-    return ResponseUtil.success(dailyMessage, 'Daily message created successfully');
+    return ResponseUtil.success(
+      dailyMessage,
+      'Daily message created successfully',
+    );
   }
 
   @Get('daily-message/:date')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
   @ApiOperation({ summary: 'Get or create daily message for a specific date' })
   @ApiParam({ name: 'date', description: 'Date in YYYY-MM-DD format' })
   @ApiResponse({
@@ -493,17 +515,23 @@ export class FirstTimersController {
   })
   async getDailyMessage(@Param('date') dateString: string) {
     // Try to get existing message or create one if there are first timers for this date
-    const dailyMessage = await this.firstTimerMessagingService.getOrCreateDailyMessageEntry(dateString);
+    const dailyMessage =
+      await this.firstTimerMessagingService.getOrCreateDailyMessageEntry(
+        dateString,
+      );
 
     if (!dailyMessage) {
       return ResponseUtil.success(null, 'No first timers found for this date');
     }
 
-    return ResponseUtil.success(dailyMessage, 'Daily message retrieved successfully');
+    return ResponseUtil.success(
+      dailyMessage,
+      'Daily message retrieved successfully',
+    );
   }
 
   @Patch('daily-message/:id')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
   @ApiOperation({ summary: 'Update a daily message' })
   @ApiParam({ name: 'id', description: 'Daily message ID' })
   @ApiResponse({
@@ -512,26 +540,31 @@ export class FirstTimersController {
   })
   async updateDailyMessage(
     @Param('id') dailyMessageId: string,
-    @Body() updateData: { message: string; scheduledTime?: string; autoSend: boolean },
+    @Body()
+    updateData: { message: string; scheduledTime?: string; autoSend: boolean },
     @CurrentUser() user: any,
   ) {
     const scheduledTime = updateData.scheduledTime
       ? new Date(updateData.scheduledTime)
       : undefined;
 
-    const updatedMessage = await this.firstTimerMessagingService.updateDailyMessage(
-      dailyMessageId,
-      updateData.message,
-      scheduledTime,
-      updateData.autoSend,
-      user?.id,
-    );
+    const updatedMessage =
+      await this.firstTimerMessagingService.updateDailyMessage(
+        dailyMessageId,
+        updateData.message,
+        scheduledTime,
+        updateData.autoSend,
+        user?.id,
+      );
 
-    return ResponseUtil.success(updatedMessage, 'Daily message updated successfully');
+    return ResponseUtil.success(
+      updatedMessage,
+      'Daily message updated successfully',
+    );
   }
 
   @Delete('daily-message/:id')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
   @ApiOperation({ summary: 'Delete a daily message' })
   @ApiParam({ name: 'id', description: 'Daily message ID' })
   @ApiResponse({
@@ -542,12 +575,15 @@ export class FirstTimersController {
     @Param('id') dailyMessageId: string,
     @CurrentUser() user: any,
   ) {
-    await this.firstTimerMessagingService.deleteDailyMessage(dailyMessageId, user?.id);
+    await this.firstTimerMessagingService.deleteDailyMessage(
+      dailyMessageId,
+      user?.id,
+    );
     return ResponseUtil.success(null, 'Daily message deleted successfully');
   }
 
   @Post('daily-message/:id/send-now')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
   @ApiOperation({ summary: 'Send a scheduled daily message immediately' })
   @ApiParam({ name: 'id', description: 'Daily message ID' })
   @ApiResponse({
@@ -567,31 +603,39 @@ export class FirstTimersController {
 
   // Call Reports Analytics Endpoints - MUST BE BEFORE :id route
   @Get('call-reports/analytics/global')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_CALL_REPORTS)
   @ApiOperation({ summary: 'Get global call reports analytics' })
   @ApiResponse({
     status: 200,
     description: 'Global analytics retrieved successfully',
   })
   async getGlobalCallReportsAnalytics() {
-    const analytics = await this.callReportsService.getGlobalCallReportsAnalytics();
-    return ResponseUtil.success(analytics, 'Global analytics retrieved successfully');
+    const analytics =
+      await this.callReportsService.getGlobalCallReportsAnalytics();
+    return ResponseUtil.success(
+      analytics,
+      'Global analytics retrieved successfully',
+    );
   }
 
   @Get('call-reports/analytics/team-performance')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_CALL_REPORTS)
   @ApiOperation({ summary: 'Get team performance analytics for call reports' })
   @ApiResponse({
     status: 200,
     description: 'Team performance analytics retrieved successfully',
   })
   async getTeamPerformanceAnalytics() {
-    const analytics = await this.callReportsService.getTeamPerformanceAnalytics();
-    return ResponseUtil.success(analytics, 'Team performance analytics retrieved successfully');
+    const analytics =
+      await this.callReportsService.getTeamPerformanceAnalytics();
+    return ResponseUtil.success(
+      analytics,
+      'Team performance analytics retrieved successfully',
+    );
   }
 
   @Get('call-reports/overdue')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_CALL_REPORTS)
   @ApiOperation({ summary: 'Get overdue call reports and first timers' })
   @ApiResponse({
     status: 200,
@@ -604,15 +648,18 @@ export class FirstTimersController {
     let filteredReports = overdueReports;
     if (user.roles === UserRole.LXL) {
       filteredReports = overdueReports.filter(
-        (report) => report.assignedTo?._id === user._id
+        (report) => report.assignedTo?._id === user._id,
       );
     }
 
-    return ResponseUtil.success(filteredReports, 'Overdue reports retrieved successfully');
+    return ResponseUtil.success(
+      filteredReports,
+      'Overdue reports retrieved successfully',
+    );
   }
 
   @Get('call-reports/search')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_CALL_REPORTS)
   @ApiOperation({ summary: 'Search and filter call reports' })
   @ApiResponse({
     status: 200,
@@ -639,12 +686,16 @@ export class FirstTimersController {
       firstTimerName,
     };
 
-    const results = await this.callReportsService.searchCallReports(searchParams);
-    return ResponseUtil.success(results, 'Search results retrieved successfully');
+    const results =
+      await this.callReportsService.searchCallReports(searchParams);
+    return ResponseUtil.success(
+      results,
+      'Search results retrieved successfully',
+    );
   }
 
   @Get(':id')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMER_DETAILS)
   @ApiOperation({ summary: 'Get first-timer by ID' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({
@@ -676,7 +727,13 @@ export class FirstTimersController {
   }
 
   @Patch(':id')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.UPDATE_FIRST_TIMER)
+  @AuditLog({
+    action: AuditAction.UPDATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Updated first-timer information',
+    getEntityId: (result, request) => request.params.id,
+  })
   @ApiOperation({ summary: 'Update first-timer details' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({
@@ -706,7 +763,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/follow-up')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.UPDATE_FOLLOW_UP_STATUS)
   @ApiOperation({ summary: 'Add follow-up record to first-timer' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({ status: 200, description: 'Follow-up added successfully' })
@@ -728,7 +785,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/status')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.UPDATE_FIRST_TIMER)
   @ApiOperation({ summary: 'Update first-timer engagement status' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({ status: 200, description: 'Status updated successfully' })
@@ -743,7 +800,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/assign/:memberId')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.ASSIGN_FIRST_TIMER)
   @ApiOperation({ summary: 'Assign first-timer to a follow-up team member' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiParam({ name: 'memberId', description: 'Member ID to assign to' })
@@ -769,7 +826,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/convert')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.CONVERT_TO_MEMBER)
   @ApiOperation({ summary: 'Convert first-timer to member' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({
@@ -791,7 +848,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/assign')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.ASSIGN_FIRST_TIMER)
   @ApiOperation({ summary: 'Assign follow-up person to first-timer' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({
@@ -816,7 +873,7 @@ export class FirstTimersController {
   }
 
   @Get('pending-district')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
   @ApiOperation({ summary: 'Get first-timers pending district assignment' })
   @ApiQuery({
     name: 'page',
@@ -851,7 +908,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/notes')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.UPDATE_FIRST_TIMER)
   @ApiOperation({ summary: 'Update first-timer notes' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({ status: 200, description: 'Notes updated successfully' })
@@ -879,7 +936,7 @@ export class FirstTimersController {
   }
 
   @Patch(':id/deactivate')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.ARCHIVE_FIRST_TIMER)
   @ApiOperation({ summary: 'Deactivate first-timer record' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
   @ApiResponse({
@@ -895,7 +952,7 @@ export class FirstTimersController {
   }
 
   @Delete('bulk')
-  // @Roles(UserRole.ADMIN) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.DELETE_FIRST_TIMER)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Bulk delete first-timers (super admin only)' })
   @ApiBody({
@@ -925,7 +982,14 @@ export class FirstTimersController {
   }
 
   @Delete(':id')
-  // @Roles(UserRole.ADMIN) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.DELETE_FIRST_TIMER)
+  @AuditLog({
+    action: AuditAction.DELETE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Deleted a first-timer record',
+    severity: 'high',
+    getEntityId: (result, request) => request.params.id,
+  })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete first-timer (super admin only)' })
   @ApiParam({ name: 'id', description: 'First-timer ID' })
@@ -937,7 +1001,7 @@ export class FirstTimersController {
   }
 
   @Post('bulk-assign')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.ASSIGN_FIRST_TIMER)
   @ApiOperation({ summary: 'Bulk assign first-timers to users' })
   @ApiResponse({
     status: 200,
@@ -969,25 +1033,30 @@ export class FirstTimersController {
     const memberAssignments = new Map<string, Array<any>>();
 
     // Determine assignment type and target member field
-    const isFollowUpAssignment = body.assignmentType === 'followup' ||
-                                body.assignments.some(a => a.followUpPersonId || a.assigneeId);
+    const isFollowUpAssignment =
+      body.assignmentType === 'followup' ||
+      body.assignments.some((a) => a.followUpPersonId || a.assigneeId);
 
     // Process assignments without triggering individual notifications
     for (const assignment of body.assignments) {
       try {
         let firstTimer: any;
-        const targetMemberId = assignment.memberId || assignment.followUpPersonId || assignment.assigneeId;
+        const targetMemberId =
+          assignment.memberId ||
+          assignment.followUpPersonId ||
+          assignment.assigneeId;
 
         if (!targetMemberId) {
-          throw new Error('Either memberId, followUpPersonId, or assigneeId must be provided');
+          throw new Error(
+            'Either memberId, followUpPersonId, or assigneeId must be provided',
+          );
         }
 
-         
-        firstTimer = await this.firstTimersService.assignToMemberWithoutNotification(
-          assignment.firstTimerId,
-          targetMemberId,
-        );
-        
+        firstTimer =
+          await this.firstTimersService.assignToMemberWithoutNotification(
+            assignment.firstTimerId,
+            targetMemberId,
+          );
 
         results.push({ success: true, firstTimer });
 
@@ -1011,12 +1080,15 @@ export class FirstTimersController {
         if (firstTimers.length > 0) {
           await this.firstTimersService.sendBulkAssignmentNotification(
             firstTimers,
-            assignedBy
+            assignedBy,
           );
         }
       } catch (error: any) {
         // Log error but don't fail the assignment
-        console.error(`Failed to send notification to member ${memberId}:`, error.message);
+        console.error(
+          `Failed to send notification to member ${memberId}:`,
+          error.message,
+        );
       }
     }
 
@@ -1024,7 +1096,7 @@ export class FirstTimersController {
   }
 
   @Patch('bulk-status')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.UPDATE_FIRST_TIMER)
   @ApiOperation({ summary: 'Bulk update status for multiple first-timers' })
   @ApiResponse({
     status: 200,
@@ -1059,7 +1131,7 @@ export class FirstTimersController {
   }
 
   @Post('bulk-upload')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.CREATE_FIRST_TIMER)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Queue bulk upload first-timers from CSV file' })
   @ApiConsumes('multipart/form-data')
@@ -1174,7 +1246,7 @@ export class FirstTimersController {
   }
 
   @Get('sample-csv')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
   @ApiOperation({ summary: 'Download sample CSV template for bulk upload' })
   @ApiResponse({
     status: 200,
@@ -1196,7 +1268,7 @@ export class FirstTimersController {
 
   // Call Reports Endpoints
   @Post(':id/call-reports')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.ADD_CALL_REPORT)
   @ApiOperation({ summary: 'Create a call report for a first timer' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({
@@ -1217,7 +1289,7 @@ export class FirstTimersController {
   }
 
   @Get(':id/call-reports')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_CALL_REPORTS)
   @ApiOperation({ summary: 'Get all call reports for a first timer' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({
@@ -1234,7 +1306,7 @@ export class FirstTimersController {
   }
 
   @Get(':id/call-reports/summary')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.VIEW_CALL_REPORTS)
   @ApiOperation({ summary: 'Get call reports summary for a first timer' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({
@@ -1251,7 +1323,7 @@ export class FirstTimersController {
   }
 
   @Patch('call-reports/:reportId')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.ADD_CALL_REPORT)
   @ApiOperation({ summary: 'Update a call report' })
   @ApiParam({ name: 'reportId', description: 'Call report ID' })
   @ApiResponse({
@@ -1270,7 +1342,7 @@ export class FirstTimersController {
   }
 
   @Delete('call-reports/:reportId')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.ADD_CALL_REPORT)
   @ApiOperation({ summary: 'Delete a call report' })
   @ApiParam({ name: 'reportId', description: 'Call report ID' })
   @ApiResponse({
@@ -1284,7 +1356,7 @@ export class FirstTimersController {
 
   // Pre-filled Message Endpoints
   @Post(':id/set-message')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.SEND_WELCOME_MESSAGE)
   @ApiOperation({ summary: 'Set pre-filled message for a first timer' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({
@@ -1311,13 +1383,16 @@ export class FirstTimersController {
   }
 
   @Post('bulk-set-message')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.SEND_WELCOME_MESSAGE)
   @ApiOperation({ summary: 'Set pre-filled message for multiple first timers' })
   @ApiResponse({
     status: 200,
     description: 'Bulk pre-filled message set successfully',
   })
-  async setBulkPreFilledMessage(@Body() bulkSetMessageDto: BulkSetMessageDto, @CurrentUser() user: any) {
+  async setBulkPreFilledMessage(
+    @Body() bulkSetMessageDto: BulkSetMessageDto,
+    @CurrentUser() user: any,
+  ) {
     const scheduledTime = bulkSetMessageDto.scheduledTime
       ? new Date(bulkSetMessageDto.scheduledTime)
       : undefined;
@@ -1336,7 +1411,7 @@ export class FirstTimersController {
   }
 
   @Get(':id/message-history')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
   @ApiOperation({ summary: 'Get message history for a first timer' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({
@@ -1344,12 +1419,16 @@ export class FirstTimersController {
     description: 'Message history retrieved successfully',
   })
   async getMessageHistory(@Param('id') firstTimerId: string) {
-    const history = await this.firstTimerMessagingService.getMessageHistory(firstTimerId);
-    return ResponseUtil.success(history, 'Message history retrieved successfully');
+    const history =
+      await this.firstTimerMessagingService.getMessageHistory(firstTimerId);
+    return ResponseUtil.success(
+      history,
+      'Message history retrieved successfully',
+    );
   }
 
   @Get(':id/scheduled-message')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
   @ApiOperation({ summary: 'Get current scheduled message for a first timer' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({
@@ -1357,12 +1436,16 @@ export class FirstTimersController {
     description: 'Scheduled message retrieved successfully',
   })
   async getScheduledMessage(@Param('id') firstTimerId: string) {
-    const scheduledMessage = await this.firstTimerMessagingService.getScheduledMessage(firstTimerId);
-    return ResponseUtil.success(scheduledMessage, 'Scheduled message retrieved successfully');
+    const scheduledMessage =
+      await this.firstTimerMessagingService.getScheduledMessage(firstTimerId);
+    return ResponseUtil.success(
+      scheduledMessage,
+      'Scheduled message retrieved successfully',
+    );
   }
 
   @Patch(':id/edit-message')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.SEND_WELCOME_MESSAGE)
   @ApiOperation({ summary: 'Edit scheduled message for a first timer' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({
@@ -1389,7 +1472,7 @@ export class FirstTimersController {
   }
 
   @Delete(':id/cancel-message')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.SEND_WELCOME_MESSAGE)
   @ApiOperation({ summary: 'Cancel scheduled message for a first timer' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({
@@ -1400,12 +1483,18 @@ export class FirstTimersController {
     @Param('id') firstTimerId: string,
     @CurrentUser() user: any,
   ) {
-    await this.firstTimerMessagingService.cancelScheduledMessage(firstTimerId, user?.id);
-    return ResponseUtil.success(null, 'Scheduled message cancelled successfully');
+    await this.firstTimerMessagingService.cancelScheduledMessage(
+      firstTimerId,
+      user?.id,
+    );
+    return ResponseUtil.success(
+      null,
+      'Scheduled message cancelled successfully',
+    );
   }
 
   @Get('messages/history')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
   @ApiOperation({ summary: 'Get all message history with pagination' })
   @ApiResponse({
     status: 200,
@@ -1417,13 +1506,15 @@ export class FirstTimersController {
       query.limit,
       query.status,
     );
-    return ResponseUtil.success(result, 'Message history retrieved successfully');
+    return ResponseUtil.success(
+      result,
+      'Message history retrieved successfully',
+    );
   }
-
 
   // Integration Stage Endpoints
   @Patch(':id/integration-stage')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.UPDATE_INTEGRATION_STAGE)
   @ApiOperation({ summary: 'Update integration stage for a first timer' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({
@@ -1447,7 +1538,7 @@ export class FirstTimersController {
   // Legacy bulk-assign-followup endpoint removed - use POST /bulk-assign instead
 
   @Post(':id/close')
-  // @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL) // PERMISSIONS DISABLED
+  @RequirePermission(FirstTimersPermission.UPDATE_FIRST_TIMER)
   @ApiOperation({ summary: 'Close a first timer (unwilling or became member)' })
   @ApiParam({ name: 'id', description: 'First timer ID' })
   @ApiResponse({

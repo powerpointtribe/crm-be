@@ -24,21 +24,21 @@ import { CreateServiceReportDto } from './dto/create-service-report.dto';
 import { UpdateServiceReportDto } from './dto/update-service-report.dto';
 import { ServiceReportSearchDto } from './dto/service-report-search.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-roles.enums';
+import { PermissionGuard } from '../roles/guards/permission.guard';
+import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import { ServiceReportsPermission } from './permissions';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
 
 @ApiTags('Service Reports')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('service-reports')
 export class ServiceReportsController {
   constructor(private readonly serviceReportsService: ServiceReportsService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(ServiceReportsPermission.CREATE_REPORT)
   @ApiOperation({ summary: 'Create a new service report' })
   @ApiResponse({
     status: 201,
@@ -64,7 +64,7 @@ export class ServiceReportsController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(ServiceReportsPermission.VIEW_REPORTS)
   @ApiOperation({
     summary: 'Get all service reports with filtering and pagination',
   })
@@ -81,7 +81,7 @@ export class ServiceReportsController {
   }
 
   @Get('stats')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR)
+  @RequirePermission(ServiceReportsPermission.VIEW_REPORT_STATS)
   @ApiOperation({ summary: 'Get service report statistics' })
   @ApiResponse({
     status: 200,
@@ -96,7 +96,7 @@ export class ServiceReportsController {
   }
 
   @Get('chart-data')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(ServiceReportsPermission.VIEW_REPORT_TRENDS)
   @ApiOperation({ summary: 'Get attendance chart data' })
   @ApiQuery({
     name: 'limit',
@@ -119,7 +119,7 @@ export class ServiceReportsController {
   }
 
   @Get('my-reports')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(ServiceReportsPermission.VIEW_OWN_REPORTS)
   @ApiOperation({ summary: 'Get service reports created by current user' })
   @ApiResponse({
     status: 200,
@@ -140,7 +140,7 @@ export class ServiceReportsController {
   }
 
   @Get('recent')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(ServiceReportsPermission.VIEW_REPORTS)
   @ApiOperation({ summary: 'Get recent service reports' })
   @ApiQuery({
     name: 'days',
@@ -182,7 +182,7 @@ export class ServiceReportsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(ServiceReportsPermission.VIEW_REPORT_DETAILS)
   @ApiOperation({ summary: 'Get service report by ID' })
   @ApiParam({ name: 'id', description: 'Service report ID' })
   @ApiResponse({
@@ -202,7 +202,7 @@ export class ServiceReportsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(ServiceReportsPermission.UPDATE_REPORT)
   @ApiOperation({ summary: 'Update service report' })
   @ApiParam({ name: 'id', description: 'Service report ID' })
   @ApiResponse({
@@ -231,7 +231,7 @@ export class ServiceReportsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(ServiceReportsPermission.DELETE_REPORT)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete service report' })
   @ApiParam({ name: 'id', description: 'Service report ID' })
@@ -253,7 +253,7 @@ export class ServiceReportsController {
   }
 
   @Get(':id/pdf')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(ServiceReportsPermission.VIEW_REPORT_DETAILS)
   @ApiOperation({ summary: 'Generate PDF report for service report' })
   @ApiParam({ name: 'id', description: 'Service report ID' })
   @ApiResponse({

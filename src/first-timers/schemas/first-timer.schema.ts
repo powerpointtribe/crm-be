@@ -119,7 +119,7 @@ export class FirstTimer {
   @Prop({
     type: String,
     enum: ['yes', 'no', 'maybe'],
-    default: undefined
+    default: undefined,
   })
   interestedInJoining?: string;
 
@@ -206,6 +206,61 @@ export class FirstTimer {
       'walkby',
       'website',
       'social_media',
+      'church_outreach',
+      'community_outreach',
+      'campus_outreach',
+      'evangelism_program',
+      'crusade',
+      'conference',
+      'radio',
+      'television',
+      'podcast',
+      'youtube',
+      'facebook',
+      'instagram',
+      'twitter',
+      'whatsapp',
+      'invitation_card',
+      'flyer',
+      'banner',
+      'billboard',
+      'newspaper',
+      'magazine',
+      'google_search',
+      'church_website',
+      'online_service',
+      'live_stream',
+      'church_app',
+      'community_service',
+      'charity_work',
+      'hospital_ministry',
+      'prison_ministry',
+      'school_ministry',
+      'workplace_ministry',
+      'neighborhood_evangelism',
+      'street_evangelism',
+      'door_to_door',
+      'market_evangelism',
+      'wedding_invitation',
+      'funeral_service',
+      'baby_dedication',
+      'thanksgiving_service',
+      'christmas_service',
+      'easter_service',
+      'new_year_service',
+      'special_program',
+      'guest_speaker',
+      'musical_concert',
+      'drama_presentation',
+      'youth_program',
+      'children_program',
+      'women_program',
+      'men_program',
+      'singles_program',
+      'couples_program',
+      'business_network',
+      'professional_network',
+      'alumni_network',
       'other',
     ],
   })
@@ -213,6 +268,35 @@ export class FirstTimer {
 
   @Prop({ trim: true })
   previousChurch?: string;
+
+  // Additional outreach tracking
+  @Prop({ trim: true })
+  outreachProgramDetails?: string;
+
+  @Prop({ trim: true })
+  outreachVolunteerName?: string;
+
+  @Prop({ trim: true })
+  outreachLocation?: string;
+
+  @Prop({ type: Date })
+  outreachDate?: Date;
+
+  @Prop({
+    type: String,
+    enum: [
+      'very_effective',
+      'effective',
+      'somewhat_effective',
+      'not_effective',
+      'unknown',
+    ],
+    default: 'unknown',
+  })
+  outreachEffectiveness?: string;
+
+  @Prop({ trim: true })
+  outreachFeedback?: string;
 
   @Prop({
     type: String,
@@ -338,3 +422,7 @@ FirstTimerSchema.index({ assignedDistrict: 1 });
 FirstTimerSchema.index({ messageScheduledTime: 1 });
 FirstTimerSchema.index({ messageSent: 1 });
 FirstTimerSchema.index({ callReportsCount: 1 });
+FirstTimerSchema.index({ howDidYouHear: 1 });
+FirstTimerSchema.index({ outreachDate: -1 });
+FirstTimerSchema.index({ outreachVolunteerName: 1 });
+FirstTimerSchema.index({ outreachEffectiveness: 1 });

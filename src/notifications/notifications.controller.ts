@@ -28,7 +28,8 @@ export class NotificationsController {
     try {
       const result = await this.emailProvider.sendEmail({
         to: testEmailDto.email,
-        subject: testEmailDto.subject || 'Test Email from Church Management System',
+        subject:
+          testEmailDto.subject || 'Test Email from Church Management System',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #2c3e50;">Test Email</h1>
@@ -64,9 +65,14 @@ export class NotificationsController {
 
   @Post('test-first-timer-email')
   @ApiOperation({ summary: 'Send test first-timer thank you email' })
-  @ApiResponse({ status: 200, description: 'Test first-timer email sent successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Test first-timer email sent successfully',
+  })
   async sendTestFirstTimerEmail(@Body() testEmailDto: TestEmailDto) {
-    this.logger.log(`Testing first-timer email delivery to: ${testEmailDto.email}`);
+    this.logger.log(
+      `Testing first-timer email delivery to: ${testEmailDto.email}`,
+    );
 
     try {
       await this.notificationsService.sendFirstTimerThankYouEmail({

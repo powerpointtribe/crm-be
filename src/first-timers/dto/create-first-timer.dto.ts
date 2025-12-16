@@ -181,6 +181,63 @@ export class CreateFirstTimerDto {
       'online',
       'event',
       'walkby',
+      'website',
+      'social_media',
+      'church_outreach',
+      'community_outreach',
+      'campus_outreach',
+      'evangelism_program',
+      'crusade',
+      'conference',
+      'radio',
+      'television',
+      'podcast',
+      'youtube',
+      'facebook',
+      'instagram',
+      'twitter',
+      'whatsapp',
+      'invitation_card',
+      'flyer',
+      'banner',
+      'billboard',
+      'newspaper',
+      'magazine',
+      'google_search',
+      'church_website',
+      'online_service',
+      'live_stream',
+      'church_app',
+      'community_service',
+      'charity_work',
+      'hospital_ministry',
+      'prison_ministry',
+      'school_ministry',
+      'workplace_ministry',
+      'neighborhood_evangelism',
+      'street_evangelism',
+      'door_to_door',
+      'market_evangelism',
+      'wedding_invitation',
+      'funeral_service',
+      'baby_dedication',
+      'thanksgiving_service',
+      'christmas_service',
+      'easter_service',
+      'new_year_service',
+      'special_program',
+      'guest_speaker',
+      'musical_concert',
+      'drama_presentation',
+      'youth_program',
+      'children_program',
+      'women_program',
+      'men_program',
+      'singles_program',
+      'couples_program',
+      'business_network',
+      'professional_network',
+      'alumni_network',
       'other',
     ],
   })
@@ -192,6 +249,63 @@ export class CreateFirstTimerDto {
     'online',
     'event',
     'walkby',
+    'website',
+    'social_media',
+    'church_outreach',
+    'community_outreach',
+    'campus_outreach',
+    'evangelism_program',
+    'crusade',
+    'conference',
+    'radio',
+    'television',
+    'podcast',
+    'youtube',
+    'facebook',
+    'instagram',
+    'twitter',
+    'whatsapp',
+    'invitation_card',
+    'flyer',
+    'banner',
+    'billboard',
+    'newspaper',
+    'magazine',
+    'google_search',
+    'church_website',
+    'online_service',
+    'live_stream',
+    'church_app',
+    'community_service',
+    'charity_work',
+    'hospital_ministry',
+    'prison_ministry',
+    'school_ministry',
+    'workplace_ministry',
+    'neighborhood_evangelism',
+    'street_evangelism',
+    'door_to_door',
+    'market_evangelism',
+    'wedding_invitation',
+    'funeral_service',
+    'baby_dedication',
+    'thanksgiving_service',
+    'christmas_service',
+    'easter_service',
+    'new_year_service',
+    'special_program',
+    'guest_speaker',
+    'musical_concert',
+    'drama_presentation',
+    'youth_program',
+    'children_program',
+    'women_program',
+    'men_program',
+    'singles_program',
+    'couples_program',
+    'business_network',
+    'professional_network',
+    'alumni_network',
     'other',
   ])
   howDidYouHear?: string;
@@ -200,6 +314,58 @@ export class CreateFirstTimerDto {
   @IsOptional()
   @IsString()
   previousChurch?: string;
+
+  @ApiPropertyOptional({ description: 'Details about the outreach program' })
+  @IsOptional()
+  @IsString()
+  outreachProgramDetails?: string;
+
+  @ApiPropertyOptional({ description: 'Name of the outreach volunteer' })
+  @IsOptional()
+  @IsString()
+  outreachVolunteerName?: string;
+
+  @ApiPropertyOptional({ description: 'Location where the outreach happened' })
+  @IsOptional()
+  @IsString()
+  outreachLocation?: string;
+
+  @ApiPropertyOptional({
+    description: 'Date of the outreach event',
+    example: '2024-01-15',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'outreachDate must be in YYYY-MM-DD format',
+  })
+  outreachDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Effectiveness of the outreach',
+    enum: [
+      'very_effective',
+      'effective',
+      'somewhat_effective',
+      'not_effective',
+      'unknown',
+    ],
+    default: 'unknown',
+  })
+  @IsOptional()
+  @IsEnum([
+    'very_effective',
+    'effective',
+    'somewhat_effective',
+    'not_effective',
+    'unknown',
+  ])
+  outreachEffectiveness?: string;
+
+  @ApiPropertyOptional({ description: 'Feedback about the outreach' })
+  @IsOptional()
+  @IsString()
+  outreachFeedback?: string;
 
   @ApiPropertyOptional({
     description: 'Type of visitor',
@@ -260,7 +426,7 @@ export class CreateFirstTimerDto {
 
   @ApiPropertyOptional({
     description: 'Interest in joining PowerPoint Tribe',
-    enum: ['yes', 'no', 'maybe']
+    enum: ['yes', 'no', 'maybe'],
   })
   @IsOptional()
   @IsEnum(['yes', 'no', 'maybe'])

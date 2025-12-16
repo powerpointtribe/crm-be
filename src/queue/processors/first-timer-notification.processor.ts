@@ -13,9 +13,7 @@ import { NotificationsService } from '../../notifications/notifications.service'
 export class FirstTimerNotificationProcessor {
   private readonly logger = new Logger(FirstTimerNotificationProcessor.name);
 
-  constructor(
-    private notificationsService: NotificationsService,
-  ) {
+  constructor(private notificationsService: NotificationsService) {
     this.logger.log('FirstTimerNotificationProcessor initialized');
   }
 
@@ -42,9 +40,7 @@ export class FirstTimerNotificationProcessor {
         lastName: lastName || '',
       });
 
-      this.logger.log(
-        `Thank you email sent successfully to ${email}`,
-      );
+      this.logger.log(`Thank you email sent successfully to ${email}`);
       return { success: true, email };
     } catch (error) {
       this.logger.error(`Failed to send thank you email: ${error.message}`);
@@ -63,7 +59,7 @@ export class FirstTimerNotificationProcessor {
         giaLeaderEmail,
         giaLeaderName,
         memberName,
-        conversionDate
+        conversionDate,
       } = additionalData || {};
 
       if (!firstTimerName || !giaLeaderEmail || !giaLeaderName) {
@@ -103,10 +99,13 @@ export class FirstTimerNotificationProcessor {
       const { firstTimerId, additionalData } = job.data;
       const { reminderType } = additionalData || {};
 
-      const { email, firstName, lastName, interestedInJoining } = additionalData || {};
+      const { email, firstName, lastName, interestedInJoining } =
+        additionalData || {};
 
       if (!email) {
-        this.logger.warn(`First-timer ${firstTimerId} has no email data provided`);
+        this.logger.warn(
+          `First-timer ${firstTimerId} has no email data provided`,
+        );
         return { success: false, reason: 'No email data provided' };
       }
 
@@ -191,7 +190,8 @@ export class FirstTimerNotificationProcessor {
 
     try {
       const { firstTimerId, additionalData } = job.data;
-      const { message, email, firstName, lastName, messageSent } = additionalData || {};
+      const { message, email, firstName, lastName, messageSent } =
+        additionalData || {};
 
       if (!email) {
         this.logger.warn(
@@ -283,8 +283,12 @@ export class FirstTimerNotificationProcessor {
   }
 
   @Process(JobType.SEND_MEMBER_FOLLOWUP_ASSIGNMENT)
-  async handleMemberFollowupAssignment(job: Job<FirstTimerNotificationJobData>) {
-    this.logger.log(`Processing member followup assignment notification for job: ${job.id}`);
+  async handleMemberFollowupAssignment(
+    job: Job<FirstTimerNotificationJobData>,
+  ) {
+    this.logger.log(
+      `Processing member followup assignment notification for job: ${job.id}`,
+    );
 
     try {
       const { additionalData } = job.data;
@@ -293,11 +297,13 @@ export class FirstTimerNotificationProcessor {
         memberName,
         firstTimers,
         assignmentType,
-        assignedBy
+        assignedBy,
       } = additionalData || {};
 
       if (!memberEmail || !firstTimers?.length) {
-        this.logger.warn('Missing required data for member followup assignment notification');
+        this.logger.warn(
+          'Missing required data for member followup assignment notification',
+        );
         return {
           success: false,
           reason: 'Missing member email or first-timers data',
@@ -312,13 +318,17 @@ export class FirstTimerNotificationProcessor {
           lastName: ft.lastName,
           phone: ft.phone,
           email: ft.email,
-          dateOfVisit: ft.dateOfVisit ? new Date(ft.dateOfVisit).toLocaleDateString() : new Date().toLocaleDateString(),
+          dateOfVisit: ft.dateOfVisit
+            ? new Date(ft.dateOfVisit).toLocaleDateString()
+            : new Date().toLocaleDateString(),
         })),
         assignmentType: assignmentType || 'followup', // 'followup' or 'assignment'
         assignedBy: assignedBy || 'Church Leadership',
       });
 
-      this.logger.log(`Member followup assignment notification sent to ${memberEmail}`);
+      this.logger.log(
+        `Member followup assignment notification sent to ${memberEmail}`,
+      );
       return { success: true, memberEmail, count: firstTimers.length };
     } catch (error) {
       this.logger.error(

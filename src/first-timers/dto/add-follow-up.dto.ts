@@ -55,7 +55,7 @@ export class AddFollowUpDto {
 
   @ApiPropertyOptional({
     description: 'Next follow-up date',
-    example: '2024-12-25T10:30:00.000Z'
+    example: '2024-12-25T10:30:00.000Z',
   })
   @IsOptional()
   @ValidateIf((o) => o.nextFollowUpDate !== '' && o.nextFollowUpDate !== null)

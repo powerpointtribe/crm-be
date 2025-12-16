@@ -8,6 +8,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { RolesModule } from './roles/roles.module';
 import { MembersModule } from './members/members.module';
 import { GroupsModule } from './groups/groups.module';
 import { FirstTimersModule } from './first-timers/first-timers.module';
@@ -18,6 +19,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { BullBoardModule } from './bull-board/bull-board.module';
 import { BulkOperationsModule } from './bulk-operations/bulk-operations.module';
 import { UploadModule } from './upload/upload.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { WorkersTrainingModule } from './workers-training/workers-training.module';
+import { ActivityTrackerModule } from './activity-tracker/activity-tracker.module';
 
 @Module({
   imports: [
@@ -53,6 +58,7 @@ import { UploadModule } from './upload/upload.module';
 
     // Feature modules
     AuthModule,
+    RolesModule,
     MembersModule,
     GroupsModule,
     FirstTimersModule,
@@ -63,6 +69,10 @@ import { UploadModule } from './upload/upload.module';
     BullBoardModule,
     BulkOperationsModule,
     UploadModule,
+    AuditLogsModule,
+    InventoryModule,
+    WorkersTrainingModule,
+    ActivityTrackerModule,
   ],
   controllers: [AppController],
   providers: [

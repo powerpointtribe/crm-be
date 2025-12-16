@@ -626,8 +626,10 @@ export class NotificationsService {
       )
       .join('');
 
-    const actionType = data.assignmentType === 'followup' ? 'follow up with' : 'assigned to';
-    const titleType = data.assignmentType === 'followup' ? 'Follow-Up' : 'Assignment';
+    const actionType =
+      data.assignmentType === 'followup' ? 'follow up with' : 'assigned to';
+    const titleType =
+      data.assignmentType === 'followup' ? 'Follow-Up' : 'Assignment';
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; line-height: 1.6;">

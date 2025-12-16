@@ -6,6 +6,8 @@ import { Member, MemberSchema } from './schemas/member.schema';
 import { QueueModule } from '../queue/queue.module';
 import { CommonModule } from '../common/common.module';
 import { AuthModule } from '../auth/auth.module';
+import { RolesModule } from '../roles/roles.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -13,6 +15,8 @@ import { AuthModule } from '../auth/auth.module';
     forwardRef(() => QueueModule),
     forwardRef(() => AuthModule),
     CommonModule,
+    RolesModule, // Import RolesModule to make PermissionGuard available
+    forwardRef(() => AuditLogsModule), // Forward ref to avoid circular dependency
   ],
   controllers: [MembersController],
   providers: [MembersService],

@@ -26,21 +26,21 @@ export class FirstTimerSearchDto extends SearchDto {
 
   @ApiPropertyOptional({
     description: 'Filter from visit date (YYYY-MM-DD format)',
-    example: '2025-09-14'
+    example: '2025-09-14',
   })
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'visitDateFrom must be in YYYY-MM-DD format'
+    message: 'visitDateFrom must be in YYYY-MM-DD format',
   })
   visitDateFrom?: string;
 
   @ApiPropertyOptional({
     description: 'Filter to visit date (YYYY-MM-DD format)',
-    example: '2025-09-14'
+    example: '2025-09-14',
   })
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'visitDateTo must be in YYYY-MM-DD format'
+    message: 'visitDateTo must be in YYYY-MM-DD format',
   })
   visitDateTo?: string;
 

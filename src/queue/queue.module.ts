@@ -8,9 +8,11 @@ import { FirstTimerAutomationProcessor } from './processors/first-timer-automati
 import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { RolesModule } from '../roles/roles.module';
 
 @Module({
   imports: [
+    RolesModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
@@ -27,7 +29,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
           keepAlive: 30000,
           onConnect: () => console.log('Bull Redis connected successfully'),
           onReady: () => console.log('Bull Redis ready to accept commands'),
-          onError: (err: any) => console.error('Bull Redis connection error:', err),
+          onError: (err: any) =>
+            console.error('Bull Redis connection error:', err),
           onClose: () => console.log('Bull Redis connection closed'),
         };
 

@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   ForbiddenException,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,22 +26,32 @@ import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { GroupSearchDto } from './dto/group-search.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-roles.enums';
+import { PermissionGuard } from '../roles/guards/permission.guard';
+import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import { GroupsPermission } from './permissions';
 import { GroupType } from '../common/enums/group-types.enum';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
+import { AuditLog } from '../common/decorators/audit-log.decorator';
+import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
+import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
 
 @ApiTags('Groups')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseInterceptors(AuditLogInterceptor)
 @Controller('groups')
 export class GroupsController {
   constructor(private readonly groupsService: GroupsService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.CREATE_GROUP)
+  @AuditLog({
+    action: AuditAction.GROUP_CREATED,
+    entityType: AuditEntity.GROUP,
+    description: 'Created a new group (district/unit)',
+    getEntityId: (result) => result.data._id.toString(),
+  })
   @ApiOperation({ summary: 'Create a new group (district/unit)' })
   @ApiResponse({ status: 201, description: 'Group created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid group requirements' })
@@ -51,7 +62,7 @@ export class GroupsController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.VIEW_GROUPS)
   @ApiOperation({ summary: 'Get all groups with filtering' })
   @ApiResponse({ status: 200, description: 'Groups retrieved successfully' })
   async findAll(@Query() searchDto: GroupSearchDto) {
@@ -60,7 +71,7 @@ export class GroupsController {
   }
 
   @Get('stats')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.VIEW_GROUP_STATS)
   @ApiOperation({ summary: 'Get group statistics' })
   @ApiResponse({
     status: 200,
@@ -72,7 +83,7 @@ export class GroupsController {
   }
 
   @Get('districts')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
+  @RequirePermission(GroupsPermission.VIEW_GROUPS)
   @ApiOperation({ summary: 'Get all districts' })
   @ApiResponse({ status: 200, description: 'Districts retrieved successfully' })
   async getDistricts() {
@@ -81,7 +92,7 @@ export class GroupsController {
   }
 
   @Get('units')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
+  @RequirePermission(GroupsPermission.VIEW_GROUPS)
   @ApiOperation({ summary: 'Get all units' })
   @ApiResponse({ status: 200, description: 'Units retrieved successfully' })
   async getUnits() {
@@ -90,7 +101,7 @@ export class GroupsController {
   }
 
   @Get('districts/needing-pastors')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.VIEW_GROUPS)
   @ApiOperation({ summary: 'Get districts that need pastors' })
   @ApiQuery({
     name: 'page',
@@ -124,7 +135,7 @@ export class GroupsController {
   }
 
   @Get('units/needing-heads')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.VIEW_GROUPS)
   @ApiOperation({ summary: 'Get units that need heads' })
   @ApiQuery({
     name: 'page',
@@ -158,7 +169,7 @@ export class GroupsController {
   }
 
   @Get('my-groups')
-  @Roles(UserRole.ADMIN, UserRole.LXL)
+  @RequirePermission(GroupsPermission.VIEW_OWN_GROUP)
   @ApiOperation({ summary: 'Get groups led by current user' })
   @ApiResponse({
     status: 200,
@@ -176,30 +187,29 @@ export class GroupsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
+  @RequirePermission(GroupsPermission.VIEW_GROUP_DETAILS)
   @ApiOperation({ summary: 'Get group by ID' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Group retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Group not found' })
   async findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    // Add authorization check for group leaders
     const group = await this.groupsService.findById(id);
 
     if (!group) {
       throw new ForbiddenException('Group not found or access denied');
     }
 
-    // Check if group leader has access to this specific group
-    if (user.roles === UserRole.LXL) {
-      // TODO: Implement proper authorization check
-      // For now, allow access to all groups for group leaders
-    }
-
     return ResponseUtil.success(group, 'Group retrieved successfully');
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
+  @RequirePermission(GroupsPermission.UPDATE_GROUP)
+  @AuditLog({
+    action: AuditAction.GROUP_UPDATED,
+    entityType: AuditEntity.GROUP,
+    description: 'Updated group information',
+    getEntityId: (result, request) => request.params.id,
+  })
   @ApiOperation({ summary: 'Update group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Group updated successfully' })
@@ -209,18 +219,20 @@ export class GroupsController {
     @Body() updateGroupDto: UpdateGroupDto,
     @CurrentUser() user: any,
   ) {
-    // Group leaders can only update their own groups
-    if (user.roles === UserRole.LXL) {
-      // TODO: Add authorization check to ensure user leads this group
-    }
-
     const group = await this.groupsService.update(id, updateGroupDto);
     return ResponseUtil.success(group, 'Group updated successfully');
   }
 
   // MEMBER MANAGEMENT ENDPOINTS
   @Patch(':id/members/:memberId/add')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
+  @RequirePermission(GroupsPermission.ADD_GROUP_MEMBER)
+  @AuditLog({
+    action: AuditAction.GROUP_MEMBER_ADDED,
+    entityType: AuditEntity.GROUP,
+    description: 'Added member to group',
+    severity: 'medium',
+    getEntityId: (result, request) => request.params.id,
+  })
   @ApiOperation({ summary: 'Add member to group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiParam({ name: 'memberId', description: 'Member ID' })
@@ -233,17 +245,19 @@ export class GroupsController {
     @Param('memberId') memberId: string,
     @CurrentUser() user: any,
   ) {
-    // Authorization check for group leaders
-    if (user.roles === UserRole.LXL) {
-      // TODO: Check if user leads this group
-    }
-
     const group = await this.groupsService.addMember(id, memberId);
     return ResponseUtil.success(group, 'Member added to group successfully');
   }
 
   @Patch(':id/members/:memberId/remove')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
+  @RequirePermission(GroupsPermission.REMOVE_GROUP_MEMBER)
+  @AuditLog({
+    action: AuditAction.GROUP_MEMBER_REMOVED,
+    entityType: AuditEntity.GROUP,
+    description: 'Removed member from group',
+    severity: 'medium',
+    getEntityId: (result, request) => request.params.id,
+  })
   @ApiOperation({ summary: 'Remove member from group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiParam({ name: 'memberId', description: 'Member ID' })
@@ -256,11 +270,6 @@ export class GroupsController {
     @Param('memberId') memberId: string,
     @CurrentUser() user: any,
   ) {
-    // Authorization check for group leaders
-    if (user.roles === UserRole.LXL) {
-      // TODO: Check if user leads this group
-    }
-
     const group = await this.groupsService.removeMember(id, memberId);
     return ResponseUtil.success(
       group,
@@ -270,7 +279,7 @@ export class GroupsController {
 
   // LEADERSHIP ASSIGNMENT ENDPOINTS
   @Patch(':id/assign-district-pastor/:pastorId')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
   @ApiOperation({ summary: 'Assign district pastor to district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiParam({ name: 'pastorId', description: 'Pastor Member ID' })
@@ -287,7 +296,7 @@ export class GroupsController {
   }
 
   @Patch(':id/assign-unit-head/:headId')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
   @ApiOperation({ summary: 'Assign unit head to unit' })
   @ApiParam({ name: 'id', description: 'Unit ID' })
   @ApiParam({ name: 'headId', description: 'Unit Head Member ID' })
@@ -301,7 +310,7 @@ export class GroupsController {
   }
 
   @Patch(':id/add-champ/:champId')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
   @ApiOperation({ summary: 'Add champ to district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiParam({ name: 'champId', description: 'Champ Member ID' })
@@ -312,7 +321,7 @@ export class GroupsController {
   }
 
   @Patch(':id/remove-champ/:champId')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
   @ApiOperation({ summary: 'Remove champ from district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiParam({ name: 'champId', description: 'Champ Member ID' })
@@ -327,7 +336,7 @@ export class GroupsController {
 
   // HOSTING MANAGEMENT (DISTRICTS)
   @Patch(':id/hosting')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
+  @RequirePermission(GroupsPermission.UPDATE_GROUP)
   @ApiOperation({ summary: 'Update hosting information for district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiResponse({
@@ -339,11 +348,6 @@ export class GroupsController {
     @Body() hostingInfo: any,
     @CurrentUser() user: any,
   ) {
-    // Group leaders can only update hosting for their districts
-    if (user.roles === UserRole.LXL) {
-      // TODO: Check if user is district pastor for this district
-    }
-
     const group = await this.groupsService.updateHosting(id, hostingInfo);
     return ResponseUtil.success(
       group,
@@ -352,22 +356,17 @@ export class GroupsController {
   }
 
   @Patch(':id/rotate-host')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.LXL)
+  @RequirePermission(GroupsPermission.UPDATE_GROUP)
   @ApiOperation({ summary: 'Rotate to next host for district' })
   @ApiParam({ name: 'id', description: 'District ID' })
   @ApiResponse({ status: 200, description: 'Host rotated successfully' })
   async rotateHost(@Param('id') id: string, @CurrentUser() user: any) {
-    // Group leaders can only rotate hosts for their districts
-    if (user.roles === UserRole.LXL) {
-      // TODO: Check if user is district pastor for this district
-    }
-
     const group = await this.groupsService.rotateHost(id);
     return ResponseUtil.success(group, 'Host rotated successfully');
   }
 
   @Patch(':id/deactivate')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.UPDATE_GROUP_STATUS)
   @ApiOperation({ summary: 'Deactivate group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Group deactivated successfully' })
@@ -377,7 +376,7 @@ export class GroupsController {
   }
 
   @Patch(':id/activate')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(GroupsPermission.UPDATE_GROUP_STATUS)
   @ApiOperation({ summary: 'Activate group' })
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Group activated successfully' })
@@ -387,7 +386,14 @@ export class GroupsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(GroupsPermission.DELETE_GROUP)
+  @AuditLog({
+    action: AuditAction.DELETE,
+    entityType: AuditEntity.GROUP,
+    description: 'Deleted a group',
+    severity: 'high',
+    getEntityId: (result, request) => request.params.id,
+  })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete group (super admin only)' })
   @ApiParam({ name: 'id', description: 'Group ID' })

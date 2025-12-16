@@ -63,11 +63,11 @@ export class Member {
   @Prop({
     type: String,
     enum: Object.values(MembershipStatus),
-    default: MembershipStatus.NEW_CONVERT
+    default: MembershipStatus.NEW_CONVERT,
   })
   membershipStatus: MembershipStatus;
 
-  // SYSTEM ROLES & ACCESS CONTROL
+  // DEPRECATED: Old system roles (kept for backward compatibility during migration)
   @Prop({
     type: [String],
     enum: Object.values(UserRole),
@@ -75,12 +75,17 @@ export class Member {
   })
   systemRoles: UserRole[];
 
+  // NEW ROLE-BASED ACCESS CONTROL
+  // Single role assignment - each user has exactly ONE role
+  @Prop({ type: Types.ObjectId, ref: 'Role', required: true })
+  role: Types.ObjectId;
+
   // ADDRESS INFORMATION
   @Prop({
     type: {
       street: { type: String, default: '' },
       city: { type: String, default: '' },
-      state: { type: String, default: 'Lagos' },
+      state: { type: String, required: true, default: 'Lagos' },
       zipCode: String,
       country: { type: String, default: 'Nigeria' },
     },
@@ -91,7 +96,7 @@ export class Member {
       country: 'Nigeria',
     },
   })
-  address?: {
+  address: {
     street: string;
     city: string;
     state: string;
@@ -288,6 +293,7 @@ MemberSchema.methods.getAccessibleModules = function (): string[] {
 MemberSchema.index({ email: 1 });
 MemberSchema.index({ phone: 1 });
 MemberSchema.index({ systemRoles: 1 });
+MemberSchema.index({ role: 1 });
 MemberSchema.index({ membershipStatus: 1 });
 MemberSchema.index({ dateJoined: -1 });
 MemberSchema.index({ firstName: 1, lastName: 1 });

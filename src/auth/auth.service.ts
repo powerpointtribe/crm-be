@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { MembersService } from '../members/members.service';
 import { AccessControlService } from '../common/services/access-control.service';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -25,6 +26,7 @@ export class AuthService {
     private membersService: MembersService,
     private jwtService: JwtService,
     private accessControlService: AccessControlService,
+    private userPermissionsService: UserPermissionsService,
   ) {}
 
   async login(loginDto: LoginDto) {
@@ -57,8 +59,29 @@ export class AuthService {
     await this.membersService.updateLastLogin(member._id.toString());
 
     // Get accessible modules for this member
-    const accessibleModules =
-      this.accessControlService.getAccessibleModules(member);
+    let accessibleModules: string[] = [];
+
+    // If member has the new role-based permissions system
+    if (member.role) {
+      try {
+        // Use new permissions system
+        accessibleModules = await this.userPermissionsService.getAccessibleModules(
+          member.role,
+        );
+        console.log(`[AUTH LOGIN] User ${member.email} accessible modules from permissions:`, accessibleModules);
+      } catch (error) {
+        console.error('Failed to get modules from permissions during login:', error);
+        // Fallback to old system
+        accessibleModules =
+          this.accessControlService.getAccessibleModules(member) as any;
+        console.log(`[AUTH LOGIN] User ${member.email} accessible modules from fallback:`, accessibleModules);
+      }
+    } else {
+      // Fallback to old system for backward compatibility
+      accessibleModules =
+        this.accessControlService.getAccessibleModules(member) as any;
+      console.log(`[AUTH LOGIN] User ${member.email} accessible modules from old system:`, accessibleModules);
+    }
 
     // Create JWT payload with comprehensive member data
     const payload = {
@@ -67,6 +90,7 @@ export class AuthService {
       firstName: member.firstName,
       lastName: member.lastName,
       systemRoles: member.systemRoles,
+      role: member.role,
       unitType: member.unitType,
       district: member.district,
       unit: member.unit,
@@ -163,8 +187,27 @@ export class AuthService {
       throw new UnauthorizedException('Member not found');
     }
 
-    const accessibleModules =
-      this.accessControlService.getAccessibleModules(member);
+    let accessibleModules: string[] = [];
+
+    // If member has the new role-based permissions system
+    if (member.role) {
+      try {
+        // Use new permissions system
+        const modules = await this.userPermissionsService.getAccessibleModules(
+          member.role,
+        );
+        accessibleModules = modules;
+      } catch (error) {
+        console.error('Failed to get modules from permissions:', error);
+        // Fallback to old system
+        accessibleModules =
+          this.accessControlService.getAccessibleModules(member) as any;
+      }
+    } else {
+      // Fallback to old system for backward compatibility
+      accessibleModules =
+        this.accessControlService.getAccessibleModules(member) as any;
+    }
 
     return {
       ...member.toObject(),

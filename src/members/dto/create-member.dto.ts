@@ -27,10 +27,10 @@ class AddressDto {
   @IsNotEmpty()
   city: string;
 
-  @ApiPropertyOptional({ description: 'State', default: 'Lagos' })
-  @IsOptional()
+  @ApiProperty({ description: 'State (your base location)', default: 'Lagos' })
   @IsString()
-  state?: string = 'Lagos';
+  @IsNotEmpty()
+  state: string = 'Lagos';
 
   @ApiPropertyOptional({ description: 'ZIP/Postal code' })
   @IsOptional()
@@ -162,15 +162,13 @@ export class CreateMemberDto {
   @IsEnum(['single', 'married', 'divorced', 'widowed'])
   maritalStatus?: string;
 
-  @ApiPropertyOptional({
-    description:
-      'Member address (optional - defaults will be used if not provided)',
+  @ApiProperty({
+    description: 'Member address (including base location/state - required)',
   })
-  @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => AddressDto)
-  address?: AddressDto;
+  address: AddressDto;
 
   // CHURCH STRUCTURE - District and Unit Assignments
   @ApiPropertyOptional({

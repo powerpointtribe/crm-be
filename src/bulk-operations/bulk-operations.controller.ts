@@ -23,21 +23,21 @@ import {
 import { Response } from 'express';
 import { BulkOperationsService } from './bulk-operations.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-roles.enums';
 import { ResponseUtil } from '../common/utils/response.util';
 import { BulkOperationType } from '../common/interfaces/bulk-operation.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionGuard } from '../roles/guards/permission.guard';
+import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import { BulkOperationsPermission } from './permissions';
 
 @ApiTags('Bulk Operations')
 @Controller('bulk-operations')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 export class BulkOperationsController {
   constructor(private readonly bulkOperationsService: BulkOperationsService) {}
 
   @Get('templates/:entityType')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(BulkOperationsPermission.DOWNLOAD_TEMPLATE)
   @ApiOperation({ summary: 'Download CSV template for bulk operations' })
   @ApiResponse({
     status: 200,
@@ -59,7 +59,7 @@ export class BulkOperationsController {
   }
 
   @Post('upload/:entityType')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(BulkOperationsPermission.UPLOAD_BULK_DATA)
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload CSV file for bulk operations' })
@@ -95,7 +95,7 @@ export class BulkOperationsController {
   }
 
   @Get('operations')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(BulkOperationsPermission.VIEW_OPERATIONS_HISTORY)
   @ApiOperation({ summary: 'Get bulk operations history' })
   async getOperationsHistory(
     @CurrentUser() user: any,
@@ -119,7 +119,7 @@ export class BulkOperationsController {
   }
 
   @Get('stats')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(BulkOperationsPermission.VIEW_OPERATIONS_STATS)
   @ApiOperation({ summary: 'Get bulk operations statistics' })
   async getOperationsStats(@CurrentUser() user: any) {
     const stats = await this.bulkOperationsService.getOperationsStats(user._id);
@@ -130,7 +130,7 @@ export class BulkOperationsController {
   }
 
   @Post('preview/:entityType')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(BulkOperationsPermission.PREVIEW_BULK_OPERATION)
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Preview bulk operation without executing' })
@@ -162,7 +162,7 @@ export class BulkOperationsController {
   }
 
   @Get('export/:entityType')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(BulkOperationsPermission.EXPORT_ENTITIES)
   @ApiOperation({ summary: 'Export entities as CSV' })
   async exportEntities(
     @Param('entityType') entityType: string,
@@ -189,7 +189,7 @@ export class BulkOperationsController {
   }
 
   @Patch('templates/:entityType')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(BulkOperationsPermission.UPDATE_TEMPLATE)
   @ApiOperation({ summary: 'Update CSV template for entity type' })
   async updateTemplate(
     @Param('entityType') entityType: string,
@@ -206,7 +206,7 @@ export class BulkOperationsController {
   }
 
   @Get('templates')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(BulkOperationsPermission.VIEW_AVAILABLE_TEMPLATES)
   @ApiOperation({ summary: 'Get available templates' })
   async getAvailableTemplates() {
     const templates = await this.bulkOperationsService.getAvailableTemplates();

@@ -11,7 +11,12 @@ export class EmailProvider {
   private readonly logger = new Logger(EmailProvider.name);
   private resend: Resend;
   private nodemailerTransporter: Transporter;
-  private emailProvider: 'resend' | 'sendgrid' | 'nodemailer' | 'zeptomail' | 'zeptomail-smtp';
+  private emailProvider:
+    | 'resend'
+    | 'sendgrid'
+    | 'nodemailer'
+    | 'zeptomail'
+    | 'zeptomail-smtp';
   private zeptoClient: any;
 
   constructor(private configService: ConfigService) {
@@ -128,14 +133,19 @@ export class EmailProvider {
 
   private initializeZeptoMailSMTP() {
     const apiKey = this.configService.get<string>('ZEPTOMAIL_API_KEY');
-    const username = this.configService.get<string>('ZEPTOMAIL_SMTP_USERNAME') || 'emailapikey';
-    const host = this.configService.get<string>('ZEPTOMAIL_SMTP_HOST') || 'smtp.zeptomail.com';
-    const port = parseInt(this.configService.get<string>('ZEPTOMAIL_SMTP_PORT') || '587', 10);
+    const username =
+      this.configService.get<string>('ZEPTOMAIL_SMTP_USERNAME') ||
+      'emailapikey';
+    const host =
+      this.configService.get<string>('ZEPTOMAIL_SMTP_HOST') ||
+      'smtp.zeptomail.com';
+    const port = parseInt(
+      this.configService.get<string>('ZEPTOMAIL_SMTP_PORT') || '587',
+      10,
+    );
 
     if (!apiKey) {
-      this.logger.error(
-        'ZEPTOMAIL_API_KEY is required for ZeptoMail SMTP',
-      );
+      this.logger.error('ZEPTOMAIL_API_KEY is required for ZeptoMail SMTP');
       throw new Error('ZeptoMail API key is required for SMTP');
     }
 
@@ -423,7 +433,10 @@ export class EmailProvider {
 
       this.logger.log(`✅ ZeptoMail SMTP email sent successfully!`);
       this.logger.log(`Message ID: ${result.messageId}`);
-      this.logger.log(`ZeptoMail SMTP result:`, JSON.stringify(result, null, 2));
+      this.logger.log(
+        `ZeptoMail SMTP result:`,
+        JSON.stringify(result, null, 2),
+      );
 
       return {
         success: true,

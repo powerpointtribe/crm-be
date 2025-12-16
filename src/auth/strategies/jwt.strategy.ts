@@ -28,6 +28,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!member) {
       throw new UnauthorizedException('Invalid token');
     }
+
+    // Ensure user is active
+    if (!member.isActive) {
+      throw new UnauthorizedException('Account is inactive');
+    }
+
+    // Ensure user has a role assigned
+    if (!member.role) {
+      throw new UnauthorizedException('No role assigned to this user. Please contact administrator.');
+    }
+
     return member;
   }
 }

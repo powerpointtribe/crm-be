@@ -41,7 +41,7 @@ export class MessageHistory {
   @Prop({
     type: String,
     enum: ['scheduled', 'sent', 'failed', 'cancelled'],
-    default: 'scheduled'
+    default: 'scheduled',
   })
   status: string;
 
@@ -52,7 +52,8 @@ export class MessageHistory {
   updatedAt: Date;
 }
 
-export const MessageHistorySchema = SchemaFactory.createForClass(MessageHistory);
+export const MessageHistorySchema =
+  SchemaFactory.createForClass(MessageHistory);
 
 // Indexes for better performance
 MessageHistorySchema.index({ firstTimerId: 1 });

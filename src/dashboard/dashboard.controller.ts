@@ -14,18 +14,9 @@ import {
   DemographicsDto,
 } from './dto/analytics.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import {
-  Roles,
-  DashboardAccess,
-  FirstTimersAccess,
-  MembersAccess,
-  SystemSettingsAccess,
-  FinancesAccess,
-  ReportsAccess,
-  UserManagementAccess,
-} from '../common/decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-roles.enums';
+import { PermissionGuard } from '../roles/guards/permission.guard';
+import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import { DashboardPermission } from './permissions';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
 import { RoleUtils } from '../common/utils/role.utils';
@@ -34,13 +25,13 @@ import { RequestWithUserUnit } from '../common/middleware/user-unit.middleware';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
-@DashboardAccess() // Only LXL members and above can access dashboard
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('modules')
+  @RequirePermission(DashboardPermission.VIEW_MODULES)
   @ApiOperation({ summary: 'Get accessible modules for current user' })
   getAccessibleModules(
     @CurrentUser() user: any,
@@ -62,7 +53,7 @@ export class DashboardController {
   }
 
   @Get('overview')
-  @ReportsAccess() // Reports module access required for overview
+  @RequirePermission(DashboardPermission.VIEW_OVERVIEW)
   @ApiOperation({
     summary: 'Get dashboard overview with metrics and analytics',
   })
@@ -79,7 +70,7 @@ export class DashboardController {
   }
 
   @Get('first-timers')
-  @FirstTimersAccess() // Only GIA unit heads and above can access
+  @RequirePermission(DashboardPermission.VIEW_FIRST_TIMERS_DASHBOARD)
   @ApiOperation({ summary: 'Get first timers data and analytics' })
   async getFirstTimers(@CurrentUser() user: any) {
     return ResponseUtil.success(
@@ -92,7 +83,7 @@ export class DashboardController {
   }
 
   @Get('members')
-  @MembersAccess() // All unit heads, directors, pastors can access
+  @RequirePermission(DashboardPermission.VIEW_MEMBERS_DASHBOARD)
   @ApiOperation({ summary: 'Get members data' })
   async getMembers(@CurrentUser() user: any) {
     return ResponseUtil.success(
@@ -105,7 +96,7 @@ export class DashboardController {
   }
 
   @Get('finances')
-  @FinancesAccess() // Pastors and admin only
+  @RequirePermission(DashboardPermission.VIEW_FINANCES_DASHBOARD)
   @ApiOperation({ summary: 'Get financial data' })
   async getFinances(@CurrentUser() user: any) {
     return ResponseUtil.success(
@@ -115,7 +106,7 @@ export class DashboardController {
   }
 
   @Get('settings')
-  @SystemSettingsAccess() // Admin only
+  @RequirePermission(DashboardPermission.VIEW_SETTINGS_DASHBOARD)
   @ApiOperation({ summary: 'Get system settings' })
   async getSystemSettings(@CurrentUser() user: any) {
     return ResponseUtil.success(
@@ -125,7 +116,7 @@ export class DashboardController {
   }
 
   @Get('stats')
-  @ReportsAccess() // Reports module access
+  @RequirePermission(DashboardPermission.VIEW_STATS)
   @ApiOperation({ summary: 'Get detailed statistics (admin only)' })
   @ApiQuery({
     name: 'period',
@@ -159,7 +150,7 @@ export class DashboardController {
   }
 
   @Get('activity')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(DashboardPermission.VIEW_ACTIVITY_FEED)
   @ApiOperation({ summary: 'Get recent activity feed' })
   @ApiQuery({
     name: 'limit',
@@ -191,7 +182,7 @@ export class DashboardController {
   }
 
   @Get('tasks')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(DashboardPermission.VIEW_PENDING_TASKS)
   @ApiOperation({ summary: 'Get pending tasks and notifications' })
   @ApiResponse({
     status: 200,
@@ -210,7 +201,7 @@ export class DashboardController {
   }
 
   @Get('quick-stats')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL, UserRole.MEMBER)
+  @RequirePermission(DashboardPermission.VIEW_QUICK_STATS)
   @ApiOperation({ summary: 'Get quick stats for header/sidebar display' })
   @ApiResponse({
     status: 200,
@@ -234,7 +225,7 @@ export class DashboardController {
   }
 
   @Get('growth-analytics')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(DashboardPermission.VIEW_GROWTH_ANALYTICS)
   @ApiOperation({
     summary: 'Get growth analytics and trends data',
     description:
@@ -264,7 +255,7 @@ export class DashboardController {
   }
 
   @Get('recent-activity')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(DashboardPermission.VIEW_RECENT_ACTIVITY)
   @ApiOperation({
     summary: 'Get recent activity analytics',
     description:
@@ -304,7 +295,7 @@ export class DashboardController {
   }
 
   @Get('demographics')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(DashboardPermission.VIEW_DEMOGRAPHICS)
   @ApiOperation({
     summary: 'Get member demographics analytics',
     description:

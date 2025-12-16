@@ -1,12 +1,16 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { GroupsService } from './groups.service';
 import { GroupsController } from './groups.controller';
 import { Group, GroupSchema } from './schemas/group.schema';
+import { RolesModule } from '../roles/roles.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Group.name, schema: GroupSchema }]),
+    RolesModule, // Import RolesModule to make PermissionGuard available
+    forwardRef(() => AuditLogsModule), // Forward ref to avoid circular dependency
   ],
   controllers: [GroupsController],
   providers: [GroupsService],

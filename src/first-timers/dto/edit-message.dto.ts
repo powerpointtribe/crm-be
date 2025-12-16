@@ -23,7 +23,10 @@ export class EditScheduledMessageDto {
 }
 
 export class MessageHistoryQueryDto {
-  @ApiPropertyOptional({ description: 'Page number for pagination', default: 1 })
+  @ApiPropertyOptional({
+    description: 'Page number for pagination',
+    default: 1,
+  })
   @IsOptional()
   page?: number = 1;
 
@@ -33,7 +36,7 @@ export class MessageHistoryQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter by message status',
-    enum: ['scheduled', 'sent', 'failed', 'cancelled']
+    enum: ['scheduled', 'sent', 'failed', 'cancelled'],
   })
   @IsOptional()
   @IsString()

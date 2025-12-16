@@ -15,15 +15,15 @@ export class DailyMessage {
     trim: true,
     default: '',
     validate: {
-      validator: function(value: string) {
+      validator: function (value: string) {
         // Allow empty message only for draft status
         if (this.status !== 'draft' && (!value || value.trim() === '')) {
           return false;
         }
         return true;
       },
-      message: 'Message is required for non-draft status'
-    }
+      message: 'Message is required for non-draft status',
+    },
   })
   message: string;
 
@@ -51,7 +51,7 @@ export class DailyMessage {
   @Prop({
     type: String,
     enum: ['draft', 'scheduled', 'sending', 'sent', 'failed'],
-    default: 'draft'
+    default: 'draft',
   })
   status: string;
 

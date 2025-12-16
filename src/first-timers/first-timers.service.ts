@@ -324,7 +324,9 @@ export class FirstTimersService {
       notes: followUpDto.notes,
       outcome: followUpDto.outcome,
       contactedBy: followUpDto.contactedBy,
-      nextFollowUpDate: followUpDto?.nextFollowUpDate ? new Date(followUpDto.nextFollowUpDate) : undefined,
+      nextFollowUpDate: followUpDto?.nextFollowUpDate
+        ? new Date(followUpDto.nextFollowUpDate)
+        : undefined,
     };
 
     // Update status based on outcome
@@ -351,7 +353,9 @@ export class FirstTimersService {
           $inc: { followUpCount: 1 },
           $set: {
             status: newStatus,
-            nextFollowUpDate: followUpDto.nextFollowUpDate ? new Date(followUpDto.nextFollowUpDate) : null,
+            nextFollowUpDate: followUpDto.nextFollowUpDate
+              ? new Date(followUpDto.nextFollowUpDate)
+              : null,
           },
         },
         { new: true },
@@ -370,10 +374,16 @@ export class FirstTimersService {
         reportNumber: updatedFirstTimer!.followUpCount, // Use the updated count
       };
 
-      await this.callReportsService.create(callReportData, followUpDto.contactedBy || '');
+      await this.callReportsService.create(
+        callReportData,
+        followUpDto.contactedBy || '',
+      );
       this.logger.log(`Call report created for first-timer ${id} follow-up`);
     } catch (error) {
-      this.logger.error(`Failed to create call report for first-timer ${id}:`, error);
+      this.logger.error(
+        `Failed to create call report for first-timer ${id}:`,
+        error,
+      );
       // Don't fail the follow-up if call report creation fails
     }
 
@@ -611,7 +621,8 @@ export class FirstTimersService {
     if (firstTimers.length === 0) return;
 
     // Get member details from either assignedTo or followUpPerson field
-    const assignedMember = (firstTimers[0].assignedTo || firstTimers[0].followUpPerson) as any;
+    const assignedMember = (firstTimers[0].assignedTo ||
+      firstTimers[0].followUpPerson) as any;
 
     if (!assignedMember) {
       this.logger.warn(`No assigned member found for bulk notification`);
@@ -619,7 +630,9 @@ export class FirstTimersService {
     }
 
     // Determine assignment type based on which field is populated
-    const assignmentType = firstTimers[0].assignedTo ? 'assignment' : 'followup';
+    const assignmentType = firstTimers[0].assignedTo
+      ? 'assignment'
+      : 'followup';
 
     await this.triggerMemberAssignmentNotification(
       firstTimers,

@@ -18,21 +18,21 @@ import {
 } from '@nestjs/swagger';
 import { QueueService } from './queue.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-roles.enums';
+import { PermissionGuard } from '../roles/guards/permission.guard';
+import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import { QueuePermission } from './permissions';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
 
 @ApiTags('Queue Management')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('queue')
 export class QueueController {
   constructor(private readonly queueService: QueueService) {}
 
   @Get('jobs/:jobId/status')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(QueuePermission.VIEW_JOB_STATUS)
   @ApiOperation({ summary: 'Get job status by ID' })
   @ApiParam({ name: 'jobId', description: 'Job ID' })
   @ApiResponse({
@@ -45,7 +45,7 @@ export class QueueController {
   }
 
   @Get('jobs/history')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(QueuePermission.VIEW_JOB_HISTORY)
   @ApiOperation({ summary: 'Get job history for current user' })
   @ApiQuery({
     name: 'page',
@@ -81,7 +81,7 @@ export class QueueController {
   }
 
   @Delete('jobs/:jobId')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR, UserRole.LXL)
+  @RequirePermission(QueuePermission.CANCEL_JOB)
   @ApiOperation({ summary: 'Cancel a job' })
   @ApiParam({ name: 'jobId', description: 'Job ID' })
   @ApiResponse({
@@ -99,7 +99,7 @@ export class QueueController {
   }
 
   @Get('stats')
-  @Roles(UserRole.ADMIN, UserRole.PASTOR)
+  @RequirePermission(QueuePermission.VIEW_QUEUE_STATS)
   @ApiOperation({ summary: 'Get queue statistics (admin only)' })
   @ApiResponse({
     status: 200,

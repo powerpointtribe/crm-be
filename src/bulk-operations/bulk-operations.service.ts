@@ -439,6 +439,13 @@ export class BulkOperationsService {
       membershipStatus: row.membershipStatus || 'NEW',
       district: row.district?.trim(),
       unit: row.unit?.trim(),
+      address: {
+        street: row.street?.trim() || '',
+        city: row.city?.trim() || '',
+        state: row.state?.trim() || 'Lagos',
+        zipCode: row.zipCode?.trim() || '',
+        country: row.country?.trim() || 'Nigeria',
+      },
     };
 
     switch (operation) {

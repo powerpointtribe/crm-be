@@ -28,7 +28,10 @@ export class CreateDailyMessageDto {
   @IsDateString()
   scheduledTime?: string;
 
-  @ApiProperty({ description: 'Whether to send immediately or schedule', default: true })
+  @ApiProperty({
+    description: 'Whether to send immediately or schedule',
+    default: true,
+  })
   @IsBoolean()
   autoSend: boolean;
 
@@ -40,7 +43,10 @@ export class CreateDailyMessageDto {
 }
 
 export class DailyMessageQueryDto {
-  @ApiPropertyOptional({ description: 'Page number for pagination', default: 1 })
+  @ApiPropertyOptional({
+    description: 'Page number for pagination',
+    default: 1,
+  })
   @IsOptional()
   page?: number = 1;
 
@@ -50,7 +56,7 @@ export class DailyMessageQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter by message status',
-    enum: ['draft', 'scheduled', 'sending', 'sent', 'failed']
+    enum: ['draft', 'scheduled', 'sending', 'sent', 'failed'],
   })
   @IsOptional()
   @IsString()

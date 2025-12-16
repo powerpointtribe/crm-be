@@ -7,12 +7,14 @@ import {
   ServiceReport,
   ServiceReportSchema,
 } from './schemas/service-report.schema';
+import { RolesModule } from '../roles/roles.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: ServiceReport.name, schema: ServiceReportSchema },
     ]),
+    RolesModule, // Import RolesModule to make PermissionGuard available
   ],
   controllers: [ServiceReportsController],
   providers: [ServiceReportsService, ServiceReportsPdfService],

@@ -114,7 +114,6 @@ export class PublicCreateFirstTimerDto {
   @IsString()
   alternateContactMethod?: string;
 
-
   @ApiPropertyOptional({ description: 'Social media handles' })
   @IsOptional()
   @IsObject()
@@ -126,7 +125,6 @@ export class PublicCreateFirstTimerDto {
     tiktok?: string;
     other?: string;
   };
-
 
   @ApiPropertyOptional({ description: 'What they enjoyed about the service' })
   @IsOptional()
@@ -211,7 +209,6 @@ export class PublicCreateFirstTimerDto {
   @IsString({ each: true })
   interests?: string[];
 
-
   @ApiPropertyOptional({ description: 'Areas interested in serving' })
   @IsOptional()
   @IsArray()
@@ -225,7 +222,7 @@ export class PublicCreateFirstTimerDto {
 
   @ApiPropertyOptional({
     description: 'Interest in joining PowerPoint Tribe',
-    enum: ['yes', 'no', 'maybe']
+    enum: ['yes', 'no', 'maybe'],
   })
   @IsOptional()
   @IsEnum(['yes', 'no', 'maybe'])

@@ -16,9 +16,11 @@ import { MembersModule } from '../members/members.module';
 import { GroupsModule } from '../groups/groups.module';
 import { FirstTimersModule } from '../first-timers/first-timers.module';
 import { QueueModule } from '../queue/queue.module';
+import { RolesModule } from '../roles/roles.module';
 
 @Module({
   imports: [
+    RolesModule,
     MongooseModule.forFeature([
       { name: Member.name, schema: MemberSchema },
       { name: Group.name, schema: GroupSchema },

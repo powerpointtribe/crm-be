@@ -1,0 +1,121 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { RolesService } from './services/roles.service';
+import { CreateRoleDto } from './dto/create-role.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
+import { AssignPermissionsDto } from './dto/assign-permissions.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionGuard } from './guards/permission.guard';
+import { RequirePermission } from './decorators/require-permission.decorator';
+import { RolesModulePermission } from './permissions';
+import { AuditLog } from '../common/decorators/audit-log.decorator';
+import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
+import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
+
+@Controller('roles')
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseInterceptors(AuditLogInterceptor)
+export class RolesController {
+  constructor(private readonly rolesService: RolesService) {}
+
+  @Post()
+  @RequirePermission(RolesModulePermission.CREATE_ROLE)
+  @AuditLog({
+    action: AuditAction.CREATE,
+    entityType: AuditEntity.SYSTEM,
+    description: 'Created a new role',
+    severity: 'high',
+    getEntityId: (result) => result._id.toString(),
+  })
+  create(@Body() createRoleDto: CreateRoleDto) {
+    return this.rolesService.create(createRoleDto);
+  }
+
+  @Get()
+  @RequirePermission(RolesModulePermission.VIEW_ROLES)
+  findAll(
+    @Query('isActive') isActive?: string,
+    @Query('isSystemRole') isSystemRole?: string,
+  ) {
+    const filters: any = {};
+    if (isActive) filters.isActive = isActive === 'true';
+    if (isSystemRole) filters.isSystemRole = isSystemRole === 'true';
+
+    return this.rolesService.findAll(filters);
+  }
+
+  @Get(':id')
+  @RequirePermission(RolesModulePermission.VIEW_ROLE_DETAILS)
+  findOne(@Param('id') id: string) {
+    return this.rolesService.findById(id, true);
+  }
+
+  @Get(':id/permissions')
+  @RequirePermission(RolesModulePermission.VIEW_ROLE_DETAILS)
+  getRolePermissions(@Param('id') id: string) {
+    return this.rolesService.getRolePermissions(id);
+  }
+
+  @Patch(':id')
+  @RequirePermission(RolesModulePermission.UPDATE_ROLE)
+  @AuditLog({
+    action: AuditAction.UPDATE,
+    entityType: AuditEntity.SYSTEM,
+    description: 'Updated role information',
+    severity: 'high',
+    getEntityId: (result, request) => request.params.id,
+  })
+  update(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto) {
+    return this.rolesService.update(id, updateRoleDto);
+  }
+
+  @Post(':id/permissions/assign')
+  @RequirePermission(RolesModulePermission.ASSIGN_PERMISSIONS_TO_ROLE)
+  assignPermissions(
+    @Param('id') id: string,
+    @Body() assignPermissionsDto: AssignPermissionsDto,
+  ) {
+    return this.rolesService.assignPermissions(id, assignPermissionsDto);
+  }
+
+  @Post(':id/permissions/add')
+  @RequirePermission(RolesModulePermission.ASSIGN_PERMISSIONS_TO_ROLE)
+  addPermissions(
+    @Param('id') id: string,
+    @Body() assignPermissionsDto: AssignPermissionsDto,
+  ) {
+    return this.rolesService.addPermissions(id, assignPermissionsDto);
+  }
+
+  @Post(':id/permissions/remove')
+  @RequirePermission(RolesModulePermission.ASSIGN_PERMISSIONS_TO_ROLE)
+  removePermissions(
+    @Param('id') id: string,
+    @Body() body: { permissionIds: string[] },
+  ) {
+    return this.rolesService.removePermissions(id, body.permissionIds);
+  }
+
+  @Delete(':id')
+  @RequirePermission(RolesModulePermission.DELETE_ROLE)
+  @AuditLog({
+    action: AuditAction.DELETE,
+    entityType: AuditEntity.SYSTEM,
+    description: 'Deleted a role',
+    severity: 'critical',
+    getEntityId: (result, request) => request.params.id,
+  })
+  remove(@Param('id') id: string) {
+    return this.rolesService.delete(id);
+  }
+}

@@ -12,6 +12,7 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  UseInterceptors,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../auth/guards/module-access.guard';
@@ -26,11 +27,19 @@ import { MembersService } from './members.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { AssignRoleDto } from './dto/assign-role.dto';
 import { Member, MemberDocument } from './schemas/member.schema';
 import { UserRole } from '../common/enums/user-roles.enums';
+import { PermissionGuard } from '../roles/guards/permission.guard';
+import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import { MembersPermission } from './permissions';
+import { AuditLog } from '../common/decorators/audit-log.decorator';
+import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
+import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
 
 @Controller('members')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseInterceptors(AuditLogInterceptor)
 export class MembersController {
   constructor(
     private readonly membersService: MembersService,
@@ -38,24 +47,19 @@ export class MembersController {
   ) {}
 
   @Post()
-  @RequireMembersAccess()
-  @UseGuards(ModuleAccessGuard)
+  @RequirePermission(MembersPermission.CREATE_MEMBER)
+  @AuditLog({
+    action: AuditAction.MEMBER_CREATED,
+    entityType: AuditEntity.MEMBER,
+    description: 'Created a new member',
+    getEntityId: (result) => result._id.toString(),
+  })
   async create(@Body() createMemberDto: CreateMemberDto, @Request() req) {
-    // Additional check: only certain roles can create members
-    if (
-      !this.accessControlService.canPerformAction(req.user, 'create', 'member')
-    ) {
-      throw new ForbiddenException(
-        'Insufficient permissions to create members',
-      );
-    }
-
     return this.membersService.create(createMemberDto);
   }
 
   @Get()
-  @RequireMembersAccess()
-  @UseGuards(ModuleAccessGuard)
+  @RequirePermission(MembersPermission.VIEW_MEMBERS)
   async findAll(@Query() query: any, @Request() req) {
     try {
        const { user: currentMember } = req;
@@ -75,43 +79,21 @@ export class MembersController {
   }
 
   @Get('stats')
-  @RequireMembersAccess()
-  @UseGuards(ModuleAccessGuard)
+  @RequirePermission(MembersPermission.VIEW_MEMBER_STATS)
   async getMemberStats(@Request() req) {
-    // Only admins and pastors can access stats
-    if (
-      !req.user.systemRoles.includes('admin') &&
-      !req.user.systemRoles.includes('pastor')
-    ) {
-      throw new ForbiddenException(
-        'Only admins and pastors can access member statistics',
-      );
-    }
-
     return this.membersService.getMemberStats();
   }
 
   @Get('my-profile')
-  @AllowSelfAccess()
+  @RequirePermission(MembersPermission.VIEW_OWN_PROFILE)
   async getMyProfile(@Request() req) {
     return this.membersService.findById(req.user.sub);
   }
 
   @Get('my-district')
-  @RequireMembersAccess()
-  @UseGuards(ModuleAccessGuard)
+  @RequirePermission(MembersPermission.VIEW_DISTRICT_MEMBERS)
   async getMyDistrictMembers(@Request() req, @Query() query: any) {
     const { user: currentMember } = req;
-
-    // Only district pastors and unit heads can see their district/unit members
-    if (
-      !currentMember.leadershipRoles?.isDistrictPastor &&
-      !currentMember.leadershipRoles?.isUnitHead
-    ) {
-      throw new ForbiddenException(
-        'Only district pastors and unit heads can access this endpoint',
-      );
-    }
 
     return this.membersService.getDistrictMembers(
       currentMember.district,
@@ -126,8 +108,7 @@ export class MembersController {
   }
 
   @Get(':id')
-  @RequireMembersAccess()
-  @UseGuards(ModuleAccessGuard)
+  @RequirePermission(MembersPermission.VIEW_MEMBER_DETAILS)
   async findOne(@Param('id') id: string, @Request() req) {
     const member = await this.membersService.findById(id);
     if (!member) {
@@ -143,8 +124,13 @@ export class MembersController {
   }
 
   @Patch(':id')
-  @RequireMemberEdit()
-  @UseGuards(ModuleAccessGuard)
+  @RequirePermission(MembersPermission.UPDATE_MEMBER)
+  @AuditLog({
+    action: AuditAction.MEMBER_UPDATED,
+    entityType: AuditEntity.MEMBER,
+    description: 'Updated member information',
+    getEntityId: (result, request) => request.params.id,
+  })
   async update(
     @Param('id') id: string,
     @Body() updateMemberDto: UpdateMemberDto,
@@ -165,37 +151,29 @@ export class MembersController {
   }
 
   @Delete(':id')
-  @RequireMemberDelete()
-  @UseGuards(ModuleAccessGuard)
+  @RequirePermission(MembersPermission.DELETE_MEMBER)
+  @AuditLog({
+    action: AuditAction.MEMBER_DELETED,
+    entityType: AuditEntity.MEMBER,
+    description: 'Deleted a member',
+    severity: 'high',
+    getEntityId: (result, request) => request.params.id,
+  })
   async remove(@Param('id') id: string, @Request() req) {
-    // Only admins and pastors can delete members
-    if (
-      !req.user.systemRoles.includes('admin') &&
-      !req.user.systemRoles.includes('pastor')
-    ) {
-      throw new ForbiddenException(
-        'Only admins and pastors can delete members',
-      );
-    }
-
     return this.membersService.remove(id);
   }
 
   @Patch(':id/assign-role')
-  @RequireAdminOrPastor()
-  @UseGuards(ModuleAccessGuard)
+  @RequirePermission(MembersPermission.UPDATE_MEMBER_ROLES)
   async assignRole(
     @Param('id') id: string,
-    @Body() roleData: { systemRoles: string[]; leadershipRoles?: any },
-    @Request() req,
+    @Body() assignRoleDto: AssignRoleDto,
   ) {
-    // Only high-level roles can assign system roles
-    return this.membersService.updateAccessFields(id, roleData);
+    return this.membersService.assignRole(id, assignRoleDto.roleId);
   }
 
   @Patch(':id/assign-unit')
-  @RequireAdminOrPastor()
-  @UseGuards(ModuleAccessGuard)
+  @RequirePermission(MembersPermission.ASSIGN_UNIT)
   async assignUnit(
     @Param('id') id: string,
     @Body() unitData: { unit: string; unitType: string; district?: string },

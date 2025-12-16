@@ -13,6 +13,7 @@
     "start:dev:ts": "npx ts-node src/main.ts",
     "start:debug": "npx nest start --debug --watch",
     "start:prod": "node dist/main",
+    "init:super-admin": "npx ts-node src/scripts/init-super-admin.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
