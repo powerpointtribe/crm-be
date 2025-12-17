@@ -34,7 +34,7 @@ export class AuditInterceptor implements NestInterceptor {
     }
 
     const request = context.switchToHttp().getRequest<Request>();
-    const user = request.user;
+    const user = request?.user;
     const method = request.method;
     const url = request.url;
     const userAgent = request.headers['user-agent'];
