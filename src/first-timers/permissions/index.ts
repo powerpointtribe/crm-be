@@ -27,9 +27,7 @@ export enum FirstTimersPermission {
   ARCHIVE_FIRST_TIMER = 'first-timers:archive',
 
   // SPECIAL operations
-  SEND_WELCOME_MESSAGE = 'first-timers:send-welcome-message',
   VIEW_CALL_REPORTS = 'first-timers:view-call-reports',
-  MANAGE_DAILY_MESSAGES = 'first-timers:manage-daily-messages',
   CONVERT_TO_MEMBER = 'first-timers:convert-to-member',
 }
 

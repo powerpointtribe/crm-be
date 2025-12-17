@@ -183,62 +183,6 @@ export class FirstTimerNotificationProcessor {
     }
   }
 
-  // New processors for additional job types
-  @Process(JobType.SEND_FIRST_TIMER_MESSAGE)
-  async handleSendFirstTimerMessage(job: Job<FirstTimerNotificationJobData>) {
-    this.logger.log(`Processing first-timer message for job: ${job.id}`);
-
-    try {
-      const { firstTimerId, additionalData } = job.data;
-      const { message, email, firstName, lastName, messageSent } =
-        additionalData || {};
-
-      if (!email) {
-        this.logger.warn(
-          `First-timer ${firstTimerId} has no email data provided`,
-        );
-        return { success: false, reason: 'No email data provided' };
-      }
-
-      // Check if message was already sent
-      if (messageSent) {
-        this.logger.warn(`Message already sent to first-timer ${firstTimerId}`);
-        return { success: false, reason: 'Message already sent' };
-      }
-
-      // Use the provided message or default
-      const messageToSend = message || 'Thank you for visiting our church!';
-
-      try {
-        await this.notificationsService.sendCustomFirstTimerMessage({
-          email,
-          firstName: firstName || 'Friend',
-          lastName: lastName || '',
-          customMessage: messageToSend,
-        });
-
-        // Note: Message history tracking would be updated here
-        // This is handled separately to avoid circular dependencies
-
-        this.logger.log(`Message sent to ${email}`);
-        return { success: true, email };
-      } catch (emailError) {
-        this.logger.error(
-          `Failed to send first-timer message: ${emailError.message}`,
-        );
-
-        // Note: Message history failure tracking would be updated here
-        // This is handled separately to avoid circular dependencies
-
-        throw emailError;
-      }
-    } catch (error) {
-      this.logger.error(
-        `Failed to process first-timer message job: ${error.message}`,
-      );
-      throw error;
-    }
-  }
 
   // Legacy assignment notification processors removed
   // Use SEND_MEMBER_FOLLOWUP_ASSIGNMENT instead

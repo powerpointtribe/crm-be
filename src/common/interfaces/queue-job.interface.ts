@@ -19,8 +19,7 @@ export enum JobType {
   FIRST_TIMER_WEEKLY_REMINDER = 'first-timer-weekly-reminder',
   DISTRICT_PASTOR_NOTIFICATION = 'district-pastor-notification',
 
-  // Assignment and messaging jobs
-  SEND_FIRST_TIMER_MESSAGE = 'send-first-timer-message',
+  // Assignment jobs
   CREATE_MEMBER_FROM_FIRST_TIMER = 'create-member-from-first-timer',
   SEND_MEMBER_FOLLOWUP_ASSIGNMENT = 'send-member-followup-assignment',
 }

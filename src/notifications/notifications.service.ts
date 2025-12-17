@@ -349,30 +349,6 @@ export class NotificationsService {
     });
   }
 
-  async sendCustomFirstTimerMessage(data: {
-    email: string;
-    firstName: string;
-    lastName: string;
-    customMessage: string;
-  }): Promise<void> {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Message from Our Church</h1>
-        <p>Dear ${data.firstName} ${data.lastName},</p>
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; white-space: pre-wrap;">
-          ${data.customMessage}
-        </div>
-        <p>Blessings,<br/>The Church Team</p>
-      </div>
-    `;
-
-    await this.emailProvider.sendEmail({
-      to: data.email,
-      subject: 'A Special Message for You',
-      html,
-    });
-  }
-
   // Job-specific email methods
   async sendFirstTimerThankYouEmail(data: {
     email: string;
@@ -683,6 +659,22 @@ export class NotificationsService {
       to: data.memberEmail,
       subject: `🔔 ${titleType} Notification: ${data.firstTimers.length} First-Timer(s) Assigned to You`,
       html,
+    });
+  }
+
+  /**
+   * Send a custom email with provided subject and HTML content
+   * Useful for message drafts and other dynamic content
+   */
+  async sendCustomEmail(options: {
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<void> {
+    await this.emailProvider.sendEmail({
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
     });
   }
 }

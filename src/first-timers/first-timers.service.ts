@@ -87,55 +87,8 @@ export class FirstTimersService {
       }
     }
 
-    // Auto-assign GIA leader if not provided
-    let giaLeader = createFirstTimerDto.giaLeader;
-    if (!giaLeader) {
-      try {
-        // Find the GIA unit group
-        const giaGroup = await this.groupsService.findByNameAndType(
-          'Guest Relations and Integrations',
-          GroupType.UNIT,
-        );
-
-        if (!giaGroup) {
-          throw new Error(
-            'GIA unit group not found. Please create a GIA unit group in the groups module.',
-          );
-        }
-
-        if (!giaGroup.unitHead) {
-          throw new Error(
-            'GIA unit group has no unit head assigned. Please assign a unit head to the GIA group.',
-          );
-        }
-
-        // The unitHead is populated, so we can access the member's email
-        const unitHeadMember = giaGroup.unitHead as any;
-
-        if (!unitHeadMember.email) {
-          throw new Error(
-            'GIA unit head member has no email address. Please ensure the unit head member has a valid email.',
-          );
-        }
-
-        // Find the member with the same email as the GIA unit head
-        const giaLeaderMember = await this.membersService.findByEmail(
-          unitHeadMember.email,
-        );
-
-        if (!giaLeaderMember) {
-          throw new Error(
-            `No active member found with email ${unitHeadMember.email}`,
-          );
-        }
-
-        giaLeader = giaLeaderMember._id?.toString();
-      } catch (error) {
-        throw new BadRequestException(
-          `Failed to assign GIA leader: ${error.message}`,
-        );
-      }
-    }
+    // GIA leader is optional and can be assigned later
+    const giaLeader = createFirstTimerDto.giaLeader;
 
     // Validate and convert dateOfVisit
     const dateOfVisit = new Date(createFirstTimerDto.dateOfVisit);
@@ -171,17 +124,7 @@ export class FirstTimersService {
     nextDay.setDate(nextDay.getDate() + 1);
     firstTimer.nextFollowUpDate = nextDay;
 
-    const savedFirstTimer = await firstTimer.save();
-
-    // Schedule thank you email job (3 hours after registration)
-    const thankYouDelay = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
-    await this.queueService.addDelayedJob(
-      'first-timer-thank-you-email',
-      savedFirstTimer._id,
-      thankYouDelay,
-    );
-
-    return savedFirstTimer;
+    return firstTimer.save();
   }
 
   async findAll(
@@ -1143,47 +1086,6 @@ export class FirstTimersService {
     return firstTimer;
   }
 
-  // Update message sent status and tracking
-  async updateMessageSent(firstTimerId: string): Promise<FirstTimerDocument> {
-    const sentAt = new Date();
-
-    const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
-      firstTimerId,
-      {
-        messageSent: true,
-        messageSentAt: sentAt,
-      },
-      { new: true },
-    );
-
-    if (!firstTimer) {
-      throw new NotFoundException('First-timer not found');
-    }
-
-    // Update message history to mark as sent
-    await this.updateMessageHistoryAsSent(firstTimerId, sentAt);
-
-    return firstTimer;
-  }
-
-  // Helper method to update message history when message is sent
-  private async updateMessageHistoryAsSent(
-    firstTimerId: string,
-    sentAt: Date,
-  ): Promise<void> {
-    try {
-      // We need to import MessageHistory model here or use a separate service
-      // For now, we'll handle this in the messaging service
-      this.logger.log(
-        `Message sent tracking updated for first-timer ${firstTimerId}`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to update message history for ${firstTimerId}:`,
-        error,
-      );
-    }
-  }
 
   // Helper method to get GIA group information
   async getGiaGroup() {

@@ -140,19 +140,6 @@ export class FirstTimer {
   @Prop({ type: Date })
   districtAssignmentDate?: Date;
 
-  // Pre-filled message system
-  @Prop({ type: String })
-  preFilledMessage?: string;
-
-  @Prop({ type: Date })
-  messageScheduledTime?: Date;
-
-  @Prop({ type: Boolean, default: false })
-  messageSent: boolean;
-
-  @Prop({ type: Date })
-  messageSentAt?: Date;
-
   // Call reports count (should be max 4)
   @Prop({ type: Number, default: 0, max: 4 })
   callReportsCount: number;
@@ -419,8 +406,6 @@ FirstTimerSchema.index({ lastStatusChange: -1 });
 FirstTimerSchema.index({ stage: 1 });
 FirstTimerSchema.index({ integrationStage: 1 });
 FirstTimerSchema.index({ assignedDistrict: 1 });
-FirstTimerSchema.index({ messageScheduledTime: 1 });
-FirstTimerSchema.index({ messageSent: 1 });
 FirstTimerSchema.index({ callReportsCount: 1 });
 FirstTimerSchema.index({ howDidYouHear: 1 });
 FirstTimerSchema.index({ outreachDate: -1 });
