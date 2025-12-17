@@ -68,50 +68,26 @@ export class InventoryMovementController {
 
       // Validate movement type permissions
       const user = req.user;
-      const restrictedMovements = [
-        InventoryMovementType.ADJUSTMENT,
-        InventoryMovementType.DAMAGE,
-        InventoryMovementType.EXPIRED,
-      ];
-
-      if (
-        restrictedMovements.includes(createMovementDto.movementType) &&
-        !user.systemRoles.includes(UserRole.ADMIN) &&
-        !user.systemRoles.includes(UserRole.SUPER_ADMIN)
-      ) {
-        throw new BadRequestException(
-          `Movement type ${createMovementDto.movementType} requires admin privileges`,
-        );
-      }
 
       // For transfers, validate the user has access to the involved units/districts
       if (createMovementDto.movementType === InventoryMovementType.TRANSFER) {
-        if (!user.systemRoles.includes(UserRole.SUPER_ADMIN)) {
-          const hasFromAccess =
-            (createMovementDto.fromUnit &&
-              createMovementDto.fromUnit === user.unit?.toString()) ||
-            (createMovementDto.fromDistrict &&
-              user.leadershipRoles?.pastorsDistrict &&
-              createMovementDto.fromDistrict ===
-                user.leadershipRoles.pastorsDistrict.toString());
+        const hasFromAccess =
+          (createMovementDto.fromUnit &&
+            createMovementDto.fromUnit === user.unit?.toString()) ||
+          (createMovementDto.fromDistrict &&
+            user.leadershipRoles?.pastorsDistrict &&
+            createMovementDto.fromDistrict ===
+              user.leadershipRoles.pastorsDistrict.toString());
 
-          if (!hasFromAccess && !user.systemRoles.includes(UserRole.ADMIN)) {
-            throw new BadRequestException(
-              'Insufficient permissions for source location',
-            );
-          }
+        if (!hasFromAccess) {
+          throw new BadRequestException(
+            'Insufficient permissions for source location',
+          );
         }
       }
 
-      // Set default approval for high-privilege users
-      if (
-        !createMovementDto.status &&
-        (user.systemRoles.includes(UserRole.ADMIN) ||
-          user.systemRoles.includes(UserRole.SUPER_ADMIN) ||
-          user.systemRoles.includes(UserRole.PASTOR))
-      ) {
-        createMovementDto.status = 'approved';
-      } else if (!createMovementDto.status) {
+      // Set default status
+      if (!createMovementDto.status) {
         createMovementDto.status = 'pending';
       }
 
@@ -157,19 +133,11 @@ export class InventoryMovementController {
       let unitId: string | undefined;
       let districtId: string | undefined;
 
-      // Apply access control filters
-      if (
-        !user.systemRoles.includes(UserRole.SUPER_ADMIN) &&
-        !user.systemRoles.includes(UserRole.ADMIN)
-      ) {
-        if (
-          user.systemRoles.includes(UserRole.PASTOR) &&
-          user.leadershipRoles?.pastorsDistrict
-        ) {
-          districtId = user.leadershipRoles.pastorsDistrict;
-        } else if (user.unit) {
-          unitId = user.unit;
-        }
+      // Apply access control filters based on user's assignments
+      if (user.leadershipRoles?.pastorsDistrict) {
+        districtId = user.leadershipRoles.pastorsDistrict;
+      } else if (user.unit) {
+        unitId = user.unit;
       }
 
       const filters = {
@@ -213,19 +181,11 @@ export class InventoryMovementController {
       let unitId: string | undefined;
       let districtId: string | undefined;
 
-      // Apply access control filters
-      if (
-        !user.systemRoles.includes(UserRole.SUPER_ADMIN) &&
-        !user.systemRoles.includes(UserRole.ADMIN)
-      ) {
-        if (
-          user.systemRoles.includes(UserRole.PASTOR) &&
-          user.leadershipRoles?.pastorsDistrict
-        ) {
-          districtId = user.leadershipRoles.pastorsDistrict;
-        } else if (user.unit) {
-          unitId = user.unit;
-        }
+      // Apply access control filters based on user's assignments
+      if (user.leadershipRoles?.pastorsDistrict) {
+        districtId = user.leadershipRoles.pastorsDistrict;
+      } else if (user.unit) {
+        unitId = user.unit;
       }
 
       const filters = {
@@ -263,28 +223,22 @@ export class InventoryMovementController {
       const movement = await this.movementService.findOne(id);
       const user = req.user;
 
-      // Check access permissions for non-admin users
-      if (
-        !user.systemRoles.includes(UserRole.SUPER_ADMIN) &&
-        !user.systemRoles.includes(UserRole.ADMIN)
-      ) {
-        const hasAccess =
-          movement.performedBy?._id?.toString() === user._id.toString() ||
-          (user.systemRoles.includes(UserRole.PASTOR) &&
-            user.leadershipRoles?.pastorsDistrict &&
-            (movement.fromDistrict?.toString() ===
-              user.leadershipRoles.pastorsDistrict.toString() ||
-              movement.toDistrict?.toString() ===
-                user.leadershipRoles.pastorsDistrict.toString())) ||
-          movement.fromUnit?.toString() === user.unit?.toString() ||
-          movement.toUnit?.toString() === user.unit?.toString();
+      // Check access permissions based on user's assignments
+      const hasAccess =
+        movement.performedBy?._id?.toString() === user._id.toString() ||
+        (user.leadershipRoles?.pastorsDistrict &&
+          (movement.fromDistrict?.toString() ===
+            user.leadershipRoles.pastorsDistrict.toString() ||
+            movement.toDistrict?.toString() ===
+              user.leadershipRoles.pastorsDistrict.toString())) ||
+        movement.fromUnit?.toString() === user.unit?.toString() ||
+        movement.toUnit?.toString() === user.unit?.toString();
 
-        if (!hasAccess) {
-          throw new HttpException(
-            'Insufficient permissions',
-            HttpStatus.FORBIDDEN,
-          );
-        }
+      if (!hasAccess) {
+        throw new HttpException(
+          'Insufficient permissions',
+          HttpStatus.FORBIDDEN,
+        );
       }
 
       return movement;

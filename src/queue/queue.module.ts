@@ -5,10 +5,12 @@ import { QueueName } from '../common/interfaces/queue-job.interface';
 import { BulkOperationProcessor } from './processors/bulk-operation.processor';
 import { FirstTimerNotificationProcessor } from './processors/first-timer-notification.processor';
 import { FirstTimerAutomationProcessor } from './processors/first-timer-automation.processor';
+import { AuditLogProcessor } from './processors/audit-log.processor';
 import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RolesModule } from '../roles/roles.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -64,13 +66,18 @@ import { RolesModule } from '../roles/roles.module';
     BullModule.registerQueue({
       name: QueueName.FIRST_TIMER_AUTOMATION,
     }),
+    BullModule.registerQueue({
+      name: QueueName.AUDIT_LOGS,
+    }),
     NotificationsModule,
+    forwardRef(() => AuditLogsModule),
   ],
   controllers: [QueueController],
   providers: [
     // BulkOperationProcessor, // Temporarily disabled due to circular dependencies
     FirstTimerNotificationProcessor,
     // FirstTimerAutomationProcessor, // Temporarily disabled due to circular dependencies
+    AuditLogProcessor,
     QueueService,
   ],
   exports: [QueueService, BullModule],

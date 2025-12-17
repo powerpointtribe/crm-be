@@ -254,14 +254,6 @@ export class FirstTimersController {
     @Query() searchDto: FirstTimerSearchDto,
     @CurrentUser() user: any,
   ) {
-    // Filter by assigned user for follow-up team members
-    if (user.roles === UserRole.LXL) {
-      // If not specified, show their assigned first-timers
-      if (!searchDto.assignedTo) {
-        searchDto.assignedTo = user._id;
-      }
-    }
-
     const firstTimers = await this.firstTimersService.findAll(searchDto);
     return ResponseUtil.success(
       firstTimers,
@@ -303,13 +295,6 @@ export class FirstTimersController {
       pageNum,
       limitNum,
     );
-
-    // Filter by assigned user for follow-up team
-    if (user.roles === UserRole.LXL) {
-      firstTimers.data = firstTimers.data.filter(
-        (ft) => !ft.assignedTo || ft.assignedTo.toString() === user._id,
-      );
-    }
 
     return ResponseUtil.success(
       firstTimers,
@@ -457,16 +442,8 @@ export class FirstTimersController {
   async getOverdueReports(@CurrentUser() user: any) {
     const overdueReports = await this.callReportsService.getOverdueReports();
 
-    // Filter by assigned user for follow-up team
-    let filteredReports = overdueReports;
-    if (user.roles === UserRole.LXL) {
-      filteredReports = overdueReports.filter(
-        (report) => report.assignedTo?._id === user._id,
-      );
-    }
-
     return ResponseUtil.success(
-      filteredReports,
+      overdueReports,
       'Overdue reports retrieved successfully',
     );
   }
@@ -523,16 +500,6 @@ export class FirstTimersController {
       return ResponseUtil.error('First-timer not found');
     }
 
-    // Check access for follow-up team - they can only see their assignments
-    if (user.roles === UserRole.LXL) {
-      if (
-        firstTimer.assignedTo &&
-        firstTimer.assignedTo.toString() !== user._id
-      ) {
-        return ResponseUtil.error('Access denied - not your assignment');
-      }
-    }
-
     return ResponseUtil.success(
       firstTimer,
       'First-timer retrieved successfully',
@@ -558,16 +525,6 @@ export class FirstTimersController {
     @Body() updateFirstTimerDto: Partial<FirstTimer>,
     @CurrentUser() user: any,
   ) {
-    // Check access for follow-up team - they can only update their assignments
-    if (user.systemRoles.includes(UserRole.MEMBER)) {
-      const firstTimer = await this.firstTimersService.findById(id);
-      if (
-        firstTimer?.assignedTo &&
-        firstTimer.assignedTo.toString() !== user._id
-      ) {
-        return ResponseUtil.error('Access denied - not your assignment');
-      }
-    }
     const firstTimer = await this.firstTimersService.update(
       id,
       updateFirstTimerDto,
@@ -730,17 +687,6 @@ export class FirstTimersController {
     @Body() body: { notes: string },
     @CurrentUser() user: any,
   ) {
-    // Check access for follow-up team
-    if (user.roles === UserRole.LXL) {
-      const firstTimer = await this.firstTimersService.findById(id);
-      if (
-        firstTimer?.assignedTo &&
-        firstTimer.assignedTo.toString() !== user._id
-      ) {
-        return ResponseUtil.error('Access denied - not your assignment');
-      }
-    }
-
     const firstTimer = await this.firstTimersService.updateNotes(
       id,
       body.notes,

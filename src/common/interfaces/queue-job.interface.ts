@@ -2,6 +2,7 @@ export enum QueueName {
   BULK_OPERATION = 'bulk-operation',
   FIRST_TIMER_NOTIFICATIONS = 'first-timer-notifications',
   FIRST_TIMER_AUTOMATION = 'first-timer-automation',
+  AUDIT_LOGS = 'audit-logs',
 }
 
 export enum JobType {
@@ -22,6 +23,9 @@ export enum JobType {
   // Assignment jobs
   CREATE_MEMBER_FROM_FIRST_TIMER = 'create-member-from-first-timer',
   SEND_MEMBER_FOLLOWUP_ASSIGNMENT = 'send-member-followup-assignment',
+
+  // Audit log jobs
+  AUDIT_LOG_CREATE = 'audit-log-create',
 }
 
 export interface BulkOperationJobData {
@@ -76,4 +80,21 @@ export interface FirstTimerAutomationJobData {
   firstTimerId?: string;
   targetStatus?: string;
   checkDate?: Date;
+}
+
+// Audit log job data interface
+export interface AuditLogJobData {
+  action: string;
+  entityType: string;
+  entityId: string;
+  userId: string;
+  userEmail?: string;
+  userName?: string;
+  auditData: {
+    description?: string;
+    severity?: 'low' | 'medium' | 'high' | 'critical';
+    metadata?: any;
+    oldValues?: any;
+    newValues?: any;
+  };
 }

@@ -9,8 +9,6 @@ import { MembersModule } from '../members/members.module';
 import { CommonModule } from '../common/common.module';
 import { RolesModule } from '../roles/roles.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
-import { ModuleAccessGuard } from './guards/module-access.guard';
 
 @Module({
   imports: [
@@ -34,9 +32,7 @@ import { ModuleAccessGuard } from './guards/module-access.guard';
     AuthService,
     JwtStrategy,
     JwtAuthGuard,
-    RolesGuard,
-    ModuleAccessGuard,
   ],
-  exports: [AuthService, JwtAuthGuard, RolesGuard, ModuleAccessGuard],
+  exports: [AuthService, JwtAuthGuard],
 })
 export class AuthModule {}

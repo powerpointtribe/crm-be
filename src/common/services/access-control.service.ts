@@ -18,13 +18,9 @@ export interface AccessControlContext {
 export class AccessControlService {
   /**
    * Check if a member can access a specific module
+   * Access control is now handled by permission system
    */
   canAccessModule(member: Member, module: DashboardModule): boolean {
-    // Admin can access everything
-    if (member.systemRoles.includes(UserRole.ADMIN)) {
-      return true;
-    }
-
     // Check role-based access
     const roleAccess = this.checkRoleBasedAccess(member, module);
     if (roleAccess) {
@@ -122,30 +118,22 @@ export class AccessControlService {
         );
 
       case DashboardModule.UNITS:
-        // Leadership and pastors can manage units
+        // Leadership can manage units
         return (
           leadershipRoles.isDistrictPastor ||
-          leadershipRoles.isUnitHead ||
-          member.systemRoles.includes(UserRole.PASTOR) ||
-          member.systemRoles.includes(UserRole.LXL)
+          leadershipRoles.isUnitHead
         );
 
       case DashboardModule.MINISTRIES:
         // Directors can manage their ministries
-        return (
-          (member.directorOfMinistries &&
-            member.directorOfMinistries.length > 0) ||
-          member.systemRoles.includes(UserRole.DIRECTOR) ||
-          member.systemRoles.includes(UserRole.PASTOR)
+        return !!(
+          member.directorOfMinistries &&
+          member.directorOfMinistries.length > 0
         );
 
       case DashboardModule.USER_MANAGEMENT:
         // Only high-level leadership can manage users
-        return (
-          leadershipRoles.isDistrictPastor ||
-          member.systemRoles.includes(UserRole.PASTOR) ||
-          member.systemRoles.includes(UserRole.ADMIN)
-        );
+        return leadershipRoles.isDistrictPastor;
 
       default:
         return false;
@@ -154,6 +142,7 @@ export class AccessControlService {
 
   /**
    * Check if member can perform specific action on a resource
+   * Access control is now handled by permission system
    */
   canPerformAction(
     member: Member,
@@ -161,11 +150,6 @@ export class AccessControlService {
     resourceType: string,
     resourceId?: string,
   ): boolean {
-    // Admin can do everything
-    if (member.systemRoles.includes(UserRole.ADMIN)) {
-      return true;
-    }
-
     switch (resourceType) {
       case 'member':
         return this.checkMemberResourceAccess(member, action, resourceId);
@@ -204,10 +188,10 @@ export class AccessControlService {
         );
 
       case 'delete':
-        // Only high-level roles can delete
+        // Only leadership can delete
         return (
-          member.systemRoles.includes(UserRole.PASTOR) ||
-          member.systemRoles.includes(UserRole.ADMIN)
+          leadershipRoles.isDistrictPastor ||
+          leadershipRoles.isUnitHead
         );
 
       default:
@@ -224,8 +208,7 @@ export class AccessControlService {
     return (
       member.unitType === UnitType.GIA ||
       member.leadershipRoles.isDistrictPastor ||
-      member.leadershipRoles.isUnitHead ||
-      member.systemRoles.includes(UserRole.PASTOR)
+      member.leadershipRoles.isUnitHead
     );
   }
 
@@ -244,9 +227,7 @@ export class AccessControlService {
         // Can manage if they lead the group or are high-level leadership
         return (
           leadershipRoles.isDistrictPastor ||
-          leadershipRoles.isUnitHead ||
-          member.systemRoles.includes(UserRole.PASTOR) ||
-          member.systemRoles.includes(UserRole.LXL)
+          leadershipRoles.isUnitHead
         );
 
       default:
@@ -256,13 +237,9 @@ export class AccessControlService {
 
   /**
    * Filter data based on member's access level
+   * Access control is now handled by permission system
    */
   filterDataByAccess<T>(member: Member, data: T[], resourceType: string): T[] {
-    // Admin sees everything
-    if (member.systemRoles.includes(UserRole.ADMIN)) {
-      return data;
-    }
-
     // Apply resource-specific filtering logic here
     // This would be expanded based on specific business rules
     return data;

@@ -56,8 +56,9 @@ export class RolesController {
 
   @Get(':id')
   @RequirePermission(RolesModulePermission.VIEW_ROLE_DETAILS)
-  findOne(@Param('id') id: string) {
-    return this.rolesService.findById(id, true);
+  async findOne(@Param('id') id: string) {
+    const role = await this.rolesService.findById(id, true);
+    return role;
   }
 
   @Get(':id/permissions')

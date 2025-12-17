@@ -22,6 +22,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { CommonModule } from '../common/common.module';
 import { InventoryMovementValidator } from './validators/inventory-movement.validator';
 import { RolesModule } from '../roles/roles.module';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { RolesModule } from '../roles/roles.module';
     ]),
     AuditLogsModule,
     CommonModule,
+    QueueModule,
   ],
   controllers: [
     InventoryCategoryController,

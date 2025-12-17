@@ -15,14 +15,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ModuleAccessGuard } from '../auth/guards/module-access.guard';
-import {
-  RequireMembersAccess,
-  RequireMemberEdit,
-  RequireMemberDelete,
-  RequireAdminOrPastor,
-  AllowSelfAccess,
-} from '../common/decorators/access-control.decorators';
 import { MembersService } from './members.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { CreateMemberDto } from './dto/create-member.dto';
@@ -115,11 +107,6 @@ export class MembersController {
       throw new NotFoundException(`Member with ID ${id} not found`);
     }
 
-    // Check if user can access this specific member
-    if (!this.canAccessMember(req.user, member)) {
-      throw new ForbiddenException('Access denied to this member profile');
-    }
-
     return member;
   }
 
@@ -140,11 +127,6 @@ export class MembersController {
 
     if (!member) {
       throw new NotFoundException(`Member with ID ${id} not found`);
-    }
-
-    // Check if user can edit this specific member
-    if (!this.canEditMember(req.user, member)) {
-      throw new ForbiddenException('Access denied to edit this member');
     }
 
     return this.membersService.update(id, updateMemberDto);
@@ -187,36 +169,8 @@ export class MembersController {
     currentMember: MemberDocument,
     members: MemberDocument[],
   ): MemberDocument[] {
-    // Admin sees all
-    if (currentMember.systemRoles.includes(UserRole.ADMIN)) {
-      return members;
-    }
-
-    // District pastors see their district
-    if (currentMember.leadershipRoles?.isDistrictPastor) {
-      return members.filter(
-        (member) =>
-          member.district?.toString() ===
-          currentMember.leadershipRoles.pastorsDistrict?.toString(),
-      );
-    }
-
-    // Unit heads see their unit
-    if (currentMember.leadershipRoles?.isUnitHead) {
-      return members.filter(
-        (member) =>
-          member.unit?.toString() ===
-          currentMember.leadershipRoles.leadsUnit?.toString(),
-      );
-    }
-
-    // GIA sees all for integration purposes
-    if (currentMember.unitType === 'gia') {
-      return members;
-    }
-
-    // Regular members see limited info or none
-    return [];
+    // Return all members - access control is handled by permissions
+    return members;
   }
 
   private canAccessMember(

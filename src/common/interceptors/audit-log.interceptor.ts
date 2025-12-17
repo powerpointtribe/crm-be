@@ -4,13 +4,16 @@ import {
   ExecutionContext,
   CallHandler,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
-import { AuditLogsService } from '../../audit-logs/audit-logs.service';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { AUDIT_LOG_KEY, AuditLogMetadata } from '../decorators/audit-log.decorator';
 import { AuditAction } from '../enums/audit-action.enum';
+import { QueueName, JobType } from '../interfaces/queue-job.interface';
 
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
@@ -18,7 +21,8 @@ export class AuditLogInterceptor implements NestInterceptor {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly auditLogsService: AuditLogsService,
+    @InjectQueue(QueueName.AUDIT_LOGS)
+    private readonly auditLogQueue: Queue,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -47,7 +51,7 @@ export class AuditLogInterceptor implements NestInterceptor {
                      auditMetadata.action.toString().includes('_UPDATED');
 
     return next.handle().pipe(
-      tap(async (result) => {
+      tap((result) => {
         try {
           // Get the entity ID from the result or request
           const finalEntityId = auditMetadata.getEntityId
@@ -59,21 +63,21 @@ export class AuditLogInterceptor implements NestInterceptor {
             return;
           }
 
+          // Prepare audit log metadata
+          const metadata = {
+            ipAddress: request.ip,
+            userAgent: request.headers['user-agent'],
+            source: 'web',
+            method: request.method,
+            url: request.url,
+            params: request.params,
+          };
+
           // Prepare audit log data
           const auditData: any = {
-            action: auditMetadata.action,
-            entityType: auditMetadata.entityType,
-            entityId: finalEntityId,
             description: auditMetadata.description || this.generateDescription(auditMetadata.action, auditMetadata.entityType),
             severity: auditMetadata.severity || this.determineSeverity(auditMetadata.action),
-            metadata: {
-              ipAddress: request.ip,
-              userAgent: request.headers['user-agent'],
-              source: 'web',
-              method: request.method,
-              url: request.url,
-              params: request.params,
-            },
+            metadata,
           };
 
           // Add old and new values for updates
@@ -85,16 +89,34 @@ export class AuditLogInterceptor implements NestInterceptor {
             auditData.newValues = this.sanitizeData(result);
           }
 
-          // Log the action
-          await this.auditLogsService.logAction(
-            auditMetadata.action,
-            auditMetadata.entityType,
-            finalEntityId,
-            user,
-            auditData,
-          );
+          // Add job to queue (non-blocking)
+          this.auditLogQueue.add(
+            JobType.AUDIT_LOG_CREATE,
+            {
+              action: auditMetadata.action,
+              entityType: auditMetadata.entityType,
+              entityId: finalEntityId,
+              userId: user._id || user.sub,
+              userEmail: user.email,
+              userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+              auditData,
+            },
+            {
+              attempts: 3,
+              backoff: {
+                type: 'exponential',
+                delay: 1000,
+              },
+              removeOnComplete: true,
+              removeOnFail: false,
+            },
+          ).catch((error) => {
+            // Log queue error but don't throw to avoid blocking the main request
+            this.logger.error('Failed to queue audit log', error.message);
+          });
         } catch (error) {
-          this.logger.error('Failed to create audit log', error.stack);
+          // Log error but don't throw to avoid blocking the main request
+          this.logger.error('Failed to prepare audit log', error.stack);
         }
       }),
       catchError((error) => {

@@ -62,25 +62,32 @@ export class FirstTimerNotificationProcessor {
         conversionDate,
       } = additionalData || {};
 
-      if (!firstTimerName || !giaLeaderEmail || !giaLeaderName) {
-        this.logger.warn(`Missing data for conversion notification`);
+      if (!firstTimerName) {
+        this.logger.warn(`Missing first-timer name for conversion notification`);
         return {
           success: false,
-          reason: 'Missing first-timer or GIA leader data',
+          reason: 'Missing first-timer data',
         };
       }
 
-      await this.notificationsService.sendConversionNotification({
-        giaLeaderEmail,
-        giaLeaderName,
-        firstTimerName,
-        memberName: memberName || 'New Member',
-        conversionDate: conversionDate || new Date().toLocaleDateString(),
-      });
+      // Only send notification if GIA leader exists
+      if (giaLeaderEmail && giaLeaderName) {
+        await this.notificationsService.sendConversionNotification({
+          giaLeaderEmail,
+          giaLeaderName,
+          firstTimerName,
+          memberName: memberName || 'New Member',
+          conversionDate: conversionDate || new Date().toLocaleDateString(),
+        });
 
-      this.logger.log(
-        `Conversion notification sent to GIA leader ${giaLeaderEmail}`,
-      );
+        this.logger.log(
+          `Conversion notification sent to GIA leader ${giaLeaderEmail}`,
+        );
+      } else {
+        this.logger.log(
+          `No GIA leader assigned - skipping conversion notification`,
+        );
+      }
 
       return { success: true, giaLeaderEmail };
     } catch (error) {
@@ -182,10 +189,6 @@ export class FirstTimerNotificationProcessor {
       throw error;
     }
   }
-
-
-  // Legacy assignment notification processors removed
-  // Use SEND_MEMBER_FOLLOWUP_ASSIGNMENT instead
 
   @Process(JobType.CREATE_MEMBER_FROM_FIRST_TIMER)
   async handleCreateMemberFromFirstTimer(

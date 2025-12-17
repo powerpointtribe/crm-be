@@ -82,13 +82,17 @@ export class RolesService {
       throw new BadRequestException('Invalid role ID');
     }
 
-    let query = this.roleModel.findById(id);
-
-    if (populatePermissions) {
-      query = query.populate('permissions').populate('parentRole');
-    }
-
-    const role = await query;
+    const role = await this.roleModel
+      .findById(id)
+      .populate({
+        path: 'permissions',
+        model: 'Permission',
+      })
+      .populate({
+        path: 'parentRole',
+        model: 'Role',
+      })
+      .exec();
 
     if (!role) {
       throw new NotFoundException(`Role with ID '${id}' not found`);

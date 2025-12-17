@@ -14,6 +14,7 @@ import { UserPermissionsController } from './user-permissions.controller';
 import { PermissionGuard } from './guards/permission.guard';
 import { MembersModule } from '../members/members.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     ]),
     forwardRef(() => MembersModule), // Forward ref to avoid circular dependency
     forwardRef(() => AuditLogsModule), // Forward ref to avoid circular dependency with AuditLogsModule
+    forwardRef(() => QueueModule), // Import QueueModule for audit logging queue
   ],
   controllers: [
     PermissionsController,

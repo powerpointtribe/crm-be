@@ -41,25 +41,7 @@ export class AuditLogsController {
   })
   async findAll(@Query() queryDto: AuditLogQueryDto, @Req() req: any) {
     try {
-      const user = req.user;
-
-      if (user.systemRoles.includes(UserRole.SUPER_ADMIN)) {
-        return await this.auditLogsService.findAll(queryDto);
-      }
-
-      if (user.systemRoles.includes(UserRole.ADMIN)) {
-        return await this.auditLogsService.findAll(queryDto);
-      }
-
-      if (user.systemRoles.includes(UserRole.PASTOR)) {
-        const filters = { ...queryDto };
-        if (user.leadershipRoles?.pastorsDistrict) {
-          filters.relatedDistrict = user.leadershipRoles.pastorsDistrict;
-        }
-        return await this.auditLogsService.findAll(filters);
-      }
-
-      throw new HttpException('Insufficient permissions', HttpStatus.FORBIDDEN);
+      return await this.auditLogsService.findAll(queryDto);
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to retrieve audit logs',
@@ -81,22 +63,11 @@ export class AuditLogsController {
     @Req() req: any,
   ) {
     try {
-      const user = req.user;
       const filters: any = {};
 
       if (query.startDate) filters.startDate = new Date(query.startDate);
       if (query.endDate) filters.endDate = new Date(query.endDate);
       if (query.entityType) filters.entityType = query.entityType;
-
-      if (
-        user.systemRoles.includes(UserRole.PASTOR) &&
-        !user.systemRoles.includes(UserRole.ADMIN) &&
-        !user.systemRoles.includes(UserRole.SUPER_ADMIN)
-      ) {
-        if (user.leadershipRoles?.pastorsDistrict) {
-          filters.relatedDistrict = user.leadershipRoles.pastorsDistrict;
-        }
-      }
 
       return await this.auditLogsService.getStatistics(filters);
     } catch (error) {
@@ -156,26 +127,7 @@ export class AuditLogsController {
         throw new HttpException('Audit log not found', HttpStatus.NOT_FOUND);
       }
 
-      const user = req.user;
-
-      if (
-        user.systemRoles.includes(UserRole.SUPER_ADMIN) ||
-        user.systemRoles.includes(UserRole.ADMIN)
-      ) {
-        return auditLog;
-      }
-
-      if (user.systemRoles.includes(UserRole.PASTOR)) {
-        if (
-          user.leadershipRoles?.pastorsDistrict &&
-          auditLog.relatedDistrict?.toString() ===
-            user.leadershipRoles.pastorsDistrict.toString()
-        ) {
-          return auditLog;
-        }
-      }
-
-      throw new HttpException('Insufficient permissions', HttpStatus.FORBIDDEN);
+      return auditLog;
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to retrieve audit log',

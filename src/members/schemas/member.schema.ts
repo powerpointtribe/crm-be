@@ -69,7 +69,6 @@ export class Member {
   })
   membershipStatus: MembershipStatus;
 
-  // DEPRECATED: Old system roles (kept for backward compatibility during migration)
   @Prop({
     type: [String],
     enum: Object.values(UserRole),

@@ -7,8 +7,10 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, tap } from 'rxjs';
-import { AuditLogsService } from '../../audit-logs/audit-logs.service';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { AUDIT_KEY, AuditOptions } from '../decorators/audit.decorator';
+import { QueueName, JobType } from '../interfaces/queue-job.interface';
 import { Request } from 'express';
 
 @Injectable()
@@ -16,7 +18,8 @@ export class AuditInterceptor implements NestInterceptor {
   private readonly logger = new Logger(AuditInterceptor.name);
 
   constructor(
-    private readonly auditLogsService: AuditLogsService,
+    @InjectQueue(QueueName.AUDIT_LOGS)
+    private readonly auditLogQueue: Queue,
     private readonly reflector: Reflector,
   ) {}
 
@@ -38,7 +41,7 @@ export class AuditInterceptor implements NestInterceptor {
     const ipAddress = request.ip || request.socket.remoteAddress;
 
     return next.handle().pipe(
-      tap(async (response) => {
+      tap((response) => {
         try {
           if (!user) {
             this.logger.warn('No user found in request for audit logging');
@@ -75,28 +78,47 @@ export class AuditInterceptor implements NestInterceptor {
             auditOptions.description ||
             `${method} ${auditOptions.entity} via ${url}`;
 
-          await this.auditLogsService.logAction(
-            auditOptions.action,
-            auditOptions.entity,
-            entityId,
-            user,
+          // Add job to queue (non-blocking)
+          this.auditLogQueue.add(
+            JobType.AUDIT_LOG_CREATE,
             {
-              description,
-              oldValues,
-              newValues,
-              severity: auditOptions.severity || 'medium',
-              metadata: {
-                ipAddress,
-                userAgent,
-                source: 'web',
-                requestId: request.headers['x-request-id'] as string,
+              action: auditOptions.action,
+              entityType: auditOptions.entity,
+              entityId,
+              userId: (user as any)._id || (user as any).sub,
+              userEmail: (user as any).email,
+              userName: `${(user as any).firstName || ''} ${(user as any).lastName || ''}`.trim(),
+              auditData: {
+                description,
+                oldValues,
+                newValues,
+                severity: auditOptions.severity || 'medium',
+                metadata: {
+                  ipAddress,
+                  userAgent,
+                  source: 'web',
+                  requestId: request.headers['x-request-id'] as string,
+                  relatedUnit: (user as any).unit?.toString(),
+                  relatedDistrict: (user as any).district?.toString(),
+                },
               },
-              relatedUnit: (user as any).unit?.toString(),
-              relatedDistrict: (user as any).district?.toString(),
             },
-          );
+            {
+              attempts: 3,
+              backoff: {
+                type: 'exponential',
+                delay: 1000,
+              },
+              removeOnComplete: true,
+              removeOnFail: false,
+            },
+          ).catch((error) => {
+            // Log queue error but don't throw to avoid blocking the main request
+            this.logger.error('Failed to queue audit log', error.message);
+          });
         } catch (error) {
-          this.logger.error('Failed to create audit log', error.stack);
+          // Log error but don't throw to avoid blocking the main request
+          this.logger.error('Failed to prepare audit log', error.stack);
         }
       }),
     );

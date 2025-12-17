@@ -58,28 +58,17 @@ export class AuthService {
     // Update last login
     await this.membersService.updateLastLogin(member._id.toString());
 
-    // Get accessible modules for this member
+    // Get accessible modules for this member using permissions system
     let accessibleModules: string[] = [];
 
-    // If member has the new role-based permissions system
     if (member.role) {
-      try {
-        // Use new permissions system
-        accessibleModules = await this.userPermissionsService.getAccessibleModules(
-          member.role,
-        );
-      } catch (error) {
-        console.error('Failed to get modules from permissions during login:', error);
-        // Fallback to old system
-        accessibleModules =
-          this.accessControlService.getAccessibleModules(member) as any;
-        console.log(`[AUTH LOGIN] User ${member.email} accessible modules from fallback:`, accessibleModules);
-      }
+      accessibleModules = await this.userPermissionsService.getAccessibleModules(
+        member.role,
+      );
     } else {
-      // Fallback to old system for backward compatibility
+      // If no role assigned, use legacy access control service
       accessibleModules =
         this.accessControlService.getAccessibleModules(member) as any;
-      console.log(`[AUTH LOGIN] User ${member.email} accessible modules from old system:`, accessibleModules);
     }
 
     // Create JWT payload with comprehensive member data
@@ -188,22 +177,12 @@ export class AuthService {
 
     let accessibleModules: string[] = [];
 
-    // If member has the new role-based permissions system
     if (member.role) {
-      try {
-        // Use new permissions system
-        const modules = await this.userPermissionsService.getAccessibleModules(
-          member.role,
-        );
-        accessibleModules = modules;
-      } catch (error) {
-        console.error('Failed to get modules from permissions:', error);
-        // Fallback to old system
-        accessibleModules =
-          this.accessControlService.getAccessibleModules(member) as any;
-      }
+      accessibleModules = await this.userPermissionsService.getAccessibleModules(
+        member.role,
+      );
     } else {
-      // Fallback to old system for backward compatibility
+      // If no role assigned, use legacy access control service
       accessibleModules =
         this.accessControlService.getAccessibleModules(member) as any;
     }
@@ -276,8 +255,6 @@ export class AuthService {
       unitType: member.unitType,
       leadershipRoles: member.leadershipRoles,
       accessibleModules,
-      isAdmin: member.systemRoles.includes(UserRole.ADMIN),
-      isPastor: member.systemRoles.includes(UserRole.PASTOR),
       isLeader:
         member.leadershipRoles.isDistrictPastor ||
         member.leadershipRoles.isUnitHead ||
