@@ -28,18 +28,34 @@ export class CreateDailyMessageDto {
   @IsDateString()
   scheduledTime?: string;
 
-  @ApiProperty({
-    description: 'Whether to send immediately or schedule',
+  @ApiPropertyOptional({
+    description: 'Whether message requires approval before sending',
     default: true,
   })
+  @IsOptional()
   @IsBoolean()
-  autoSend: boolean;
+  requiresApproval?: boolean;
 
-  @ApiProperty({ description: 'Array of first timer IDs to send message to' })
+  @ApiPropertyOptional({
+    description: 'ID of the member who will approve the message',
+  })
+  @IsOptional()
+  @IsString()
+  approverId?: string;
+
+  @ApiProperty({
+    description: 'Whether to send immediately or schedule (only if not requiring approval)',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  autoSend?: boolean;
+
+  @ApiPropertyOptional({ description: 'Array of first timer IDs to send message to (optional - will spool from date if not provided)' })
+  @IsOptional()
   @IsArray()
-  @ArrayNotEmpty()
   @IsString({ each: true })
-  firstTimerIds: string[];
+  firstTimerIds?: string[];
 }
 
 export class DailyMessageQueryDto {
@@ -56,9 +72,35 @@ export class DailyMessageQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter by message status',
-    enum: ['draft', 'scheduled', 'sending', 'sent', 'failed'],
+    enum: ['draft', 'pending_approval', 'approved', 'rejected', 'scheduled', 'sending', 'sent', 'failed'],
   })
   @IsOptional()
   @IsString()
   status?: string;
+}
+
+export class ApproveDailyMessageDto {
+  @ApiPropertyOptional({ description: 'Updated message content (optional)' })
+  @IsOptional()
+  @IsString()
+  message?: string;
+
+  @ApiPropertyOptional({ description: 'Updated scheduled time (optional)' })
+  @IsOptional()
+  @IsDateString()
+  scheduledTime?: string;
+
+  @ApiProperty({
+    description: 'Whether to send immediately upon approval',
+    default: false,
+  })
+  @IsBoolean()
+  sendImmediately: boolean;
+}
+
+export class RejectDailyMessageDto {
+  @ApiProperty({ description: 'Reason for rejecting the message' })
+  @IsString()
+  @IsNotEmpty()
+  rejectionReason: string;
 }

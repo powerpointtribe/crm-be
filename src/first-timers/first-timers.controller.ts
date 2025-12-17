@@ -48,6 +48,8 @@ import {
 import {
   CreateDailyMessageDto,
   DailyMessageQueryDto,
+  ApproveDailyMessageDto,
+  RejectDailyMessageDto,
 } from './dto/daily-message.dto';
 import { UpdateIntegrationStageDto } from './dto/update-integration-stage.dto';
 import { CSVParserUtil } from '../common/utils/csv-parser.util';
@@ -488,11 +490,15 @@ export class FirstTimersController {
         createDailyMessageDto.firstTimerIds,
         user?.id,
         scheduledTime,
-        createDailyMessageDto.autoSend,
+        createDailyMessageDto.autoSend || false,
+        createDailyMessageDto.requiresApproval !== undefined
+          ? createDailyMessageDto.requiresApproval
+          : true,
+        createDailyMessageDto.approverId,
       );
 
-    // If auto-send is enabled, send immediately
-    if (createDailyMessageDto.autoSend) {
+    // If auto-send is enabled and doesn't require approval, send immediately
+    if (createDailyMessageDto.autoSend && !createDailyMessageDto.requiresApproval) {
       await this.firstTimerMessagingService.sendDailyMessageNow(
         (dailyMessage._id as any).toString(),
         user?.id,
@@ -599,6 +605,107 @@ export class FirstTimersController {
       user?.id,
     );
     return ResponseUtil.success(null, 'Daily message sent successfully');
+  }
+
+  @Post('daily-message/:id/submit-for-approval')
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
+  @ApiOperation({ summary: 'Submit a draft message for approval' })
+  @ApiParam({ name: 'id', description: 'Daily message ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message submitted for approval successfully',
+  })
+  async submitDraftForApproval(
+    @Param('id') dailyMessageId: string,
+    @Body() body: { approverId: string },
+    @CurrentUser() user: any,
+  ) {
+    const updatedMessage =
+      await this.firstTimerMessagingService.submitForApproval(
+        dailyMessageId,
+        body.approverId,
+      );
+    return ResponseUtil.success(
+      updatedMessage,
+      'Message submitted for approval successfully',
+    );
+  }
+
+  @Post('daily-message/:id/approve')
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
+  @ApiOperation({ summary: 'Approve a pending daily message' })
+  @ApiParam({ name: 'id', description: 'Daily message ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message approved successfully',
+  })
+  async approveDailyMessage(
+    @Param('id') dailyMessageId: string,
+    @Body() approveDto: ApproveDailyMessageDto,
+    @CurrentUser() user: any,
+  ) {
+    const scheduledTime = approveDto.scheduledTime
+      ? new Date(approveDto.scheduledTime)
+      : undefined;
+
+    const updatedMessage =
+      await this.firstTimerMessagingService.approveDailyMessage(
+        dailyMessageId,
+        user?.id,
+        {
+          message: approveDto.message,
+          scheduledTime,
+          sendImmediately: approveDto.sendImmediately,
+        },
+      );
+
+    return ResponseUtil.success(
+      updatedMessage,
+      'Message approved successfully',
+    );
+  }
+
+  @Post('daily-message/:id/reject')
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
+  @ApiOperation({ summary: 'Reject a pending daily message' })
+  @ApiParam({ name: 'id', description: 'Daily message ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message rejected successfully',
+  })
+  async rejectDailyMessage(
+    @Param('id') dailyMessageId: string,
+    @Body() rejectDto: RejectDailyMessageDto,
+    @CurrentUser() user: any,
+  ) {
+    const updatedMessage =
+      await this.firstTimerMessagingService.rejectDailyMessage(
+        dailyMessageId,
+        user?.id,
+        rejectDto.rejectionReason,
+      );
+
+    return ResponseUtil.success(
+      updatedMessage,
+      'Message rejected successfully',
+    );
+  }
+
+  @Get('daily-message/pending-approvals/my-approvals')
+  @RequirePermission(FirstTimersPermission.MANAGE_DAILY_MESSAGES)
+  @ApiOperation({ summary: 'Get messages pending approval for current user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Pending approvals retrieved successfully',
+  })
+  async getMyPendingApprovals(@CurrentUser() user: any) {
+    const pendingApprovals =
+      await this.firstTimerMessagingService.getPendingApprovals(user?.id);
+
+    return ResponseUtil.success(
+      pendingApprovals,
+      'Pending approvals retrieved successfully',
+    );
   }
 
   // Call Reports Analytics Endpoints - MUST BE BEFORE :id route

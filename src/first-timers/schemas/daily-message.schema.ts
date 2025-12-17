@@ -50,7 +50,7 @@ export class DailyMessage {
 
   @Prop({
     type: String,
-    enum: ['draft', 'scheduled', 'sending', 'sent', 'failed'],
+    enum: ['draft', 'pending_approval', 'approved', 'rejected', 'scheduled', 'sending', 'sent', 'failed'],
     default: 'draft',
   })
   status: string;
@@ -64,8 +64,29 @@ export class DailyMessage {
   @Prop({ type: Types.ObjectId, ref: 'Member' })
   sentBy?: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Member' })
+  approver?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Member' })
+  approvedBy?: Types.ObjectId;
+
+  @Prop({ type: Date })
+  approvedAt?: Date;
+
+  @Prop({ type: Boolean, default: false })
+  requiresApproval: boolean;
+
+  @Prop({ trim: true })
+  rejectionReason?: string;
+
   @Prop({ trim: true })
   failureReason?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'Member' })
+  editedBy?: Types.ObjectId;
+
+  @Prop({ type: Date })
+  editedAt?: Date;
 
   @Prop({ type: Date })
   createdAt: Date;
@@ -82,3 +103,5 @@ DailyMessageSchema.index({ status: 1 });
 DailyMessageSchema.index({ createdBy: 1 });
 DailyMessageSchema.index({ isSent: 1 });
 DailyMessageSchema.index({ scheduledTime: 1 });
+DailyMessageSchema.index({ approver: 1 });
+DailyMessageSchema.index({ requiresApproval: 1 });

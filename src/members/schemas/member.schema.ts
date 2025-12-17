@@ -59,11 +59,13 @@ export class Member {
   @Prop({ type: Date })
   resetPasswordOtpExpires?: Date;
 
-  // CHURCH MEMBERSHIP STATUS
+  // CHURCH MEMBERSHIP STATUS (hierarchical status: MEMBER, DC, LXL, DIRECTOR, PASTOR, SENIOR_PASTOR)
+  // This is different from EngagementStatus used in First Timers module
   @Prop({
     type: String,
     enum: Object.values(MembershipStatus),
-    default: MembershipStatus.NEW_CONVERT,
+    default: MembershipStatus.MEMBER,
+    required: true,
   })
   membershipStatus: MembershipStatus;
 

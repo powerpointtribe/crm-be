@@ -68,7 +68,6 @@ export class AuthService {
         accessibleModules = await this.userPermissionsService.getAccessibleModules(
           member.role,
         );
-        console.log(`[AUTH LOGIN] User ${member.email} accessible modules from permissions:`, accessibleModules);
       } catch (error) {
         console.error('Failed to get modules from permissions during login:', error);
         // Fallback to old system

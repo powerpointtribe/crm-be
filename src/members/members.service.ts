@@ -400,11 +400,20 @@ export class MembersService {
     const sortQuery = QueryBuilder.buildSortQuery(sortBy, sortOrder);
 
     // Execute queries with proper population
+    // Note: Using lean() with manual population to handle invalid ObjectId references gracefully
     const [members, total] = await Promise.all([
       this.memberModel
         .find(filterQuery)
-        // .populate('district', '_id name type')
-        // .populate('unit', 'name type')
+        .populate({
+          path: 'district',
+          select: '_id name type',
+          options: { strictPopulate: false }
+        })
+        .populate({
+          path: 'unit',
+          select: 'name type',
+          options: { strictPopulate: false }
+        })
         .populate('spouse', 'firstName lastName')
         .populate('children', 'firstName lastName')
         .populate('parent', 'firstName lastName')
@@ -419,7 +428,24 @@ export class MembersService {
       this.memberModel.countDocuments(filterQuery),
     ]);
 
-    return createPaginatedResult(members, total, page, limit);
+    // Filter out or clean members with invalid district/unit references
+    const cleanedMembers = members.map(member => {
+      const memberObj = member.toObject();
+
+      // If district is not a valid populated object, set it to undefined
+      if (memberObj.district && typeof memberObj.district === 'string') {
+        delete memberObj.district;
+      }
+
+      // If unit is not a valid populated object, set it to undefined
+      if (memberObj.unit && typeof memberObj.unit === 'string') {
+        delete memberObj.unit;
+      }
+
+      return memberObj;
+    });
+
+    return createPaginatedResult(cleanedMembers as any, total, page, limit);
   }
 
   async findById(id: string): Promise<MemberDocument | null> {
@@ -652,7 +678,7 @@ export class MembersService {
         }
         updateData['leadershipRoles.isDistrictPastor'] = true;
         updateData['leadershipRoles.pastorsDistrict'] = districtId;
-        updateData['membershipStatus'] = MembershipStatus.DISTRICT_PASTOR;
+        updateData['membershipStatus'] = MembershipStatus.PASTOR;
         break;
 
       case 'champ':
@@ -663,7 +689,7 @@ export class MembersService {
         }
         updateData['leadershipRoles.isChamp'] = true;
         updateData['leadershipRoles.champForDistrict'] = districtId;
-        updateData['membershipStatus'] = MembershipStatus.CHAMP;
+        updateData['membershipStatus'] = MembershipStatus.DC;
         break;
 
       case 'unit_head':
@@ -674,7 +700,7 @@ export class MembersService {
         }
         updateData['leadershipRoles.isUnitHead'] = true;
         updateData['leadershipRoles.leadsUnit'] = unitId;
-        updateData['membershipStatus'] = MembershipStatus.UNIT_HEAD;
+        updateData['membershipStatus'] = MembershipStatus.DIRECTOR;
         break;
 
       default:
@@ -1119,7 +1145,7 @@ export class MembersService {
       ...processedDto,
       email: processedDto.email.toLowerCase(),
       membershipStatus:
-        processedDto.membershipStatus || MembershipStatus.NEW_CONVERT,
+        processedDto.membershipStatus || MembershipStatus.MEMBER,
       dateJoined: processedDto.dateJoined || new Date(),
       familyMembers: processedDto.familyMembers || [],
       ministries: processedDto.ministries || [],

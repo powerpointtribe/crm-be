@@ -595,10 +595,12 @@ export class FirstTimerMessagingService {
   async createDailyMessage(
     date: Date,
     message: string,
-    firstTimerIds: string[],
+    firstTimerIds: string[] | undefined,
     createdBy: string,
     scheduledTime?: Date,
-    autoSend: boolean = true,
+    autoSend: boolean = false,
+    requiresApproval: boolean = true,
+    approverId?: string,
   ): Promise<DailyMessageDocument> {
     // Check if daily message already exists for this date
     const existingDaily = await this.dailyMessageModel.findOne({
@@ -608,25 +610,57 @@ export class FirstTimerMessagingService {
       },
     });
 
+    // Spool first timers from date if not provided
+    let finalFirstTimerIds: Types.ObjectId[] = [];
+    if (!firstTimerIds || firstTimerIds.length === 0) {
+      const dateFirstTimers = await this.firstTimerModel.find({
+        dateOfVisit: {
+          $gte: new Date(
+            date.getFullYear(),
+            date.getMonth(),
+            date.getDate(),
+          ),
+          $lt: new Date(
+            date.getFullYear(),
+            date.getMonth(),
+            date.getDate() + 1,
+          ),
+        },
+        isActive: true,
+      });
+      finalFirstTimerIds = dateFirstTimers.map((ft) => ft._id as Types.ObjectId);
+
+      if (finalFirstTimerIds.length === 0) {
+        throw new BadRequestException(
+          'No first-timers found for this date',
+        );
+      }
+    } else {
+      finalFirstTimerIds = firstTimerIds.map((id) => new Types.ObjectId(id));
+    }
+
     if (existingDaily) {
-      // If it's an auto-generated draft, update it with the provided message
+      // If it's an auto-generated draft or rejected draft, update it with the provided message
       if (
-        existingDaily.status === 'draft' &&
+        (existingDaily.status === 'draft' || existingDaily.status === 'rejected') &&
         (!existingDaily.message || existingDaily.message === '')
       ) {
         existingDaily.message = message;
         existingDaily.scheduledTime = scheduledTime;
         existingDaily.autoSend = autoSend;
         existingDaily.createdBy = new Types.ObjectId(createdBy);
-        existingDaily.status = autoSend ? 'sending' : 'scheduled';
+        existingDaily.requiresApproval = requiresApproval;
 
-        // Update first timer IDs if provided
-        if (firstTimerIds && firstTimerIds.length > 0) {
-          existingDaily.firstTimerIds = firstTimerIds.map(
-            (id) => new Types.ObjectId(id),
-          );
-          existingDaily.recipientCount = firstTimerIds.length;
+        if (requiresApproval && approverId) {
+          existingDaily.approver = new Types.ObjectId(approverId);
+          existingDaily.status = 'draft'; // Keep as draft until submitted
+        } else {
+          existingDaily.status = autoSend ? 'sending' : 'scheduled';
         }
+
+        // Update first timer IDs
+        existingDaily.firstTimerIds = finalFirstTimerIds;
+        existingDaily.recipientCount = finalFirstTimerIds.length;
 
         await existingDaily.save();
         this.logger.log(
@@ -640,19 +674,27 @@ export class FirstTimerMessagingService {
       }
     }
 
+    // Determine initial status
+    let initialStatus = 'draft';
+    if (!requiresApproval) {
+      initialStatus = autoSend ? 'sending' : 'scheduled';
+    }
+
     const dailyMessage = await this.dailyMessageModel.create({
       date,
       message,
       scheduledTime,
       autoSend,
-      firstTimerIds: firstTimerIds.map((id) => new Types.ObjectId(id)),
+      requiresApproval,
+      approver: approverId ? new Types.ObjectId(approverId) : undefined,
+      firstTimerIds: finalFirstTimerIds,
       createdBy: new Types.ObjectId(createdBy),
-      recipientCount: firstTimerIds.length,
-      status: autoSend ? 'sending' : 'scheduled',
+      recipientCount: finalFirstTimerIds.length,
+      status: initialStatus,
     });
 
     this.logger.log(
-      `Daily message created for ${date.toDateString()} with ${firstTimerIds.length} recipients`,
+      `Daily message created for ${date.toDateString()} with ${finalFirstTimerIds.length} recipients`,
     );
 
     return dailyMessage;
@@ -989,5 +1031,222 @@ export class FirstTimerMessagingService {
       );
       throw error;
     }
+  }
+
+  // Approval Workflow Methods
+
+  async submitForApproval(
+    dailyMessageId: string,
+    approverId: string,
+  ): Promise<DailyMessageDocument> {
+    const dailyMessage = await this.dailyMessageModel.findById(dailyMessageId);
+
+    if (!dailyMessage) {
+      throw new NotFoundException('Daily message not found');
+    }
+
+    if (dailyMessage.status !== 'draft') {
+      throw new BadRequestException(
+        'Only draft messages can be submitted for approval',
+      );
+    }
+
+    // Update status to pending approval
+    dailyMessage.status = 'pending_approval';
+    dailyMessage.requiresApproval = true;
+    dailyMessage.approver = new Types.ObjectId(approverId);
+    await dailyMessage.save();
+
+    // Send email notification to approver
+    try {
+      const approver = await this.firstTimerModel.db
+        .collection('members')
+        .findOne({ _id: new Types.ObjectId(approverId) });
+
+      if (approver && approver.email) {
+        const creator = dailyMessage.createdBy
+          ? await this.firstTimerModel.db
+              .collection('members')
+              .findOne({ _id: dailyMessage.createdBy })
+          : null;
+
+        await this.notificationsService['emailProvider'].sendEmail({
+          to: [approver.email],
+          subject: `Message Draft Awaiting Your Approval - ${new Date(dailyMessage.date).toDateString()}`,
+          html: `
+            <h2>Message Draft Pending Approval</h2>
+            <p>Hello ${approver.firstName},</p>
+            <p>A new message draft has been created and requires your approval before it can be sent to first-timers.</p>
+            <h3>Draft Details:</h3>
+            <ul>
+              <li><strong>Date:</strong> ${new Date(dailyMessage.date).toDateString()}</li>
+              <li><strong>Recipients:</strong> ${dailyMessage.recipientCount} first-timer(s)</li>
+              <li><strong>Created by:</strong> ${creator ? `${creator.firstName} ${creator.lastName}` : 'Unknown'}</li>
+              <li><strong>Scheduled Time:</strong> ${dailyMessage.scheduledTime ? new Date(dailyMessage.scheduledTime).toLocaleString() : 'Not set'}</li>
+            </ul>
+            <h3>Message Content:</h3>
+            <div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #007bff; margin: 20px 0;">
+              ${dailyMessage.message}
+            </div>
+            <p>Please log in to the system to review, edit (if needed), and approve this message.</p>
+            <p><a href="${process.env.FRONTEND_URL || 'https://your-app.com'}/first-timers/service-messaging" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">Review Message</a></p>
+            <br/>
+            <p>Best regards,<br/>Church Management System</p>
+          `,
+        });
+
+        this.logger.log(
+          `Approval notification sent to ${approver.email} for daily message ${dailyMessageId}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to send approval notification for daily message ${dailyMessageId}:`,
+        error,
+      );
+      // Don't throw - message submission should succeed even if email fails
+    }
+
+    this.logger.log(
+      `Daily message ${dailyMessageId} submitted for approval to approver ${approverId}`,
+    );
+    return dailyMessage;
+  }
+
+  async approveDailyMessage(
+    dailyMessageId: string,
+    approvedBy: string,
+    updates?: {
+      message?: string;
+      scheduledTime?: Date;
+      sendImmediately?: boolean;
+    },
+  ): Promise<DailyMessageDocument> {
+    const dailyMessage = await this.dailyMessageModel.findById(dailyMessageId);
+
+    if (!dailyMessage) {
+      throw new NotFoundException('Daily message not found');
+    }
+
+    if (dailyMessage.status !== 'pending_approval') {
+      throw new BadRequestException(
+        'Only messages pending approval can be approved',
+      );
+    }
+
+    // Apply updates if provided
+    if (updates?.message) {
+      dailyMessage.message = updates.message;
+      dailyMessage.editedBy = new Types.ObjectId(approvedBy);
+      dailyMessage.editedAt = new Date();
+    }
+
+    if (updates?.scheduledTime) {
+      dailyMessage.scheduledTime = updates.scheduledTime;
+    }
+
+    // Update approval status
+    dailyMessage.status = updates?.sendImmediately ? 'sending' : 'approved';
+    dailyMessage.approvedBy = new Types.ObjectId(approvedBy);
+    dailyMessage.approvedAt = new Date();
+
+    await dailyMessage.save();
+
+    // If send immediately, trigger send
+    if (updates?.sendImmediately) {
+      await this.sendDailyMessageNow(dailyMessageId, approvedBy);
+    }
+
+    this.logger.log(
+      `Daily message ${dailyMessageId} approved by ${approvedBy}`,
+    );
+    return dailyMessage;
+  }
+
+  async rejectDailyMessage(
+    dailyMessageId: string,
+    rejectedBy: string,
+    rejectionReason: string,
+  ): Promise<DailyMessageDocument> {
+    const dailyMessage = await this.dailyMessageModel.findById(dailyMessageId);
+
+    if (!dailyMessage) {
+      throw new NotFoundException('Daily message not found');
+    }
+
+    if (dailyMessage.status !== 'pending_approval') {
+      throw new BadRequestException(
+        'Only messages pending approval can be rejected',
+      );
+    }
+
+    // Update status to rejected
+    dailyMessage.status = 'rejected';
+    dailyMessage.rejectionReason = rejectionReason;
+    dailyMessage.editedBy = new Types.ObjectId(rejectedBy);
+    dailyMessage.editedAt = new Date();
+
+    await dailyMessage.save();
+
+    // Notify the creator about rejection
+    try {
+      if (dailyMessage.createdBy) {
+        const creator = await this.firstTimerModel.db
+          .collection('members')
+          .findOne({ _id: dailyMessage.createdBy });
+
+        if (creator && creator.email) {
+          const rejector = await this.firstTimerModel.db
+            .collection('members')
+            .findOne({ _id: new Types.ObjectId(rejectedBy) });
+
+          await this.notificationsService['emailProvider'].sendEmail({
+            to: [creator.email],
+            subject: `Message Draft Rejected - ${new Date(dailyMessage.date).toDateString()}`,
+            html: `
+              <h2>Message Draft Rejected</h2>
+              <p>Hello ${creator.firstName},</p>
+              <p>Your message draft for ${new Date(dailyMessage.date).toDateString()} has been rejected.</p>
+              <h3>Rejection Details:</h3>
+              <ul>
+                <li><strong>Rejected by:</strong> ${rejector ? `${rejector.firstName} ${rejector.lastName}` : 'Unknown'}</li>
+                <li><strong>Reason:</strong> ${rejectionReason}</li>
+              </ul>
+              <p>You can edit the draft and resubmit it for approval.</p>
+              <p><a href="${process.env.FRONTEND_URL || 'https://your-app.com'}/first-timers/service-messaging" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">Edit Draft</a></p>
+              <br/>
+              <p>Best regards,<br/>Church Management System</p>
+            `,
+          });
+
+          this.logger.log(
+            `Rejection notification sent to ${creator.email} for daily message ${dailyMessageId}`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to send rejection notification for daily message ${dailyMessageId}:`,
+        error,
+      );
+    }
+
+    this.logger.log(
+      `Daily message ${dailyMessageId} rejected by ${rejectedBy}`,
+    );
+    return dailyMessage;
+  }
+
+  async getPendingApprovals(
+    approverId: string,
+  ): Promise<DailyMessageDocument[]> {
+    return await this.dailyMessageModel
+      .find({
+        approver: new Types.ObjectId(approverId),
+        status: 'pending_approval',
+      })
+      .populate('createdBy', 'firstName lastName email')
+      .sort({ createdAt: -1 })
+      .exec();
   }
 }

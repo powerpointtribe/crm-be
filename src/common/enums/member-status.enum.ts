@@ -1,11 +1,14 @@
+/**
+ * Member Status Enum
+ * Represents the hierarchical status/position of members in the church
+ * This is different from EngagementStatus which is used for first-timers
+ */
 export enum MembershipStatus {
-  NEW_CONVERT = 'NEW',
-  WORKER = 'DC',
-  VOLUNTEER = 'volunteer',
-  LEADER = 'LXL',
-  DISTRICT_PASTOR = 'district_pastor', // NEW: District leadership
-  CHAMP = 'champ', // NEW: District assistant
-  UNIT_HEAD = 'unit_head', // NEW: Unit leadership
-  INACTIVE = 'inactive',
-  TRANSFERRED = 'transferred',
+  MEMBER = 'MEMBER',           // Regular church member
+  DC = 'DC',                   // Discipleship Class member
+  LXL = 'LXL',                 // Leadership Excellence Level
+  DIRECTOR = 'DIRECTOR',       // Director level
+  PASTOR = 'PASTOR',           // Pastor
+  SENIOR_PASTOR = 'SENIOR_PASTOR', // Senior Pastor
+  LEFT = 'LEFT',               // Member who has left the church
 }

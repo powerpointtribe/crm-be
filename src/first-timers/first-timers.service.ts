@@ -502,7 +502,7 @@ export class FirstTimersService {
         dateOfBirth: '1990-01-01', // Default date, will need to be updated later
         gender: 'male', // Default, will need to be updated
         password: Math.random().toString(36).slice(-8), // Temporary random password
-        membershipStatus: MembershipStatus.NEW_CONVERT,
+        membershipStatus: MembershipStatus.MEMBER,
         district:
           firstTimer.suggestedDistrict?.toString() ||
           '507f1f77bcf86cd799439011', // Default district ID
