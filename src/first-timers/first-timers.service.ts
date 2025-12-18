@@ -429,6 +429,13 @@ export class FirstTimersService {
 
     // If no memberRecordId provided, create a new member record
     if (!memberRecordId) {
+      // Convert MM-DD format to full date with 1990 as default year
+      let dateOfBirth = '1990-01-01'; // Default date
+      if (firstTimer.dateOfBirth) {
+        // dateOfBirth is in MM-DD format, prepend 1990
+        dateOfBirth = `1990-${firstTimer.dateOfBirth}`;
+      }
+
       const memberData = {
         firstName: firstTimer.firstName,
         lastName: firstTimer.lastName,
@@ -442,8 +449,8 @@ export class FirstTimersService {
           state: firstTimer.address?.state || 'Unknown',
           country: firstTimer.address?.country || 'Nigeria',
         },
-        dateOfBirth: '1990-01-01', // Default date, will need to be updated later
-        gender: 'male', // Default, will need to be updated
+        dateOfBirth,
+        gender: firstTimer.gender || 'male', // Use first-timer's gender if available
         password: Math.random().toString(36).slice(-8), // Temporary random password
         membershipStatus: MembershipStatus.MEMBER,
         district:

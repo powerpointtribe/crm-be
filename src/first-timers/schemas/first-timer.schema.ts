@@ -40,8 +40,8 @@ export class FirstTimer {
   @Prop({ type: Date, required: true })
   dateOfVisit: Date;
 
-  @Prop({ type: Date })
-  dateOfBirth?: Date;
+  @Prop({ type: String })
+  dateOfBirth?: string;
 
   @Prop({
     type: String,

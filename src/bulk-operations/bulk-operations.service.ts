@@ -623,7 +623,7 @@ export class BulkOperationsService {
           phone: ft.phone,
           maritalStatus: ft.maritalStatus || '',
           dateOfVisit: ft.dateOfVisit?.toISOString().split('T')[0],
-          dateOfBirth: ft.dateOfBirth?.toISOString().split('T')[0] || '',
+          dateOfBirth: ft.dateOfBirth || '',
           invitedBy: ft.invitedBy || '',
           invitedByMember: ft.invitedByMember
             ? `${(ft.invitedByMember as any).firstName} ${(ft.invitedByMember as any).lastName}`

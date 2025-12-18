@@ -97,11 +97,11 @@ export class CreateFirstTimerDto {
   @IsNotEmpty()
   dateOfVisit: string;
 
-  @ApiPropertyOptional({ description: 'Date of birth', example: '1990-01-15' })
+  @ApiPropertyOptional({ description: 'Date of birth (month and day only)', example: '01-15' })
   @IsOptional()
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'dateOfBirth must be in YYYY-MM-DD format',
+  @Matches(/^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/, {
+    message: 'dateOfBirth must be in MM-DD format (month and day only)',
   })
   dateOfBirth?: string;
 
