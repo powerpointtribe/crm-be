@@ -781,16 +781,21 @@ export class MembersService {
 
       // District distribution
       this.memberModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: { isActive: true, district: { $exists: true, $ne: null } } },
+        {
+          $addFields: {
+            districtObjectId: { $toObjectId: '$district' },
+          },
+        },
         {
           $lookup: {
             from: 'groups',
-            localField: 'district',
+            localField: 'districtObjectId',
             foreignField: '_id',
             as: 'districtInfo',
           },
         },
-        { $unwind: '$districtInfo' },
+        { $unwind: { path: '$districtInfo', preserveNullAndEmptyArrays: false } },
         {
           $group: {
             _id: '$districtInfo.name',
@@ -799,15 +804,21 @@ export class MembersService {
           },
         },
         { $sort: { count: -1 } },
+        { $limit: 20 }, // Limit to top 20 districts
       ]),
 
       // Unit distribution
       this.memberModel.aggregate([
-        { $match: { isActive: true, unit: { $exists: true } } },
+        { $match: { isActive: true, unit: { $exists: true, $ne: null } } },
+        {
+          $addFields: {
+            unitObjectId: { $toObjectId: '$unit' },
+          },
+        },
         {
           $lookup: {
             from: 'groups',
-            localField: 'unit',
+            localField: 'unitObjectId',
             foreignField: '_id',
             as: 'unitInfo',
           },

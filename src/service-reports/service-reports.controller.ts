@@ -232,11 +232,10 @@ export class ServiceReportsController {
 
   @Delete(':id')
   @RequirePermission(ServiceReportsPermission.DELETE_REPORT)
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete service report' })
   @ApiParam({ name: 'id', description: 'Service report ID' })
   @ApiResponse({
-    status: 204,
+    status: 200,
     description: 'Service report deleted successfully',
   })
   @ApiResponse({

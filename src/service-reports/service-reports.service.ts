@@ -33,6 +33,17 @@ export class ServiceReportsService {
     createServiceReportDto: CreateServiceReportDto,
     reportedBy: string,
   ): Promise<ServiceReportDocument> {
+    // Validate date is not in the future
+    const reportDate = new Date(createServiceReportDto.date);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Set to end of today to allow today's date
+
+    if (reportDate > today) {
+      throw new BadRequestException(
+        'Cannot create a service report for a future date. Please select today or a past date.',
+      );
+    }
+
     // Validate attendance numbers
     const {
       totalAttendance,
@@ -188,7 +199,11 @@ export class ServiceReportsService {
     const report = await this.findById(id);
 
     // Check if user has permission to update this report
-    if (report.reportedBy.toString() !== userId) {
+    const reportedByIdString = typeof report.reportedBy === 'object' && report.reportedBy._id
+      ? report.reportedBy._id.toString()
+      : report.reportedBy.toString();
+
+    if (reportedByIdString !== userId) {
       throw new ForbiddenException(
         'You can only update reports that you created',
       );
@@ -250,7 +265,11 @@ export class ServiceReportsService {
     const report = await this.findById(id);
 
     // Check if user has permission to delete this report
-    if (report.reportedBy.toString() !== userId) {
+    const reportedByIdString = typeof report.reportedBy === 'object' && report.reportedBy._id
+      ? report.reportedBy._id.toString()
+      : report.reportedBy.toString();
+
+    if (reportedByIdString !== userId) {
       throw new ForbiddenException(
         'You can only delete reports that you created',
       );

@@ -369,28 +369,11 @@ export class FirstTimersController {
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 50;
 
-    console.log('DEBUG: getMyAssignments called for user:', {
-      userId: user._id,
-      userEmail: user.email,
-      userRoles: user.roles,
-      page: pageNum,
-      limit: limitNum,
-    });
-
     const assignments = await this.firstTimersService.getByAssignedMember(
       user._id.toString(),
       pageNum,
       limitNum,
     );
-
-    console.log('DEBUG: Found assignments:', {
-      total: assignments.total,
-      dataCount: assignments.data?.length || 0,
-      page: assignments.page,
-      totalPages: assignments.totalPages,
-      hasNext: assignments.hasNext,
-      hasPrev: assignments.hasPrev,
-    });
 
     return ResponseUtil.success(
       assignments,

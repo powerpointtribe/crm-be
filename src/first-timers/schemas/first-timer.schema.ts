@@ -191,6 +191,7 @@ export class FirstTimer {
       'online',
       'event',
       'walkby',
+      'outreach',
       'website',
       'social_media',
       'church_outreach',
