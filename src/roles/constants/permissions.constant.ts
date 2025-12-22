@@ -58,6 +58,10 @@ import {
   QueuePermission,
   QueuePermissionMetadata,
 } from '../../queue/permissions';
+import {
+  UserManagementPermission,
+  UserManagementPermissionMetadata,
+} from '../../user-invitations/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -219,6 +223,15 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
   // Queue Module
   ...Object.values(QueuePermission).map((perm) =>
     createPermissionDto(perm, QueuePermissionMetadata[perm] || {}, 'queue'),
+  ),
+
+  // User Management Module
+  ...Object.values(UserManagementPermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      UserManagementPermissionMetadata[perm] || {},
+      'user-management',
+    ),
   ),
 ];
 

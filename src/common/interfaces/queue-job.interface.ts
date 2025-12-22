@@ -3,6 +3,7 @@ export enum QueueName {
   FIRST_TIMER_NOTIFICATIONS = 'first-timer-notifications',
   FIRST_TIMER_AUTOMATION = 'first-timer-automation',
   AUDIT_LOGS = 'audit-logs',
+  EMAIL_NOTIFICATIONS = 'email-notifications',
 }
 
 export enum JobType {
@@ -26,6 +27,10 @@ export enum JobType {
 
   // Audit log jobs
   AUDIT_LOG_CREATE = 'audit-log-create',
+
+  // Email notification jobs
+  USER_INVITATION_EMAIL = 'user-invitation-email',
+  USER_INVITATION_RESEND_EMAIL = 'user-invitation-resend-email',
 }
 
 export interface BulkOperationJobData {
@@ -96,5 +101,20 @@ export interface AuditLogJobData {
     metadata?: any;
     oldValues?: any;
     newValues?: any;
+  };
+}
+
+// Email notification job data interface
+export interface EmailNotificationJobData {
+  type: 'user_invitation' | 'user_invitation_resend';
+  invitationId: string;
+  memberEmail: string;
+  memberFirstName: string;
+  memberLastName: string;
+  roleDisplayName: string;
+  temporaryPassword: string;
+  metadata?: {
+    invitedById?: string;
+    notes?: string;
   };
 }

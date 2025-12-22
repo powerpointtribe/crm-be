@@ -8,7 +8,7 @@ import {
 } from './schemas/user-invitation.schema';
 import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { Role, RoleSchema } from '../roles/schemas/role.schema';
-import { NotificationsModule } from '../notifications/notifications.module';
+import { QueueModule } from '../queue/queue.module';
 import { RolesModule } from '../roles/roles.module';
 
 @Module({
@@ -18,7 +18,7 @@ import { RolesModule } from '../roles/roles.module';
       { name: Member.name, schema: MemberSchema },
       { name: Role.name, schema: RoleSchema },
     ]),
-    NotificationsModule,
+    QueueModule,
     RolesModule,
   ],
   controllers: [UserInvitationsController],

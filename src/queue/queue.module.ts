@@ -1,20 +1,29 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { QueueName } from '../common/interfaces/queue-job.interface';
 import { BulkOperationProcessor } from './processors/bulk-operation.processor';
 import { FirstTimerNotificationProcessor } from './processors/first-timer-notification.processor';
 import { FirstTimerAutomationProcessor } from './processors/first-timer-automation.processor';
 import { AuditLogProcessor } from './processors/audit-log.processor';
+import { EmailNotificationProcessor } from './processors/email-notification.processor';
 import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RolesModule } from '../roles/roles.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import {
+  UserInvitation,
+  UserInvitationSchema,
+} from '../user-invitations/schemas/user-invitation.schema';
 
 @Module({
   imports: [
     RolesModule,
+    MongooseModule.forFeature([
+      { name: UserInvitation.name, schema: UserInvitationSchema },
+    ]),
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
@@ -69,6 +78,9 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     BullModule.registerQueue({
       name: QueueName.AUDIT_LOGS,
     }),
+    BullModule.registerQueue({
+      name: QueueName.EMAIL_NOTIFICATIONS,
+    }),
     NotificationsModule,
     forwardRef(() => AuditLogsModule),
   ],
@@ -78,6 +90,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     FirstTimerNotificationProcessor,
     // FirstTimerAutomationProcessor, // Temporarily disabled due to circular dependencies
     AuditLogProcessor,
+    EmailNotificationProcessor,
     QueueService,
   ],
   exports: [QueueService, BullModule],

@@ -424,11 +424,6 @@ export class EmailProvider {
         html: options.html,
       };
 
-      this.logger.debug(
-        'ZeptoMail SMTP email payload:',
-        JSON.stringify(mailOptions, null, 2),
-      );
-
       const result = await this.nodemailerTransporter.sendMail(mailOptions);
 
       this.logger.log(`✅ ZeptoMail SMTP email sent successfully!`);

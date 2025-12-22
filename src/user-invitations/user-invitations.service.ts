@@ -18,7 +18,7 @@ import { UpdateInvitationRoleDto } from './dto/update-invitation-role.dto';
 import { InvitationQueryDto } from './dto/invitation-query.dto';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { Role, RoleDocument } from '../roles/schemas/role.schema';
-import { NotificationsService } from '../notifications/notifications.service';
+import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 export class UserInvitationsService {
@@ -29,7 +29,7 @@ export class UserInvitationsService {
     private memberModel: Model<MemberDocument>,
     @InjectModel(Role.name)
     private roleModel: Model<RoleDocument>,
-    private notificationsService: NotificationsService,
+    private queueService: QueueService,
   ) {}
 
   /**
@@ -114,69 +114,29 @@ export class UserInvitationsService {
 
     await invitation.save();
 
-    // Send invitation email with plain text password
+    // Queue invitation email for async sending (non-blocking)
     try {
-      await this.sendInvitationEmail(member, role, temporaryPassword);
-      invitation.emailSent = true;
-      invitation.emailSentAt = new Date();
-      await invitation.save();
+      await this.queueService.addUserInvitationEmailJob({
+        type: 'user_invitation',
+        invitationId: invitation._id.toString(),
+        memberEmail: member.email,
+        memberFirstName: member.firstName,
+        memberLastName: member.lastName,
+        roleDisplayName: role.displayName || role.name,
+        temporaryPassword,
+        metadata: {
+          invitedById,
+          notes: createInvitationDto.notes,
+        },
+      });
     } catch (error) {
-      console.error('Failed to send invitation email:', error);
-      // Don't fail the invitation creation if email fails
+      console.error('Failed to queue invitation email:', error);
+      // Don't fail the invitation creation if queueing fails
     }
 
     return invitation.populate(['member', 'role', 'invitedBy']);
   }
 
-  /**
-   * Send invitation email to member
-   */
-  private async sendInvitationEmail(
-    member: MemberDocument,
-    role: RoleDocument,
-    temporaryPassword: string,
-  ): Promise<void> {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Welcome to the Church Management Platform!</h1>
-        <p>Dear ${member.firstName} ${member.lastName},</p>
-        <p>You have been invited to access our Church Management Platform. We're excited to have you on board!</p>
-
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3>Your Login Credentials</h3>
-          <p><strong>Email:</strong> ${member.email}</p>
-          <p><strong>Temporary Password:</strong> <code style="background: #e9ecef; padding: 5px 10px; border-radius: 4px; font-size: 1.1em;">${temporaryPassword}</code></p>
-          <p><strong>Role Assigned:</strong> ${role.displayName || role.name}</p>
-        </div>
-
-        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <h4 style="margin-top: 0;">Important Security Notice:</h4>
-          <ul style="margin: 10px 0;">
-            <li>Please log in within 7 days using these credentials</li>
-            <li>You will be required to change your password on first login</li>
-            <li>Keep your credentials secure and do not share them</li>
-          </ul>
-        </div>
-
-        <div style="margin: 30px 0; text-align: center;">
-          <a href="${process.env.FRONTEND_URL || 'https://your-church-platform.com'}/login"
-             style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Log In Now
-          </a>
-        </div>
-
-        <p>If you have any questions or need assistance, please don't hesitate to reach out to our support team.</p>
-
-        <p>Blessings,<br/>The Church Leadership Team</p>
-      </div>
-    `;
-
-    await this.notificationsService['emailProvider'].sendEmail({
-      to: member.email,
-      subject: 'Welcome to Church Management Platform - Your Access Credentials',
-      html,
-    });
-  }
 
   /**
    * Find all invitations with filters and pagination
@@ -302,16 +262,24 @@ export class UserInvitationsService {
       throw new NotFoundException('Role not found');
     }
 
+    await invitation.save();
+
+    // Queue invitation email for async sending (non-blocking)
     try {
-      await this.sendInvitationEmail(member, role, temporaryPassword);
-      invitation.emailSent = true;
-      invitation.emailSentAt = new Date();
+      await this.queueService.addUserInvitationResendEmailJob({
+        type: 'user_invitation_resend',
+        invitationId: invitation._id.toString(),
+        memberEmail: member.email,
+        memberFirstName: member.firstName,
+        memberLastName: member.lastName,
+        roleDisplayName: role.displayName || role.name,
+        temporaryPassword,
+      });
     } catch (error) {
-      console.error('Failed to resend invitation email:', error);
-      throw new BadRequestException('Failed to send invitation email');
+      console.error('Failed to queue invitation resend email:', error);
+      // Don't fail the resend if queueing fails
     }
 
-    await invitation.save();
     return await invitation.populate(['member', 'role', 'invitedBy']);
   }
 

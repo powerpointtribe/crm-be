@@ -9,6 +9,7 @@ import {
   JobResult,
   FirstTimerNotificationJobData,
   FirstTimerAutomationJobData,
+  EmailNotificationJobData,
 } from '../common/interfaces/queue-job.interface';
 
 @Injectable()
@@ -22,6 +23,8 @@ export class QueueService {
     private firstTimerNotificationQueue: Queue<FirstTimerNotificationJobData>,
     @InjectQueue(QueueName.FIRST_TIMER_AUTOMATION)
     private firstTimerAutomationQueue: Queue<FirstTimerAutomationJobData>,
+    @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
+    private emailNotificationQueue: Queue<EmailNotificationJobData>,
   ) {}
 
   async addBulkOperationJob(
@@ -224,5 +227,44 @@ export class QueueService {
       default:
         return 1;
     }
+  }
+
+  // Email notification methods
+  async addEmailNotificationJob(
+    jobType: JobType,
+    data: EmailNotificationJobData,
+  ): Promise<Job<EmailNotificationJobData>> {
+    const job = await this.emailNotificationQueue.add(jobType, data, {
+      attempts: 3, // Retry up to 3 times if it fails
+      backoff: {
+        type: 'exponential',
+        delay: 5000, // Start with 5 second delay, then 10s, 20s
+      },
+      removeOnComplete: true,
+      removeOnFail: false, // Keep failed jobs for debugging
+    });
+
+    this.logger.log(
+      `Email notification job ${jobType} added for ${data.memberEmail}`,
+    );
+    return job;
+  }
+
+  async addUserInvitationEmailJob(
+    invitationData: EmailNotificationJobData,
+  ): Promise<Job<EmailNotificationJobData>> {
+    return this.addEmailNotificationJob(
+      JobType.USER_INVITATION_EMAIL,
+      invitationData,
+    );
+  }
+
+  async addUserInvitationResendEmailJob(
+    invitationData: EmailNotificationJobData,
+  ): Promise<Job<EmailNotificationJobData>> {
+    return this.addEmailNotificationJob(
+      JobType.USER_INVITATION_RESEND_EMAIL,
+      invitationData,
+    );
   }
 }
