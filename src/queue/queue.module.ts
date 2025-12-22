@@ -27,22 +27,15 @@ import {
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
+        const Redis = require('ioredis');
+
         const redisConfig = {
           host: configService.get('REDIS_HOST', 'localhost'),
           port: configService.get('REDIS_PORT', 6379),
           password: configService.get('REDIS_PASSWORD'),
           db: configService.get('REDIS_DB', 0),
-          maxRetriesPerRequest: 3,
-          retryDelayOnFailover: 100,
+          maxRetriesPerRequest: null, // Required for Bull
           enableReadyCheck: false,
-          maxLoadingTimeout: 1000,
-          lazyConnect: false,
-          keepAlive: 30000,
-          onConnect: () => console.log('Bull Redis connected successfully'),
-          onReady: () => console.log('Bull Redis ready to accept commands'),
-          onError: (err: any) =>
-            console.error('Bull Redis connection error:', err),
-          onClose: () => console.log('Bull Redis connection closed'),
         };
 
         console.log('Bull Redis configuration:', {
@@ -51,11 +44,31 @@ import {
           db: redisConfig.db,
         });
 
+        // Create shared connection factory
+        const createClient = (type: string) => {
+          console.log(`Creating Bull ${type} connection`);
+          const client = new Redis(redisConfig);
+
+          client.on('error', (err: any) => {
+            console.error(`Bull Redis ${type} error:`, err.message);
+          });
+
+          client.on('connect', () => {
+            console.log(`Bull Redis ${type} connected`);
+          });
+
+          client.on('ready', () => {
+            console.log(`Bull Redis ${type} ready`);
+          });
+
+          return client;
+        };
+
         return {
-          redis: redisConfig,
+          createClient,
           defaultJobOptions: {
-            removeOnComplete: 50, // Keep 50 completed jobs
-            removeOnFail: 100, // Keep 100 failed jobs
+            removeOnComplete: 50,
+            removeOnFail: 100,
             attempts: 3,
             backoff: {
               type: 'exponential',
@@ -66,15 +79,16 @@ import {
       },
       inject: [ConfigService],
     }),
-    BullModule.registerQueue({
-      name: QueueName.BULK_OPERATION,
-    }),
+    // Only register queues with active processors to reduce Redis connections
+    // BullModule.registerQueue({
+    //   name: QueueName.BULK_OPERATION,
+    // }),
     BullModule.registerQueue({
       name: QueueName.FIRST_TIMER_NOTIFICATIONS,
     }),
-    BullModule.registerQueue({
-      name: QueueName.FIRST_TIMER_AUTOMATION,
-    }),
+    // BullModule.registerQueue({
+    //   name: QueueName.FIRST_TIMER_AUTOMATION,
+    // }),
     BullModule.registerQueue({
       name: QueueName.AUDIT_LOGS,
     }),

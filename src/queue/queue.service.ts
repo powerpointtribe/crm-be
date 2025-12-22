@@ -17,16 +17,17 @@ export class QueueService {
   private readonly logger = new Logger(QueueService.name);
 
   constructor(
-    @InjectQueue(QueueName.BULK_OPERATION)
-    private bulkOperationQueue: Queue<BulkOperationJobData>,
+    // @InjectQueue(QueueName.BULK_OPERATION)
+    // private bulkOperationQueue: Queue<BulkOperationJobData>,
     @InjectQueue(QueueName.FIRST_TIMER_NOTIFICATIONS)
     private firstTimerNotificationQueue: Queue<FirstTimerNotificationJobData>,
-    @InjectQueue(QueueName.FIRST_TIMER_AUTOMATION)
-    private firstTimerAutomationQueue: Queue<FirstTimerAutomationJobData>,
+    // @InjectQueue(QueueName.FIRST_TIMER_AUTOMATION)
+    // private firstTimerAutomationQueue: Queue<FirstTimerAutomationJobData>,
     @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
     private emailNotificationQueue: Queue<EmailNotificationJobData>,
   ) {}
 
+  // Temporarily disabled - bulk operation queue not registered
   async addBulkOperationJob(
     jobType: JobType,
     csvContent: string,
@@ -34,103 +35,45 @@ export class QueueService {
     userId: string,
     metadata: { filename?: string; totalRows?: number } = {},
   ): Promise<Job<BulkOperationJobData>> {
-    const jobData: BulkOperationJobData = {
-      jobType,
-      csvContent,
-      options,
-      userId,
-      metadata: {
-        ...metadata,
-        timestamp: new Date(),
-      },
-    };
-
-    const job = await this.bulkOperationQueue.add(jobType, jobData, {
-      priority: this.getJobPriority(jobType),
-      delay: 0,
-    });
-
-    this.logger.log(`Bulk operation job ${job.id} added for user ${userId}`);
-    return job;
+    throw new Error(
+      'Bulk operations are temporarily disabled due to Redis connection limits. Please increase Redis maxclients or contact administrator.',
+    );
   }
 
+  // Temporarily disabled - bulk operation queue not registered
   async getJobStatus(jobId: string): Promise<{
     status: string;
     progress?: JobProgress;
     result?: JobResult;
     error?: string;
   }> {
-    try {
-      const job = await this.bulkOperationQueue.getJob(jobId);
-
-      if (!job) {
-        return { status: 'not_found' };
-      }
-
-      const state = await job.getState();
-      const progress = job.progress() as JobProgress;
-      const result = job.returnvalue as JobResult;
-      const error = job.failedReason;
-
-      return {
-        status: state,
-        progress,
-        result,
-        error,
-      };
-    } catch (error) {
-      this.logger.error(`Error getting job status for ${jobId}:`, error);
-      return { status: 'error', error: error.message };
-    }
+    return {
+      status: 'unavailable',
+      error:
+        'Job status unavailable - bulk operations queue temporarily disabled',
+    };
   }
 
+  // Temporarily disabled - bulk operation queue not registered
   async getJobHistory(
     userId: string,
     limit: number = 10,
     skip: number = 0,
   ): Promise<Job[]> {
-    try {
-      const jobs = await this.bulkOperationQueue.getJobs(
-        ['completed', 'failed', 'active', 'waiting'],
-        0,
-        limit * 5, // Get more jobs to filter by user and handle pagination
-      );
-
-      const userJobs = jobs.filter((job) => job.data.userId === userId);
-      return userJobs.slice(skip, skip + limit);
-    } catch (error) {
-      this.logger.error(`Error getting job history for user ${userId}:`, error);
-      return [];
-    }
+    this.logger.warn(
+      'Job history unavailable - bulk operations queue temporarily disabled',
+    );
+    return [];
   }
 
+  // Temporarily disabled - bulk operation queue not registered
   async cancelJob(jobId: string, userId: string): Promise<boolean> {
-    try {
-      const job = await this.bulkOperationQueue.getJob(jobId);
-
-      if (!job) {
-        return false;
-      }
-
-      // Check if the job belongs to the user
-      if (job.data.userId !== userId) {
-        throw new Error('Unauthorized to cancel this job');
-      }
-
-      const state = await job.getState();
-      if (['completed', 'failed'].includes(state)) {
-        return false; // Cannot cancel completed/failed jobs
-      }
-
-      await job.remove();
-      this.logger.log(`Job ${jobId} cancelled by user ${userId}`);
-      return true;
-    } catch (error) {
-      this.logger.error(`Error cancelling job ${jobId}:`, error);
-      throw error;
-    }
+    throw new Error(
+      'Job cancellation unavailable - bulk operations queue temporarily disabled',
+    );
   }
 
+  // Temporarily disabled - bulk operation queue not registered
   async getQueueStats(): Promise<{
     waiting: number;
     active: number;
@@ -138,30 +81,16 @@ export class QueueService {
     failed: number;
     delayed: number;
   }> {
-    try {
-      const waiting = await this.bulkOperationQueue.getWaiting();
-      const active = await this.bulkOperationQueue.getActive();
-      const completed = await this.bulkOperationQueue.getCompleted();
-      const failed = await this.bulkOperationQueue.getFailed();
-      const delayed = await this.bulkOperationQueue.getDelayed();
-
-      return {
-        waiting: waiting.length,
-        active: active.length,
-        completed: completed.length,
-        failed: failed.length,
-        delayed: delayed.length,
-      };
-    } catch (error) {
-      this.logger.error('Error getting queue stats:', error);
-      return {
-        waiting: 0,
-        active: 0,
-        completed: 0,
-        failed: 0,
-        delayed: 0,
-      };
-    }
+    this.logger.warn(
+      'Queue stats unavailable - bulk operations queue temporarily disabled',
+    );
+    return {
+      waiting: 0,
+      active: 0,
+      completed: 0,
+      failed: 0,
+      delayed: 0,
+    };
   }
 
   // First Timer specific methods
@@ -181,36 +110,26 @@ export class QueueService {
     return job;
   }
 
+  // Temporarily disabled - first timer automation queue not registered
   async addAutomationJob(
     jobType: string,
     data: FirstTimerAutomationJobData,
     options?: any,
   ): Promise<Job> {
-    const job = await this.firstTimerAutomationQueue.add(
-      jobType,
-      data,
-      options,
+    throw new Error(
+      'First timer automation is temporarily disabled due to Redis connection limits. Please increase Redis maxclients or contact administrator.',
     );
-
-    this.logger.log(`Automation job ${jobType} added`);
-    return job;
   }
 
+  // Temporarily disabled - first timer automation queue not registered
   async scheduleRecurringJob(
     jobType: string,
     data: FirstTimerAutomationJobData,
     cronExpression: string,
   ): Promise<Job> {
-    const job = await this.firstTimerAutomationQueue.add(jobType, data, {
-      repeat: { cron: cronExpression },
-      removeOnComplete: true,
-      removeOnFail: false,
-    });
-
-    this.logger.log(
-      `Recurring job ${jobType} scheduled with cron: ${cronExpression}`,
+    throw new Error(
+      'Recurring job scheduling is temporarily disabled due to Redis connection limits. Please increase Redis maxclients or contact administrator.',
     );
-    return job;
   }
 
   private getJobPriority(jobType: JobType): number {
