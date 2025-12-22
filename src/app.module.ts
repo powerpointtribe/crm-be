@@ -23,6 +23,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { WorkersTrainingModule } from './workers-training/workers-training.module';
 import { ActivityTrackerModule } from './activity-tracker/activity-tracker.module';
+import { UserInvitationsModule } from './user-invitations/user-invitations.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { ActivityTrackerModule } from './activity-tracker/activity-tracker.modul
     InventoryModule,
     WorkersTrainingModule,
     ActivityTrackerModule,
+    UserInvitationsModule,
   ],
   controllers: [AppController],
   providers: [

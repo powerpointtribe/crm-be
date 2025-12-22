@@ -15,10 +15,14 @@ import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { CreateMemberDto } from '../members/dto/create-member.dto';
 import { MembershipStatus } from '../common/enums/member-status.enum';
 import { UserRole } from '../common/enums/user-roles.enums';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { UserInvitation, UserInvitationDocument, InvitationStatus } from '../user-invitations/schemas/user-invitation.schema';
 
 @Injectable()
 export class AuthService {
@@ -27,6 +31,8 @@ export class AuthService {
     private jwtService: JwtService,
     private accessControlService: AccessControlService,
     private userPermissionsService: UserPermissionsService,
+    @InjectModel(UserInvitation.name)
+    private invitationModel: Model<UserInvitationDocument>,
   ) {}
 
   async login(loginDto: LoginDto) {
@@ -53,6 +59,31 @@ export class AuthService {
     // Check if account is active
     if (!member.isActive) {
       throw new UnauthorizedException('Account is deactivated');
+    }
+
+    // Check for pending invitation and mark as accepted
+    const pendingInvitation = await this.invitationModel.findOne({
+      member: member._id,
+      status: InvitationStatus.PENDING,
+    });
+
+    let isFirstLogin = false;
+    let requirePasswordChange = false;
+
+    if (pendingInvitation) {
+      // Mark invitation as accepted
+      pendingInvitation.status = InvitationStatus.ACCEPTED;
+      pendingInvitation.acceptedAt = new Date();
+      await pendingInvitation.save();
+
+      // Assign the role from the invitation to the member if not already assigned
+      if (!member.role || member.role.toString() !== pendingInvitation.role.toString()) {
+        member.role = pendingInvitation.role;
+        await member.save();
+      }
+
+      isFirstLogin = true;
+      requirePasswordChange = true;
     }
 
     // Update last login
@@ -90,6 +121,8 @@ export class AuthService {
 
     return {
       access_token,
+      isFirstLogin,
+      requirePasswordChange,
       member: {
         id: member._id,
         email: member.email,
@@ -332,5 +365,42 @@ export class AuthService {
       }
       throw new BadRequestException('Failed to reset password');
     }
+  }
+
+  /**
+   * Change password for authenticated member
+   * Used for first login password change or regular password updates
+   */
+  async changePassword(
+    memberId: string,
+    changePasswordDto: ChangePasswordDto,
+  ) {
+    const { currentPassword, newPassword } = changePasswordDto;
+
+    // Get member
+    const member = await this.membersService.findById(memberId);
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      member.password,
+    );
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    member.password = hashedPassword;
+    await member.save();
+
+    return {
+      message: 'Password changed successfully',
+    };
   }
 }
