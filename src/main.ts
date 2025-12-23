@@ -26,9 +26,14 @@ async function bootstrap() {
   );
   app.use(compression());
 
-  // Enable CORS - Allow requests from anywhere
+  // Enable CORS
+  const corsOrigin =
+    process.env.NODE_ENV === 'production'
+      ? configService.get<string>('ALLOWED_ORIGINS')?.split(',') || []
+      : true; // Allow all origins in development
+
   app.enableCors({
-    origin: true,
+    origin: corsOrigin,
     credentials: true,
   });
 

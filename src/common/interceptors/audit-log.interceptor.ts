@@ -4,7 +4,7 @@ import {
   ExecutionContext,
   CallHandler,
   Logger,
-  Inject,
+  Optional,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
@@ -21,9 +21,15 @@ export class AuditLogInterceptor implements NestInterceptor {
 
   constructor(
     private readonly reflector: Reflector,
-    @InjectQueue(QueueName.AUDIT_LOGS)
-    private readonly auditLogQueue: Queue,
-  ) {}
+    @Optional() @InjectQueue(QueueName.AUDIT_LOGS)
+    private readonly auditLogQueue?: Queue,
+  ) {
+    if (!auditLogQueue) {
+      this.logger.warn(
+        'Audit log queue not available - audit logging is disabled. Enable the AUDIT_LOGS queue in queue.module.ts to restore functionality.',
+      );
+    }
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const auditMetadata = this.reflector.get<AuditLogMetadata>(
@@ -89,31 +95,38 @@ export class AuditLogInterceptor implements NestInterceptor {
             auditData.newValues = this.sanitizeData(result);
           }
 
-          // Add job to queue (non-blocking)
-          this.auditLogQueue.add(
-            JobType.AUDIT_LOG_CREATE,
-            {
-              action: auditMetadata.action,
-              entityType: auditMetadata.entityType,
-              entityId: finalEntityId,
-              userId: user._id || user.sub,
-              userEmail: user.email,
-              userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-              auditData,
-            },
-            {
-              attempts: 3,
-              backoff: {
-                type: 'exponential',
-                delay: 1000,
+          // Add job to queue (non-blocking) - only if queue is available
+          if (this.auditLogQueue) {
+            this.auditLogQueue.add(
+              JobType.AUDIT_LOG_CREATE,
+              {
+                action: auditMetadata.action,
+                entityType: auditMetadata.entityType,
+                entityId: finalEntityId,
+                userId: user._id || user.sub,
+                userEmail: user.email,
+                userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+                auditData,
               },
-              removeOnComplete: true,
-              removeOnFail: false,
-            },
-          ).catch((error) => {
-            // Log queue error but don't throw to avoid blocking the main request
-            this.logger.error('Failed to queue audit log', error.message);
-          });
+              {
+                attempts: 3,
+                backoff: {
+                  type: 'exponential',
+                  delay: 1000,
+                },
+                removeOnComplete: true,
+                removeOnFail: false,
+              },
+            ).catch((error) => {
+              // Log queue error but don't throw to avoid blocking the main request
+              this.logger.error('Failed to queue audit log', error.message);
+            });
+          } else {
+            // Queue not available, log but don't block the request
+            this.logger.debug(
+              `Audit log skipped (queue disabled): ${auditMetadata.action} on ${auditMetadata.entityType} ${finalEntityId}`,
+            );
+          }
         } catch (error) {
           // Log error but don't throw to avoid blocking the main request
           this.logger.error('Failed to prepare audit log', error.stack);

@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   CallHandler,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, tap } from 'rxjs';
@@ -18,10 +19,16 @@ export class AuditInterceptor implements NestInterceptor {
   private readonly logger = new Logger(AuditInterceptor.name);
 
   constructor(
-    @InjectQueue(QueueName.AUDIT_LOGS)
-    private readonly auditLogQueue: Queue,
+    @Optional() @InjectQueue(QueueName.AUDIT_LOGS)
+    private readonly auditLogQueue: Queue | undefined,
     private readonly reflector: Reflector,
-  ) {}
+  ) {
+    if (!auditLogQueue) {
+      this.logger.warn(
+        'Audit log queue not available - audit logging is disabled. Enable the AUDIT_LOGS queue in queue.module.ts to restore functionality.',
+      );
+    }
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const auditOptions = this.reflector.get<AuditOptions>(
@@ -78,44 +85,51 @@ export class AuditInterceptor implements NestInterceptor {
             auditOptions.description ||
             `${method} ${auditOptions.entity} via ${url}`;
 
-          // Add job to queue (non-blocking)
-          this.auditLogQueue.add(
-            JobType.AUDIT_LOG_CREATE,
-            {
-              action: auditOptions.action,
-              entityType: auditOptions.entity,
-              entityId,
-              userId: (user as any)._id || (user as any).sub,
-              userEmail: (user as any).email,
-              userName: `${(user as any).firstName || ''} ${(user as any).lastName || ''}`.trim(),
-              auditData: {
-                description,
-                oldValues,
-                newValues,
-                severity: auditOptions.severity || 'medium',
-                metadata: {
-                  ipAddress,
-                  userAgent,
-                  source: 'web',
-                  requestId: request.headers['x-request-id'] as string,
-                  relatedUnit: (user as any).unit?.toString(),
-                  relatedDistrict: (user as any).district?.toString(),
+          // Add job to queue (non-blocking) - only if queue is available
+          if (this.auditLogQueue) {
+            this.auditLogQueue.add(
+              JobType.AUDIT_LOG_CREATE,
+              {
+                action: auditOptions.action,
+                entityType: auditOptions.entity,
+                entityId,
+                userId: (user as any)._id || (user as any).sub,
+                userEmail: (user as any).email,
+                userName: `${(user as any).firstName || ''} ${(user as any).lastName || ''}`.trim(),
+                auditData: {
+                  description,
+                  oldValues,
+                  newValues,
+                  severity: auditOptions.severity || 'medium',
+                  metadata: {
+                    ipAddress,
+                    userAgent,
+                    source: 'web',
+                    requestId: request.headers['x-request-id'] as string,
+                    relatedUnit: (user as any).unit?.toString(),
+                    relatedDistrict: (user as any).district?.toString(),
+                  },
                 },
               },
-            },
-            {
-              attempts: 3,
-              backoff: {
-                type: 'exponential',
-                delay: 1000,
+              {
+                attempts: 3,
+                backoff: {
+                  type: 'exponential',
+                  delay: 1000,
+                },
+                removeOnComplete: true,
+                removeOnFail: false,
               },
-              removeOnComplete: true,
-              removeOnFail: false,
-            },
-          ).catch((error) => {
-            // Log queue error but don't throw to avoid blocking the main request
-            this.logger.error('Failed to queue audit log', error.message);
-          });
+            ).catch((error) => {
+              // Log queue error but don't throw to avoid blocking the main request
+              this.logger.error('Failed to queue audit log', error.message);
+            });
+          } else {
+            // Queue not available, log but don't block the request
+            this.logger.debug(
+              `Audit log skipped (queue disabled): ${auditOptions.action} on ${auditOptions.entity} ${entityId}`,
+            );
+          }
         } catch (error) {
           // Log error but don't throw to avoid blocking the main request
           this.logger.error('Failed to prepare audit log', error.stack);

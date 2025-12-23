@@ -19,8 +19,8 @@ export class QueueService {
   constructor(
     // @InjectQueue(QueueName.BULK_OPERATION)
     // private bulkOperationQueue: Queue<BulkOperationJobData>,
-    @InjectQueue(QueueName.FIRST_TIMER_NOTIFICATIONS)
-    private firstTimerNotificationQueue: Queue<FirstTimerNotificationJobData>,
+    // @InjectQueue(QueueName.FIRST_TIMER_NOTIFICATIONS)
+    // private firstTimerNotificationQueue: Queue<FirstTimerNotificationJobData>,
     // @InjectQueue(QueueName.FIRST_TIMER_AUTOMATION)
     // private firstTimerAutomationQueue: Queue<FirstTimerAutomationJobData>,
     @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
@@ -93,21 +93,17 @@ export class QueueService {
     };
   }
 
-  // First Timer specific methods
+  // First Timer specific methods - temporarily disabled
   async addDelayedJob(jobType: string, data: any, delay: number): Promise<Job> {
-    const job = await this.firstTimerNotificationQueue.add(jobType, data, {
-      delay,
-    });
-
-    this.logger.log(`Delayed job ${jobType} added with ${delay}ms delay`);
-    return job;
+    throw new Error(
+      'First timer notifications are temporarily disabled due to Redis connection limits. Please increase Redis maxclients or contact administrator.',
+    );
   }
 
   async addJob(jobType: string, data: any): Promise<Job> {
-    const job = await this.firstTimerNotificationQueue.add(jobType, data);
-
-    this.logger.log(`Job ${jobType} added immediately`);
-    return job;
+    throw new Error(
+      'First timer notifications are temporarily disabled due to Redis connection limits. Please increase Redis maxclients or contact administrator.',
+    );
   }
 
   // Temporarily disabled - first timer automation queue not registered
