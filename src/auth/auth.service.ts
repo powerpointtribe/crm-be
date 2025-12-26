@@ -109,12 +109,11 @@ export class AuthService {
       permissions = accessibleModules.map(module => `${module}:view`);
     }
 
-    // Create JWT payload - keep it minimal to avoid large headers
-    // Permissions are returned in the response body, not in the token
+    // Create JWT payload - minimal for smaller token size
+    // Only sub (user ID) and role ID needed - permissions looked up from DB
     const payload = {
       sub: member._id,
-      email: member.email,
-      role: member.role, // Just the role ID for permission lookups
+      role: member.role?._id || member.role, // Extract just the ID, not the populated object
     };
 
     const access_token = this.jwtService.sign(payload);
@@ -173,11 +172,10 @@ export class AuthService {
     const accessibleModules =
       this.accessControlService.getAccessibleModules(member);
 
-    // Create JWT payload - keep it minimal
+    // Create JWT payload - minimal for smaller token size
     const payload = {
       sub: member._id,
-      email: member.email,
-      role: member.role,
+      role: member.role?._id || member.role,
     };
 
     const access_token = this.jwtService.sign(payload);
