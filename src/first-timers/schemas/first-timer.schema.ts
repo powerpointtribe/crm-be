@@ -134,11 +134,18 @@ export class FirstTimer {
   @Prop({ type: Date })
   integrationStageDate?: Date;
 
+  // Branch assignment - automatically set from form submission context
+  @Prop({ type: Types.ObjectId, ref: 'Branch' })
+  branch?: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'Group' })
   assignedDistrict?: Types.ObjectId;
 
   @Prop({ type: Date })
   districtAssignmentDate?: Date;
+
+  @Prop({ type: Date })
+  branchAssignmentDate?: Date;
 
   // Call reports count (should be max 4)
   @Prop({ type: Number, default: 0, max: 4 })
@@ -406,6 +413,8 @@ FirstTimerSchema.index({ interestedInJoining: 1 });
 FirstTimerSchema.index({ lastStatusChange: -1 });
 FirstTimerSchema.index({ stage: 1 });
 FirstTimerSchema.index({ integrationStage: 1 });
+FirstTimerSchema.index({ branch: 1 }); // Branch index for RBAC filtering
+FirstTimerSchema.index({ branch: 1, assignedDistrict: 1 }); // Compound index for branch+district queries
 FirstTimerSchema.index({ assignedDistrict: 1 });
 FirstTimerSchema.index({ callReportsCount: 1 });
 FirstTimerSchema.index({ howDidYouHear: 1 });

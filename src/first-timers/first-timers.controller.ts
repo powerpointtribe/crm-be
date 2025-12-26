@@ -70,7 +70,7 @@ export class FirstTimersController {
   @Public()
   @ApiTags('Public API')
   @ApiOperation({
-    summary: 'Get public registration form configuration',
+    summary: 'Get public registration form configuration (generic)',
   })
   @ApiResponse({
     status: 200,
@@ -122,11 +122,114 @@ export class FirstTimersController {
     );
   }
 
+  @Get('public/branches/:slug/form-config')
+  @Public()
+  @ApiTags('Public API')
+  @ApiOperation({
+    summary: 'Get branch-specific public registration form configuration',
+  })
+  @ApiParam({ name: 'slug', description: 'Branch slug (e.g., lagos-mainland)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Branch-specific form configuration retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Branch not found',
+  })
+  async getBranchFormConfig(@Param('slug') slug: string) {
+    const branchConfig =
+      await this.firstTimersService.getBranchFormConfig(slug);
+
+    if (!branchConfig) {
+      return ResponseUtil.error('Branch not found');
+    }
+
+    return ResponseUtil.success(
+      branchConfig,
+      'Branch form configuration retrieved successfully',
+    );
+  }
+
+  @Post('public/branches/:slug')
+  @Public()
+  @ApiTags('Public API')
+  @ApiOperation({
+    summary:
+      'Register a new first-time visitor via branch-specific form (Public endpoint)',
+  })
+  @ApiParam({ name: 'slug', description: 'Branch slug (e.g., lagos-mainland)' })
+  @ApiResponse({
+    status: 201,
+    description: 'First-timer registered successfully with branch assignment',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Branch not found',
+  })
+  async createPublicWithBranch(
+    @Param('slug') slug: string,
+    @Body() createFirstTimerDto: PublicCreateFirstTimerDto,
+  ) {
+    try {
+      // Verify branch exists and get branch ID
+      const branch = await this.firstTimersService.getBranchBySlug(slug);
+      if (!branch) {
+        throw new BadRequestException(`Branch with slug '${slug}' not found`);
+      }
+
+      const existingByPhoneAndEmail =
+        await this.firstTimersService.findByPhoneAndEmail(
+          createFirstTimerDto.phone,
+          createFirstTimerDto.email,
+        );
+      if (existingByPhoneAndEmail) {
+        throw new ConflictException(
+          `Duplicate phone and email detected: ${createFirstTimerDto.phone} and ${createFirstTimerDto.email}`,
+        );
+      }
+
+      // Create first timer with branch assignment
+      const firstTimer = await this.firstTimersService.createWithBranch(
+        createFirstTimerDto,
+        branch._id as string,
+      );
+
+      return ResponseUtil.success(
+        {
+          id: firstTimer._id as any,
+          firstName: firstTimer.firstName,
+          lastName: firstTimer.lastName,
+          status: firstTimer.status,
+          branch: branch.name,
+          message:
+            'Thank you for your interest! Our team will contact you soon.',
+        },
+        'First-timer registration completed successfully',
+      );
+    } catch (error) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      console.error('Error in createPublicWithBranch:', error);
+      throw new BadRequestException(
+        'We encountered an issue while processing your registration. Please try again.',
+      );
+    }
+  }
+
   @Post('public')
   @Public()
   @ApiTags('Public API')
   @ApiOperation({
-    summary: 'Register a new first-time visitor (Public endpoint)',
+    summary: 'Register a new first-time visitor (Public endpoint - generic)',
   })
   @ApiResponse({
     status: 201,

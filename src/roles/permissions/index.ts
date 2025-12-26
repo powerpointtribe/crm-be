@@ -29,6 +29,15 @@ export enum RolesModulePermission {
   SEED_PERMISSIONS = 'roles:seed-permissions',
   SEED_ROLES = 'roles:seed-roles',
   VIEW_SEEDER_STATS = 'roles:view-seeder-stats',
+
+  // Role Assignment operations
+  CREATE_ROLE_ASSIGNMENT = 'roles:create-assignment',
+  VIEW_ROLE_ASSIGNMENTS = 'roles:view-assignments',
+  UPDATE_ROLE_ASSIGNMENT = 'roles:update-assignment',
+  DELETE_ROLE_ASSIGNMENT = 'roles:delete-assignment',
+  BULK_ASSIGN_ROLES = 'roles:bulk-assign',
+  VIEW_MEMBER_ASSIGNMENTS = 'roles:view-member-assignments',
+  VIEW_SCOPE_ASSIGNMENTS = 'roles:view-scope-assignments',
 }
 
 export const RolesModulePermissionMetadata = {
@@ -76,5 +85,40 @@ export const RolesModulePermissionMetadata = {
     path: '/roles/seeder/roles',
     method: 'POST',
     description: 'Seed roles into database',
+  },
+  [RolesModulePermission.CREATE_ROLE_ASSIGNMENT]: {
+    path: '/role-assignments',
+    method: 'POST',
+    description: 'Create a role assignment for a member',
+  },
+  [RolesModulePermission.VIEW_ROLE_ASSIGNMENTS]: {
+    path: '/role-assignments',
+    method: 'GET',
+    description: 'View all role assignments',
+  },
+  [RolesModulePermission.UPDATE_ROLE_ASSIGNMENT]: {
+    path: '/role-assignments/:id',
+    method: 'PATCH',
+    description: 'Update a role assignment',
+  },
+  [RolesModulePermission.DELETE_ROLE_ASSIGNMENT]: {
+    path: '/role-assignments/:id',
+    method: 'DELETE',
+    description: 'Delete/deactivate a role assignment',
+  },
+  [RolesModulePermission.BULK_ASSIGN_ROLES]: {
+    path: '/role-assignments/bulk',
+    method: 'POST',
+    description: 'Bulk assign roles to multiple members',
+  },
+  [RolesModulePermission.VIEW_MEMBER_ASSIGNMENTS]: {
+    path: '/role-assignments/member/:memberId',
+    method: 'GET',
+    description: 'View all role assignments for a member',
+  },
+  [RolesModulePermission.VIEW_SCOPE_ASSIGNMENTS]: {
+    path: '/role-assignments/scope/:scopeType/:scopeId',
+    method: 'GET',
+    description: 'View all assignments for a specific scope',
   },
 };

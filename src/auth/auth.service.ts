@@ -89,32 +89,32 @@ export class AuthService {
     // Update last login
     await this.membersService.updateLastLogin(member._id.toString());
 
-    // Get accessible modules for this member using permissions system
+    // Get permissions for this member using permissions system
+    let permissions: string[] = [];
     let accessibleModules: string[] = [];
+    let roleInfo: { id: string; name: string; displayName: string; level: number } | null = null;
 
     if (member.role) {
-      accessibleModules = await this.userPermissionsService.getAccessibleModules(
+      const userPermissions = await this.userPermissionsService.getUserPermissions(
         member.role,
       );
+      permissions = userPermissions.permissions;
+      accessibleModules = Object.keys(userPermissions.permissionsGrouped);
+      roleInfo = userPermissions.role;
     } else {
       // If no role assigned, use legacy access control service
       accessibleModules =
         this.accessControlService.getAccessibleModules(member) as any;
+      // Convert module names to basic view permissions for backward compatibility
+      permissions = accessibleModules.map(module => `${module}:view`);
     }
 
-    // Create JWT payload with comprehensive member data
+    // Create JWT payload - keep it minimal to avoid large headers
+    // Permissions are returned in the response body, not in the token
     const payload = {
       sub: member._id,
       email: member.email,
-      firstName: member.firstName,
-      lastName: member.lastName,
-      systemRoles: member.systemRoles,
-      role: member.role,
-      unitType: member.unitType,
-      district: member.district,
-      unit: member.unit,
-      leadershipRoles: member.leadershipRoles,
-      accessibleModules,
+      role: member.role, // Just the role ID for permission lookups
     };
 
     const access_token = this.jwtService.sign(payload);
@@ -135,6 +135,8 @@ export class AuthService {
         district: member.district,
         unit: member.unit,
         leadershipRoles: member.leadershipRoles,
+        role: roleInfo,
+        permissions,
         accessibleModules,
       },
     };
@@ -171,15 +173,11 @@ export class AuthService {
     const accessibleModules =
       this.accessControlService.getAccessibleModules(member);
 
-    // Create JWT payload
+    // Create JWT payload - keep it minimal
     const payload = {
       sub: member._id,
       email: member.email,
-      firstName: member.firstName,
-      lastName: member.lastName,
-      systemRoles: member.systemRoles,
-      unitType: member.unitType,
-      accessibleModules,
+      role: member.role,
     };
 
     const access_token = this.jwtService.sign(payload);
@@ -208,20 +206,29 @@ export class AuthService {
       throw new UnauthorizedException('Member not found');
     }
 
+    let permissions: string[] = [];
     let accessibleModules: string[] = [];
+    let roleInfo: { id: string; name: string; displayName: string; level: number } | null = null;
 
     if (member.role) {
-      accessibleModules = await this.userPermissionsService.getAccessibleModules(
+      const userPermissions = await this.userPermissionsService.getUserPermissions(
         member.role,
       );
+      permissions = userPermissions.permissions;
+      accessibleModules = Object.keys(userPermissions.permissionsGrouped);
+      roleInfo = userPermissions.role;
     } else {
       // If no role assigned, use legacy access control service
       accessibleModules =
         this.accessControlService.getAccessibleModules(member) as any;
+      // Convert module names to basic view permissions for backward compatibility
+      permissions = accessibleModules.map(module => `${module}:view`);
     }
 
     return {
       ...member.toObject(),
+      role: roleInfo,
+      permissions,
       accessibleModules,
     };
   }
@@ -278,8 +285,22 @@ export class AuthService {
       throw new UnauthorizedException('Member not found');
     }
 
-    const accessibleModules =
-      this.accessControlService.getAccessibleModules(member);
+    let permissions: string[] = [];
+    let accessibleModules: string[] = [];
+    let roleInfo: { id: string; name: string; displayName: string; level: number } | null = null;
+
+    if (member.role) {
+      const userPermissions = await this.userPermissionsService.getUserPermissions(
+        member.role,
+      );
+      permissions = userPermissions.permissions;
+      accessibleModules = Object.keys(userPermissions.permissionsGrouped);
+      roleInfo = userPermissions.role;
+    } else {
+      accessibleModules =
+        this.accessControlService.getAccessibleModules(member) as any;
+      permissions = accessibleModules.map(module => `${module}:view`);
+    }
 
     return {
       memberId: member._id,
@@ -287,11 +308,13 @@ export class AuthService {
       systemRoles: member.systemRoles,
       unitType: member.unitType,
       leadershipRoles: member.leadershipRoles,
+      role: roleInfo,
+      permissions,
       accessibleModules,
       isLeader:
-        member.leadershipRoles.isDistrictPastor ||
-        member.leadershipRoles.isUnitHead ||
-        member.leadershipRoles.isChamp,
+        member.leadershipRoles?.isDistrictPastor ||
+        member.leadershipRoles?.isUnitHead ||
+        member.leadershipRoles?.isChamp,
     };
   }
 

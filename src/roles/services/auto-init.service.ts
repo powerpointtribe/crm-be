@@ -2,11 +2,17 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RolesSeederService } from './roles-seeder.service';
 import { RolesService } from './roles.service';
+import { EndpointDiscoveryService } from './endpoint-discovery.service';
 import { MembersService } from '../../members/members.service';
 
 /**
  * Service to automatically initialize super admin on first startup
  * This runs once when the application starts if initialization is needed
+ *
+ * Also handles:
+ * - Auto-discovery of new endpoints
+ * - Auto-registration of missing permissions
+ * - Syncing Super Admin role with all permissions
  */
 @Injectable()
 export class AutoInitService implements OnModuleInit {
@@ -16,6 +22,7 @@ export class AutoInitService implements OnModuleInit {
   constructor(
     private readonly rolesSeederService: RolesSeederService,
     private readonly rolesService: RolesService,
+    private readonly endpointDiscoveryService: EndpointDiscoveryService,
     private readonly membersService: MembersService,
     private readonly configService: ConfigService,
   ) {}
@@ -34,53 +41,91 @@ export class AutoInitService implements OnModuleInit {
       return;
     }
 
-    try {
-      this.initializationInProgress = true;
-      await this.initializeIfNeeded();
-    } catch (error) {
-      this.logger.error('Auto-initialization failed:', error.message);
-    } finally {
-      this.initializationInProgress = false;
-    }
+    // Run initialization in background (non-blocking)
+    this.initializationInProgress = true;
+    setImmediate(() => {
+      this.initializeIfNeeded()
+        .catch((error) => {
+          this.logger.error('Auto-initialization failed:', error.message);
+        })
+        .finally(() => {
+          this.initializationInProgress = false;
+        });
+    });
   }
 
   private async initializeIfNeeded(): Promise<void> {
     try {
-      // Check if super_admin role exists and has permissions
+      // Check if roles exist
       const stats = await this.rolesSeederService.getStats();
 
-      const needsInit =
-        stats.permissions.total === 0 ||
+      const needsRolesInit =
         stats.roles.total === 0 ||
         stats.roles.system === 0;
 
-      if (!needsInit) {
-        this.logger.log('System already initialized, skipping auto-init');
-        return;
+      if (needsRolesInit) {
+        this.logger.log('🚀 Starting automatic system initialization...');
+
+        // Seed roles first (roles need to exist before we assign permissions)
+        this.logger.log('Seeding roles...');
+        await this.rolesSeederService.seedRoles();
+
+        // Assign super_admin role to admin@church.com if user exists
+        await this.assignSuperAdminRole();
+      } else {
+        this.logger.log('System roles already initialized');
       }
 
-      this.logger.log('🚀 Starting automatic system initialization...');
-
-      // Step 1: Seed permissions
-      this.logger.log('Seeding permissions...');
-      await this.rolesSeederService.seedPermissions();
-
-      // Step 2: Seed roles
-      this.logger.log('Seeding roles...');
-      await this.rolesSeederService.seedRoles();
-
-      // Step 3: Assign super_admin role to admin@church.com if user exists
-      await this.assignSuperAdminRole();
+      // Always run endpoint discovery to:
+      // 1. Discover all endpoints and create permissions
+      // 2. Update Super Admin with all permissions
+      this.logger.log('🔍 Running endpoint discovery...');
+      await this.discoverAndSyncPermissions();
 
       // Display final statistics
       const finalStats = await this.rolesSeederService.getStats();
-      this.logger.log('✓ System initialization completed successfully');
+      this.logger.log('✓ System initialization/sync completed successfully');
       this.logger.log(`  - Permissions: ${finalStats.permissions.total}`);
       this.logger.log(`  - Roles: ${finalStats.roles.total}`);
       this.logger.log(`  - System Roles: ${finalStats.roles.system}`);
     } catch (error) {
       this.logger.error('Initialization failed:', error.message);
       throw error;
+    }
+  }
+
+  /**
+   * Discover new endpoints and sync permissions
+   * This runs on every startup to ensure:
+   * 1. Permissions from constants are seeded (only on first run or if few permissions exist)
+   * 2. Existing permission module names are correct
+   * 3. New endpoints get permissions auto-generated
+   * 4. Super Admin always has ALL permissions
+   */
+  private async discoverAndSyncPermissions(): Promise<void> {
+    try {
+      // Only seed from constants if very few permissions exist (first startup scenario)
+      const stats = await this.rolesSeederService.getStats();
+      if (stats.permissions.total < 50) {
+        this.logger.log('Few permissions found, seeding from constants...');
+        await this.rolesSeederService.seedPermissions();
+      }
+
+      // Discover endpoints and auto-register missing permissions (fast operation)
+      const report = await this.endpointDiscoveryService.discoverAndRegisterPermissions();
+
+      if (report.newPermissionsCreated > 0) {
+        this.logger.log(
+          `✓ Created ${report.newPermissionsCreated} new permissions`,
+        );
+      }
+
+      // Always ensure Super Admin has all permissions
+      await this.endpointDiscoveryService.updateSuperAdminPermissions();
+      this.logger.log('✓ Super Admin role synced with all permissions');
+    } catch (error) {
+      this.logger.error('Permission sync failed:', error.message);
+      // Don't throw - this shouldn't break startup
     }
   }
 

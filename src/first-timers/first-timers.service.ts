@@ -9,6 +9,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery, Types } from 'mongoose';
 import { FirstTimer, FirstTimerDocument } from './schemas/first-timer.schema';
 import { CreateFirstTimerDto } from './dto/create-first-timer.dto';
+import { PublicCreateFirstTimerDto } from './dto/public-first-timer.dto';
 import { AddFollowUpDto } from './dto/add-follow-up.dto';
 import { FirstTimerSearchDto } from './dto/first-timer-search.dto';
 import { BulkUploadResultDto } from './dto/bulk-upload-first-timer.dto';
@@ -26,8 +27,10 @@ import { MembersService } from '../members/members.service';
 import { QueueService } from '../queue/queue.service';
 import { GroupsService } from '../groups/groups.service';
 import { CallReportsService } from './call-reports.service';
+import { BranchesService } from '../branches/branches.service';
 import { GroupType } from '../common/enums/group-types.enum';
 import { JobType } from '../common/interfaces/queue-job.interface';
+import { BranchDocument } from '../branches/schemas/branch.schema';
 
 @Injectable()
 export class FirstTimersService {
@@ -40,6 +43,7 @@ export class FirstTimersService {
     private queueService: QueueService,
     private groupsService: GroupsService,
     private callReportsService: CallReportsService,
+    private branchesService: BranchesService,
   ) {}
 
   async create(
@@ -1097,5 +1101,83 @@ export class FirstTimersService {
   // Helper method to get GIA group information
   async getGiaGroup() {
     return this.groupsService.findByNameAndType('GIA', GroupType.UNIT);
+  }
+
+  // Branch-specific methods for public registration forms
+  async getBranchFormConfig(slug: string): Promise<any | null> {
+    return this.branchesService.getBranchFormConfig(slug);
+  }
+
+  async getBranchBySlug(slug: string): Promise<BranchDocument | null> {
+    return this.branchesService.findBySlug(slug);
+  }
+
+  async createWithBranch(
+    createFirstTimerDto: PublicCreateFirstTimerDto,
+    branchId: Types.ObjectId | string,
+  ): Promise<FirstTimerDocument> {
+    // Set dateOfVisit to today if not provided
+    const dateOfVisit = createFirstTimerDto.dateOfVisit
+      ? new Date(createFirstTimerDto.dateOfVisit)
+      : new Date();
+
+    if (isNaN(dateOfVisit.getTime())) {
+      throw new BadRequestException(
+        'Invalid date format for dateOfVisit. Use YYYY-MM-DD format.',
+      );
+    }
+
+    // Handle interestedInJoining field properly
+    const interestedInJoining = createFirstTimerDto.interestedInJoining;
+    let validInterestedInJoining: string | undefined = undefined;
+
+    if (
+      interestedInJoining &&
+      ['yes', 'no', 'maybe'].includes(interestedInJoining)
+    ) {
+      validInterestedInJoining = interestedInJoining;
+    }
+
+    const firstTimer = new this.firstTimerModel({
+      firstName: createFirstTimerDto.firstName,
+      lastName: createFirstTimerDto.lastName,
+      phone: createFirstTimerDto.phone,
+      email: createFirstTimerDto.email?.toLowerCase(),
+      address: createFirstTimerDto.address,
+      dateOfBirth: createFirstTimerDto.dateOfBirth,
+      gender: createFirstTimerDto.gender,
+      occupation: createFirstTimerDto.occupation,
+      alternateContactMethod: createFirstTimerDto.alternateContactMethod,
+      socialMediaHandles: createFirstTimerDto.socialMediaHandles,
+      serviceExperience: createFirstTimerDto.serviceExperience,
+      profilePhotoUrl: createFirstTimerDto.profilePhotoUrl,
+      invitedBy: createFirstTimerDto.invitedBy,
+      previousChurch: createFirstTimerDto.previousChurch,
+      visitorType: createFirstTimerDto.visitorType || 'first_time',
+      maritalStatus: createFirstTimerDto.maritalStatus,
+      numberOfChildren: createFirstTimerDto.numberOfChildren,
+      familyMembers: createFirstTimerDto.familyMembers || [],
+      interests: createFirstTimerDto.interests || [],
+      servingInterests: createFirstTimerDto.servingInterests || [],
+      dateOfVisit,
+      status: EngagementStatus.NEW,
+      branch: branchId, // Assign the branch based on the URL slug
+      followUps: [],
+      prayerRequests: [],
+      followUpCount: 0,
+      lastStatusChange: new Date(),
+      interestedInJoining: validInterestedInJoining,
+      notes: createFirstTimerDto.notes
+        ? `[BRANCH FORM] ${createFirstTimerDto.notes}`
+        : '[BRANCH FORM] Registration from branch-specific public form',
+      howDidYouHear: createFirstTimerDto.howDidYouHear || 'website',
+    });
+
+    // Set initial follow-up date (1 day after visit)
+    const nextDay = new Date(dateOfVisit);
+    nextDay.setDate(nextDay.getDate() + 1);
+    firstTimer.nextFollowUpDate = nextDay;
+
+    return firstTimer.save();
   }
 }

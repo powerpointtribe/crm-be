@@ -115,7 +115,15 @@ export class Member {
   @Prop({ type: Date })
   confirmationDate?: Date;
 
-  // CHURCH STRUCTURE - District and Unit Assignments
+  // CHURCH STRUCTURE - Branch, District and Unit Assignments
+  // Branch assignment (required for all members)
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Branch',
+    required: true,
+  })
+  branch: Types.ObjectId;
+
   @Prop({
     type: Types.ObjectId,
     ref: 'Group',
@@ -127,6 +135,13 @@ export class Member {
     ref: 'Group',
   })
   unit?: Types.ObjectId;
+
+  // For Assistant Pastors: districts they are assigned to manage within their branch
+  @Prop({
+    type: [{ type: Types.ObjectId, ref: 'Group' }],
+    default: [],
+  })
+  assignedDistricts: Types.ObjectId[];
 
   // Unit type for access control (GIA, DISTRICT, MINISTRY_UNIT, LEADERSHIP_UNIT)
   @Prop({
@@ -298,9 +313,12 @@ MemberSchema.index({ role: 1 });
 MemberSchema.index({ membershipStatus: 1 });
 MemberSchema.index({ dateJoined: -1 });
 MemberSchema.index({ firstName: 1, lastName: 1 });
+MemberSchema.index({ branch: 1 }); // Branch index for RBAC filtering
+MemberSchema.index({ branch: 1, district: 1 }); // Compound index for branch+district queries
 MemberSchema.index({ district: 1 });
 MemberSchema.index({ unit: 1 });
 MemberSchema.index({ unitType: 1 });
+MemberSchema.index({ assignedDistricts: 1 }); // For assistant pastor district assignments
 MemberSchema.index({ 'leadershipRoles.isDistrictPastor': 1 });
 MemberSchema.index({ 'leadershipRoles.isChamp': 1 });
 MemberSchema.index({ 'leadershipRoles.isUnitHead': 1 });

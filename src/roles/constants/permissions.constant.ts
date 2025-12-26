@@ -62,6 +62,10 @@ import {
   UserManagementPermission,
   UserManagementPermissionMetadata,
 } from '../../user-invitations/permissions';
+import {
+  BranchesPermission,
+  BranchesPermissionMetadata,
+} from '../../branches/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -231,6 +235,15 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       perm,
       UserManagementPermissionMetadata[perm] || {},
       'user-management',
+    ),
+  ),
+
+  // Branches Module
+  ...Object.values(BranchesPermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      BranchesPermissionMetadata[perm] || {},
+      'branches',
     ),
   ),
 ];

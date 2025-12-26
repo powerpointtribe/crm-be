@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-export type UserInvitationDocument = UserInvitation & Document & { _id: Types.ObjectId };
+export type UserInvitationDocument = UserInvitation &
+  Document & { _id: Types.ObjectId };
 
 export enum InvitationStatus {
   PENDING = 'pending',
@@ -22,6 +23,15 @@ export class UserInvitation {
   // Reference to the role being assigned
   @Prop({ type: Types.ObjectId, ref: 'Role', required: true })
   role: Types.ObjectId;
+
+  // Branch assignment - required for RBAC scoping
+  // The invited user will be assigned to this branch
+  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true })
+  branch: Types.ObjectId;
+
+  // Optional district assignments for Assistant Pastors
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Group' }], default: [] })
+  assignedDistricts: Types.ObjectId[];
 
   // Temporary password for first login
   @Prop({ required: true })
@@ -85,3 +95,5 @@ UserInvitationSchema.index({ status: 1 });
 UserInvitationSchema.index({ invitedBy: 1 });
 UserInvitationSchema.index({ expiresAt: 1 });
 UserInvitationSchema.index({ createdAt: -1 });
+UserInvitationSchema.index({ branch: 1 }); // Branch index for RBAC filtering
+UserInvitationSchema.index({ branch: 1, status: 1 }); // Compound index for branch-scoped queries

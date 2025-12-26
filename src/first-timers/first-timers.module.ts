@@ -15,6 +15,7 @@ import { GroupsModule } from '../groups/groups.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RolesModule } from '../roles/roles.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { BranchesModule } from '../branches/branches.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     forwardRef(() => NotificationsModule),
     RolesModule, // Import RolesModule to make PermissionGuard available
     forwardRef(() => AuditLogsModule), // Forward ref to avoid circular dependency
+    forwardRef(() => BranchesModule), // Import BranchesModule for branch-specific form handling
   ],
   controllers: [MessageDraftsController, FirstTimersController],
   providers: [
