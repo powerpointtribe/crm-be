@@ -90,9 +90,9 @@ import {
     // BullModule.registerQueue({
     //   name: QueueName.FIRST_TIMER_AUTOMATION,
     // }),
-    // BullModule.registerQueue({
-    //   name: QueueName.AUDIT_LOGS,
-    // }),
+    BullModule.registerQueue({
+      name: QueueName.AUDIT_LOGS,
+    }),
     BullModule.registerQueue({
       name: QueueName.EMAIL_NOTIFICATIONS,
     }),
@@ -104,8 +104,8 @@ import {
     // BulkOperationProcessor, // Temporarily disabled due to circular dependencies
     // FirstTimerNotificationProcessor, // Temporarily disabled to reduce Redis connections
     // FirstTimerAutomationProcessor, // Temporarily disabled due to circular dependencies
-    // AuditLogProcessor, // Temporarily disabled to reduce Redis connections
-    EmailNotificationProcessor, // Only this processor is active for user invitations
+    AuditLogProcessor,
+    EmailNotificationProcessor,
     QueueService,
   ],
   exports: [QueueService, BullModule],

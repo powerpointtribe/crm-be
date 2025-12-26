@@ -94,6 +94,10 @@ export class CreateAuditLogDto {
   isSystemGenerated?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  success?: boolean;
+
+  @IsOptional()
   @IsMongoId()
   relatedUnit?: string;
 

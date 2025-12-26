@@ -57,10 +57,28 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get dashboard overview with metrics and analytics',
   })
-  async getDashboardOverview(@CurrentUser() user: any) {
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Start date for stats (ISO format). Defaults to 3 months ago.',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'End date for stats (ISO format). Defaults to now.',
+  })
+  async getDashboardOverview(
+    @CurrentUser() user: any,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
       user.roles,
+      startDate,
+      endDate,
     );
 
     return ResponseUtil.success(

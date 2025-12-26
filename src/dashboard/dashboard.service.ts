@@ -37,11 +37,19 @@ export class DashboardService {
   async getDashboardOverview(
     userId: string,
     userRole: string,
+    startDateParam?: string,
+    endDateParam?: string,
   ): Promise<DashboardOverviewDto> {
+    // Default to past 3 months if no date range provided
+    const endDate = endDateParam ? new Date(endDateParam) : new Date();
+    const startDate = startDateParam
+      ? new Date(startDateParam)
+      : new Date(endDate.getTime() - 90 * 24 * 60 * 60 * 1000); // 3 months ago
+
     const [stats, recentActivity, membershipTrends, upcomingTasks] =
       await Promise.all([
         this.getGeneralStats(),
-        this.getRecentActivity(),
+        this.getRecentActivityWithDateRange(startDate, endDate),
         this.getMembershipTrends(),
         this.getUpcomingTasks(userId),
       ]);
@@ -53,6 +61,10 @@ export class DashboardService {
       upcomingTasks,
       userRole,
       lastUpdated: new Date(),
+      dateRange: {
+        startDate,
+        endDate,
+      },
     };
   }
 
@@ -108,6 +120,73 @@ export class DashboardService {
         }),
         this.groupModel.countDocuments({
           createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
+        }),
+      ]);
+
+    return {
+      recentMembers: {
+        count: recentMembersCount,
+        percentage: this.calculatePercentageChange(
+          recentMembersCount,
+          prevMembersCount,
+        ),
+        trend: this.getTrend(recentMembersCount, prevMembersCount),
+      },
+      recentFirstTimers: {
+        count: recentFirstTimersCount,
+        percentage: this.calculatePercentageChange(
+          recentFirstTimersCount,
+          prevFirstTimersCount,
+        ),
+        trend: this.getTrend(recentFirstTimersCount, prevFirstTimersCount),
+      },
+      recentGroups: {
+        count: recentGroupsCount,
+        percentage: this.calculatePercentageChange(
+          recentGroupsCount,
+          prevGroupsCount,
+        ),
+        trend: this.getTrend(recentGroupsCount, prevGroupsCount),
+      },
+    };
+  }
+
+  private async getRecentActivityWithDateRange(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<RecentActivityDto> {
+    // Calculate the duration of the current period
+    const periodDuration = endDate.getTime() - startDate.getTime();
+
+    // Calculate the previous period with the same duration
+    const prevEndDate = new Date(startDate.getTime());
+    const prevStartDate = new Date(startDate.getTime() - periodDuration);
+
+    // Get current period data
+    const [recentMembersCount, recentFirstTimersCount, recentGroupsCount] =
+      await Promise.all([
+        this.memberModel.countDocuments({
+          createdAt: { $gte: startDate, $lte: endDate },
+        }),
+        this.firstTimerModel.countDocuments({
+          createdAt: { $gte: startDate, $lte: endDate },
+        }),
+        this.groupModel.countDocuments({
+          createdAt: { $gte: startDate, $lte: endDate },
+        }),
+      ]);
+
+    // Get previous period data for comparison (same duration, previous cycle)
+    const [prevMembersCount, prevFirstTimersCount, prevGroupsCount] =
+      await Promise.all([
+        this.memberModel.countDocuments({
+          createdAt: { $gte: prevStartDate, $lt: prevEndDate },
+        }),
+        this.firstTimerModel.countDocuments({
+          createdAt: { $gte: prevStartDate, $lt: prevEndDate },
+        }),
+        this.groupModel.countDocuments({
+          createdAt: { $gte: prevStartDate, $lt: prevEndDate },
         }),
       ]);
 

@@ -79,6 +79,9 @@ export class AuditLog {
   @Prop({ type: Boolean, default: false })
   isSystemGenerated: boolean;
 
+  @Prop({ type: Boolean, default: true })
+  success: boolean;
+
   @Prop({ type: Types.ObjectId, ref: 'Group' })
   relatedUnit?: Types.ObjectId;
 
@@ -106,6 +109,7 @@ AuditLogSchema.index({ relatedUnit: 1, timestamp: -1 });
 AuditLogSchema.index({ relatedDistrict: 1, timestamp: -1 });
 AuditLogSchema.index({ severity: 1, timestamp: -1 });
 AuditLogSchema.index({ isSystemGenerated: 1, timestamp: -1 });
+AuditLogSchema.index({ success: 1, timestamp: -1 });
 
 // Compound indexes for common queries
 AuditLogSchema.index({ entityType: 1, action: 1, timestamp: -1 });

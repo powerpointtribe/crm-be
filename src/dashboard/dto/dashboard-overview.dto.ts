@@ -84,6 +84,14 @@ export class UpcomingTasksDto {
   }>;
 }
 
+export class DateRangeDto {
+  @ApiProperty({ description: 'Start date of the selected range' })
+  startDate: Date;
+
+  @ApiProperty({ description: 'End date of the selected range' })
+  endDate: Date;
+}
+
 export class DashboardOverviewDto {
   @ApiProperty({ description: 'General statistics' })
   stats: DashboardStatsDto;
@@ -102,4 +110,7 @@ export class DashboardOverviewDto {
 
   @ApiProperty({ description: 'Last updated timestamp' })
   lastUpdated: Date;
+
+  @ApiProperty({ description: 'Date range used for the stats calculation' })
+  dateRange?: DateRangeDto;
 }

@@ -83,12 +83,27 @@ export class ServiceReportsController {
   @Get('stats')
   @RequirePermission(ServiceReportsPermission.VIEW_REPORT_STATS)
   @ApiOperation({ summary: 'Get service report statistics' })
+  @ApiQuery({
+    name: 'dateFrom',
+    required: false,
+    type: String,
+    description: 'Start date for filtering stats (ISO format)',
+  })
+  @ApiQuery({
+    name: 'dateTo',
+    required: false,
+    type: String,
+    description: 'End date for filtering stats (ISO format)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Service report statistics retrieved successfully',
   })
-  async getServiceReportStats() {
-    const stats = await this.serviceReportsService.getServiceReportStats();
+  async getServiceReportStats(
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const stats = await this.serviceReportsService.getServiceReportStats(dateFrom, dateTo);
     return ResponseUtil.success(
       stats,
       'Service report statistics retrieved successfully',

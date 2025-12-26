@@ -278,9 +278,21 @@ export class ServiceReportsService {
     await this.serviceReportModel.findByIdAndUpdate(id, { isActive: false });
   }
 
-  async getServiceReportStats(): Promise<any> {
+  async getServiceReportStats(dateFrom?: string, dateTo?: string): Promise<any> {
+    // Build date filter
+    const dateFilter: any = { isActive: true };
+    if (dateFrom || dateTo) {
+      dateFilter.date = {};
+      if (dateFrom) {
+        dateFilter.date.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        dateFilter.date.$lte = new Date(dateTo);
+      }
+    }
+
     const stats = await this.serviceReportModel.aggregate([
-      { $match: { isActive: true } },
+      { $match: dateFilter },
       {
         $group: {
           _id: null,
@@ -297,9 +309,9 @@ export class ServiceReportsService {
       },
     ]);
 
-    // Get reports by service tag
+    // Get reports by service tag (also filtered by date)
     const reportsByTag = await this.serviceReportModel.aggregate([
-      { $match: { isActive: true } },
+      { $match: dateFilter },
       { $unwind: '$serviceTags' },
       {
         $group: {
@@ -312,17 +324,25 @@ export class ServiceReportsService {
       { $sort: { count: -1 } },
     ]);
 
-    // Get monthly trends (last 12 months)
-    const twelveMonthsAgo = new Date();
-    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+    // Get monthly trends - use provided date range or default to last 12 months
+    let trendsStartDate: Date;
+    if (dateFrom) {
+      trendsStartDate = new Date(dateFrom);
+    } else {
+      trendsStartDate = new Date();
+      trendsStartDate.setMonth(trendsStartDate.getMonth() - 12);
+    }
+
+    const trendsFilter: any = {
+      isActive: true,
+      date: { $gte: trendsStartDate },
+    };
+    if (dateTo) {
+      trendsFilter.date.$lte = new Date(dateTo);
+    }
 
     const monthlyTrends = await this.serviceReportModel.aggregate([
-      {
-        $match: {
-          isActive: true,
-          date: { $gte: twelveMonthsAgo },
-        },
-      },
+      { $match: trendsFilter },
       {
         $group: {
           _id: {

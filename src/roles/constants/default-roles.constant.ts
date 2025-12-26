@@ -99,6 +99,12 @@ export const DEFAULT_ROLES: DefaultRoleConfig[] = [
       'service-reports:view-details',
       'service-reports:update',
       'service-reports:approve',
+
+      // Audit Logs
+      'audit-logs:view',
+      'audit-logs:view-details',
+      'audit-logs:view-statistics',
+      'audit-logs:export',
     ],
   },
   {
@@ -130,6 +136,11 @@ export const DEFAULT_ROLES: DefaultRoleConfig[] = [
       'ministries:view-details',
       'units:view',
       'units:view-details',
+
+      // Audit Logs
+      'audit-logs:view',
+      'audit-logs:view-details',
+      'audit-logs:view-statistics',
     ],
   },
   {
