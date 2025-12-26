@@ -26,10 +26,24 @@ async function bootstrap() {
   );
   app.use(compression());
 
-  // Enable CORS - Allow access from anywhere
+  // Enable CORS - Configure for both development and production
+  const allowedOrigins = configService.get<string>('CORS_ORIGINS', '*');
+
   app.enableCors({
-    origin: true,
+    origin: allowedOrigins === '*'
+      ? true
+      : allowedOrigins.split(',').map(origin => origin.trim()),
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
+    exposedHeaders: ['Content-Disposition'],
+    maxAge: 86400, // 24 hours - cache preflight requests
   });
 
   // Global validation pipe
