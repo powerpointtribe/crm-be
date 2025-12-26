@@ -11,6 +11,9 @@ export type InventoryCategoryDocument = InventoryCategory &
   collection: 'inventory_categories',
 })
 export class InventoryCategory {
+  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true, index: true })
+  branch: Types.ObjectId;
+
   @Prop({ required: true, trim: true })
   name: string;
 

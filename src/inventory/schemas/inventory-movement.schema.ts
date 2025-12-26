@@ -11,6 +11,9 @@ export type InventoryMovementDocument = InventoryMovement &
   collection: 'inventory_movements',
 })
 export class InventoryMovement {
+  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true, index: true })
+  branch: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'InventoryItem', required: true })
   inventoryItem: Types.ObjectId;
 

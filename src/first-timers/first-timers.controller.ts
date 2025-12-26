@@ -53,6 +53,8 @@ import { ResponseUtil } from '../common/utils/response.util';
 import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
 import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
+import { BranchFilterContext } from '../common/services/branch-access.service';
 
 @ApiTags('First Timers')
 @ApiBearerAuth()
@@ -64,6 +66,7 @@ export class FirstTimersController {
     private readonly firstTimersService: FirstTimersService,
     private readonly callReportsService: CallReportsService,
     private readonly queueService: QueueService,
+    private readonly userPermissionsService: UserPermissionsService,
   ) {}
 
   @Get('public/form-config')
@@ -357,7 +360,31 @@ export class FirstTimersController {
     @Query() searchDto: FirstTimerSearchDto,
     @CurrentUser() user: any,
   ) {
-    const firstTimers = await this.firstTimersService.findAll(searchDto);
+    // Build branch filter context based on user's permissions
+    let branchFilterContext: BranchFilterContext | undefined;
+
+    if (user.role) {
+      const userPermissions = await this.userPermissionsService.getUserPermissions(
+        user.role._id || user.role,
+      );
+
+      branchFilterContext = {
+        userPermissions: userPermissions.permissions,
+        userBranchId: user.branch?._id || user.branch,
+        selectedBranchId: searchDto.branchId,
+      };
+    } else {
+      // No role - filter by user's branch only
+      branchFilterContext = {
+        userPermissions: [],
+        userBranchId: user.branch?._id || user.branch,
+      };
+    }
+
+    const firstTimers = await this.firstTimersService.findAll(
+      searchDto,
+      branchFilterContext,
+    );
     return ResponseUtil.success(
       firstTimers,
       'First-timers retrieved successfully',

@@ -15,6 +15,9 @@ export enum ServiceTag {
 
 @Schema({ timestamps: true })
 export class ServiceReport {
+  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true, index: true })
+  branch: Types.ObjectId;
+
   @Prop({ required: true })
   date: Date;
 

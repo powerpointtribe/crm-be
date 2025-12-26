@@ -6,13 +6,15 @@ import { Group, GroupSchema } from './schemas/group.schema';
 import { RolesModule } from '../roles/roles.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { QueueModule } from '../queue/queue.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Group.name, schema: GroupSchema }]),
-    RolesModule, // Import RolesModule to make PermissionGuard available
+    RolesModule, // Import RolesModule to make PermissionGuard and UserPermissionsService available
     forwardRef(() => AuditLogsModule), // Forward ref to avoid circular dependency
     forwardRef(() => QueueModule), // Import QueueModule for audit logging queue
+    CommonModule, // Import CommonModule for BranchAccessService
   ],
   controllers: [GroupsController],
   providers: [GroupsService],

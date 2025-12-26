@@ -13,6 +13,13 @@ import { ServiceTag } from '../schemas/service-report.schema';
 
 export class ServiceReportSearchDto extends SearchDto {
   @ApiPropertyOptional({
+    description: 'Filter by branch ID (only for users with branches:view-all permission)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  branchId?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by service tag',
     enum: ServiceTag,
   })

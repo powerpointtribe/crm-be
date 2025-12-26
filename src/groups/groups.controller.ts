@@ -35,6 +35,8 @@ import { ResponseUtil } from '../common/utils/response.util';
 import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
 import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
+import { BranchFilterContext } from '../common/services/branch-access.service';
 
 @ApiTags('Groups')
 @ApiBearerAuth()
@@ -42,7 +44,10 @@ import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
 @UseInterceptors(AuditLogInterceptor)
 @Controller('groups')
 export class GroupsController {
-  constructor(private readonly groupsService: GroupsService) {}
+  constructor(
+    private readonly groupsService: GroupsService,
+    private readonly userPermissionsService: UserPermissionsService,
+  ) {}
 
   @Post()
   @RequirePermission(GroupsPermission.CREATE_GROUP)
@@ -65,8 +70,27 @@ export class GroupsController {
   @RequirePermission(GroupsPermission.VIEW_GROUPS)
   @ApiOperation({ summary: 'Get all groups with filtering' })
   @ApiResponse({ status: 200, description: 'Groups retrieved successfully' })
-  async findAll(@Query() searchDto: GroupSearchDto) {
-    const groups = await this.groupsService.findAll(searchDto);
+  async findAll(@Query() searchDto: GroupSearchDto, @CurrentUser() user: any) {
+    // Build branch filter context based on user's permissions
+    let branchFilterContext: BranchFilterContext | undefined;
+
+    if (user.role) {
+      const userPermissions = await this.userPermissionsService.getUserPermissions(
+        user.role._id || user.role,
+      );
+      branchFilterContext = {
+        userPermissions: userPermissions.permissions,
+        userBranchId: user.branch?._id || user.branch,
+        selectedBranchId: searchDto.branchId,
+      };
+    } else {
+      branchFilterContext = {
+        userPermissions: [],
+        userBranchId: user.branch?._id || user.branch,
+      };
+    }
+
+    const groups = await this.groupsService.findAll(searchDto, branchFilterContext);
     return ResponseUtil.success(groups, 'Groups retrieved successfully');
   }
 

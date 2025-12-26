@@ -9,6 +9,9 @@ export type GroupDocument = Group & Document;
   versionKey: false,
 })
 export class Group {
+  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true, index: true })
+  branch: Types.ObjectId;
+
   @Prop({ required: true, trim: true })
   name: string;
 

@@ -19,6 +19,10 @@ import {
 } from '../common/enums/inventory.enum';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
+import {
+  BranchAccessService,
+  BranchFilterContext,
+} from '../common/services/branch-access.service';
 
 @Injectable()
 export class InventoryItemService {
@@ -27,6 +31,7 @@ export class InventoryItemService {
     private inventoryItemModel: Model<InventoryItemDocument>,
     private auditLogsService: AuditLogsService,
     @InjectConnection() private readonly connection: Connection,
+    private branchAccessService: BranchAccessService,
   ) {}
 
   async create(
@@ -74,7 +79,10 @@ export class InventoryItemService {
     return savedItem;
   }
 
-  async findAll(queryDto: InventoryQueryDto) {
+  async findAll(
+    queryDto: InventoryQueryDto,
+    branchFilterContext?: BranchFilterContext,
+  ) {
     const {
       page = 1,
       limit = 20,
@@ -86,10 +94,24 @@ export class InventoryItemService {
       nearExpiry,
       expiryDateStart,
       expiryDateEnd,
+      branchId,
       ...filters
     } = queryDto;
 
-    const query: FilterQuery<InventoryItemDocument> = {};
+    let query: FilterQuery<InventoryItemDocument> = {};
+
+    // Apply branch filtering based on user permissions
+    if (branchFilterContext) {
+      const effectiveContext: BranchFilterContext = {
+        ...branchFilterContext,
+        selectedBranchId: branchId || branchFilterContext.selectedBranchId,
+      };
+      query = this.branchAccessService.applyBranchFilter(
+        query,
+        effectiveContext,
+        'branch',
+      );
+    }
 
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {

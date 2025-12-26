@@ -13,6 +13,10 @@ import { AuditAction, AuditEntity } from '../../common/enums/audit-action.enum';
 
 export class AuditLogQueryDto {
   @IsOptional()
+  @IsMongoId()
+  branchId?: string;
+
+  @IsOptional()
   @IsEnum(AuditAction)
   action?: AuditAction;
 

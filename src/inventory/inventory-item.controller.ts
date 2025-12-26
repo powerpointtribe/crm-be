@@ -30,6 +30,8 @@ import { Audit } from '../common/decorators/audit.decorator';
 import { AuditInterceptor } from '../common/interceptors/audit.interceptor';
 import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
 import { PermissionService } from '../common/services/permission.service';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
+import { BranchFilterContext } from '../common/services/branch-access.service';
 
 @ApiTags('inventory-items')
 @ApiBearerAuth()
@@ -40,6 +42,7 @@ export class InventoryItemController {
   constructor(
     private readonly inventoryItemService: InventoryItemService,
     private readonly permissionService: PermissionService,
+    private readonly userPermissionsService: UserPermissionsService,
   ) {}
 
   @Post()
@@ -76,17 +79,26 @@ export class InventoryItemController {
     try {
       const user = req.user;
 
-      // Apply access control filters using the permission service
-      const updatedQuery = this.permissionService.applyAccessFilters(
-        queryDto,
-        user,
-        {
-          unitField: 'assignedUnit',
-          districtField: 'assignedDistrict',
-        },
-      );
+      // Build branch filter context based on user's permissions
+      let branchFilterContext: BranchFilterContext | undefined;
 
-      return await this.inventoryItemService.findAll(updatedQuery);
+      if (user.role) {
+        const userPermissions = await this.userPermissionsService.getUserPermissions(
+          user.role._id || user.role,
+        );
+        branchFilterContext = {
+          userPermissions: userPermissions.permissions,
+          userBranchId: user.branch?._id || user.branch,
+          selectedBranchId: queryDto.branchId,
+        };
+      } else {
+        branchFilterContext = {
+          userPermissions: [],
+          userBranchId: user.branch?._id || user.branch,
+        };
+      }
+
+      return await this.inventoryItemService.findAll(queryDto, branchFilterContext);
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to retrieve inventory items',

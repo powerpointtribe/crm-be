@@ -12,6 +12,13 @@ import { EngagementStatus } from '../../common/enums/engagement-status.enum';
 
 export class FirstTimerSearchDto extends SearchDto {
   @ApiPropertyOptional({
+    description: 'Filter by branch ID (only for users with branches:view-all permission)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  branchId?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by engagement status',
     enum: EngagementStatus,
   })

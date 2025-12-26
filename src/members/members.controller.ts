@@ -28,6 +28,9 @@ import { MembersPermission } from './permissions';
 import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
 import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
+import { BranchFilterContext } from '../common/services/branch-access.service';
+import { MemberSearchDto } from './dto/member-search.dto';
 
 @Controller('members')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -36,6 +39,7 @@ export class MembersController {
   constructor(
     private readonly membersService: MembersService,
     private readonly accessControlService: AccessControlService,
+    private readonly userPermissionsService: UserPermissionsService,
   ) {}
 
   @Post()
@@ -52,22 +56,39 @@ export class MembersController {
 
   @Get()
   @RequirePermission(MembersPermission.VIEW_MEMBERS)
-  async findAll(@Query() query: any, @Request() req) {
+  async findAll(@Query() query: MemberSearchDto, @Request() req) {
     try {
-       const { user: currentMember } = req;
+      const { user: currentMember } = req;
 
-      // Get all members
-      const data = await this.membersService.findAll(query);
+      // Build branch filter context based on user's permissions
+      let branchFilterContext: BranchFilterContext | undefined;
 
-      // Filter based on member's access level
-      data.data = this.filterMembersByAccess(currentMember, data.data);
+      if (currentMember.role) {
+        const userPermissions = await this.userPermissionsService.getUserPermissions(
+          currentMember.role._id || currentMember.role,
+        );
+
+        branchFilterContext = {
+          userPermissions: userPermissions.permissions,
+          userBranchId: currentMember.branch?._id || currentMember.branch,
+          selectedBranchId: query.branchId, // From query param
+        };
+      } else {
+        // No role - filter by user's branch only
+        branchFilterContext = {
+          userPermissions: [],
+          userBranchId: currentMember.branch?._id || currentMember.branch,
+        };
+      }
+
+      // Get members with branch filtering applied
+      const data = await this.membersService.findAll(query, branchFilterContext);
 
       return data;
     } catch (error) {
-      console.log(error)
-      throw new BadRequestException('Failed to fetch members')
+      console.log(error);
+      throw new BadRequestException('Failed to fetch members');
     }
-   
   }
 
   @Get('stats')

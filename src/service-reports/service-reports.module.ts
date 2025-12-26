@@ -8,13 +8,15 @@ import {
   ServiceReportSchema,
 } from './schemas/service-report.schema';
 import { RolesModule } from '../roles/roles.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: ServiceReport.name, schema: ServiceReportSchema },
     ]),
-    RolesModule, // Import RolesModule to make PermissionGuard available
+    RolesModule, // Import RolesModule to make PermissionGuard and UserPermissionsService available
+    CommonModule, // Import CommonModule for BranchAccessService
   ],
   controllers: [ServiceReportsController],
   providers: [ServiceReportsService, ServiceReportsPdfService],

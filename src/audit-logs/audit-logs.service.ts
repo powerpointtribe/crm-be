@@ -5,6 +5,10 @@ import { AuditLog, AuditLogDocument } from './schemas/audit-log.schema';
 import { CreateAuditLogDto } from './dto/create-audit-log.dto';
 import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
+import {
+  BranchAccessService,
+  BranchFilterContext,
+} from '../common/services/branch-access.service';
 
 @Injectable()
 export class AuditLogsService {
@@ -13,6 +17,7 @@ export class AuditLogsService {
   constructor(
     @InjectModel(AuditLog.name)
     private auditLogModel: Model<AuditLogDocument>,
+    private branchAccessService: BranchAccessService,
   ) {}
 
   async create(createAuditLogDto: CreateAuditLogDto): Promise<AuditLog> {
@@ -185,7 +190,10 @@ export class AuditLogsService {
     }
   }
 
-  async findAll(queryDto: AuditLogQueryDto) {
+  async findAll(
+    queryDto: AuditLogQueryDto,
+    branchFilterContext?: BranchFilterContext,
+  ) {
     const {
       page = 1,
       limit = 20,
@@ -194,10 +202,24 @@ export class AuditLogsService {
       startDate,
       endDate,
       search,
+      branchId,
       ...filters
     } = queryDto;
 
-    const query: FilterQuery<AuditLogDocument> = {};
+    let query: FilterQuery<AuditLogDocument> = {};
+
+    // Apply branch filtering based on user permissions
+    if (branchFilterContext) {
+      const effectiveContext: BranchFilterContext = {
+        ...branchFilterContext,
+        selectedBranchId: branchId || branchFilterContext.selectedBranchId,
+      };
+      query = this.branchAccessService.applyBranchFilter(
+        query,
+        effectiveContext,
+        'branch',
+      );
+    }
 
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {

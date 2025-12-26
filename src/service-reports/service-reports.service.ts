@@ -20,6 +20,10 @@ import {
 } from '../common/utils/pagination.util';
 import { QueryBuilder } from '../common/utils/query-builder.util';
 import { ServiceReportsPdfService } from './service-reports-pdf.service';
+import {
+  BranchAccessService,
+  BranchFilterContext,
+} from '../common/services/branch-access.service';
 
 @Injectable()
 export class ServiceReportsService {
@@ -27,6 +31,7 @@ export class ServiceReportsService {
     @InjectModel(ServiceReport.name)
     private serviceReportModel: Model<ServiceReportDocument>,
     private pdfService: ServiceReportsPdfService,
+    private branchAccessService: BranchAccessService,
   ) {}
 
   async create(
@@ -91,6 +96,7 @@ export class ServiceReportsService {
 
   async findAll(
     searchDto: ServiceReportSearchDto,
+    branchFilterContext?: BranchFilterContext,
   ): Promise<PaginatedResult<ServiceReportDocument>> {
     const {
       page = 1,
@@ -106,10 +112,24 @@ export class ServiceReportsService {
       minAttendance,
       maxAttendance,
       minFirstTimers,
+      branchId,
     } = searchDto;
 
     const skip = (page - 1) * limit;
-    const filterQuery: FilterQuery<ServiceReportDocument> = { isActive: true };
+    let filterQuery: FilterQuery<ServiceReportDocument> = { isActive: true };
+
+    // Apply branch filtering based on user permissions
+    if (branchFilterContext) {
+      const effectiveContext: BranchFilterContext = {
+        ...branchFilterContext,
+        selectedBranchId: branchId || branchFilterContext.selectedBranchId,
+      };
+      filterQuery = this.branchAccessService.applyBranchFilter(
+        filterQuery,
+        effectiveContext,
+        'branch',
+      );
+    }
 
     // Text search across service name and notes
     if (search) {

@@ -16,11 +16,16 @@ import {
 } from '../common/utils/pagination.util';
 import { QueryBuilder } from '../common/utils/query-builder.util';
 import { GroupType } from '../common/enums/group-types.enum';
+import {
+  BranchAccessService,
+  BranchFilterContext,
+} from '../common/services/branch-access.service';
 
 @Injectable()
 export class GroupsService {
   constructor(
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
+    private branchAccessService: BranchAccessService,
   ) {}
 
   async create(createGroupDto: CreateGroupDto): Promise<GroupDocument> {
@@ -67,6 +72,7 @@ export class GroupsService {
 
   async findAll(
     searchDto: GroupSearchDto,
+    branchFilterContext?: BranchFilterContext,
   ): Promise<PaginatedResult<GroupDocument>> {
     const {
       page = 1,
@@ -80,10 +86,24 @@ export class GroupsService {
       isActive = true,
       needsLeaders,
       nearCapacity,
+      branchId,
     } = searchDto;
 
     const skip = (page - 1) * limit;
-    const filterQuery: FilterQuery<GroupDocument> = { isActive };
+    let filterQuery: FilterQuery<GroupDocument> = { isActive };
+
+    // Apply branch filtering based on user permissions
+    if (branchFilterContext) {
+      const effectiveContext: BranchFilterContext = {
+        ...branchFilterContext,
+        selectedBranchId: branchId || branchFilterContext.selectedBranchId,
+      };
+      filterQuery = this.branchAccessService.applyBranchFilter(
+        filterQuery,
+        effectiveContext,
+        'branch',
+      );
+    }
 
     // Text search
     if (search) {

@@ -24,13 +24,18 @@ import { PermissionGuard } from '../roles/guards/permission.guard';
 import { RequirePermission } from '../roles/decorators/require-permission.decorator';
 import { AuditLogsPermission } from './permissions';
 import { UserRole } from '../common/enums/user-roles.enums';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
+import { BranchFilterContext } from '../common/services/branch-access.service';
 
 @ApiTags('audit-logs')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('audit-logs')
 export class AuditLogsController {
-  constructor(private readonly auditLogsService: AuditLogsService) {}
+  constructor(
+    private readonly auditLogsService: AuditLogsService,
+    private readonly userPermissionsService: UserPermissionsService,
+  ) {}
 
   @Get()
   @RequirePermission(AuditLogsPermission.VIEW_AUDIT_LOGS)
@@ -41,7 +46,28 @@ export class AuditLogsController {
   })
   async findAll(@Query() queryDto: AuditLogQueryDto, @Req() req: any) {
     try {
-      return await this.auditLogsService.findAll(queryDto);
+      const user = req.user;
+
+      // Build branch filter context based on user's permissions
+      let branchFilterContext: BranchFilterContext | undefined;
+
+      if (user.role) {
+        const userPermissions = await this.userPermissionsService.getUserPermissions(
+          user.role._id || user.role,
+        );
+        branchFilterContext = {
+          userPermissions: userPermissions.permissions,
+          userBranchId: user.branch?._id || user.branch,
+          selectedBranchId: queryDto.branchId,
+        };
+      } else {
+        branchFilterContext = {
+          userPermissions: [],
+          userBranchId: user.branch?._id || user.branch,
+        };
+      }
+
+      return await this.auditLogsService.findAll(queryDto, branchFilterContext);
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to retrieve audit logs',

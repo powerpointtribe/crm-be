@@ -16,6 +16,10 @@ import {
 
 export class InventoryQueryDto {
   @IsOptional()
+  @IsMongoId()
+  branchId?: string;
+
+  @IsOptional()
   @IsString()
   search?: string;
 

@@ -29,13 +29,18 @@ import { RequirePermission } from '../roles/decorators/require-permission.decora
 import { ServiceReportsPermission } from './permissions';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
+import { BranchFilterContext } from '../common/services/branch-access.service';
 
 @ApiTags('Service Reports')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('service-reports')
 export class ServiceReportsController {
-  constructor(private readonly serviceReportsService: ServiceReportsService) {}
+  constructor(
+    private readonly serviceReportsService: ServiceReportsService,
+    private readonly userPermissionsService: UserPermissionsService,
+  ) {}
 
   @Post()
   @RequirePermission(ServiceReportsPermission.CREATE_REPORT)
@@ -72,8 +77,33 @@ export class ServiceReportsController {
     status: 200,
     description: 'Service reports retrieved successfully',
   })
-  async findAll(@Query() searchDto: ServiceReportSearchDto) {
-    const reports = await this.serviceReportsService.findAll(searchDto);
+  async findAll(
+    @Query() searchDto: ServiceReportSearchDto,
+    @CurrentUser() user: any,
+  ) {
+    // Build branch filter context based on user's permissions
+    let branchFilterContext: BranchFilterContext | undefined;
+
+    if (user.role) {
+      const userPermissions = await this.userPermissionsService.getUserPermissions(
+        user.role._id || user.role,
+      );
+      branchFilterContext = {
+        userPermissions: userPermissions.permissions,
+        userBranchId: user.branch?._id || user.branch,
+        selectedBranchId: searchDto.branchId,
+      };
+    } else {
+      branchFilterContext = {
+        userPermissions: [],
+        userBranchId: user.branch?._id || user.branch,
+      };
+    }
+
+    const reports = await this.serviceReportsService.findAll(
+      searchDto,
+      branchFilterContext,
+    );
     return ResponseUtil.success(
       reports,
       'Service reports retrieved successfully',

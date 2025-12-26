@@ -10,6 +10,9 @@ export type AuditLogDocument = AuditLog & Document & { _id: Types.ObjectId };
   collection: 'audit_logs',
 })
 export class AuditLog {
+  @Prop({ type: Types.ObjectId, ref: 'Branch', index: true })
+  branch?: Types.ObjectId;
+
   @Prop({
     type: String,
     enum: Object.values(AuditAction),

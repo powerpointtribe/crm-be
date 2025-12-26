@@ -31,6 +31,10 @@ import { BranchesService } from '../branches/branches.service';
 import { GroupType } from '../common/enums/group-types.enum';
 import { JobType } from '../common/interfaces/queue-job.interface';
 import { BranchDocument } from '../branches/schemas/branch.schema';
+import {
+  BranchAccessService,
+  BranchFilterContext,
+} from '../common/services/branch-access.service';
 
 @Injectable()
 export class FirstTimersService {
@@ -44,6 +48,7 @@ export class FirstTimersService {
     private groupsService: GroupsService,
     private callReportsService: CallReportsService,
     private branchesService: BranchesService,
+    private branchAccessService: BranchAccessService,
   ) {}
 
   async create(
@@ -133,6 +138,7 @@ export class FirstTimersService {
 
   async findAll(
     searchDto: FirstTimerSearchDto,
+    branchFilterContext?: BranchFilterContext,
   ): Promise<PaginatedResult<FirstTimerDocument>> {
     const {
       page = 1,
@@ -148,10 +154,24 @@ export class FirstTimersService {
       needsFollowUp,
       visitorType,
       howDidYouHear,
+      branchId,
     } = searchDto;
 
     const skip = (page - 1) * limit;
-    const filterQuery: FilterQuery<FirstTimerDocument> = { isActive: true };
+    let filterQuery: FilterQuery<FirstTimerDocument> = { isActive: true };
+
+    // Apply branch filtering based on user permissions
+    if (branchFilterContext) {
+      const effectiveContext: BranchFilterContext = {
+        ...branchFilterContext,
+        selectedBranchId: branchId || branchFilterContext.selectedBranchId,
+      };
+      filterQuery = this.branchAccessService.applyBranchFilter(
+        filterQuery,
+        effectiveContext,
+        'branch',
+      );
+    }
 
     // Text search
     if (search) {

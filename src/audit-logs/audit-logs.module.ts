@@ -4,6 +4,7 @@ import { AuditLogsService } from './audit-logs.service';
 import { AuditLogsController } from './audit-logs.controller';
 import { AuditLog, AuditLogSchema } from './schemas/audit-log.schema';
 import { RolesModule } from '../roles/roles.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { RolesModule } from '../roles/roles.module';
     MongooseModule.forFeature([
       { name: AuditLog.name, schema: AuditLogSchema },
     ]),
+    CommonModule, // Import CommonModule for BranchAccessService
   ],
   controllers: [AuditLogsController],
   providers: [AuditLogsService],

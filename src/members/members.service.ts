@@ -23,11 +23,16 @@ import { BulkOperationUtil } from '../common/utils/bulk-operation.util';
 import { BulkOperationType } from '../common/interfaces/bulk-operation.interface';
 import { MemberCSVMappingUtil } from './utils/member-csv-mapping.util';
 import { MembershipStatus } from '../common/enums/member-status.enum';
+import {
+  BranchAccessService,
+  BranchFilterContext,
+} from '../common/services/branch-access.service';
 
 @Injectable()
 export class MembersService {
   constructor(
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
+    private branchAccessService: BranchAccessService,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<MemberDocument> {
@@ -298,6 +303,7 @@ export class MembersService {
 
   async findAll(
     searchDto: MemberSearchDto,
+    branchFilterContext?: BranchFilterContext,
   ): Promise<PaginatedResult<MemberDocument>> {
     const {
       page = 1,
@@ -316,10 +322,25 @@ export class MembersService {
       dateJoinedTo,
       minAge,
       maxAge,
+      branchId,
     } = searchDto;
 
     const skip = (page - 1) * limit;
-    const filterQuery: FilterQuery<MemberDocument> = { isActive: true };
+    let filterQuery: FilterQuery<MemberDocument> = { isActive: true };
+
+    // Apply branch filtering based on user permissions
+    if (branchFilterContext) {
+      // Override branchId from query if user has view-all permission and specified one
+      const effectiveContext: BranchFilterContext = {
+        ...branchFilterContext,
+        selectedBranchId: branchId || branchFilterContext.selectedBranchId,
+      };
+      filterQuery = this.branchAccessService.applyBranchFilter(
+        filterQuery,
+        effectiveContext,
+        'branch',
+      );
+    }
 
     // Text search
     if (search) {
