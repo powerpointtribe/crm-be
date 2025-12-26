@@ -79,22 +79,14 @@ import {
       },
       inject: [ConfigService],
     }),
-    // Only register EMAIL_NOTIFICATIONS queue to minimize Redis connections
-    // Other queues temporarily disabled due to Redis connection limits
-    // BullModule.registerQueue({
-    //   name: QueueName.BULK_OPERATION,
-    // }),
-    // BullModule.registerQueue({
-    //   name: QueueName.FIRST_TIMER_NOTIFICATIONS,
-    // }),
-    // BullModule.registerQueue({
-    //   name: QueueName.FIRST_TIMER_AUTOMATION,
-    // }),
     BullModule.registerQueue({
       name: QueueName.AUDIT_LOGS,
     }),
     BullModule.registerQueue({
       name: QueueName.EMAIL_NOTIFICATIONS,
+    }),
+    BullModule.registerQueue({
+      name: QueueName.FIRST_TIMER_NOTIFICATIONS,
     }),
     NotificationsModule,
     forwardRef(() => AuditLogsModule),
@@ -102,7 +94,7 @@ import {
   controllers: [QueueController],
   providers: [
     // BulkOperationProcessor, // Temporarily disabled due to circular dependencies
-    // FirstTimerNotificationProcessor, // Temporarily disabled to reduce Redis connections
+    FirstTimerNotificationProcessor,
     // FirstTimerAutomationProcessor, // Temporarily disabled due to circular dependencies
     AuditLogProcessor,
     EmailNotificationProcessor,

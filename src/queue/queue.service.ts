@@ -19,8 +19,8 @@ export class QueueService {
   constructor(
     // @InjectQueue(QueueName.BULK_OPERATION)
     // private bulkOperationQueue: Queue<BulkOperationJobData>,
-    // @InjectQueue(QueueName.FIRST_TIMER_NOTIFICATIONS)
-    // private firstTimerNotificationQueue: Queue<FirstTimerNotificationJobData>,
+    @InjectQueue(QueueName.FIRST_TIMER_NOTIFICATIONS)
+    private firstTimerNotificationQueue: Queue<FirstTimerNotificationJobData>,
     // @InjectQueue(QueueName.FIRST_TIMER_AUTOMATION)
     // private firstTimerAutomationQueue: Queue<FirstTimerAutomationJobData>,
     @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
@@ -93,17 +93,38 @@ export class QueueService {
     };
   }
 
-  // First Timer specific methods - temporarily disabled
+  // First Timer specific methods
   async addDelayedJob(jobType: string, data: any, delay: number): Promise<Job> {
-    throw new Error(
-      'First timer notifications are temporarily disabled due to Redis connection limits. Please increase Redis maxclients or contact administrator.',
+    const job = await this.firstTimerNotificationQueue.add(jobType, data, {
+      delay,
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 5000,
+      },
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
+
+    this.logger.log(
+      `Delayed job ${jobType} added with ${delay}ms delay for first timer ${data.firstTimerId}`,
     );
+    return job;
   }
 
   async addJob(jobType: string, data: any): Promise<Job> {
-    throw new Error(
-      'First timer notifications are temporarily disabled due to Redis connection limits. Please increase Redis maxclients or contact administrator.',
-    );
+    const job = await this.firstTimerNotificationQueue.add(jobType, data, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 5000,
+      },
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
+
+    this.logger.log(`Job ${jobType} added for first timer ${data.firstTimerId}`);
+    return job;
   }
 
   // Temporarily disabled - first timer automation queue not registered
