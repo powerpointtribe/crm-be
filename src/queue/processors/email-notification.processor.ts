@@ -75,7 +75,7 @@ export class EmailNotificationProcessor {
 
         <p>If you have any questions or need assistance, please don't hesitate to reach out to our support team.</p>
 
-        <p>Blessings,<br/>The Church Leadership Team</p>
+        <p>Blessings,<br/>The Powerpoint Tribe Leadership Team</p>
       </div>
     `;
 

@@ -24,7 +24,7 @@ export class NotificationsService {
             <li>Information about our upcoming new members class</li>
           </ul>
         </div>
-        <p>Blessings,<br/>The Church Leadership Team</p>
+        <p>Blessings,<br/>The Powerpoint Tribe Leadership Team</p>
       </div>
     `;
 
@@ -189,7 +189,7 @@ export class NotificationsService {
         <p>This is a wonderful opportunity to serve and make a positive impact in our church community. We believe God has equipped you for this role!</p>
         <p>Our leadership team will be in touch with you soon to provide more details about your responsibilities and to offer any support you may need.</p>
         <p>Congratulations and God bless!</p>
-        <p>In His Service,<br/>The Church Leadership Team</p>
+        <p>In His Service,<br/>The Powerpoint Tribe Leadership Team</p>
       </div>
     `;
 
@@ -243,7 +243,7 @@ export class NotificationsService {
           </ul>
         </div>
         <p>Thank you for your commitment to following up with our visitors!</p>
-        <p>Blessings,<br/>The Church Leadership Team</p>
+        <p>Blessings,<br/>The Powerpoint Tribe Leadership Team</p>
       </div>
     `;
 
@@ -338,7 +338,7 @@ export class NotificationsService {
           </ul>
         </div>
         <p>Thank you for your leadership and commitment to nurturing our new members!</p>
-        <p>Blessings,<br/>The Church Leadership Team</p>
+        <p>Blessings,<br/>The Powerpoint Tribe Leadership Team</p>
       </div>
     `;
 
@@ -401,7 +401,7 @@ export class NotificationsService {
         </div>
         <p>This first-timer has successfully been converted to a full member of our church! Thank you for your role in their spiritual journey.</p>
         <p>Please continue to support and encourage them as they grow in their faith.</p>
-        <p>Blessings,<br/>The Church Leadership Team</p>
+        <p>Blessings,<br/>The Powerpoint Tribe Leadership Team</p>
       </div>
     `;
 
@@ -535,7 +535,7 @@ export class NotificationsService {
         </div>
         <p>Please log in to the church management system to review and begin working on these assignments.</p>
         <p>Thank you for your service!</p>
-        <p>Blessings,<br/>The Church Leadership Team</p>
+        <p>Blessings,<br/>The Powerpoint Tribe Leadership Team</p>
       </div>
     `;
 
@@ -648,7 +648,7 @@ export class NotificationsService {
           <div style="border-top: 2px solid #f0f0f0; padding-top: 20px; margin-top: 30px;">
             <p style="margin: 0; color: #777;">
               Blessings,<br/>
-              <strong>The Church Leadership Team</strong>
+              <strong>The Powerpoint Tribe Leadership Team</strong>
             </p>
           </div>
         </div>

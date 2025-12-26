@@ -206,7 +206,7 @@ export class EmailProvider {
   }): Promise<any> {
     const recipients = Array.isArray(options.to) ? options.to : [options.to];
     const fromEmail =
-      options.from || 'Church Management System <onboarding@resend.dev>';
+      options.from || 'The Powerpoint Tribe <onboarding@resend.dev>';
 
     this.logger.log(
       `[Resend] Attempting to send email to: ${recipients.join(', ')}`,
@@ -255,7 +255,7 @@ export class EmailProvider {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
     const fromEmail =
-      options.from || `Church Management System <${defaultSender}>`;
+      options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[SendGrid] Attempting to send email to: ${recipients.join(', ')}`,
@@ -305,7 +305,7 @@ export class EmailProvider {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
     const fromEmail =
-      options.from || `Church Management System <${defaultSender}>`;
+      options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[Nodemailer] Attempting to send email to: ${recipients.join(', ')}`,
@@ -371,7 +371,7 @@ export class EmailProvider {
     this.logger.log(`From: ${fromEmail}`);
 
     const payload = {
-      from: { address: defaultSender, name: 'Church Management System' },
+      from: { address: defaultSender, name: 'The Powerpoint Tribe' },
       to: recipients.map((email) => ({
         email_address: { address: email },
       })),
@@ -408,7 +408,7 @@ export class EmailProvider {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
     const fromEmail =
-      options.from || `Church Management System <${defaultSender}>`;
+      options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[ZeptoMail SMTP] Attempting to send email to: ${recipients.join(', ')}`,
@@ -480,7 +480,7 @@ export class EmailProvider {
     from?: string;
   }): Promise<any> {
     const emails = options.recipients.map((recipient) => ({
-      from: options.from || 'Church Management System <onboarding@resend.dev>',
+      from: options.from || 'The Powerpoint Tribe <onboarding@resend.dev>',
       to: [recipient.email],
       subject: options.subject,
       html: options.html.replace('{{name}}', recipient.name || 'Member'),
@@ -503,7 +503,7 @@ export class EmailProvider {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
     const fromEmail =
-      options.from || `Church Management System <${defaultSender}>`;
+      options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     const emails = options.recipients.map((recipient) => ({
       to: recipient.email,
@@ -536,7 +536,7 @@ export class EmailProvider {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
     const fromEmail =
-      options.from || `Church Management System <${defaultSender}>`;
+      options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[Nodemailer] Sending bulk email to ${options.recipients.length} recipients`,
@@ -610,7 +610,7 @@ export class EmailProvider {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
     const fromEmail =
-      options.from || `Church Management System <${defaultSender}>`;
+      options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[Zeptomail] Sending bulk email to ${options.recipients.length} recipients`,
@@ -631,7 +631,7 @@ export class EmailProvider {
       );
 
       const payload = {
-        from: { address: defaultSender, name: 'Church Management System' },
+        from: { address: defaultSender, name: 'The Powerpoint Tribe' },
         to: [{ email_address: { address: recipient.email } }],
         subject: options.subject,
         htmlbody: personalizedHtml,
@@ -679,7 +679,7 @@ export class EmailProvider {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
     const fromEmail =
-      options.from || `Church Management System <${defaultSender}>`;
+      options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[ZeptoMail SMTP] Sending bulk email to ${options.recipients.length} recipients`,
