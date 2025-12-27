@@ -232,6 +232,7 @@ export class FirstTimersService {
         .populate('suggestedDistrict', 'name type')
         .populate('memberRecord', 'firstName lastName membershipStatus')
         .populate('followUps.contactedBy', 'firstName lastName')
+        .populate('branch', 'name slug')
         .sort(sortQuery)
         .skip(skip)
         .limit(limit)
@@ -253,6 +254,7 @@ export class FirstTimersService {
         'firstName lastName email phone membershipStatus',
       )
       .populate('followUps.contactedBy', 'firstName lastName email')
+      .populate('branch', 'name slug')
       .exec();
   }
 

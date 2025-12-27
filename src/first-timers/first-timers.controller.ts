@@ -337,7 +337,15 @@ export class FirstTimersController {
     status: 409,
     description: 'Phone or email already registered',
   })
-  async create(@Body() createFirstTimerDto: CreateFirstTimerDto) {
+  async create(
+    @Body() createFirstTimerDto: CreateFirstTimerDto,
+    @CurrentUser() user: any,
+  ) {
+    // Auto-assign user's branch if not specified
+    if (!createFirstTimerDto.branch && user.branch) {
+      createFirstTimerDto.branch = user.branch._id?.toString() || user.branch.toString();
+    }
+
     const firstTimer =
       await this.firstTimersService.create(createFirstTimerDto);
 
