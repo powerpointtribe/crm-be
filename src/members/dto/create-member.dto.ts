@@ -9,7 +9,6 @@ import {
   IsArray,
   IsObject,
   IsMongoId,
-  IsBoolean,
   Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -70,41 +69,6 @@ class EmergencyContactDto {
     { message: 'Please provide a valid email address for emergency contact' },
   )
   email?: string;
-}
-
-class LeadershipRolesDto {
-  @ApiPropertyOptional({ description: 'Is district pastor', default: false })
-  @IsOptional()
-  @IsBoolean()
-  isDistrictPastor?: boolean = false;
-
-  @ApiPropertyOptional({
-    description: 'Is champ (district assistant)',
-    default: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  isChamp?: boolean = false;
-
-  @ApiPropertyOptional({ description: 'Is unit head', default: false })
-  @IsOptional()
-  @IsBoolean()
-  isUnitHead?: boolean = false;
-
-  @ApiPropertyOptional({ description: 'District they help as champ' })
-  @IsOptional()
-  @IsMongoId()
-  champForDistrict?: string;
-
-  @ApiPropertyOptional({ description: 'Unit they lead' })
-  @IsOptional()
-  @IsMongoId()
-  leadsUnit?: string;
-
-  @ApiPropertyOptional({ description: 'District they pastor' })
-  @IsOptional()
-  @IsMongoId()
-  pastorsDistrict?: string;
 }
 
 export class CreateMemberDto {
@@ -172,9 +136,9 @@ export class CreateMemberDto {
 
   // CHURCH STRUCTURE - Branch, District and Unit Assignments
   @ApiProperty({
-    description: 'Branch/Expression ID (required - every member must belong to a branch)',
+    description: 'Branch/Campus ID (required - every member must belong to a branch)',
   })
-  @IsNotEmpty({ message: 'Branch is required - every member must belong to a branch/expression' })
+  @IsNotEmpty({ message: 'Branch is required - every member must belong to a branch/campus' })
   @IsMongoId()
   branch: string;
 
@@ -201,13 +165,6 @@ export class CreateMemberDto {
   @IsArray()
   @IsMongoId({ each: true })
   additionalGroups?: string[];
-
-  @ApiPropertyOptional({ description: 'Leadership roles' })
-  @IsOptional()
-  @IsObject()
-  @ValidateNested()
-  @Type(() => LeadershipRolesDto)
-  leadershipRoles?: LeadershipRolesDto;
 
   @ApiProperty({
     description: 'Membership status',

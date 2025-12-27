@@ -15,11 +15,10 @@ export class UserUnitMiddleware implements NestMiddleware {
   constructor(@InjectModel(Unit.name) private unitModel: Model<UnitDocument>) {}
 
   async use(req: RequestWithUserUnit, res: Response, next: NextFunction) {
-    if (req.user && req.user.leadershipRoles?.leadsUnit) {
+    // Use the member's unit field directly
+    if (req.user && req.user.unit) {
       try {
-        const unit = await this.unitModel.findById(
-          req.user.leadershipRoles.leadsUnit,
-        );
+        const unit = await this.unitModel.findById(req.user.unit);
         if (!unit) return next();
 
         req.userUnit = unit;

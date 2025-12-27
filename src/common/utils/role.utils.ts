@@ -45,15 +45,6 @@ export class RoleUtils {
       return ROLE_MODULE_ACCESS.director.includes(module);
     }
 
-    // Check unit-based access for unit leaders
-    if (
-      userUnit &&
-      user.leadershipRoles?.leadsUnit?.toString() === userUnit._id?.toString()
-    ) {
-      const unitModules = UNIT_MODULE_ACCESS[userUnit.unitType];
-      return unitModules?.includes(module) || false;
-    }
-
     // LXL members without specific units have limited access
     if (this.isLXLMember(user)) {
       const basicModules = [
@@ -85,15 +76,6 @@ export class RoleUtils {
       accessibleModules = [...ROLE_MODULE_ACCESS.director];
     }
 
-    // Unit-based modules (for unit leaders)
-    if (
-      userUnit &&
-      user.leadershipRoles?.leadsUnit?.toString() === userUnit?._id?.toString()
-    ) {
-      const unitModules = UNIT_MODULE_ACCESS[userUnit.unitType] || [];
-      accessibleModules = [...new Set([...accessibleModules, ...unitModules])];
-    }
-
     // Basic LXL access if no other permissions
     if (accessibleModules.length === 0 && this.isLXLMember(user)) {
       accessibleModules = [
@@ -114,10 +96,8 @@ export class RoleUtils {
     if (this.hasRole(user, UserRole.ADMIN)) return true;
 
     if (this.hasRole(user, UserRole.DIRECTOR)) {
-      if (!ministryId) return true; // Can manage in general
-      return !!user.directorOfMinistries?.some(
-        (id) => id.toString() === ministryId,
-      );
+      // Directors can manage ministries - specific ministry access now handled by role-based permissions
+      return true;
     }
 
     if (this.hasRole(user, UserRole.PASTOR)) {
@@ -171,22 +151,11 @@ export class RoleUtils {
     if (this.hasRole(currentMember, UserRole.PASTOR)) return true;
 
     if (this.hasRole(currentMember, UserRole.DIRECTOR)) {
-      return !!(
-        targetMember &&
-        targetMember.ministries &&
-        currentMember.directorOfMinistries?.some((ministryId) =>
-          targetMember.ministries?.includes(ministryId.toString()),
-        )
-      );
+      // Directors can view member details - specific access now handled by role-based permissions
+      return true;
     }
 
-    if (currentMember.leadershipRoles?.leadsUnit) {
-      return (
-        targetMember.unit?.toString() ===
-        currentMember.leadershipRoles.leadsUnit.toString()
-      );
-    }
-
+    // Other access handled by role-based permissions
     return false;
   }
 }

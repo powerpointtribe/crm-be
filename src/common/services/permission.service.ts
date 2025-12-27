@@ -64,30 +64,10 @@ export class PermissionService {
       return { hasAccess: true };
     }
 
-    // Pastor with district access
-    if (
-      user.systemRoles?.includes(UserRole.PASTOR) &&
-      user.leadershipRoles?.pastorsDistrict
-    ) {
-      const districtId = user.leadershipRoles.pastorsDistrict.toString();
-
-      // If resource has a specific district, check if it matches
-      if (resourceDistrictId) {
-        if (resourceDistrictId === districtId) {
-          return { hasAccess: true };
-        } else {
-          return {
-            hasAccess: false,
-            reason: 'Resource belongs to different district',
-          };
-        }
-      }
-
-      // Return district filter for queries
-      return {
-        hasAccess: true,
-        filters: { districtId },
-      };
+    // Pastor access - now uses role-based permissions
+    if (user.systemRoles?.includes(UserRole.PASTOR)) {
+      // Pastors have access - specific district filtering now handled by RoleAssignment
+      return { hasAccess: true };
     }
 
     // Unit-level access
@@ -134,14 +114,10 @@ export class PermissionService {
       return {};
     }
 
-    // Pastor with district access
-    if (
-      user.systemRoles?.includes(UserRole.PASTOR) &&
-      user.leadershipRoles?.pastorsDistrict
-    ) {
-      return {
-        districtId: user.leadershipRoles.pastorsDistrict.toString(),
-      };
+    // Pastor access - now uses role-based permissions
+    if (user.systemRoles?.includes(UserRole.PASTOR)) {
+      // Pastors have access - specific district filtering now handled by RoleAssignment
+      return {};
     }
 
     // Unit-level access
@@ -303,23 +279,8 @@ export class PermissionService {
       return { hasAccess: true };
     }
 
-    // Pastor can only transfer within their district
-    if (
-      user.systemRoles?.includes(UserRole.PASTOR) &&
-      user.leadershipRoles?.pastorsDistrict
-    ) {
-      const userDistrict = user.leadershipRoles.pastorsDistrict.toString();
-
-      if (
-        (fromDistrict && fromDistrict !== userDistrict) ||
-        (toDistrict && toDistrict !== userDistrict)
-      ) {
-        return {
-          hasAccess: false,
-          reason: 'Can only transfer within your district',
-        };
-      }
-
+    // Pastor can transfer - specific district restrictions now handled by RoleAssignment
+    if (user.systemRoles?.includes(UserRole.PASTOR)) {
       return { hasAccess: true };
     }
 

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { MembershipStatus } from '../../common/enums/member-status.enum';
 
 export type RoleDocument = Role & Document & { _id: Types.ObjectId };
 
@@ -46,6 +47,10 @@ export class Role {
   // Color code for UI display (optional)
   @Prop({ trim: true })
   colorCode?: string;
+
+  // Membership status tag - when this role is assigned, member's membershipStatus is updated to this value
+  @Prop({ type: String, enum: MembershipStatus })
+  membershipStatusTag?: MembershipStatus;
 
   // Role metadata
   @Prop({ type: Object, default: {} })

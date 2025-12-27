@@ -75,9 +75,8 @@ export class InventoryMovementController {
           (createMovementDto.fromUnit &&
             createMovementDto.fromUnit === user.unit?.toString()) ||
           (createMovementDto.fromDistrict &&
-            user.leadershipRoles?.pastorsDistrict &&
-            createMovementDto.fromDistrict ===
-              user.leadershipRoles.pastorsDistrict.toString());
+            user.district &&
+            createMovementDto.fromDistrict === user.district.toString());
 
         if (!hasFromAccess) {
           throw new BadRequestException(
@@ -134,8 +133,8 @@ export class InventoryMovementController {
       let districtId: string | undefined;
 
       // Apply access control filters based on user's assignments
-      if (user.leadershipRoles?.pastorsDistrict) {
-        districtId = user.leadershipRoles.pastorsDistrict;
+      if (user.district) {
+        districtId = user.district;
       } else if (user.unit) {
         unitId = user.unit;
       }
@@ -182,8 +181,8 @@ export class InventoryMovementController {
       let districtId: string | undefined;
 
       // Apply access control filters based on user's assignments
-      if (user.leadershipRoles?.pastorsDistrict) {
-        districtId = user.leadershipRoles.pastorsDistrict;
+      if (user.district) {
+        districtId = user.district;
       } else if (user.unit) {
         unitId = user.unit;
       }
@@ -226,11 +225,9 @@ export class InventoryMovementController {
       // Check access permissions based on user's assignments
       const hasAccess =
         movement.performedBy?._id?.toString() === user._id.toString() ||
-        (user.leadershipRoles?.pastorsDistrict &&
-          (movement.fromDistrict?.toString() ===
-            user.leadershipRoles.pastorsDistrict.toString() ||
-            movement.toDistrict?.toString() ===
-              user.leadershipRoles.pastorsDistrict.toString())) ||
+        (user.district &&
+          (movement.fromDistrict?.toString() === user.district.toString() ||
+            movement.toDistrict?.toString() === user.district.toString())) ||
         movement.fromUnit?.toString() === user.unit?.toString() ||
         movement.toUnit?.toString() === user.unit?.toString();
 

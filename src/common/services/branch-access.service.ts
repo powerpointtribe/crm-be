@@ -63,18 +63,11 @@ export interface BranchAccessResult {
 export interface UserAccessContext {
   _id: string | Types.ObjectId;
   systemRoles?: UserRole[];
+  membershipStatus?: string;
   branch?: string | Types.ObjectId;
   district?: string | Types.ObjectId;
   unit?: string | Types.ObjectId;
   assignedDistricts?: (string | Types.ObjectId)[];
-  leadershipRoles?: {
-    isDistrictPastor?: boolean;
-    isChamp?: boolean;
-    isUnitHead?: boolean;
-    pastorsDistrict?: string | Types.ObjectId;
-    leadsUnit?: string | Types.ObjectId;
-    champForDistrict?: string | Types.ObjectId;
-  };
 }
 
 @Injectable()
@@ -102,12 +95,13 @@ export class BranchAccessService {
       return AccessScope.DISTRICT;
     }
 
-    // Check leadership roles
-    if (user.leadershipRoles?.isDistrictPastor) {
+    // Check membership status for leadership levels
+    if (user.membershipStatus === 'PASTOR' || user.membershipStatus === 'DIRECTOR') {
       return AccessScope.DISTRICT;
     }
 
-    if (user.leadershipRoles?.isUnitHead) {
+    // If user has a unit assignment, they have unit scope
+    if (user.unit) {
       return AccessScope.UNIT;
     }
 
@@ -167,18 +161,6 @@ export class BranchAccessService {
           };
         }
 
-        // District Pastor or leadership role
-        if (user.leadershipRoles?.pastorsDistrict) {
-          return {
-            hasAccess: true,
-            scope: AccessScope.DISTRICT,
-            filters: {
-              branchId: user.branch,
-              districtId: user.leadershipRoles.pastorsDistrict,
-            },
-          };
-        }
-
         // Fall back to user's own district
         if (user.district) {
           return {
@@ -204,7 +186,7 @@ export class BranchAccessService {
             hasAccess: false,
             scope: AccessScope.UNIT,
             filters: {},
-            reason: 'Unit Head has no unit assignment',
+            reason: 'User has no unit assignment',
           };
         }
         return {
@@ -212,7 +194,7 @@ export class BranchAccessService {
           scope: AccessScope.UNIT,
           filters: {
             branchId: user.branch,
-            unitId: user.leadershipRoles?.leadsUnit || user.unit,
+            unitId: user.unit,
           },
         };
 
@@ -502,8 +484,7 @@ export class BranchAccessService {
             inviter.assignedDistricts?.some(
               (d) => d.toString() === inviteeData.districtId?.toString(),
             ) ||
-            inviter.leadershipRoles?.pastorsDistrict?.toString() ===
-              inviteeData.districtId.toString();
+            inviter.district?.toString() === inviteeData.districtId.toString();
 
           if (!hasDistrictAccess) {
             return {
@@ -570,12 +551,6 @@ export class BranchAccessService {
     if (scope === AccessScope.DISTRICT) {
       if (user.assignedDistricts && user.assignedDistricts.length > 0) {
         return { allDistricts: false, districtIds: user.assignedDistricts };
-      }
-      if (user.leadershipRoles?.pastorsDistrict) {
-        return {
-          allDistricts: false,
-          districtIds: [user.leadershipRoles.pastorsDistrict],
-        };
       }
       if (user.district) {
         return { allDistricts: false, districtIds: [user.district] };

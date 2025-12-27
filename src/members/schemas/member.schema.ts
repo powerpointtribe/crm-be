@@ -154,32 +154,7 @@ export class Member {
   @Prop([{ type: Types.ObjectId, ref: 'Group' }])
   additionalGroups: Types.ObjectId[];
 
-  // LEADERSHIP ROLES TRACKING (with access control implications)
-  @Prop({
-    type: {
-      isDistrictPastor: { type: Boolean, default: false },
-      isChamp: { type: Boolean, default: false },
-      isUnitHead: { type: Boolean, default: false },
-      champForDistrict: { type: Types.ObjectId, ref: 'Group' },
-      leadsUnit: { type: Types.ObjectId, ref: 'Group' },
-      pastorsDistrict: { type: Types.ObjectId, ref: 'Group' },
-    },
-    default: {
-      isDistrictPastor: false,
-      isChamp: false,
-      isUnitHead: false,
-    },
-  })
-  leadershipRoles: {
-    isDistrictPastor: boolean;
-    isChamp: boolean;
-    isUnitHead: boolean;
-    champForDistrict?: Types.ObjectId;
-    leadsUnit?: Types.ObjectId;
-    pastorsDistrict?: Types.ObjectId;
-  };
-
-  // MINISTRY INVOLVEMENT (for access control)
+  // MINISTRY INVOLVEMENT
   @Prop([String])
   ministries: string[];
 
@@ -191,10 +166,6 @@ export class Member {
 
   @Prop({ trim: true })
   workAddress?: string;
-
-  // Ministry leadership for directors (moved from User schema)
-  @Prop({ type: [Types.ObjectId], ref: 'Ministry' })
-  directorOfMinistries?: Types.ObjectId[];
 
   // FAMILY RELATIONSHIPS
   @Prop({ type: Types.ObjectId, ref: 'Member' })
@@ -319,9 +290,5 @@ MemberSchema.index({ district: 1 });
 MemberSchema.index({ unit: 1 });
 MemberSchema.index({ unitType: 1 });
 MemberSchema.index({ assignedDistricts: 1 }); // For assistant pastor district assignments
-MemberSchema.index({ 'leadershipRoles.isDistrictPastor': 1 });
-MemberSchema.index({ 'leadershipRoles.isChamp': 1 });
-MemberSchema.index({ 'leadershipRoles.isUnitHead': 1 });
-MemberSchema.index({ directorOfMinistries: 1 });
 MemberSchema.index({ lastLogin: -1 });
 MemberSchema.index({ isActive: 1 });

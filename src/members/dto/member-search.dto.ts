@@ -56,11 +56,6 @@ export class MemberSearchDto extends SearchDto {
   @IsString()
   ministry?: string;
 
-  @ApiPropertyOptional({ description: 'Filter members with leadership roles' })
-  @IsOptional()
-  @IsEnum(['district_pastor', 'champ', 'unit_head'])
-  leadershipRole?: string;
-
   @ApiPropertyOptional({ description: 'Filter from date joined' })
   @IsOptional()
   @IsDateString()

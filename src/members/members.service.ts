@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery, Types } from 'mongoose';
@@ -9,7 +11,6 @@ import { Member, MemberDocument } from './schemas/member.schema';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { MemberSearchDto } from './dto/member-search.dto';
-import { AssignLeadershipDto } from './dto/leadership-assignment.dto';
 import {
   BulkMemberOperationDto,
   BulkMemberResultDto,
@@ -27,12 +28,15 @@ import {
   BranchAccessService,
   BranchFilterContext,
 } from '../common/services/branch-access.service';
+import { RolesService } from '../roles/services/roles.service';
 
 @Injectable()
 export class MembersService {
   constructor(
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
     private branchAccessService: BranchAccessService,
+    @Inject(forwardRef(() => RolesService))
+    private rolesService: RolesService,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<MemberDocument> {
@@ -72,11 +76,6 @@ export class MembersService {
             state: 'Lagos',
             country: 'Nigeria',
           },
-      leadershipRoles: createMemberDto.leadershipRoles || {
-        isDistrictPastor: false,
-        isChamp: false,
-        isUnitHead: false,
-      },
     });
 
     return member.save();
@@ -317,7 +316,6 @@ export class MembersService {
       districtId,
       unitId,
       ministry,
-      leadershipRole,
       dateJoinedFrom,
       dateJoinedTo,
       minAge,
@@ -365,21 +363,6 @@ export class MembersService {
 
     // Ministry filter
     if (ministry) filterQuery.ministries = { $in: [ministry] };
-
-    // Leadership role filter
-    if (leadershipRole) {
-      switch (leadershipRole) {
-        case 'district_pastor':
-          filterQuery['leadershipRoles.isDistrictPastor'] = true;
-          break;
-        case 'champ':
-          filterQuery['leadershipRoles.isChamp'] = true;
-          break;
-        case 'unit_head':
-          filterQuery['leadershipRoles.isUnitHead'] = true;
-          break;
-      }
-    }
 
     // Date range filter
     if (dateJoinedFrom || dateJoinedTo) {
@@ -444,9 +427,6 @@ export class MembersService {
         .populate('children', 'firstName lastName')
         .populate('parent', 'firstName lastName')
         .populate('additionalGroups', 'name type')
-        .populate('leadershipRoles.champForDistrict', 'name')
-        .populate('leadershipRoles.leadsUnit', 'name')
-        .populate('leadershipRoles.pastorsDistrict', 'name')
         .sort(sortQuery)
         .skip(skip)
         .limit(limit)
@@ -485,9 +465,6 @@ export class MembersService {
       .populate('children', 'firstName lastName email phone dateOfBirth')
       .populate('parent', 'firstName lastName email phone')
       .populate('additionalGroups', 'name type description')
-      .populate('leadershipRoles.champForDistrict', 'name type')
-      .populate('leadershipRoles.leadsUnit', 'name type')
-      .populate('leadershipRoles.pastorsDistrict', 'name type')
       .exec();
   }
 
@@ -502,55 +479,7 @@ export class MembersService {
       .populate('role')
       .populate('district', 'name type')
       .populate('unit', 'name type')
-      .populate('leadershipRoles.champForDistrict', 'name type')
-      .populate('leadershipRoles.leadsUnit', 'name type')
-      .populate('leadershipRoles.pastorsDistrict', 'name type')
       .exec();
-  }
-
-  // Method to check if a user can access a specific member
-  async canAccessMember(
-    requestingUserEmail: string,
-    targetMemberId: string,
-  ): Promise<boolean> {
-    const requestingMember = await this.findByEmail(requestingUserEmail);
-    const targetMember = await this.findById(targetMemberId);
-
-    if (!requestingMember || !targetMember) {
-      return false;
-    }
-
-    const { leadershipRoles } = requestingMember;
-
-    // District pastor can access members in their district
-    if (leadershipRoles.isDistrictPastor && leadershipRoles.pastorsDistrict) {
-      return (
-        leadershipRoles.pastorsDistrict.toString() ===
-        targetMember.district?.toString()
-      );
-    }
-
-    // Champ can access members in their assigned district
-    if (leadershipRoles.isChamp && leadershipRoles.champForDistrict) {
-      return (
-        leadershipRoles.champForDistrict.toString() ===
-        targetMember.district?.toString()
-      );
-    }
-
-    // Unit head can access members in their unit
-    if (
-      leadershipRoles.isUnitHead &&
-      leadershipRoles.leadsUnit &&
-      targetMember.unit
-    ) {
-      return (
-        leadershipRoles.leadsUnit.toString() === targetMember.unit.toString()
-      );
-    }
-
-    // Members can only access themselves
-    return requestingMember.id.toString() === targetMember.id.toString();
   }
 
   async update(
@@ -688,101 +617,6 @@ export class MembersService {
     return member;
   }
 
-  // Leadership Management
-  async assignLeadership(
-    assignDto: AssignLeadershipDto,
-  ): Promise<MemberDocument> {
-    const { memberId, role, districtId, unitId } = assignDto;
-
-    const updateData: any = {};
-
-    switch (role) {
-      case 'district_pastor':
-        if (!districtId) {
-          throw new BadRequestException(
-            'District ID is required for district pastor assignment',
-          );
-        }
-        updateData['leadershipRoles.isDistrictPastor'] = true;
-        updateData['leadershipRoles.pastorsDistrict'] = districtId;
-        updateData['membershipStatus'] = MembershipStatus.PASTOR;
-        break;
-
-      case 'champ':
-        if (!districtId) {
-          throw new BadRequestException(
-            'District ID is required for champ assignment',
-          );
-        }
-        updateData['leadershipRoles.isChamp'] = true;
-        updateData['leadershipRoles.champForDistrict'] = districtId;
-        updateData['membershipStatus'] = MembershipStatus.DC;
-        break;
-
-      case 'unit_head':
-        if (!unitId) {
-          throw new BadRequestException(
-            'Unit ID is required for unit head assignment',
-          );
-        }
-        updateData['leadershipRoles.isUnitHead'] = true;
-        updateData['leadershipRoles.leadsUnit'] = unitId;
-        updateData['membershipStatus'] = MembershipStatus.DIRECTOR;
-        break;
-
-      default:
-        throw new BadRequestException('Invalid leadership role');
-    }
-
-    const member = await this.memberModel
-      .findByIdAndUpdate(memberId, { $set: updateData }, { new: true })
-      .populate(
-        'district unit leadershipRoles.champForDistrict leadershipRoles.leadsUnit leadershipRoles.pastorsDistrict',
-      );
-
-    if (!member) {
-      throw new NotFoundException('Member not found');
-    }
-
-    return member;
-  }
-
-  async removeLeadership(
-    memberId: string,
-    role: string,
-  ): Promise<MemberDocument> {
-    const updateData: any = {};
-
-    switch (role) {
-      case 'district_pastor':
-        updateData['leadershipRoles.isDistrictPastor'] = false;
-        updateData['$unset'] = { 'leadershipRoles.pastorsDistrict': 1 };
-        break;
-      case 'champ':
-        updateData['leadershipRoles.isChamp'] = false;
-        updateData['$unset'] = { 'leadershipRoles.champForDistrict': 1 };
-        break;
-      case 'unit_head':
-        updateData['leadershipRoles.isUnitHead'] = false;
-        updateData['$unset'] = { 'leadershipRoles.leadsUnit': 1 };
-        break;
-      default:
-        throw new BadRequestException('Invalid leadership role');
-    }
-
-    const member = await this.memberModel.findByIdAndUpdate(
-      memberId,
-      updateData,
-      { new: true },
-    );
-
-    if (!member) {
-      throw new NotFoundException('Member not found');
-    }
-
-    return member;
-  }
-
   // Analytics and Reports
   async getMemberStats(
     branchFilterContext?: BranchFilterContext,
@@ -820,7 +654,6 @@ export class MembersService {
       genderStats,
       districtStats,
       unitStats,
-      leadershipStats,
       ageStats,
       totalMembers,
     ] = await Promise.all([
@@ -891,42 +724,6 @@ export class MembersService {
         { $sort: { count: -1 } },
       ]),
 
-      // Leadership distribution
-      this.memberModel.aggregate([
-        { $match: baseFilter },
-        {
-          $project: {
-            roles: {
-              $concatArrays: [
-                {
-                  $cond: [
-                    { $eq: ['$leadershipRoles.isDistrictPastor', true] },
-                    ['District Pastor'],
-                    [],
-                  ],
-                },
-                {
-                  $cond: [
-                    { $eq: ['$leadershipRoles.isChamp', true] },
-                    ['Champ'],
-                    [],
-                  ],
-                },
-                {
-                  $cond: [
-                    { $eq: ['$leadershipRoles.isUnitHead', true] },
-                    ['Unit Head'],
-                    [],
-                  ],
-                },
-              ],
-            },
-          },
-        },
-        { $unwind: { path: '$roles', preserveNullAndEmptyArrays: false } },
-        { $group: { _id: '$roles', count: { $sum: 1 } } },
-      ]),
-
       // Age distribution
       this.memberModel.aggregate([
         { $match: baseFilter },
@@ -967,7 +764,6 @@ export class MembersService {
       byGender: genderStats,
       byDistrict: districtStats,
       byUnit: unitStats,
-      byLeadership: leadershipStats,
       byAge: ageStats,
       membersWithoutUnits,
       unitAssignmentRate:
@@ -982,51 +778,13 @@ export class MembersService {
   async getDistrictMembers(districtId: string): Promise<MemberDocument[]> {
     return this.memberModel
       .find({ district: districtId, isActive: true })
-      .populate(
-        'leadershipRoles.champForDistrict leadershipRoles.pastorsDistrict',
-      )
       .sort({ firstName: 1, lastName: 1 });
   }
 
   async getUnitMembers(unitId: string): Promise<MemberDocument[]> {
     return this.memberModel
       .find({ unit: unitId, isActive: true })
-      .populate('leadershipRoles.leadsUnit')
       .sort({ firstName: 1, lastName: 1 });
-  }
-
-  async getLeaders(): Promise<{
-    districtPastors: MemberDocument[];
-    champs: MemberDocument[];
-    unitHeads: MemberDocument[];
-  }> {
-    const [districtPastors, champs, unitHeads] = await Promise.all([
-      this.memberModel
-        .find({
-          'leadershipRoles.isDistrictPastor': true,
-          isActive: true,
-        })
-        .populate('leadershipRoles.pastorsDistrict', 'name')
-        .sort({ firstName: 1, lastName: 1 }),
-
-      this.memberModel
-        .find({
-          'leadershipRoles.isChamp': true,
-          isActive: true,
-        })
-        .populate('leadershipRoles.champForDistrict', 'name')
-        .sort({ firstName: 1, lastName: 1 }),
-
-      this.memberModel
-        .find({
-          'leadershipRoles.isUnitHead': true,
-          isActive: true,
-        })
-        .populate('leadershipRoles.leadsUnit', 'name')
-        .sort({ firstName: 1, lastName: 1 }),
-    ]);
-
-    return { districtPastors, champs, unitHeads };
   }
 
   async getNewMembersThisMonth(): Promise<MemberDocument[]> {
@@ -1287,14 +1045,6 @@ export class MembersService {
       unitType?: string;
       unit?: string;
       district?: string;
-      leadershipRoles?: {
-        isDistrictPastor?: boolean;
-        isChamp?: boolean;
-        isUnitHead?: boolean;
-        champForDistrict?: string;
-        leadsUnit?: string;
-        pastorsDistrict?: string;
-      };
     },
   ): Promise<MemberDocument> {
     const member = await this.memberModel.findById(memberId);
@@ -1319,34 +1069,13 @@ export class MembersService {
       member.district = new Types.ObjectId(updateData.district);
     }
 
-    // --- Handle leadership roles ---
-    if (updateData.leadershipRoles) {
-      const { leadershipRoles } = updateData;
-
-      // Convert string IDs to ObjectIds safely
-      const updatedLeadershipRoles = {
-        ...member.leadershipRoles,
-        ...leadershipRoles,
-        champForDistrict: leadershipRoles.champForDistrict
-          ? new Types.ObjectId(leadershipRoles.champForDistrict)
-          : member.leadershipRoles?.champForDistrict,
-        leadsUnit: leadershipRoles.leadsUnit
-          ? new Types.ObjectId(leadershipRoles.leadsUnit)
-          : member.leadershipRoles?.leadsUnit,
-        pastorsDistrict: leadershipRoles.pastorsDistrict
-          ? new Types.ObjectId(leadershipRoles.pastorsDistrict)
-          : member.leadershipRoles?.pastorsDistrict,
-      };
-
-      member.leadershipRoles = updatedLeadershipRoles;
-    }
-
     await member.save();
     return member;
   }
 
   /**
    * Assign a single role to a member (NEW PERMISSION SYSTEM)
+   * Also updates the member's membershipStatus based on the role's membershipStatusTag
    */
   async assignRole(memberId: string, roleId: string): Promise<MemberDocument> {
     if (!Types.ObjectId.isValid(memberId)) {
@@ -1363,7 +1092,16 @@ export class MembersService {
       throw new NotFoundException(`Member with ID ${memberId} not found`);
     }
 
+    // Fetch the role to check for membershipStatusTag
+    const role = await this.rolesService.findById(roleId, false);
+
     member.role = new Types.ObjectId(roleId);
+
+    // If the role has a membershipStatusTag, update the member's membershipStatus
+    if (role.membershipStatusTag) {
+      member.membershipStatus = role.membershipStatusTag;
+    }
+
     await member.save();
 
     const updatedMember = await this.findById(memberId); // Return with populated role

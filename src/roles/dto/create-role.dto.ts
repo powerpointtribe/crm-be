@@ -7,7 +7,9 @@ import {
   IsBoolean,
   IsNumber,
   IsObject,
+  IsEnum,
 } from 'class-validator';
+import { MembershipStatus } from '../../common/enums/member-status.enum';
 
 export class CreateRoleDto {
   @IsString()
@@ -42,6 +44,10 @@ export class CreateRoleDto {
   @IsString()
   @IsOptional()
   colorCode?: string;
+
+  @IsEnum(MembershipStatus)
+  @IsOptional()
+  membershipStatusTag?: MembershipStatus;
 
   @IsObject()
   @IsOptional()

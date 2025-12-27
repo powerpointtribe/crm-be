@@ -440,7 +440,7 @@ export class CreateFirstTimerDto {
   giaLeader?: string;
 
   @ApiPropertyOptional({
-    description: 'Branch ID - the expression/branch this first-timer belongs to',
+    description: 'Branch ID - the campus/branch this first-timer belongs to',
   })
   @IsOptional()
   @IsMongoId()

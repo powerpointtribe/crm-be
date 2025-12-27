@@ -165,47 +165,6 @@ export class MemberCSVMappingUtil {
         transform: transforms.normalizeEmail,
       },
 
-      // Leadership roles
-      'Is District Pastor': {
-        dtoField: 'leadershipRoles.isDistrictPastor',
-        transform: transforms.toBoolean,
-      },
-      'leadershipRoles.isDistrictPastor': {
-        dtoField: 'leadershipRoles.isDistrictPastor',
-        transform: transforms.toBoolean,
-      },
-
-      'Is Champ': {
-        dtoField: 'leadershipRoles.isChamp',
-        transform: transforms.toBoolean,
-      },
-      'leadershipRoles.isChamp': {
-        dtoField: 'leadershipRoles.isChamp',
-        transform: transforms.toBoolean,
-      },
-
-      'Is Unit Head': {
-        dtoField: 'leadershipRoles.isUnitHead',
-        transform: transforms.toBoolean,
-      },
-      'leadershipRoles.isUnitHead': {
-        dtoField: 'leadershipRoles.isUnitHead',
-        transform: transforms.toBoolean,
-      },
-
-      'Champ For District': { dtoField: 'leadershipRoles.champForDistrict' },
-      'leadershipRoles.champForDistrict': {
-        dtoField: 'leadershipRoles.champForDistrict',
-      },
-
-      'Leads Unit': { dtoField: 'leadershipRoles.leadsUnit' },
-      'leadershipRoles.leadsUnit': { dtoField: 'leadershipRoles.leadsUnit' },
-
-      'Pastors District': { dtoField: 'leadershipRoles.pastorsDistrict' },
-      'leadershipRoles.pastorsDistrict': {
-        dtoField: 'leadershipRoles.pastorsDistrict',
-      },
-
       Notes: { dtoField: 'notes' },
       notes: { dtoField: 'notes' },
     };
@@ -263,12 +222,6 @@ export class MemberCSVMappingUtil {
       'emergencyContact.relationship': 'spouse',
       'emergencyContact.phone': '+234801234568',
       'emergencyContact.email': 'jane.doe@example.com',
-      'leadershipRoles.isDistrictPastor': 'false',
-      'leadershipRoles.isChamp': 'true',
-      'leadershipRoles.isUnitHead': 'false',
-      'leadershipRoles.champForDistrict': '507f1f77bcf86cd799439011',
-      'leadershipRoles.leadsUnit': '',
-      'leadershipRoles.pastorsDistrict': '',
       notes: 'Active member, excellent leader',
     };
 
@@ -324,40 +277,10 @@ export class MemberCSVMappingUtil {
     return mappedData;
   }
 
-  static processLeadershipRoles(mappedData: any): any {
-    // Combine leadership role fields into leadershipRoles object
-    const leadershipFields = [
-      'isDistrictPastor',
-      'isChamp',
-      'isUnitHead',
-      'champForDistrict',
-      'leadsUnit',
-      'pastorsDistrict',
-    ];
-    const leadershipRoles: any = {};
-    let hasLeadershipData = false;
-
-    for (const field of leadershipFields) {
-      const leadershipField = `leadershipRoles.${field}`;
-      if (mappedData[leadershipField] !== undefined) {
-        leadershipRoles[field] = mappedData[leadershipField];
-        delete mappedData[leadershipField];
-        hasLeadershipData = true;
-      }
-    }
-
-    if (hasLeadershipData) {
-      mappedData.leadershipRoles = leadershipRoles;
-    }
-
-    return mappedData;
-  }
-
   static postProcessMappedData(mappedData: any): any {
     // Process nested objects
     mappedData = this.processAddress(mappedData);
     mappedData = this.processEmergencyContact(mappedData);
-    mappedData = this.processLeadershipRoles(mappedData);
 
     return mappedData;
   }

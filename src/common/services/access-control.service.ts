@@ -89,51 +89,33 @@ export class AccessControlService {
   }
 
   /**
-   * Check leadership-based access (district pastors, unit heads, etc.)
+   * Check leadership-based access
+   * Note: Leadership-based access is now handled by the role-based permission system
    */
   private checkLeadershipBasedAccess(
     member: Member,
     module: DashboardModule,
   ): boolean {
-    const { leadershipRoles } = member;
-
     switch (module) {
       case DashboardModule.FIRST_TIMERS:
-        // Only GIA unit members and leadership can access
-        return (
-          member.unitType === UnitType.GIA ||
-          leadershipRoles.isDistrictPastor ||
-          leadershipRoles.isUnitHead
-        );
+        // Only GIA unit members can access
+        return member.unitType === UnitType.GIA;
 
       case DashboardModule.MEMBERS:
-        // District pastors can see their district members
-        // Unit heads can see their unit members
         // GIA can see all members for integration
-        return (
-          leadershipRoles.isDistrictPastor ||
-          leadershipRoles.isUnitHead ||
-          leadershipRoles.isChamp ||
-          member.unitType === UnitType.GIA
-        );
+        return member.unitType === UnitType.GIA;
 
       case DashboardModule.UNITS:
-        // Leadership can manage units
-        return (
-          leadershipRoles.isDistrictPastor ||
-          leadershipRoles.isUnitHead
-        );
+        // Access handled by role-based permissions
+        return false;
 
       case DashboardModule.MINISTRIES:
-        // Directors can manage their ministries
-        return !!(
-          member.directorOfMinistries &&
-          member.directorOfMinistries.length > 0
-        );
+        // Access handled by role-based permissions
+        return false;
 
       case DashboardModule.USER_MANAGEMENT:
-        // Only high-level leadership can manage users
-        return leadershipRoles.isDistrictPastor;
+        // Access handled by role-based permissions
+        return false;
 
       default:
         return false;
@@ -170,29 +152,19 @@ export class AccessControlService {
     action: string,
     resourceId?: string,
   ): boolean {
-    const { leadershipRoles } = member;
-
     switch (action) {
       case 'view':
         // Can view if has access to members module
         return this.canAccessModule(member, DashboardModule.MEMBERS);
 
       case 'edit':
-        // District pastors can edit their district members
-        // Unit heads can edit their unit members
         // GIA can edit for integration purposes
-        return (
-          leadershipRoles.isDistrictPastor ||
-          leadershipRoles.isUnitHead ||
-          member.unitType === UnitType.GIA
-        );
+        // Other access handled by role-based permissions
+        return member.unitType === UnitType.GIA;
 
       case 'delete':
-        // Only leadership can delete
-        return (
-          leadershipRoles.isDistrictPastor ||
-          leadershipRoles.isUnitHead
-        );
+        // Access handled by role-based permissions
+        return false;
 
       default:
         return false;
@@ -204,12 +176,9 @@ export class AccessControlService {
     action: string,
     resourceId?: string,
   ): boolean {
-    // Only GIA and leadership can access first-timers
-    return (
-      member.unitType === UnitType.GIA ||
-      member.leadershipRoles.isDistrictPastor ||
-      member.leadershipRoles.isUnitHead
-    );
+    // Only GIA can access first-timers via unit-based access
+    // Other access handled by role-based permissions
+    return member.unitType === UnitType.GIA;
   }
 
   private checkGroupResourceAccess(
@@ -217,18 +186,13 @@ export class AccessControlService {
     action: string,
     resourceId?: string,
   ): boolean {
-    const { leadershipRoles } = member;
-
     switch (action) {
       case 'view':
         return this.canAccessModule(member, DashboardModule.UNITS);
 
       case 'manage':
-        // Can manage if they lead the group or are high-level leadership
-        return (
-          leadershipRoles.isDistrictPastor ||
-          leadershipRoles.isUnitHead
-        );
+        // Access handled by role-based permissions
+        return false;
 
       default:
         return false;

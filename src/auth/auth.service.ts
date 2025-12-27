@@ -133,7 +133,6 @@ export class AuthService {
         membershipStatus: member.membershipStatus,
         district: member.district,
         unit: member.unit,
-        leadershipRoles: member.leadershipRoles,
         role: roleInfo,
         permissions,
         accessibleModules,
@@ -241,7 +240,6 @@ export class AuthService {
       unitType?: string;
       unit?: string;
       district?: string;
-      leadershipRoles?: any;
     },
   ) {
     const member = await this.membersService.updateAccessFields(
@@ -300,19 +298,22 @@ export class AuthService {
       permissions = accessibleModules.map(module => `${module}:view`);
     }
 
+    // Determine if member is a leader based on membershipStatus
+    const leaderStatuses = [MembershipStatus.PASTOR, MembershipStatus.SENIOR_PASTOR, MembershipStatus.DIRECTOR];
+    const isLeader = leaderStatuses.includes(member.membershipStatus) ||
+      member.systemRoles?.includes(UserRole.ADMIN) ||
+      member.systemRoles?.includes(UserRole.SUPER_ADMIN);
+
     return {
       memberId: member._id,
       name: `${member.firstName} ${member.lastName}`,
       systemRoles: member.systemRoles,
       unitType: member.unitType,
-      leadershipRoles: member.leadershipRoles,
+      membershipStatus: member.membershipStatus,
       role: roleInfo,
       permissions,
       accessibleModules,
-      isLeader:
-        member.leadershipRoles?.isDistrictPastor ||
-        member.leadershipRoles?.isUnitHead ||
-        member.leadershipRoles?.isChamp,
+      isLeader,
     };
   }
 
