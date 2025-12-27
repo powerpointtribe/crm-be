@@ -437,6 +437,7 @@ export class BulkOperationsService {
       maritalStatus: row.maritalStatus?.trim().toLowerCase(),
       password: row.password || 'TempPassword123!',
       membershipStatus: row.membershipStatus || 'NEW',
+      branch: row.branch?.trim(), // Required - every member must belong to a branch
       district: row.district?.trim(),
       unit: row.unit?.trim(),
       address: {

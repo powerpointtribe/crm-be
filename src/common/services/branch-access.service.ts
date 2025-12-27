@@ -641,6 +641,7 @@ export class BranchAccessService {
   /**
    * Apply branch filter to a MongoDB query filter object
    * Returns the modified filter with branch condition added
+   * Handles both ObjectId and string branch references for compatibility
    */
   applyBranchFilter<T extends Record<string, any>>(
     filter: T,
@@ -650,9 +651,14 @@ export class BranchAccessService {
     const branchFilter = this.getBranchFilter(context);
 
     if (branchFilter.shouldFilter && branchFilter.branchId) {
+      const branchIdString = branchFilter.branchId.toString();
+      // Match both ObjectId and string representations for compatibility
+      // Some documents may have branch stored as string, others as ObjectId
       return {
         ...filter,
-        [branchField]: branchFilter.branchId,
+        [branchField]: {
+          $in: [branchFilter.branchId, branchIdString],
+        },
       };
     }
 

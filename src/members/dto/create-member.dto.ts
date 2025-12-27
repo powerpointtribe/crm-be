@@ -170,7 +170,14 @@ export class CreateMemberDto {
   @Type(() => AddressDto)
   address: AddressDto;
 
-  // CHURCH STRUCTURE - District and Unit Assignments
+  // CHURCH STRUCTURE - Branch, District and Unit Assignments
+  @ApiProperty({
+    description: 'Branch/Expression ID (required - every member must belong to a branch)',
+  })
+  @IsNotEmpty({ message: 'Branch is required - every member must belong to a branch/expression' })
+  @IsMongoId()
+  branch: string;
+
   @ApiPropertyOptional({
     description:
       'District ID (optional - member can be created without district assignment)',

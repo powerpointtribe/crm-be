@@ -477,6 +477,7 @@ export class FirstTimersService {
         gender: firstTimer.gender || 'male', // Use first-timer's gender if available
         password: Math.random().toString(36).slice(-8), // Temporary random password
         membershipStatus: MembershipStatus.MEMBER,
+        branch: firstTimer.branch!.toString(), // Required - first-timer always has branch from form
         district:
           firstTimer.suggestedDistrict?.toString() ||
           '507f1f77bcf86cd799439011', // Default district ID

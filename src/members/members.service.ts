@@ -426,13 +426,18 @@ export class MembersService {
       this.memberModel
         .find(filterQuery)
         .populate({
+          path: 'branch',
+          select: '_id name',
+          options: { strictPopulate: false }
+        })
+        .populate({
           path: 'district',
-          select: '_id name type',
+          select: '_id name type branch',
           options: { strictPopulate: false }
         })
         .populate({
           path: 'unit',
-          select: 'name type',
+          select: '_id name type branch',
           options: { strictPopulate: false }
         })
         .populate('spouse', 'firstName lastName')
@@ -473,8 +478,9 @@ export class MembersService {
     return this.memberModel
       .findById(id)
       .populate('role')
-      .populate('district', 'name type description meetingSchedule')
-      .populate('unit', 'name type description')
+      .populate('branch', '_id name')
+      .populate('district', '_id name type description meetingSchedule branch')
+      .populate('unit', '_id name type description branch')
       .populate('spouse', 'firstName lastName email phone')
       .populate('children', 'firstName lastName email phone dateOfBirth')
       .populate('parent', 'firstName lastName email phone')
@@ -778,7 +784,37 @@ export class MembersService {
   }
 
   // Analytics and Reports
-  async getMemberStats(): Promise<any> {
+  async getMemberStats(
+    branchFilterContext?: BranchFilterContext,
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<any> {
+    // Build base filter with branch filtering
+    let baseFilter: any = { isActive: true };
+
+    if (branchFilterContext) {
+      const branchFilter = this.branchAccessService.getBranchFilter(branchFilterContext);
+      if (branchFilter.shouldFilter && branchFilter.branchId) {
+        const branchIdString = branchFilter.branchId.toString();
+        // Match both ObjectId and string representations
+        baseFilter.branch = { $in: [branchFilter.branchId, branchIdString] };
+      }
+    }
+
+    // Add date range filter for dateJoined
+    if (dateFrom || dateTo) {
+      baseFilter.dateJoined = {};
+      if (dateFrom) {
+        baseFilter.dateJoined.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        // Add 1 day to include the end date fully
+        const endDate = new Date(dateTo);
+        endDate.setDate(endDate.getDate() + 1);
+        baseFilter.dateJoined.$lte = endDate;
+      }
+    }
+
     const [
       statusStats,
       genderStats,
@@ -790,19 +826,19 @@ export class MembersService {
     ] = await Promise.all([
       // Status distribution
       this.memberModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: baseFilter },
         { $group: { _id: '$membershipStatus', count: { $sum: 1 } } },
       ]),
 
       // Gender distribution
       this.memberModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: baseFilter },
         { $group: { _id: '$gender', count: { $sum: 1 } } },
       ]),
 
       // District distribution
       this.memberModel.aggregate([
-        { $match: { isActive: true, district: { $exists: true, $ne: null } } },
+        { $match: { ...baseFilter, district: { $exists: true, $ne: null } } },
         {
           $addFields: {
             districtObjectId: { $toObjectId: '$district' },
@@ -830,7 +866,7 @@ export class MembersService {
 
       // Unit distribution
       this.memberModel.aggregate([
-        { $match: { isActive: true, unit: { $exists: true, $ne: null } } },
+        { $match: { ...baseFilter, unit: { $exists: true, $ne: null } } },
         {
           $addFields: {
             unitObjectId: { $toObjectId: '$unit' },
@@ -857,7 +893,7 @@ export class MembersService {
 
       // Leadership distribution
       this.memberModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: baseFilter },
         {
           $project: {
             roles: {
@@ -893,7 +929,7 @@ export class MembersService {
 
       // Age distribution
       this.memberModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: baseFilter },
         {
           $project: {
             age: {
@@ -917,11 +953,11 @@ export class MembersService {
       ]),
 
       // Total count
-      this.memberModel.countDocuments({ isActive: true }),
+      this.memberModel.countDocuments(baseFilter),
     ]);
 
     const membersWithoutUnits = await this.memberModel.countDocuments({
-      isActive: true,
+      ...baseFilter,
       $or: [{ unit: null }, { unit: { $exists: false } }],
     });
 

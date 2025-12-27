@@ -93,8 +93,35 @@ export class MembersController {
 
   @Get('stats')
   @RequirePermission(MembersPermission.VIEW_MEMBER_STATS)
-  async getMemberStats(@Request() req) {
-    return this.membersService.getMemberStats();
+  async getMemberStats(
+    @Query('branchId') branchId: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Request() req,
+  ) {
+    const { user: currentMember } = req;
+
+    // Build branch filter context based on user's permissions
+    let branchFilterContext: BranchFilterContext | undefined;
+
+    if (currentMember.role) {
+      const userPermissions = await this.userPermissionsService.getUserPermissions(
+        currentMember.role._id || currentMember.role,
+      );
+
+      branchFilterContext = {
+        userPermissions: userPermissions.permissions,
+        userBranchId: currentMember.branch?._id || currentMember.branch,
+        selectedBranchId: branchId,
+      };
+    } else {
+      branchFilterContext = {
+        userPermissions: [],
+        userBranchId: currentMember.branch?._id || currentMember.branch,
+      };
+    }
+
+    return this.membersService.getMemberStats(branchFilterContext, dateFrom, dateTo);
   }
 
   @Get('my-profile')
