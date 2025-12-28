@@ -43,8 +43,13 @@ export class MembersService {
     // District assignment is now optional
     // Members can be created without district assignment and assigned later
 
-    // Check for duplicate data before creating member
-    await this.checkForDuplicates(createMemberDto.email, createMemberDto.phone);
+    // Check for exact duplicate (all four fields must match)
+    await this.checkForExactDuplicate(
+      createMemberDto.firstName,
+      createMemberDto.lastName,
+      createMemberDto.email,
+      createMemberDto.phone,
+    );
 
     // Validate and convert dateOfBirth
     const dateOfBirth = new Date(createMemberDto.dateOfBirth);
@@ -82,6 +87,63 @@ export class MembersService {
   }
 
   // Duplicate checking methods
+
+  /**
+   * Check for exact duplicate - only rejects if ALL four fields match
+   */
+  async checkForExactDuplicate(
+    firstName: string,
+    lastName: string,
+    email: string,
+    phone: string,
+  ): Promise<void> {
+    const existingMember = await this.findExactDuplicate(
+      firstName,
+      lastName,
+      email,
+      phone,
+    );
+
+    if (existingMember) {
+      throw new BadRequestException({
+        message: 'A member with the same name, email, and phone already exists',
+        duplicate: {
+          id: existingMember._id,
+          name: `${existingMember.firstName} ${existingMember.lastName}`,
+          email: existingMember.email,
+          phone: existingMember.phone,
+          membershipStatus: existingMember.membershipStatus,
+          dateJoined: existingMember.dateJoined,
+        },
+        suggestion: 'Please review the existing record or update it instead',
+      });
+    }
+  }
+
+  /**
+   * Find exact duplicate by firstName, lastName, email, AND phone (all must match)
+   */
+  async findExactDuplicate(
+    firstName: string,
+    lastName: string,
+    email: string,
+    phone: string,
+  ): Promise<MemberDocument | null> {
+    return this.memberModel
+      .findOne({
+        firstName: { $regex: new RegExp(`^${firstName}$`, 'i') },
+        lastName: { $regex: new RegExp(`^${lastName}$`, 'i') },
+        email: email?.toLowerCase(),
+        phone: phone,
+        isActive: true,
+      })
+      .select('firstName lastName email phone membershipStatus dateJoined')
+      .exec();
+  }
+
+  /**
+   * @deprecated Use checkForExactDuplicate instead
+   */
   async checkForDuplicates(email: string, phone: string): Promise<void> {
     const existingMembers = await this.findDuplicates(email, phone);
 
@@ -954,9 +1016,14 @@ export class MembersService {
     const processedDto =
       MemberCSVMappingUtil.postProcessMappedData(createMemberDto);
 
-    // Check for duplicates in bulk operations
+    // Check for exact duplicates in bulk operations (all four fields must match)
     try {
-      await this.checkForDuplicates(processedDto.email, processedDto.phone);
+      await this.checkForExactDuplicate(
+        processedDto.firstName,
+        processedDto.lastName,
+        processedDto.email,
+        processedDto.phone,
+      );
     } catch (error) {
       // For bulk operations, we'll log duplicates but continue processing
       throw new Error(`Duplicate found: ${error.message}`);

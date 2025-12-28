@@ -28,6 +28,7 @@ import { QueueService } from '../queue/queue.service';
 import { GroupsService } from '../groups/groups.service';
 import { CallReportsService } from './call-reports.service';
 import { BranchesService } from '../branches/branches.service';
+import { RolesService } from '../roles/services/roles.service';
 import { GroupType } from '../common/enums/group-types.enum';
 import { JobType } from '../common/interfaces/queue-job.interface';
 import { BranchDocument } from '../branches/schemas/branch.schema';
@@ -49,6 +50,7 @@ export class FirstTimersService {
     private callReportsService: CallReportsService,
     private branchesService: BranchesService,
     private branchAccessService: BranchAccessService,
+    private rolesService: RolesService,
   ) {}
 
   async create(
@@ -302,6 +304,24 @@ export class FirstTimersService {
   ): Promise<FirstTimerDocument | null> {
     return this.firstTimerModel
       .findOne({ phone, email, isActive: true })
+      .exec();
+  }
+
+  /**
+   * Find duplicate first timer by phone, email, and firstName (case-insensitive)
+   */
+  async findDuplicate(
+    phone: string,
+    email: string,
+    firstName: string,
+  ): Promise<FirstTimerDocument | null> {
+    return this.firstTimerModel
+      .findOne({
+        phone,
+        email: email?.toLowerCase(),
+        firstName: { $regex: new RegExp(`^${firstName}$`, 'i') },
+        isActive: true,
+      })
       .exec();
   }
 
@@ -1201,6 +1221,11 @@ export class FirstTimersService {
     createFirstTimerDto: PublicCreateFirstTimerDto,
     branchId: Types.ObjectId | string,
   ): Promise<FirstTimerDocument> {
+    // Convert branchId to ObjectId if it's a string
+    const branchObjectId = typeof branchId === 'string'
+      ? new Types.ObjectId(branchId)
+      : branchId;
+
     // Set dateOfVisit to today if not provided
     const dateOfVisit = createFirstTimerDto.dateOfVisit
       ? new Date(createFirstTimerDto.dateOfVisit)
@@ -1246,7 +1271,7 @@ export class FirstTimersService {
       servingInterests: createFirstTimerDto.servingInterests || [],
       dateOfVisit,
       status: EngagementStatus.NEW,
-      branch: branchId, // Assign the branch based on the URL slug
+      branch: branchObjectId, // Assign the branch based on the URL slug
       followUps: [],
       prayerRequests: [],
       followUpCount: 0,
@@ -1707,6 +1732,14 @@ export class FirstTimersService {
       throw new BadRequestException('Invalid district ID');
     }
 
+    // Determine branch - use first timer's branch or fall back to district's branch
+    const branchId = firstTimer.branch?.toString() || district.branch?.toString();
+    if (!branchId) {
+      throw new BadRequestException(
+        'Unable to determine branch for integration. Please assign a branch to the first-timer or district.',
+      );
+    }
+
     // Verify unit exists if provided
     if (unitId) {
       const unit = await this.groupsService.findById(unitId);
@@ -1724,6 +1757,15 @@ export class FirstTimersService {
       } else {
         dateOfBirth = firstTimer.dateOfBirth;
       }
+    }
+
+    // Get default "Member" role
+    let memberRoleId: string | undefined;
+    try {
+      const memberRole = await this.rolesService.findByName('Member') as any;
+      memberRoleId = memberRole?._id?.toString();
+    } catch (error) {
+      this.logger.warn('Default "Member" role not found, member will be created without a role');
     }
 
     // Create member record
@@ -1744,22 +1786,23 @@ export class FirstTimersService {
       gender: firstTimer.gender || 'male',
       password: Math.random().toString(36).slice(-8),
       membershipStatus: MembershipStatus.MEMBER,
-      branch: firstTimer.branch!.toString(),
+      branch: branchId,
       district: districtId,
       profilePhotoUrl: firstTimer.profilePhotoUrl,
       occupation: firstTimer.occupation,
       maritalStatus: firstTimer.maritalStatus,
+      role: memberRoleId,
     };
 
     const newMember = await this.membersService.create(memberData);
     const memberId = newMember._id?.toString();
 
     // Add member to district
-    await this.groupsService.addMemberToGroup(districtId, memberId);
+    await this.groupsService.addMember(districtId, memberId);
 
     // Add member to unit if specified
     if (unitId) {
-      await this.groupsService.addMemberToGroup(unitId, memberId);
+      await this.groupsService.addMember(unitId, memberId);
     }
 
     // Update first timer status

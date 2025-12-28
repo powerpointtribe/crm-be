@@ -186,14 +186,15 @@ export class FirstTimersController {
         throw new BadRequestException(`Branch with slug '${slug}' not found`);
       }
 
-      const existingByPhoneAndEmail =
-        await this.firstTimersService.findByPhoneAndEmail(
+      const existingDuplicate =
+        await this.firstTimersService.findDuplicate(
           createFirstTimerDto.phone,
           createFirstTimerDto.email,
+          createFirstTimerDto.firstName,
         );
-      if (existingByPhoneAndEmail) {
+      if (existingDuplicate) {
         throw new ConflictException(
-          `Duplicate phone and email detected: ${createFirstTimerDto.phone} and ${createFirstTimerDto.email}`,
+          `A visitor with the same name, phone, and email already exists: ${createFirstTimerDto.firstName} (${createFirstTimerDto.phone}, ${createFirstTimerDto.email})`,
         );
       }
 
@@ -245,14 +246,15 @@ export class FirstTimersController {
   })
   async createPublic(@Body() createFirstTimerDto: PublicCreateFirstTimerDto) {
     try {
-      const existingByPhoneAndEmail =
-        await this.firstTimersService.findByPhoneAndEmail(
+      const existingDuplicate =
+        await this.firstTimersService.findDuplicate(
           createFirstTimerDto.phone,
           createFirstTimerDto.email,
+          createFirstTimerDto.firstName,
         );
-      if (existingByPhoneAndEmail) {
+      if (existingDuplicate) {
         throw new ConflictException(
-          `Duplicate phone and email detected: ${createFirstTimerDto.phone} and ${createFirstTimerDto.email} - already exists for ${existingByPhoneAndEmail.firstName} ${existingByPhoneAndEmail.lastName} (${existingByPhoneAndEmail._id})`,
+          `A visitor with the same name, phone, and email already exists: ${createFirstTimerDto.firstName} (${createFirstTimerDto.phone}, ${createFirstTimerDto.email})`,
         );
       }
 
