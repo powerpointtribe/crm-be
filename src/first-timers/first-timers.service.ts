@@ -155,10 +155,44 @@ export class FirstTimersService {
       visitorType,
       howDidYouHear,
       branchId,
+      excludeReadyForIntegration,
+      dateRange,
     } = searchDto;
 
     const skip = (page - 1) * limit;
-    let filterQuery: FilterQuery<FirstTimerDocument> = { isActive: true };
+    let filterQuery: FilterQuery<FirstTimerDocument> = {
+      isActive: true,
+    };
+
+    // Show all records including archived in the general listing
+    // Status filtering will handle showing specific statuses
+
+    // Exclude ready for integration if requested
+    if (excludeReadyForIntegration) {
+      filterQuery.readyForIntegration = { $ne: true };
+    }
+
+    // Apply date range filter based on dateOfVisit
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date();
+      let fromDate: Date;
+
+      switch (dateRange) {
+        case '7days':
+          fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30days':
+          fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '3months':
+          fromDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          fromDate = new Date(0); // All time
+      }
+
+      filterQuery.dateOfVisit = { $gte: fromDate };
+    }
 
     // Apply branch filtering based on user permissions
     if (branchFilterContext) {
@@ -666,19 +700,21 @@ export class FirstTimersService {
     const [
       statusStats,
       conversionStats,
+      totalAllStats,
       sourceStats,
       weeklyStats,
       assignmentStats,
+      readyForIntegrationCount,
     ] = await Promise.all([
-      // Status distribution
+      // Status distribution (exclude archived)
       this.firstTimerModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: { isActive: true, isArchived: { $ne: true } } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
 
-      // Conversion analytics
+      // Conversion analytics (exclude archived) - for active count
       this.firstTimerModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: { isActive: true, isArchived: { $ne: true } } },
         {
           $group: {
             _id: null,
@@ -689,18 +725,31 @@ export class FirstTimersService {
         },
       ]),
 
-      // Traffic sources
+      // Total count including archived (for "Total Visitors" display)
       this.firstTimerModel.aggregate([
         { $match: { isActive: true } },
+        {
+          $group: {
+            _id: null,
+            totalAll: { $sum: 1 },
+            totalArchived: { $sum: { $cond: [{ $eq: ['$isArchived', true] }, 1, 0] } },
+          },
+        },
+      ]),
+
+      // Traffic sources (exclude archived)
+      this.firstTimerModel.aggregate([
+        { $match: { isActive: true, isArchived: { $ne: true } } },
         { $group: { _id: '$howDidYouHear', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
 
-      // Weekly visitor trends (last 8 weeks)
+      // Weekly visitor trends (last 8 weeks) (exclude archived)
       this.firstTimerModel.aggregate([
         {
           $match: {
             isActive: true,
+            isArchived: { $ne: true },
             dateOfVisit: {
               $gte: new Date(Date.now() - 8 * 7 * 24 * 60 * 60 * 1000),
             },
@@ -718,9 +767,9 @@ export class FirstTimersService {
         { $sort: { '_id.year': 1, '_id.week': 1 } },
       ]),
 
-      // Assignment stats
+      // Assignment stats (exclude archived)
       this.firstTimerModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: { isActive: true, isArchived: { $ne: true } } },
         {
           $group: {
             _id: '$assignedTo',
@@ -737,6 +786,13 @@ export class FirstTimersService {
           },
         },
       ]),
+
+      // Ready for integration count
+      this.firstTimerModel.countDocuments({
+        isActive: true,
+        isArchived: { $ne: true },
+        readyForIntegration: true,
+      }),
     ]);
 
     const conversionRate = conversionStats[0]
@@ -745,8 +801,14 @@ export class FirstTimersService {
         )
       : 0;
 
+    // All visitors including archived (for "All Visitors" tab)
+    const totalAll = totalAllStats[0]?.totalAll || 0;
+    const totalArchived = totalAllStats[0]?.totalArchived || 0;
+
     return {
-      total: conversionStats[0]?.total || 0,
+      total: totalAll, // All first timers including archived (for "All Visitors" tab)
+      totalArchived: totalArchived, // Archived count (for "Archived" tab)
+      readyForIntegration: readyForIntegrationCount, // Ready for integration count
       byStatus: statusStats,
       conversionRate,
       totalConverted: conversionStats[0]?.converted || 0,
@@ -1202,5 +1264,623 @@ export class FirstTimersService {
     firstTimer.nextFollowUpDate = nextDay;
 
     return firstTimer.save();
+  }
+
+  // ==================== ARCHIVE METHODS ====================
+
+  /**
+   * Archive a first timer manually
+   */
+  async archive(id: string, reason?: string): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          isArchived: true,
+          archivedAt: new Date(),
+          archiveReason: reason || 'Manually archived',
+          status: EngagementStatus.ARCHIVED,
+          lastStatusChange: new Date(),
+        },
+      },
+      { new: true },
+    );
+
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    this.logger.log(`First-timer ${id} archived. Reason: ${reason || 'Manually archived'}`);
+    return firstTimer;
+  }
+
+  /**
+   * Unarchive/restore an archived first timer
+   */
+  async unarchive(id: string): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          isArchived: false,
+          status: EngagementStatus.ENGAGED,
+          lastStatusChange: new Date(),
+        },
+        $unset: {
+          archivedAt: 1,
+          archiveReason: 1,
+        },
+      },
+      { new: true },
+    );
+
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    this.logger.log(`First-timer ${id} unarchived`);
+    return firstTimer;
+  }
+
+  /**
+   * Set or unset the exemptFromAutoArchive flag
+   */
+  async setExemptFromAutoArchive(id: string, exempt: boolean): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
+      id,
+      { $set: { exemptFromAutoArchive: exempt } },
+      { new: true },
+    );
+
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    this.logger.log(`First-timer ${id} exemptFromAutoArchive set to ${exempt}`);
+    return firstTimer;
+  }
+
+  /**
+   * Find all archived first timers with pagination
+   */
+  async findArchived(
+    searchDto: FirstTimerSearchDto,
+    branchFilterContext?: BranchFilterContext,
+  ): Promise<PaginatedResult<FirstTimerDocument>> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      sortBy = 'archivedAt',
+      sortOrder = 'desc',
+      branchId,
+      dateRange,
+    } = searchDto;
+
+    const skip = (page - 1) * limit;
+    let filterQuery: FilterQuery<FirstTimerDocument> = {
+      isActive: true,
+      isArchived: true,
+    };
+
+    // Apply date range filter based on dateOfVisit
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date();
+      let fromDate: Date;
+
+      switch (dateRange) {
+        case '7days':
+          fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30days':
+          fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '3months':
+          fromDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          fromDate = new Date(0);
+      }
+
+      filterQuery.dateOfVisit = { $gte: fromDate };
+    }
+
+    // Apply branch filtering based on user permissions
+    if (branchFilterContext) {
+      const effectiveContext: BranchFilterContext = {
+        ...branchFilterContext,
+        selectedBranchId: branchId || branchFilterContext.selectedBranchId,
+      };
+      filterQuery = this.branchAccessService.applyBranchFilter(
+        filterQuery,
+        effectiveContext,
+        'branch',
+      );
+    }
+
+    // Text search
+    if (search) {
+      const searchQuery = QueryBuilder.buildSearchQuery(search, [
+        'firstName',
+        'lastName',
+        'phone',
+        'email',
+      ]);
+      Object.assign(filterQuery, searchQuery);
+    }
+
+    // Build sort query
+    const sortQuery = QueryBuilder.buildSortQuery(sortBy, sortOrder);
+
+    const [firstTimers, total] = await Promise.all([
+      this.firstTimerModel
+        .find(filterQuery)
+        .populate('assignedTo', 'firstName lastName email')
+        .populate('branch', 'name slug')
+        .sort(sortQuery)
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.firstTimerModel.countDocuments(filterQuery),
+    ]);
+
+    return createPaginatedResult(firstTimers, total, page, limit);
+  }
+
+  /**
+   * Find first timers eligible for auto-archiving
+   * Criteria:
+   * - More than 3 follow-up engagements (followUpCount > 3)
+   * - 6 months have passed since dateOfVisit
+   * - Not already archived
+   * - Not exempt from auto-archive
+   */
+  async findAutoArchiveEligible(): Promise<FirstTimerDocument[]> {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    return this.firstTimerModel.find({
+      isActive: true,
+      isArchived: { $ne: true },
+      exemptFromAutoArchive: { $ne: true },
+      followUpCount: { $gt: 3 },
+      dateOfVisit: { $lte: sixMonthsAgo },
+    });
+  }
+
+  /**
+   * Run the auto-archive process
+   * Archives first timers that meet the criteria
+   */
+  async runAutoArchive(): Promise<{ archivedCount: number; archivedIds: string[] }> {
+    const eligibleFirstTimers = await this.findAutoArchiveEligible();
+    const archivedIds: string[] = [];
+
+    for (const firstTimer of eligibleFirstTimers) {
+      try {
+        const firstTimerId = (firstTimer._id as any).toString();
+        await this.firstTimerModel.findByIdAndUpdate(firstTimer._id, {
+          $set: {
+            isArchived: true,
+            archivedAt: new Date(),
+            archiveReason: 'Auto-archived: More than 3 follow-ups and 6 months since first visit',
+          },
+        });
+        archivedIds.push(firstTimerId);
+      } catch (error) {
+        this.logger.error(`Failed to auto-archive first-timer ${(firstTimer._id as any).toString()}: ${error.message}`);
+      }
+    }
+
+    this.logger.log(`Auto-archive completed: ${archivedIds.length} first-timers archived`);
+    return { archivedCount: archivedIds.length, archivedIds };
+  }
+
+  /**
+   * Get archive statistics
+   */
+  async getArchiveStats(): Promise<{
+    totalArchived: number;
+    archivedThisMonth: number;
+    exemptCount: number;
+    eligibleForArchive: number;
+  }> {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [totalArchived, archivedThisMonth, exemptCount, eligibleForArchive] = await Promise.all([
+      this.firstTimerModel.countDocuments({ isArchived: true, isActive: true }),
+      this.firstTimerModel.countDocuments({
+        isArchived: true,
+        isActive: true,
+        archivedAt: { $gte: startOfMonth },
+      }),
+      this.firstTimerModel.countDocuments({ exemptFromAutoArchive: true, isActive: true }),
+      this.findAutoArchiveEligible().then((docs) => docs.length),
+    ]);
+
+    return { totalArchived, archivedThisMonth, exemptCount, eligibleForArchive };
+  }
+
+  // ==================== READY FOR INTEGRATION METHODS ====================
+
+  /**
+   * Mark a first timer as ready for integration
+   * This does NOT create a member record - it just flags the first timer
+   */
+  async markReadyForIntegration(
+    id: string,
+    markedByUserId: string,
+  ): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel.findById(id);
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    if (firstTimer.readyForIntegration) {
+      throw new BadRequestException('First-timer is already marked as ready for integration');
+    }
+
+    const updatedFirstTimer = await this.firstTimerModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            readyForIntegration: true,
+            readyForIntegrationDate: new Date(),
+            markedReadyBy: markedByUserId,
+            lastStatusChange: new Date(),
+            status: EngagementStatus.READY_FOR_INTEGRATION,
+          },
+        },
+        { new: true },
+      )
+      .populate('assignedTo', 'firstName lastName email phone')
+      .populate('branch', 'name slug')
+      .populate('markedReadyBy', 'firstName lastName');
+
+    if (!updatedFirstTimer) {
+      throw new NotFoundException('First-timer not found after update');
+    }
+
+    this.logger.log(`First-timer ${id} marked as ready for integration by user ${markedByUserId}`);
+
+    return updatedFirstTimer;
+  }
+
+  /**
+   * Unmark a first timer from ready for integration
+   */
+  async unmarkReadyForIntegration(id: string): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          readyForIntegration: false,
+          status: EngagementStatus.ENGAGED,
+          lastStatusChange: new Date(),
+        },
+        $unset: {
+          readyForIntegrationDate: 1,
+          markedReadyBy: 1,
+        },
+      },
+      { new: true },
+    );
+
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    this.logger.log(`First-timer ${id} unmarked from ready for integration`);
+    return firstTimer;
+  }
+
+  /**
+   * Find all first timers marked as ready for integration with pagination
+   */
+  async findReadyForIntegration(
+    searchDto: FirstTimerSearchDto,
+    branchFilterContext?: BranchFilterContext,
+  ): Promise<PaginatedResult<FirstTimerDocument>> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      sortBy = 'readyForIntegrationDate',
+      sortOrder = 'desc',
+      branchId,
+      dateRange,
+    } = searchDto;
+
+    const skip = (page - 1) * limit;
+    let filterQuery: FilterQuery<FirstTimerDocument> = {
+      isActive: true,
+      isArchived: { $ne: true },
+      readyForIntegration: true,
+    };
+
+    // Apply date range filter based on dateOfVisit
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date();
+      let fromDate: Date;
+
+      switch (dateRange) {
+        case '7days':
+          fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30days':
+          fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '3months':
+          fromDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          fromDate = new Date(0);
+      }
+
+      filterQuery.dateOfVisit = { $gte: fromDate };
+    }
+
+    // Apply branch filtering based on user permissions
+    if (branchFilterContext) {
+      const effectiveContext: BranchFilterContext = {
+        ...branchFilterContext,
+        selectedBranchId: branchId || branchFilterContext.selectedBranchId,
+      };
+      filterQuery = this.branchAccessService.applyBranchFilter(
+        filterQuery,
+        effectiveContext,
+        'branch',
+      );
+    }
+
+    // Text search
+    if (search) {
+      const searchQuery = QueryBuilder.buildSearchQuery(search, [
+        'firstName',
+        'lastName',
+        'phone',
+        'email',
+      ]);
+      Object.assign(filterQuery, searchQuery);
+    }
+
+    // Build sort query
+    const sortQuery = QueryBuilder.buildSortQuery(sortBy, sortOrder);
+
+    const [firstTimers, total] = await Promise.all([
+      this.firstTimerModel
+        .find(filterQuery)
+        .populate('assignedTo', 'firstName lastName email')
+        .populate('branch', 'name slug')
+        .populate('markedReadyBy', 'firstName lastName')
+        .sort(sortQuery)
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.firstTimerModel.countDocuments(filterQuery),
+    ]);
+
+    return createPaginatedResult(firstTimers, total, page, limit);
+  }
+
+  /**
+   * Get count of first timers ready for integration
+   */
+  async getReadyForIntegrationCount(): Promise<number> {
+    return this.firstTimerModel.countDocuments({
+      isActive: true,
+      isArchived: { $ne: true },
+      readyForIntegration: true,
+    });
+  }
+
+  /**
+   * Integrate a first timer into membership
+   * Creates a member record and assigns to district/unit
+   */
+  async integrateFirstTimer(
+    id: string,
+    districtId: string,
+    unitId?: string,
+  ): Promise<{ firstTimer: FirstTimerDocument; memberId: string }> {
+    const firstTimer = await this.firstTimerModel.findById(id);
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    if (!firstTimer.readyForIntegration) {
+      throw new BadRequestException(
+        'First-timer must be marked as ready for integration before integrating',
+      );
+    }
+
+    if (firstTimer.status === EngagementStatus.CLOSED) {
+      throw new BadRequestException('First-timer has already been integrated');
+    }
+
+    // Verify district exists
+    const district = await this.groupsService.findById(districtId);
+    if (!district || district.type !== 'district') {
+      throw new BadRequestException('Invalid district ID');
+    }
+
+    // Verify unit exists if provided
+    if (unitId) {
+      const unit = await this.groupsService.findById(unitId);
+      if (!unit || unit.type !== 'unit') {
+        throw new BadRequestException('Invalid unit ID');
+      }
+    }
+
+    // Convert date of birth format
+    let dateOfBirth = '1990-01-01';
+    if (firstTimer.dateOfBirth) {
+      // dateOfBirth might be in MM-DD format, prepend 1990
+      if (firstTimer.dateOfBirth.length === 5) {
+        dateOfBirth = `1990-${firstTimer.dateOfBirth}`;
+      } else {
+        dateOfBirth = firstTimer.dateOfBirth;
+      }
+    }
+
+    // Create member record
+    const memberData = {
+      firstName: firstTimer.firstName,
+      lastName: firstTimer.lastName,
+      email:
+        firstTimer.email ||
+        `${firstTimer.firstName.toLowerCase()}.${firstTimer.lastName.toLowerCase()}@church.local`,
+      phone: firstTimer.phone,
+      address: {
+        street: firstTimer.address?.street || '',
+        city: firstTimer.address?.city || '',
+        state: firstTimer.address?.state || '',
+        country: firstTimer.address?.country || 'Nigeria',
+      },
+      dateOfBirth,
+      gender: firstTimer.gender || 'male',
+      password: Math.random().toString(36).slice(-8),
+      membershipStatus: MembershipStatus.MEMBER,
+      branch: firstTimer.branch!.toString(),
+      district: districtId,
+      profilePhotoUrl: firstTimer.profilePhotoUrl,
+      occupation: firstTimer.occupation,
+      maritalStatus: firstTimer.maritalStatus,
+    };
+
+    const newMember = await this.membersService.create(memberData);
+    const memberId = newMember._id?.toString();
+
+    // Add member to district
+    await this.groupsService.addMemberToGroup(districtId, memberId);
+
+    // Add member to unit if specified
+    if (unitId) {
+      await this.groupsService.addMemberToGroup(unitId, memberId);
+    }
+
+    // Update first timer status
+    const updatedFirstTimer = await this.firstTimerModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            converted: true,
+            conversionDate: new Date(),
+            memberRecord: memberId,
+            status: EngagementStatus.CLOSED,
+            readyForIntegration: false,
+            lastStatusChange: new Date(),
+            memberCreatedAt: new Date(),
+            assignedDistrict: districtId,
+            districtAssignmentDate: new Date(),
+            integrationStage: 'assigned_to_district',
+            integrationStageDate: new Date(),
+          },
+        },
+        { new: true },
+      )
+      .populate('memberRecord', 'firstName lastName membershipStatus')
+      .populate('assignedDistrict', 'name');
+
+    if (!updatedFirstTimer) {
+      throw new NotFoundException('First-timer not found after update');
+    }
+
+    this.logger.log(
+      `First-timer ${firstTimer.firstName} ${firstTimer.lastName} integrated as member ${memberId}`,
+    );
+
+    return { firstTimer: updatedFirstTimer, memberId };
+  }
+
+  // ==================== FOLLOW-UP REMINDER METHODS ====================
+
+  /**
+   * Find all first timers with follow-up reminders due today
+   * Returns first timers with their follow-ups that have nextFollowUpDate matching today
+   */
+  async findFollowUpsDueToday(): Promise<
+    Array<{
+      firstTimer: FirstTimerDocument;
+      dueFollowUps: Array<{
+        date: Date;
+        method: string;
+        notes?: string;
+        outcome: string;
+        contactedBy: Types.ObjectId;
+        nextFollowUpDate?: Date;
+      }>;
+    }>
+  > {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Find first timers with follow-ups that have nextFollowUpDate due today
+    const firstTimers = await this.firstTimerModel
+      .find({
+        isActive: true,
+        isArchived: { $ne: true },
+        'followUps.nextFollowUpDate': {
+          $gte: today,
+          $lt: tomorrow,
+        },
+      })
+      .populate('assignedTo', 'firstName lastName email')
+      .populate('followUps.contactedBy', 'firstName lastName email')
+      .exec();
+
+    // Extract the specific follow-ups that are due today
+    return firstTimers.map((firstTimer) => ({
+      firstTimer,
+      dueFollowUps: firstTimer.followUps.filter((followUp) => {
+        if (!followUp.nextFollowUpDate) return false;
+        const followUpDate = new Date(followUp.nextFollowUpDate);
+        followUpDate.setHours(0, 0, 0, 0);
+        return followUpDate.getTime() === today.getTime();
+      }),
+    }));
+  }
+
+  /**
+   * Get summary of follow-up reminders due today
+   */
+  async getFollowUpRemindersSummary(): Promise<{
+    totalDue: number;
+    firstTimersDue: number;
+    reminders: Array<{
+      firstTimerId: string;
+      firstTimerName: string;
+      firstTimerPhone: string;
+      assignedToEmail: string | null;
+      assignedToName: string | null;
+      followUpCount: number;
+    }>;
+  }> {
+    const dueFollowUps = await this.findFollowUpsDueToday();
+
+    const reminders = dueFollowUps.map(({ firstTimer, dueFollowUps }) => ({
+      firstTimerId: (firstTimer._id as any).toString(),
+      firstTimerName: `${firstTimer.firstName} ${firstTimer.lastName}`,
+      firstTimerPhone: firstTimer.phone,
+      assignedToEmail: firstTimer.assignedTo
+        ? (firstTimer.assignedTo as any).email
+        : null,
+      assignedToName: firstTimer.assignedTo
+        ? `${(firstTimer.assignedTo as any).firstName} ${(firstTimer.assignedTo as any).lastName}`
+        : null,
+      followUpCount: dueFollowUps.length,
+    }));
+
+    return {
+      totalDue: reminders.reduce((sum, r) => sum + r.followUpCount, 0),
+      firstTimersDue: reminders.length,
+      reminders,
+    };
   }
 }

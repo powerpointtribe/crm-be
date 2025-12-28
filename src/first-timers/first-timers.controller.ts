@@ -37,6 +37,7 @@ import { FirstTimerSearchDto } from './dto/first-timer-search.dto';
 import { BulkUploadResultDto } from './dto/bulk-upload-first-timer.dto';
 import { CreateCallReportDto } from './dto/create-call-report.dto';
 import { UpdateIntegrationStageDto } from './dto/update-integration-stage.dto';
+import { IntegrateFirstTimerDto } from './dto/integrate-first-timer.dto';
 import { CSVParserUtil } from '../common/utils/csv-parser.util';
 import { QueueService } from '../queue/queue.service';
 import { JobType } from '../common/interfaces/queue-job.interface';
@@ -603,6 +604,72 @@ export class FirstTimersController {
       results,
       'Search results retrieved successfully',
     );
+  }
+
+  // ==================== ARCHIVE GET ENDPOINTS (before :id route) ====================
+
+  @Get('archived')
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
+  @ApiOperation({ summary: 'Get all archived first timers' })
+  @ApiResponse({
+    status: 200,
+    description: 'Archived first timers retrieved successfully',
+  })
+  async getArchivedFirstTimers(
+    @Query() searchDto: FirstTimerSearchDto,
+    @CurrentUser() user: any,
+  ) {
+    const branchFilterContext = await this.buildBranchFilterContext(user);
+    const result = await this.firstTimersService.findArchived(
+      searchDto,
+      branchFilterContext,
+    );
+    return ResponseUtil.success(result, 'Archived first timers retrieved successfully');
+  }
+
+  @Get('archive/stats')
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
+  @ApiOperation({ summary: 'Get archive statistics' })
+  @ApiResponse({
+    status: 200,
+    description: 'Archive statistics retrieved successfully',
+  })
+  async getArchiveStats() {
+    const stats = await this.firstTimersService.getArchiveStats();
+    return ResponseUtil.success(stats, 'Archive statistics retrieved successfully');
+  }
+
+  // ==================== READY FOR INTEGRATION GET ENDPOINTS (before :id route) ====================
+
+  @Get('ready-for-integration')
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
+  @ApiOperation({ summary: 'Get all first timers marked as ready for integration' })
+  @ApiResponse({
+    status: 200,
+    description: 'Ready for integration first timers retrieved successfully',
+  })
+  async getReadyForIntegration(
+    @Query() searchDto: FirstTimerSearchDto,
+    @CurrentUser() user: any,
+  ) {
+    const branchFilterContext = await this.buildBranchFilterContext(user);
+    const result = await this.firstTimersService.findReadyForIntegration(
+      searchDto,
+      branchFilterContext,
+    );
+    return ResponseUtil.success(result, 'Ready for integration first timers retrieved successfully');
+  }
+
+  @Get('ready-for-integration/count')
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
+  @ApiOperation({ summary: 'Get count of first timers ready for integration' })
+  @ApiResponse({
+    status: 200,
+    description: 'Ready for integration count retrieved successfully',
+  })
+  async getReadyForIntegrationCount() {
+    const count = await this.firstTimersService.getReadyForIntegrationCount();
+    return ResponseUtil.success({ count }, 'Ready for integration count retrieved successfully');
   }
 
   @Get(':id')
@@ -1234,5 +1301,205 @@ export class FirstTimersController {
     return ResponseUtil.success(null, 'Call report deleted successfully');
   }
 
+  // ==================== ARCHIVE POST ENDPOINTS ====================
 
+  @Post('archive/run-auto-archive')
+  @RequirePermission(FirstTimersPermission.DELETE_FIRST_TIMER)
+  @ApiOperation({ summary: 'Manually trigger the auto-archive process' })
+  @ApiResponse({
+    status: 200,
+    description: 'Auto-archive process completed',
+  })
+  @AuditLog({
+    action: AuditAction.UPDATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Manually triggered auto-archive process',
+  })
+  async runAutoArchive() {
+    const result = await this.firstTimersService.runAutoArchive();
+    return ResponseUtil.success(result, `Auto-archive completed: ${result.archivedCount} first-timers archived`);
+  }
+
+  @Post(':id/archive')
+  @RequirePermission(FirstTimersPermission.DELETE_FIRST_TIMER)
+  @ApiOperation({ summary: 'Archive a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'First timer archived successfully',
+  })
+  @AuditLog({
+    action: AuditAction.UPDATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Archived first timer',
+  })
+  async archiveFirstTimer(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    const firstTimer = await this.firstTimersService.archive(id, body.reason);
+    return ResponseUtil.success(firstTimer, 'First timer archived successfully');
+  }
+
+  @Post(':id/unarchive')
+  @RequirePermission(FirstTimersPermission.DELETE_FIRST_TIMER)
+  @ApiOperation({ summary: 'Unarchive/restore a first timer' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'First timer unarchived successfully',
+  })
+  @AuditLog({
+    action: AuditAction.UPDATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Unarchived first timer',
+  })
+  async unarchiveFirstTimer(@Param('id') id: string) {
+    const firstTimer = await this.firstTimersService.unarchive(id);
+    return ResponseUtil.success(firstTimer, 'First timer unarchived successfully');
+  }
+
+  @Patch(':id/exempt-from-archive')
+  @RequirePermission(FirstTimersPermission.UPDATE_FIRST_TIMER)
+  @ApiOperation({ summary: 'Set or unset the exempt from auto-archive flag' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Exempt from auto-archive flag updated successfully',
+  })
+  @AuditLog({
+    action: AuditAction.UPDATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Updated exempt from auto-archive flag',
+  })
+  async setExemptFromAutoArchive(
+    @Param('id') id: string,
+    @Body() body: { exempt: boolean },
+  ) {
+    const firstTimer = await this.firstTimersService.setExemptFromAutoArchive(
+      id,
+      body.exempt,
+    );
+    return ResponseUtil.success(
+      firstTimer,
+      `First timer ${body.exempt ? 'exempted from' : 'included in'} auto-archive`,
+    );
+  }
+
+  // ==================== READY FOR INTEGRATION POST ENDPOINTS ====================
+
+  @Post(':id/ready-for-integration')
+  @RequirePermission(FirstTimersPermission.MARK_READY_FOR_INTEGRATION)
+  @ApiOperation({ summary: 'Mark a first timer as ready for integration' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'First timer marked as ready for integration successfully',
+  })
+  @AuditLog({
+    action: AuditAction.UPDATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Marked first timer as ready for integration',
+    getEntityId: (result, request) => request.params.id,
+  })
+  async markReadyForIntegration(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    const firstTimer = await this.firstTimersService.markReadyForIntegration(
+      id,
+      user._id.toString(),
+    );
+
+    // Send notification to users with the RECEIVE_READY_FOR_INTEGRATION_NOTIFICATION permission
+    try {
+      await this.queueService.addJob('ready-for-integration-notification', {
+        firstTimerId: id,
+        firstTimerName: `${firstTimer.firstName} ${firstTimer.lastName}`,
+        markedBy: `${user.firstName} ${user.lastName}`,
+        markedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      // Log error but don't fail the main operation
+      console.error('Failed to queue ready for integration notification:', error);
+    }
+
+    return ResponseUtil.success(
+      firstTimer,
+      'First timer marked as ready for integration successfully',
+    );
+  }
+
+  @Post(':id/unmark-ready-for-integration')
+  @RequirePermission(FirstTimersPermission.MARK_READY_FOR_INTEGRATION)
+  @ApiOperation({ summary: 'Unmark a first timer from ready for integration' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'First timer unmarked from ready for integration successfully',
+  })
+  @AuditLog({
+    action: AuditAction.UPDATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Unmarked first timer from ready for integration',
+    getEntityId: (result, request) => request.params.id,
+  })
+  async unmarkReadyForIntegration(@Param('id') id: string) {
+    const firstTimer = await this.firstTimersService.unmarkReadyForIntegration(id);
+    return ResponseUtil.success(
+      firstTimer,
+      'First timer unmarked from ready for integration successfully',
+    );
+  }
+
+  @Post(':id/integrate')
+  @RequirePermission(FirstTimersPermission.CONVERT_FIRST_TIMER)
+  @ApiOperation({
+    summary: 'Integrate a first timer into membership',
+    description: 'Creates a member record and assigns to district/unit. First timer must be marked as ready for integration.',
+  })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'First timer integrated successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'First timer not ready for integration or already integrated',
+  })
+  @AuditLog({
+    action: AuditAction.CREATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Integrated first timer into membership',
+    getEntityId: (result, request) => request.params.id,
+  })
+  async integrateFirstTimer(
+    @Param('id') id: string,
+    @Body() integrateDto: IntegrateFirstTimerDto,
+  ) {
+    const result = await this.firstTimersService.integrateFirstTimer(
+      id,
+      integrateDto.districtId,
+      integrateDto.unitId,
+    );
+    return ResponseUtil.success(
+      result,
+      'First timer integrated successfully',
+    );
+  }
+
+  // Helper method to build branch filter context
+  private async buildBranchFilterContext(user: any): Promise<BranchFilterContext | undefined> {
+    if (!user) return undefined;
+
+    const userPermissions = await this.userPermissionsService.getUserPermissions(
+      user.role?._id || user.role,
+    );
+
+    return {
+      userPermissions: userPermissions.permissions,
+      userBranchId: user.branch?._id || user.branch || user.branchId,
+      selectedBranchId: undefined,
+    };
+  }
 }

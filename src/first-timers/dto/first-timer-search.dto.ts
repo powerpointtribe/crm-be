@@ -92,4 +92,19 @@ export class FirstTimerSearchDto extends SearchDto {
     'other',
   ])
   howDidYouHear?: string;
+
+  @ApiPropertyOptional({
+    description: 'Exclude first timers marked as ready for integration',
+  })
+  @IsOptional()
+  @IsBoolean()
+  excludeReadyForIntegration?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Date range filter for records',
+    enum: ['7days', '30days', '3months', 'all'],
+  })
+  @IsOptional()
+  @IsEnum(['7days', '30days', '3months', 'all'])
+  dateRange?: '7days' | '30days' | '3months' | 'all';
 }

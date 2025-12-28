@@ -81,7 +81,7 @@ export interface FirstTimerNotificationJobData {
 }
 
 export interface FirstTimerAutomationJobData {
-  type: 'status_transition' | 'follow_up_reminder' | 'weekly_reminder';
+  type: 'status_transition' | 'follow_up_reminder' | 'weekly_reminder' | 'auto_archive';
   firstTimerId?: string;
   targetStatus?: string;
   checkDate?: Date;

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { EngagementStatus } from '../../common/enums/engagement-status.enum';
 import { IntegrationStage } from '../../common/enums/integration-stage.enum';
 
@@ -376,6 +376,29 @@ export class FirstTimer {
   @Prop({ default: true })
   isActive: boolean;
 
+  // Archive tracking
+  @Prop({ type: Boolean, default: false })
+  isArchived: boolean;
+
+  @Prop({ type: Date })
+  archivedAt?: Date;
+
+  @Prop({ type: String })
+  archiveReason?: string;
+
+  @Prop({ type: Boolean, default: false })
+  exemptFromAutoArchive: boolean;
+
+  // Ready for Integration tracking
+  @Prop({ type: Boolean, default: false })
+  readyForIntegration: boolean;
+
+  @Prop({ type: Date })
+  readyForIntegrationDate?: Date;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Member' })
+  markedReadyBy?: Types.ObjectId;
+
   // Duplicate tracking
   @Prop({ type: Boolean, default: false })
   hasDuplicatePhone: boolean;
@@ -421,3 +444,9 @@ FirstTimerSchema.index({ howDidYouHear: 1 });
 FirstTimerSchema.index({ outreachDate: -1 });
 FirstTimerSchema.index({ outreachVolunteerName: 1 });
 FirstTimerSchema.index({ outreachEffectiveness: 1 });
+FirstTimerSchema.index({ isArchived: 1 });
+FirstTimerSchema.index({ isArchived: 1, archivedAt: -1 }); // For archived listing
+FirstTimerSchema.index({ exemptFromAutoArchive: 1 });
+FirstTimerSchema.index({ followUpCount: 1, dateOfVisit: 1, isArchived: 1, exemptFromAutoArchive: 1 }); // For auto-archive job
+FirstTimerSchema.index({ readyForIntegration: 1 }); // For ready for integration queries
+FirstTimerSchema.index({ readyForIntegration: 1, isArchived: 1, isActive: 1 }); // Compound index for ready for integration tab

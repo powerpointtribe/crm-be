@@ -29,6 +29,8 @@ export enum FirstTimersPermission {
   // SPECIAL operations
   VIEW_CALL_REPORTS = 'first-timers:view-call-reports',
   CONVERT_TO_MEMBER = 'first-timers:convert-to-member',
+  MARK_READY_FOR_INTEGRATION = 'first-timers:mark-ready-for-integration',
+  RECEIVE_READY_FOR_INTEGRATION_NOTIFICATION = 'first-timers:receive-ready-for-integration-notification',
 }
 
 export const FirstTimersPermissionMetadata = {
@@ -61,5 +63,13 @@ export const FirstTimersPermissionMetadata = {
     path: '/first-timers/:id',
     method: 'DELETE',
     description: 'Delete a first timer',
+  },
+  [FirstTimersPermission.MARK_READY_FOR_INTEGRATION]: {
+    path: '/first-timers/:id/ready-for-integration',
+    method: 'POST',
+    description: 'Mark a first timer as ready for integration',
+  },
+  [FirstTimersPermission.RECEIVE_READY_FOR_INTEGRATION_NOTIFICATION]: {
+    description: 'Receive notifications when a first timer is marked ready for integration',
   },
 };
