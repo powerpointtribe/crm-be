@@ -3,20 +3,28 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CallReport, CallReportDocument } from './schemas/call-report.schema';
 import { FirstTimer, FirstTimerDocument } from './schemas/first-timer.schema';
 import { CreateCallReportDto } from './dto/create-call-report.dto';
+import { QueueService } from '../queue/queue.service';
+import { Member, MemberDocument } from '../members/schemas/member.schema';
 
 @Injectable()
 export class CallReportsService {
+  private readonly logger = new Logger(CallReportsService.name);
+
   constructor(
     @InjectModel(CallReport.name)
     private callReportModel: Model<CallReportDocument>,
     @InjectModel(FirstTimer.name)
     private firstTimerModel: Model<FirstTimerDocument>,
+    @InjectModel(Member.name)
+    private memberModel: Model<MemberDocument>,
+    private queueService: QueueService,
   ) {}
 
   async create(
@@ -31,9 +39,13 @@ export class CallReportsService {
       throw new NotFoundException('First timer not found');
     }
 
+    const firstTimerObjectId = new Types.ObjectId(
+      createCallReportDto.firstTimerId,
+    );
+
     // Check if report number already exists for this first timer
     const existingReport = await this.callReportModel.findOne({
-      firstTimerId: createCallReportDto.firstTimerId,
+      firstTimerId: firstTimerObjectId,
       reportNumber: createCallReportDto.reportNumber,
     });
 
@@ -47,7 +59,7 @@ export class CallReportsService {
     if (createCallReportDto.reportNumber > 1) {
       const previousReportNumber = createCallReportDto.reportNumber - 1;
       const previousReport = await this.callReportModel.findOne({
-        firstTimerId: createCallReportDto.firstTimerId,
+        firstTimerId: firstTimerObjectId,
         reportNumber: previousReportNumber,
       });
 
@@ -82,10 +94,76 @@ export class CallReportsService {
       },
     );
 
+    // Schedule follow-up reminder if nextFollowUpDate is provided
+    if (createCallReportDto.nextFollowUpDate) {
+      this.logger.log(
+        `nextFollowUpDate provided: ${createCallReportDto.nextFollowUpDate}, scheduling reminder...`,
+      );
+      await this.scheduleFollowUpReminderForReport(
+        firstTimer,
+        userId,
+        new Date(createCallReportDto.nextFollowUpDate),
+        createCallReportDto.notes,
+      );
+    } else {
+      this.logger.log('No nextFollowUpDate provided, skipping reminder scheduling');
+    }
+
     return savedReport.populate([
       { path: 'callMadeBy', select: 'firstName lastName email' },
       { path: 'firstTimerId', select: 'firstName lastName phone email' },
     ]);
+  }
+
+  /**
+   * Schedule a follow-up reminder for a call report
+   */
+  private async scheduleFollowUpReminderForReport(
+    firstTimer: FirstTimerDocument,
+    callMadeById: string,
+    scheduledDate: Date,
+    notes?: string,
+  ): Promise<void> {
+    this.logger.log(
+      `scheduleFollowUpReminderForReport called - callMadeById: ${callMadeById}, scheduledDate: ${scheduledDate}`,
+    );
+
+    try {
+      // Get the caller's information
+      const caller = await this.memberModel.findById(callMadeById);
+      if (!caller || !caller.email) {
+        this.logger.warn(
+          `Cannot schedule reminder: Caller ${callMadeById} not found or has no email`,
+        );
+        return;
+      }
+
+      this.logger.log(`Found caller: ${caller.firstName} ${caller.lastName} (${caller.email})`);
+
+      const firstTimerId = (firstTimer._id as Types.ObjectId).toString();
+
+      const job = await this.queueService.scheduleFollowUpReminder(
+        {
+          firstTimerId,
+          assignedPersonEmail: caller.email,
+          assignedPersonName: `${caller.firstName} ${caller.lastName}`,
+          firstTimerName: `${firstTimer.firstName} ${firstTimer.lastName}`,
+          firstTimerPhone: firstTimer.phone,
+          firstTimerEmail: firstTimer.email,
+          followUpNotes: notes,
+        },
+        scheduledDate,
+      );
+
+      this.logger.log(
+        `✅ Successfully scheduled follow-up reminder - Job ID: ${job.id}, First Timer: ${firstTimerId}, Scheduled: ${scheduledDate}`,
+      );
+    } catch (error) {
+      // Don't fail the call report creation if scheduling fails
+      this.logger.error(
+        `❌ Failed to schedule follow-up reminder: ${error.message}`,
+      );
+    }
   }
 
   async findByFirstTimer(firstTimerId: string): Promise<CallReport[]> {
@@ -93,14 +171,20 @@ export class CallReportsService {
       throw new BadRequestException('Invalid first timer ID');
     }
 
-    return this.callReportModel
-      .find({ firstTimerId })
+    const reports = await this.callReportModel
+      .find({ firstTimerId: new Types.ObjectId(firstTimerId) })
       .sort({ reportNumber: 1, createdAt: 1 })
       .populate([
         { path: 'callMadeBy', select: 'firstName lastName email' },
         { path: 'firstTimerId', select: 'firstName lastName phone email' },
       ])
       .exec();
+
+    this.logger.log(
+      `findByFirstTimer(${firstTimerId}): found ${reports.length} reports - numbers: [${reports.map((r) => r.reportNumber).join(', ')}]`,
+    );
+
+    return reports;
   }
 
   async findById(id: string): Promise<CallReport> {

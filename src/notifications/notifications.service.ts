@@ -677,4 +677,61 @@ export class NotificationsService {
       html: options.html,
     });
   }
+
+  /**
+   * Send a scheduled follow-up reminder to the assigned person
+   * This is triggered by a delayed job at the user-specified time
+   */
+  async sendScheduledFollowUpReminder(data: {
+    assignedPersonEmail: string;
+    assignedPersonName: string;
+    firstTimerName: string;
+    firstTimerPhone: string;
+    firstTimerEmail?: string;
+    followUpNotes?: string;
+    scheduledTime: string;
+  }): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0; font-size: 24px;">⏰ Follow-Up Reminder</h1>
+          <p style="margin: 10px 0 0 0; opacity: 0.9;">Scheduled for ${data.scheduledTime}</p>
+        </div>
+
+        <div style="padding: 30px; background: white; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+          <p style="font-size: 16px; margin-bottom: 20px;">Dear ${data.assignedPersonName},</p>
+
+          <p>This is your scheduled reminder to follow up with:</p>
+
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #f5576c;">
+            <h3 style="color: #333; margin-top: 0;">👤 ${data.firstTimerName}</h3>
+            <p style="margin: 10px 0;">📞 <strong>Phone:</strong> ${data.firstTimerPhone}</p>
+            ${data.firstTimerEmail ? `<p style="margin: 10px 0;">📧 <strong>Email:</strong> ${data.firstTimerEmail}</p>` : ''}
+            ${data.followUpNotes ? `<p style="margin: 10px 0;">📝 <strong>Notes:</strong> ${data.followUpNotes}</p>` : ''}
+          </div>
+
+          <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 25px 0;">
+            <p style="margin: 0; color: #856404; font-weight: 500;">
+              💡 <strong>Tip:</strong> A timely follow-up shows you care and helps build lasting connections!
+            </p>
+          </div>
+
+          <p style="margin-top: 30px;">Please reach out to them as soon as possible.</p>
+
+          <div style="border-top: 2px solid #f0f0f0; padding-top: 20px; margin-top: 30px;">
+            <p style="margin: 0; color: #777;">
+              Blessings,<br/>
+              <strong>Church Management System</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.assignedPersonEmail,
+      subject: `⏰ Follow-Up Reminder: ${data.firstTimerName}`,
+      html,
+    });
+  }
 }

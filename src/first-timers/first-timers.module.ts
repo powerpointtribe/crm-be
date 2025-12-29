@@ -9,6 +9,7 @@ import { MessageDraftsController } from './message-drafts.controller';
 import { FirstTimer, FirstTimerSchema } from './schemas/first-timer.schema';
 import { CallReport, CallReportSchema } from './schemas/call-report.schema';
 import { MessageDraft, MessageDraftSchema } from './schemas/message-draft.schema';
+import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { QueueModule } from '../queue/queue.module';
 import { MembersModule } from '../members/members.module';
 import { GroupsModule } from '../groups/groups.module';
@@ -24,6 +25,7 @@ import { CommonModule } from '../common/common.module';
       { name: FirstTimer.name, schema: FirstTimerSchema },
       { name: CallReport.name, schema: CallReportSchema },
       { name: MessageDraft.name, schema: MessageDraftSchema },
+      { name: Member.name, schema: MemberSchema },
     ]),
     forwardRef(() => QueueModule),
     forwardRef(() => MembersModule),

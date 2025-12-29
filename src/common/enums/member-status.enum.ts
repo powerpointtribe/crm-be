@@ -12,4 +12,5 @@ export enum MembershipStatus {
   CAMPUS_PASTOR = 'CAMPUS_PASTOR', // Campus Expression Pastor
   SENIOR_PASTOR = 'SENIOR_PASTOR', // Senior Pastor
   LEFT = 'LEFT', // Member who has left the church
+  RELOCATED = 'RELOCATED', // Member who has relocated
 }

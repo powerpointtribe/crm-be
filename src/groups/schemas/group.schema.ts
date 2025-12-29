@@ -32,14 +32,6 @@ export class Group {
   })
   districtPastor?: Types.ObjectId;
 
-  @Prop([
-    {
-      type: Types.ObjectId,
-      ref: 'Member',
-    },
-  ])
-  champs: Types.ObjectId[]; // District assistants
-
   // UNIT-SPECIFIC FIELDS
   @Prop({
     type: Types.ObjectId,

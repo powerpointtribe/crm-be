@@ -12,10 +12,15 @@ import {
   IsEmail,
   IsBoolean,
   IsUrl,
+  ValidateIf,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { GroupType } from '../../common/enums/group-types.enum';
+
+// Helper to transform empty strings to undefined
+const EmptyStringToUndefined = () =>
+  Transform(({ value }) => (value === '' ? undefined : value));
 
 class MeetingScheduleDto {
   @ApiPropertyOptional({
@@ -86,6 +91,8 @@ class MeetingScheduleDto {
 class HostingInfoDto {
   @ApiPropertyOptional({ description: 'Primary host member ID' })
   @IsOptional()
+  @EmptyStringToUndefined()
+  @ValidateIf((o) => o.hostMember !== undefined && o.hostMember !== null)
   @IsMongoId()
   hostMember?: string;
 
@@ -97,6 +104,8 @@ class HostingInfoDto {
 
   @ApiPropertyOptional({ description: 'Current host member ID' })
   @IsOptional()
+  @EmptyStringToUndefined()
+  @ValidateIf((o) => o.currentHost !== undefined && o.currentHost !== null)
   @IsMongoId()
   currentHost?: string;
 }
@@ -127,16 +136,10 @@ export class CreateGroupDto {
     example: '507f1f77bcf86cd799439011',
   })
   @IsOptional()
+  @EmptyStringToUndefined()
+  @ValidateIf((o) => o.districtPastor !== undefined && o.districtPastor !== null)
   @IsMongoId()
   districtPastor?: string;
-
-  @ApiPropertyOptional({
-    description: 'Champs (district assistants) member IDs',
-  })
-  @IsOptional()
-  @IsArray()
-  @IsMongoId({ each: true })
-  champs?: string[];
 
   // UNIT-SPECIFIC FIELDS
   @ApiPropertyOptional({
@@ -144,6 +147,8 @@ export class CreateGroupDto {
     example: '507f1f77bcf86cd799439021',
   })
   @IsOptional()
+  @EmptyStringToUndefined()
+  @ValidateIf((o) => o.unitHead !== undefined && o.unitHead !== null)
   @IsMongoId()
   unitHead?: string;
 
@@ -151,6 +156,8 @@ export class CreateGroupDto {
     description: 'Assistant Unit Head member ID (for units)',
   })
   @IsOptional()
+  @EmptyStringToUndefined()
+  @ValidateIf((o) => o.assistantUnitHead !== undefined && o.assistantUnitHead !== null)
   @IsMongoId()
   assistantUnitHead?: string;
 
@@ -159,6 +166,8 @@ export class CreateGroupDto {
     description: 'Ministry Director member ID (for ministries)',
   })
   @IsOptional()
+  @EmptyStringToUndefined()
+  @ValidateIf((o) => o.ministryDirector !== undefined && o.ministryDirector !== null)
   @IsMongoId()
   ministryDirector?: string;
 
@@ -175,6 +184,8 @@ export class CreateGroupDto {
     description: 'Default role ID to auto-assign when members join this group',
   })
   @IsOptional()
+  @EmptyStringToUndefined()
+  @ValidateIf((o) => o.defaultRole !== undefined && o.defaultRole !== null)
   @IsMongoId()
   defaultRole?: string;
 

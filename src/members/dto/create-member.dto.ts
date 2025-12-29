@@ -2,7 +2,6 @@ import {
   IsEmail,
   IsNotEmpty,
   IsString,
-  IsDateString,
   IsEnum,
   IsOptional,
   ValidateNested,
@@ -10,10 +9,19 @@ import {
   IsObject,
   IsMongoId,
   Matches,
+  IsDate,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MembershipStatus } from '../../common/enums/member-status.enum';
+
+// Helper to transform date strings to Date objects
+const transformToDate = ({ value }: { value: any }) => {
+  if (!value) return value;
+  if (value instanceof Date) return value;
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? value : date;
+};
 
 class AddressDto {
   @ApiProperty({ description: 'Street address' })
@@ -179,12 +187,14 @@ export class CreateMemberDto {
     example: '2024-01-01',
   })
   @IsOptional()
-  @IsDateString()
+  @Transform(transformToDate)
+  @IsDate({ message: 'dateJoined must be a valid date' })
   dateJoined?: Date;
 
   @ApiPropertyOptional({ description: 'Baptism date', example: '2024-03-01' })
   @IsOptional()
-  @IsDateString()
+  @Transform(transformToDate)
+  @IsDate({ message: 'baptismDate must be a valid date' })
   baptismDate?: Date;
 
   @ApiPropertyOptional({
@@ -192,7 +202,8 @@ export class CreateMemberDto {
     example: '2024-06-01',
   })
   @IsOptional()
-  @IsDateString()
+  @Transform(transformToDate)
+  @IsDate({ message: 'confirmationDate must be a valid date' })
   confirmationDate?: Date;
 
   @ApiPropertyOptional({ description: 'Ministries member is involved in' })

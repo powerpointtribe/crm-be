@@ -5,8 +5,9 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, FilterQuery } from 'mongoose';
+import { Model, FilterQuery, Types } from 'mongoose';
 import { Group, GroupDocument } from './schemas/group.schema';
+import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { GroupSearchDto } from './dto/group-search.dto';
@@ -16,6 +17,7 @@ import {
 } from '../common/utils/pagination.util';
 import { QueryBuilder } from '../common/utils/query-builder.util';
 import { GroupType } from '../common/enums/group-types.enum';
+import { MembershipStatus } from '../common/enums/member-status.enum';
 import {
   BranchAccessService,
   BranchFilterContext,
@@ -25,6 +27,7 @@ import {
 export class GroupsService {
   constructor(
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
+    @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
     private branchAccessService: BranchAccessService,
   ) {}
 
@@ -155,7 +158,6 @@ export class GroupsService {
         .find(filterQuery)
         .populate('districtPastor', 'firstName lastName email phone')
         .populate('unitHead', 'firstName lastName email phone')
-        .populate('champs', 'firstName lastName email phone')
         .populate('members', 'firstName lastName email phone membershipStatus')
         .populate('hostingInfo.hostMember', 'firstName lastName phone')
         .populate('hostingInfo.rotatingHosts', 'firstName lastName phone')
@@ -171,32 +173,230 @@ export class GroupsService {
   }
 
   async findById(id: string): Promise<GroupDocument | null> {
-    return this.groupModel
-      .findById(id)
-      .populate(
-        'districtPastor',
-        'firstName lastName email phone membershipStatus',
-      )
-      .populate('unitHead', 'firstName lastName email phone membershipStatus')
-      .populate(
-        'assistantUnitHead',
-        'firstName lastName email phone membershipStatus',
-      )
-      .populate(
-        'ministryDirector',
-        'firstName lastName email phone membershipStatus',
-      )
-      .populate('champs', 'firstName lastName email phone membershipStatus')
-      .populate(
-        'members',
-        'firstName lastName email phone membershipStatus dateJoined',
-      )
-      .populate('linkedUnits', 'name type currentMemberCount')
-      .populate('defaultRole', 'name displayName slug')
-      .populate('hostingInfo.hostMember', 'firstName lastName phone address')
-      .populate('hostingInfo.rotatingHosts', 'firstName lastName phone address')
-      .populate('hostingInfo.currentHost', 'firstName lastName phone address')
-      .exec();
+    // Use aggregation with $lookup for reliable cross-collection joins
+    const results = await this.groupModel.aggregate([
+      { $match: { _id: new Types.ObjectId(id) } },
+      // Lookup members - handle both ObjectId and string IDs
+      {
+        $lookup: {
+          from: 'members',
+          let: { memberIds: '$members' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $in: [
+                    '$_id',
+                    {
+                      $map: {
+                        input: '$$memberIds',
+                        as: 'mid',
+                        in: { $toObjectId: '$$mid' },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                phone: 1,
+                membershipStatus: 1,
+                dateJoined: 1,
+              },
+            },
+          ],
+          as: 'members',
+        },
+      },
+      // Lookup districtPastor - handle both ObjectId and string
+      {
+        $lookup: {
+          from: 'members',
+          let: { pastorId: '$districtPastor' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ['$_id', { $toObjectId: '$$pastorId' }],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                phone: 1,
+                membershipStatus: 1,
+              },
+            },
+          ],
+          as: 'districtPastorData',
+        },
+      },
+      {
+        $addFields: {
+          districtPastor: { $arrayElemAt: ['$districtPastorData', 0] },
+        },
+      },
+      // Lookup unitHead - handle both ObjectId and string
+      {
+        $lookup: {
+          from: 'members',
+          let: { headId: '$unitHead' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ['$_id', { $toObjectId: '$$headId' }],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                phone: 1,
+                membershipStatus: 1,
+              },
+            },
+          ],
+          as: 'unitHeadData',
+        },
+      },
+      {
+        $addFields: {
+          unitHead: { $arrayElemAt: ['$unitHeadData', 0] },
+        },
+      },
+      // Lookup assistantUnitHead - handle both ObjectId and string
+      {
+        $lookup: {
+          from: 'members',
+          let: { assistantId: '$assistantUnitHead' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ['$_id', { $toObjectId: '$$assistantId' }],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                phone: 1,
+                membershipStatus: 1,
+              },
+            },
+          ],
+          as: 'assistantUnitHeadData',
+        },
+      },
+      {
+        $addFields: {
+          assistantUnitHead: { $arrayElemAt: ['$assistantUnitHeadData', 0] },
+        },
+      },
+      // Lookup ministryDirector - handle both ObjectId and string
+      {
+        $lookup: {
+          from: 'members',
+          let: { directorId: '$ministryDirector' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ['$_id', { $toObjectId: '$$directorId' }],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                phone: 1,
+                membershipStatus: 1,
+              },
+            },
+          ],
+          as: 'ministryDirectorData',
+        },
+      },
+      {
+        $addFields: {
+          ministryDirector: { $arrayElemAt: ['$ministryDirectorData', 0] },
+        },
+      },
+      // Lookup linkedUnits
+      {
+        $lookup: {
+          from: 'groups',
+          localField: 'linkedUnits',
+          foreignField: '_id',
+          pipeline: [
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                type: 1,
+                currentMemberCount: 1,
+              },
+            },
+          ],
+          as: 'linkedUnits',
+        },
+      },
+      // Lookup defaultRole
+      {
+        $lookup: {
+          from: 'roles',
+          localField: 'defaultRole',
+          foreignField: '_id',
+          pipeline: [
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                displayName: 1,
+                slug: 1,
+              },
+            },
+          ],
+          as: 'defaultRoleData',
+        },
+      },
+      {
+        $addFields: {
+          defaultRole: { $arrayElemAt: ['$defaultRoleData', 0] },
+        },
+      },
+      // Clean up temporary fields
+      {
+        $project: {
+          districtPastorData: 0,
+          unitHeadData: 0,
+          assistantUnitHeadData: 0,
+          ministryDirectorData: 0,
+          defaultRoleData: 0,
+        },
+      },
+    ]);
+
+    return results.length > 0 ? (results[0] as GroupDocument) : null;
   }
 
   async findByType(type: GroupType): Promise<GroupDocument[]> {
@@ -285,6 +485,24 @@ export class GroupsService {
       )
       .populate('members', 'firstName lastName email phone');
 
+    // If this is a unit, update member's membershipStatus to DC (unless already LXL or higher)
+    if (group.type === GroupType.UNIT) {
+      const leadershipStatuses: string[] = [
+        MembershipStatus.LXL,
+        MembershipStatus.DIRECTOR,
+        MembershipStatus.PASTOR,
+        MembershipStatus.CAMPUS_PASTOR,
+        MembershipStatus.SENIOR_PASTOR,
+      ];
+
+      const member = await this.memberModel.findById(memberId);
+      if (member && !leadershipStatuses.includes(member.membershipStatus)) {
+        await this.memberModel.findByIdAndUpdate(memberId, {
+          $set: { membershipStatus: MembershipStatus.DC },
+        });
+      }
+    }
+
     return updatedGroup!;
   }
 
@@ -325,16 +543,44 @@ export class GroupsService {
       throw new BadRequestException('Only districts can have district pastors');
     }
 
-    // TODO: Check if pastor is already leading another district
-    // TODO: Update member's leadership role
+    // Check if member is already in the group
+    const isAlreadyMember = group.members.some(
+      (m) => m.toString() === pastorId,
+    );
+
+    // Build update object - assign as pastor and add to members if not already
+    const updateObj: any = { $set: { districtPastor: pastorId } };
+    if (!isAlreadyMember) {
+      updateObj.$addToSet = { members: pastorId };
+      updateObj.$inc = { currentMemberCount: 1 };
+    }
+
+    const updatedGroup = await this.groupModel
+      .findByIdAndUpdate(groupId, updateObj, { new: true })
+      .populate('districtPastor', 'firstName lastName email phone');
+
+    // Update membershipStatus to LXL
+    await this.memberModel.findByIdAndUpdate(pastorId, {
+      $set: { membershipStatus: MembershipStatus.LXL },
+    });
+
+    return updatedGroup!;
+  }
+
+  // Remove District Pastor
+  async removeDistrictPastor(groupId: string): Promise<GroupDocument> {
+    const group = await this.groupModel.findById(groupId);
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
 
     const updatedGroup = await this.groupModel
       .findByIdAndUpdate(
         groupId,
-        { $set: { districtPastor: pastorId } },
+        { $unset: { districtPastor: 1 } },
         { new: true },
       )
-      .populate('districtPastor', 'firstName lastName email phone');
+      .exec();
 
     return updatedGroup!;
   }
@@ -352,47 +598,51 @@ export class GroupsService {
       throw new BadRequestException('Only units can have unit heads');
     }
 
-    // TODO: Check if head is already leading another unit
-    // TODO: Update member's leadership role
+    // Check if member is already in the group
+    const isAlreadyMember = group.members.some(
+      (m) => m.toString() === headId,
+    );
+
+    // Build update object - assign as unit head and add to members if not already
+    const updateObj: any = { $set: { unitHead: headId } };
+    if (!isAlreadyMember) {
+      updateObj.$addToSet = { members: headId };
+      updateObj.$inc = { currentMemberCount: 1 };
+    }
 
     const updatedGroup = await this.groupModel
-      .findByIdAndUpdate(groupId, { $set: { unitHead: headId } }, { new: true })
+      .findByIdAndUpdate(groupId, updateObj, { new: true })
       .populate('unitHead', 'firstName lastName email phone');
+
+    // Sync to linked ministries if member was added
+    if (!isAlreadyMember) {
+      await this.syncMembersToLinkedMinistries(groupId, [headId], 'add');
+    }
+
+    // Update membershipStatus to LXL
+    await this.memberModel.findByIdAndUpdate(headId, {
+      $set: { membershipStatus: MembershipStatus.LXL },
+    });
 
     return updatedGroup!;
   }
 
-  async addChamp(groupId: string, champId: string): Promise<GroupDocument> {
+  // Remove Unit Head
+  async removeUnitHead(groupId: string): Promise<GroupDocument> {
     const group = await this.groupModel.findById(groupId);
     if (!group) {
       throw new NotFoundException('Group not found');
     }
 
-    if (group.type !== GroupType.DISTRICT) {
-      throw new BadRequestException('Only districts can have champs');
-    }
-
     const updatedGroup = await this.groupModel
       .findByIdAndUpdate(
         groupId,
-        { $addToSet: { champs: champId } },
+        { $unset: { unitHead: 1 } },
         { new: true },
       )
-      .populate('champs', 'firstName lastName email phone');
+      .exec();
 
     return updatedGroup!;
-  }
-
-  async removeChamp(groupId: string, champId: string): Promise<GroupDocument> {
-    const updatedGroup = await this.groupModel
-      .findByIdAndUpdate(groupId, { $pull: { champs: champId } }, { new: true })
-      .populate('champs', 'firstName lastName email phone');
-
-    if (!updatedGroup) {
-      throw new NotFoundException('Group not found');
-    }
-
-    return updatedGroup;
   }
 
   // Hosting Management (for Districts)
@@ -588,21 +838,24 @@ export class GroupsService {
   }
 
   async getGroupsByLeader(leaderId: string): Promise<{
-    districtsAstor: GroupDocument[];
-    districtsAsChamp: GroupDocument[];
+    districtsAsPastor: GroupDocument[];
     unitsAsHead: GroupDocument[];
+    unitsAsAssistant: GroupDocument[];
+    ministriesAsDirector: GroupDocument[];
   }> {
-    const [districtsAsPastor, districtsAsChamp, unitsAsHead] =
+    const [districtsAsPastor, unitsAsHead, unitsAsAssistant, ministriesAsDirector] =
       await Promise.all([
         this.groupModel.find({ districtPastor: leaderId, isActive: true }),
-        this.groupModel.find({ champs: { $in: [leaderId] }, isActive: true }),
         this.groupModel.find({ unitHead: leaderId, isActive: true }),
+        this.groupModel.find({ assistantUnitHead: leaderId, isActive: true }),
+        this.groupModel.find({ ministryDirector: leaderId, isActive: true }),
       ]);
 
     return {
-      districtsAstor: districtsAsPastor,
-      districtsAsChamp,
+      districtsAsPastor,
       unitsAsHead,
+      unitsAsAssistant,
+      ministriesAsDirector,
     };
   }
 
@@ -661,16 +914,34 @@ export class GroupsService {
       );
     }
 
+    // Check if member is already in the group
+    const isAlreadyMember = group.members.some(
+      (m) => m.toString() === memberId,
+    );
+
+    // Build update object - assign as assistant and add to members if not already
+    const updateObj: any = { $set: { assistantUnitHead: memberId } };
+    if (!isAlreadyMember) {
+      updateObj.$addToSet = { members: memberId };
+      updateObj.$inc = { currentMemberCount: 1 };
+    }
+
     const updatedGroup = await this.groupModel
-      .findByIdAndUpdate(
-        groupId,
-        { $set: { assistantUnitHead: memberId } },
-        { new: true },
-      )
+      .findByIdAndUpdate(groupId, updateObj, { new: true })
       .populate(
         'assistantUnitHead',
         'firstName lastName email phone membershipStatus',
       );
+
+    // Sync to linked ministries if member was added
+    if (!isAlreadyMember) {
+      await this.syncMembersToLinkedMinistries(groupId, [memberId], 'add');
+    }
+
+    // Update membershipStatus to LXL
+    await this.memberModel.findByIdAndUpdate(memberId, {
+      $set: { membershipStatus: MembershipStatus.LXL },
+    });
 
     return updatedGroup!;
   }
@@ -707,16 +978,29 @@ export class GroupsService {
       throw new BadRequestException('Only ministries can have directors');
     }
 
+    // Check if member is already in the group
+    const isAlreadyMember = group.members.some(
+      (m) => m.toString() === memberId,
+    );
+
+    // Build update object - assign as director and add to members if not already
+    const updateObj: any = { $set: { ministryDirector: memberId } };
+    if (!isAlreadyMember) {
+      updateObj.$addToSet = { members: memberId };
+      updateObj.$inc = { currentMemberCount: 1 };
+    }
+
     const updatedGroup = await this.groupModel
-      .findByIdAndUpdate(
-        groupId,
-        { $set: { ministryDirector: memberId } },
-        { new: true },
-      )
+      .findByIdAndUpdate(groupId, updateObj, { new: true })
       .populate(
         'ministryDirector',
         'firstName lastName email phone membershipStatus',
       );
+
+    // Update membershipStatus to LXL
+    await this.memberModel.findByIdAndUpdate(memberId, {
+      $set: { membershipStatus: MembershipStatus.LXL },
+    });
 
     return updatedGroup!;
   }
@@ -786,6 +1070,26 @@ export class GroupsService {
 
     // If this is a unit linked to ministries, sync members to those ministries
     await this.syncMembersToLinkedMinistries(groupId, newMemberIds, 'add');
+
+    // If this is a unit, update members' membershipStatus to DC (unless already LXL or higher)
+    if (group.type === GroupType.UNIT) {
+      const leadershipStatuses: string[] = [
+        MembershipStatus.LXL,
+        MembershipStatus.DIRECTOR,
+        MembershipStatus.PASTOR,
+        MembershipStatus.CAMPUS_PASTOR,
+        MembershipStatus.SENIOR_PASTOR,
+      ];
+
+      // Update all new members who are not already leaders
+      await this.memberModel.updateMany(
+        {
+          _id: { $in: newMemberIds },
+          membershipStatus: { $nin: leadershipStatuses },
+        },
+        { $set: { membershipStatus: MembershipStatus.DC } },
+      );
+    }
 
     return updatedGroup!;
   }

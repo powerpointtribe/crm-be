@@ -319,6 +319,19 @@ export class GroupsController {
     return ResponseUtil.success(group, 'District pastor assigned successfully');
   }
 
+  @Patch(':id/remove-district-pastor')
+  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
+  @ApiOperation({ summary: 'Remove district pastor from district' })
+  @ApiParam({ name: 'id', description: 'District ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'District pastor removed successfully',
+  })
+  async removeDistrictPastor(@Param('id') id: string) {
+    const group = await this.groupsService.removeDistrictPastor(id);
+    return ResponseUtil.success(group, 'District pastor removed successfully');
+  }
+
   @Patch(':id/assign-unit-head/:headId')
   @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
   @ApiOperation({ summary: 'Assign unit head to unit' })
@@ -333,29 +346,17 @@ export class GroupsController {
     return ResponseUtil.success(group, 'Unit head assigned successfully');
   }
 
-  @Patch(':id/add-champ/:champId')
+  @Patch(':id/remove-unit-head')
   @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
-  @ApiOperation({ summary: 'Add champ to district' })
-  @ApiParam({ name: 'id', description: 'District ID' })
-  @ApiParam({ name: 'champId', description: 'Champ Member ID' })
-  @ApiResponse({ status: 200, description: 'Champ added successfully' })
-  async addChamp(@Param('id') id: string, @Param('champId') champId: string) {
-    const group = await this.groupsService.addChamp(id, champId);
-    return ResponseUtil.success(group, 'Champ added successfully');
-  }
-
-  @Patch(':id/remove-champ/:champId')
-  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
-  @ApiOperation({ summary: 'Remove champ from district' })
-  @ApiParam({ name: 'id', description: 'District ID' })
-  @ApiParam({ name: 'champId', description: 'Champ Member ID' })
-  @ApiResponse({ status: 200, description: 'Champ removed successfully' })
-  async removeChamp(
-    @Param('id') id: string,
-    @Param('champId') champId: string,
-  ) {
-    const group = await this.groupsService.removeChamp(id, champId);
-    return ResponseUtil.success(group, 'Champ removed successfully');
+  @ApiOperation({ summary: 'Remove unit head from unit' })
+  @ApiParam({ name: 'id', description: 'Unit ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Unit head removed successfully',
+  })
+  async removeUnitHead(@Param('id') id: string) {
+    const group = await this.groupsService.removeUnitHead(id);
+    return ResponseUtil.success(group, 'Unit head removed successfully');
   }
 
   // UNIT LEADERSHIP

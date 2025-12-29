@@ -203,4 +203,75 @@ export class QueueService {
       invitationData,
     );
   }
+
+  /**
+   * Schedule a follow-up reminder to be sent at a specific date/time
+   * @param data - The reminder data including first timer and assigned person info
+   * @param scheduledDate - The date/time when the reminder should be sent
+   */
+  async scheduleFollowUpReminder(
+    data: {
+      firstTimerId: string;
+      assignedPersonEmail: string;
+      assignedPersonName: string;
+      firstTimerName: string;
+      firstTimerPhone: string;
+      firstTimerEmail?: string;
+      followUpNotes?: string;
+    },
+    scheduledDate: Date,
+  ): Promise<Job<FirstTimerNotificationJobData>> {
+    const now = new Date();
+    const delay = scheduledDate.getTime() - now.getTime();
+
+    // Don't schedule if the date is in the past
+    if (delay <= 0) {
+      this.logger.warn(
+        `Scheduled date ${scheduledDate} is in the past, skipping reminder for first timer ${data.firstTimerId}`,
+      );
+      throw new Error('Cannot schedule a reminder in the past');
+    }
+
+    const scheduledTimeFormatted = scheduledDate.toLocaleString('en-US', {
+      dateStyle: 'full',
+      timeStyle: 'short',
+    });
+
+    const jobData: FirstTimerNotificationJobData = {
+      firstTimerId: data.firstTimerId,
+      type: 'reminder',
+      recipientEmail: data.assignedPersonEmail,
+      additionalData: {
+        assignedPersonEmail: data.assignedPersonEmail,
+        assignedPersonName: data.assignedPersonName,
+        firstTimerName: data.firstTimerName,
+        firstTimerPhone: data.firstTimerPhone,
+        firstTimerEmail: data.firstTimerEmail,
+        followUpNotes: data.followUpNotes,
+        scheduledTime: scheduledTimeFormatted,
+      },
+    };
+
+    const job = await this.firstTimerNotificationQueue.add(
+      JobType.SCHEDULED_FOLLOW_UP_REMINDER,
+      jobData,
+      {
+        delay,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000,
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+        jobId: `followup-reminder-${data.firstTimerId}-${scheduledDate.getTime()}`,
+      },
+    );
+
+    this.logger.log(
+      `Scheduled follow-up reminder for first timer ${data.firstTimerId} at ${scheduledTimeFormatted} (delay: ${Math.round(delay / 1000 / 60)} minutes)`,
+    );
+
+    return job;
+  }
 }

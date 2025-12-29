@@ -20,6 +20,9 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
   ],
   controllers: [MembersController],
   providers: [MembersService],
-  exports: [MembersService],
+  exports: [
+    MembersService,
+    MongooseModule, // Export MongooseModule so other modules can use the Member model for populate
+  ],
 })
 export class MembersModule {}

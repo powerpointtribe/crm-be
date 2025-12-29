@@ -357,20 +357,22 @@ export class FirstTimersService {
       followUp.visitNumber = followUpDto.visitNumber;
     }
 
-    // Update status based on outcome
+    // Update status to ENGAGED when any follow-up is added
+    // unless already at a terminal status (CLOSED, READY_FOR_INTEGRATION)
     let newStatus = firstTimer.status;
-    switch (followUpDto.outcome) {
-      case 'successful':
-        if (firstTimer.status === EngagementStatus.NEW) {
-          newStatus = EngagementStatus.ENGAGED;
-        }
-        break;
-      case 'interested':
-        newStatus = EngagementStatus.ENGAGED;
-        break;
-      case 'not_interested':
-        newStatus = EngagementStatus.CLOSED;
-        break;
+    const terminalStatuses = [
+      EngagementStatus.CLOSED,
+      EngagementStatus.READY_FOR_INTEGRATION,
+    ];
+
+    if (!terminalStatuses.includes(firstTimer.status as EngagementStatus)) {
+      // Default to ENGAGED when any follow-up is added
+      newStatus = EngagementStatus.ENGAGED;
+    }
+
+    // Override to CLOSED if outcome is not_interested
+    if (followUpDto.outcome === 'not_interested') {
+      newStatus = EngagementStatus.CLOSED;
     }
 
     // Build the update object
@@ -395,8 +397,60 @@ export class FirstTimersService {
       .findByIdAndUpdate(id, updateObj, { new: true })
       .populate('followUps.contactedBy', 'firstName lastName');
 
-    // Create a corresponding call report
+    // Schedule follow-up reminder if nextFollowUpDate is provided
+    if (followUpDto.nextFollowUpDate) {
+      try {
+        const scheduledDate = new Date(followUpDto.nextFollowUpDate);
+        this.logger.log(
+          `Scheduling follow-up reminder for first-timer ${id} at ${scheduledDate}`,
+        );
+
+        // Get the person who made the follow-up to send them the reminder
+        if (followUpDto.contactedBy) {
+          const contactPerson =
+            await this.membersService.findById(followUpDto.contactedBy);
+          if (contactPerson && contactPerson.email) {
+            const job = await this.queueService.scheduleFollowUpReminder(
+              {
+                firstTimerId: id,
+                assignedPersonEmail: contactPerson.email,
+                assignedPersonName: `${contactPerson.firstName} ${contactPerson.lastName}`,
+                firstTimerName: `${firstTimer.firstName} ${firstTimer.lastName}`,
+                firstTimerPhone: firstTimer.phone,
+                firstTimerEmail: firstTimer.email,
+                followUpNotes: followUpDto.notes,
+              },
+              scheduledDate,
+            );
+            this.logger.log(
+              `✅ Scheduled follow-up reminder - Job ID: ${job.id}, for ${scheduledDate}`,
+            );
+          } else {
+            this.logger.warn(
+              `Cannot schedule reminder: Contact person ${followUpDto.contactedBy} not found or has no email`,
+            );
+          }
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to schedule follow-up reminder for first-timer ${id}:`,
+          error.message,
+        );
+        // Don't fail the follow-up if scheduling fails
+      }
+    }
+
+    // Create a corresponding call report (optional, don't block on failure)
     try {
+      // Get the actual count of existing call reports for this first-timer
+      const existingReports =
+        await this.callReportsService.findByFirstTimer(id);
+      const nextReportNumber = existingReports.length + 1;
+
+      this.logger.log(
+        `Creating call report for first-timer ${id}: found ${existingReports.length} existing reports, next report number: ${nextReportNumber}`,
+      );
+
       const callReportData: any = {
         firstTimerId: id,
         callDate: new Date().toISOString(),
@@ -404,13 +458,12 @@ export class FirstTimersService {
         notes: followUpDto.notes || '',
         contactMethod: followUpDto.method,
         nextFollowUpDate: followUpDto.nextFollowUpDate,
-        reportNumber: updatedFirstTimer!.followUpCount, // Use the updated count
+        reportNumber: nextReportNumber,
       };
 
       // If method is in_visit, add visitNumber and set attended service flags
       if (followUpDto.method === 'in_visit' && followUpDto.visitNumber) {
         callReportData.visitNumber = followUpDto.visitNumber;
-        // Set the corresponding attended service flag
         if (followUpDto.visitNumber === 2) {
           callReportData.attended2ndService = true;
         } else if (followUpDto.visitNumber === 3) {
@@ -428,7 +481,7 @@ export class FirstTimersService {
     } catch (error) {
       this.logger.error(
         `Failed to create call report for first-timer ${id}:`,
-        error,
+        error.message || error,
       );
       // Don't fail the follow-up if call report creation fails
     }
@@ -497,7 +550,7 @@ export class FirstTimersService {
 
   async getPendingDistrictAssignments(
     page: number = 1,
-    limit: number = 50,
+    limit: number = 10,
   ): Promise<PaginatedResult<FirstTimerDocument>> {
     const skip = (page - 1) * limit;
 
@@ -872,7 +925,7 @@ export class FirstTimersService {
 
   async getNeedingFollowUp(
     page: number = 1,
-    limit: number = 50,
+    limit: number = 10,
   ): Promise<PaginatedResult<FirstTimerDocument>> {
     const today = new Date();
     const skip = (page - 1) * limit;
@@ -905,7 +958,7 @@ export class FirstTimersService {
   async getRecentVisitors(
     days: number = 7,
     page: number = 1,
-    limit: number = 50,
+    limit: number = 10,
   ): Promise<PaginatedResult<FirstTimerDocument>> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
@@ -933,7 +986,7 @@ export class FirstTimersService {
   async getByAssignedMember(
     memberId: string,
     page: number = 1,
-    limit: number = 50,
+    limit: number = 10,
   ): Promise<PaginatedResult<FirstTimerDocument>> {
     const skip = (page - 1) * limit;
 

@@ -25,6 +25,9 @@ export enum JobType {
   CREATE_MEMBER_FROM_FIRST_TIMER = 'create-member-from-first-timer',
   SEND_MEMBER_FOLLOWUP_ASSIGNMENT = 'send-member-followup-assignment',
 
+  // Scheduled reminder jobs
+  SCHEDULED_FOLLOW_UP_REMINDER = 'scheduled-follow-up-reminder',
+
   // Audit log jobs
   AUDIT_LOG_CREATE = 'audit-log-create',
 

@@ -77,7 +77,7 @@ export class InventoryQueryDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  limit?: number = 20;
+  limit?: number = 10;
 
   @IsOptional()
   @IsString()

@@ -284,4 +284,62 @@ export class FirstTimerNotificationProcessor {
       throw error;
     }
   }
+
+  @Process(JobType.SCHEDULED_FOLLOW_UP_REMINDER)
+  async handleScheduledFollowUpReminder(
+    job: Job<FirstTimerNotificationJobData>,
+  ) {
+    this.logger.log(
+      `🔔 Processing scheduled follow-up reminder - Job ID: ${job.id}, Data: ${JSON.stringify(job.data)}`,
+    );
+
+    try {
+      const { firstTimerId, additionalData } = job.data;
+      const {
+        assignedPersonEmail,
+        assignedPersonName,
+        firstTimerName,
+        firstTimerPhone,
+        firstTimerEmail,
+        followUpNotes,
+        scheduledTime,
+      } = additionalData || {};
+
+      if (!assignedPersonEmail) {
+        this.logger.warn(
+          `Missing assigned person email for scheduled reminder`,
+        );
+        return {
+          success: false,
+          reason: 'Missing assigned person email',
+        };
+      }
+
+      await this.notificationsService.sendScheduledFollowUpReminder({
+        assignedPersonEmail,
+        assignedPersonName: assignedPersonName || 'Team Member',
+        firstTimerName: firstTimerName || 'First Timer',
+        firstTimerPhone: firstTimerPhone || 'N/A',
+        firstTimerEmail,
+        followUpNotes,
+        scheduledTime:
+          scheduledTime ||
+          new Date().toLocaleString('en-US', {
+            dateStyle: 'full',
+            timeStyle: 'short',
+          }),
+      });
+
+      this.logger.log(
+        `✅ Scheduled follow-up reminder sent to ${assignedPersonEmail} for first-timer ${firstTimerId}`,
+      );
+      return { success: true, assignedPersonEmail, firstTimerId };
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to send scheduled follow-up reminder: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
 }

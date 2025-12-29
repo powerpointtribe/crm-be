@@ -62,10 +62,26 @@ export class MembersService {
     // TODO: Add validation to ensure district exists and is of type 'district'
     // TODO: Add validation to ensure unit (if provided) exists and is of type 'unit'
 
+    // Determine membership status: if assigned to a unit, upgrade to DC unless already LXL or higher
+    let membershipStatus = createMemberDto.membershipStatus;
+    if (createMemberDto.unit) {
+      const leadershipStatuses = [
+        MembershipStatus.LXL,
+        MembershipStatus.DIRECTOR,
+        MembershipStatus.PASTOR,
+        MembershipStatus.CAMPUS_PASTOR,
+        MembershipStatus.SENIOR_PASTOR,
+      ];
+      if (!leadershipStatuses.includes(membershipStatus as MembershipStatus)) {
+        membershipStatus = MembershipStatus.DC;
+      }
+    }
+
     const member = new this.memberModel({
       ...createMemberDto,
       email: createMemberDto.email.toLowerCase(),
       dateOfBirth,
+      membershipStatus,
       dateJoined: createMemberDto.dateJoined
         ? new Date(createMemberDto.dateJoined)
         : new Date(),
@@ -562,6 +578,26 @@ export class MembersService {
       updateMemberDto.email = updateMemberDto.email.toLowerCase();
     }
 
+    // If unit is being assigned, check if membership status needs to be upgraded to DC
+    if (updateMemberDto.unit) {
+      const existingMember = await this.memberModel.findById(id);
+      if (existingMember) {
+        // Leadership statuses that should NOT be downgraded to DC
+        const leadershipStatuses = [
+          MembershipStatus.LXL,
+          MembershipStatus.DIRECTOR,
+          MembershipStatus.PASTOR,
+          MembershipStatus.CAMPUS_PASTOR,
+          MembershipStatus.SENIOR_PASTOR,
+        ];
+
+        // Auto-upgrade to DC if not already a leader (LXL or higher)
+        if (!leadershipStatuses.includes(existingMember.membershipStatus as MembershipStatus)) {
+          (updateMemberDto as any).membershipStatus = MembershipStatus.DC;
+        }
+      }
+    }
+
     const member = await this.memberModel
       .findByIdAndUpdate(
         id,
@@ -654,15 +690,36 @@ export class MembersService {
     unitId: string,
   ): Promise<MemberDocument> {
     // TODO: Validate that unitId is a valid unit
-    const member = await this.memberModel
-      .findByIdAndUpdate(memberId, { $set: { unit: unitId } }, { new: true })
-      .populate('unit', 'name type');
+    const member = await this.memberModel.findById(memberId);
 
     if (!member) {
       throw new NotFoundException('Member not found');
     }
 
-    return member;
+    // Leadership statuses that should NOT be downgraded to DC
+    const leadershipStatuses = [
+      MembershipStatus.LXL,
+      MembershipStatus.DIRECTOR,
+      MembershipStatus.PASTOR,
+      MembershipStatus.CAMPUS_PASTOR,
+      MembershipStatus.SENIOR_PASTOR,
+    ];
+
+    // Update unit
+    member.unit = new Types.ObjectId(unitId);
+
+    // Auto-upgrade to DC if not already a leader (LXL or higher)
+    if (!leadershipStatuses.includes(member.membershipStatus as MembershipStatus)) {
+      member.membershipStatus = MembershipStatus.DC;
+    }
+
+    await member.save();
+
+    // Return with populated unit
+    return this.memberModel
+      .findById(memberId)
+      .populate('unit', 'name type')
+      .exec() as Promise<MemberDocument>;
   }
 
   async removeFromUnit(memberId: string): Promise<MemberDocument> {
@@ -717,6 +774,7 @@ export class MembersService {
       districtStats,
       unitStats,
       ageStats,
+      leadershipStats,
       totalMembers,
     ] = await Promise.all([
       // Status distribution
@@ -811,6 +869,20 @@ export class MembersService {
         },
       ]),
 
+      // Leadership distribution (DC, LXL, DIRECTOR, PASTOR, CAMPUS_PASTOR, SENIOR_PASTOR)
+      this.memberModel.aggregate([
+        {
+          $match: {
+            ...baseFilter,
+            membershipStatus: {
+              $in: ['DC', 'LXL', 'DIRECTOR', 'PASTOR', 'CAMPUS_PASTOR', 'SENIOR_PASTOR'],
+            },
+          },
+        },
+        { $group: { _id: '$membershipStatus', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+
       // Total count
       this.memberModel.countDocuments(baseFilter),
     ]);
@@ -827,6 +899,7 @@ export class MembersService {
       byDistrict: districtStats,
       byUnit: unitStats,
       byAge: ageStats,
+      byLeadership: leadershipStats,
       membersWithoutUnits,
       unitAssignmentRate:
         totalMembers > 0
@@ -985,11 +1058,14 @@ export class MembersService {
     if (defaultDistrict) defaultValues.district = defaultDistrict;
     if (defaultUnit) defaultValues.unit = defaultUnit;
 
-    const result = await BulkOperationUtil.processBulkOperation(
-      csvContent,
+    const dtoClass =
       operationType === BulkOperationType.CREATE
         ? CreateMemberDto
-        : UpdateMemberDto,
+        : UpdateMemberDto;
+
+    const result = await BulkOperationUtil.processBulkOperation(
+      csvContent,
+      dtoClass as new () => CreateMemberDto,
       mappingConfig,
       (dto: CreateMemberDto) => this.createSafe(dto),
       (identifier: any, dto: Partial<UpdateMemberDto>) =>
@@ -1034,11 +1110,25 @@ export class MembersService {
       throw new Error('Every member must be assigned to a district');
     }
 
+    // Determine membership status: if assigned to a unit, upgrade to DC unless already LXL or higher
+    let membershipStatus = processedDto.membershipStatus || MembershipStatus.MEMBER;
+    if (processedDto.unit) {
+      const leadershipStatuses = [
+        MembershipStatus.LXL,
+        MembershipStatus.DIRECTOR,
+        MembershipStatus.PASTOR,
+        MembershipStatus.CAMPUS_PASTOR,
+        MembershipStatus.SENIOR_PASTOR,
+      ];
+      if (!leadershipStatuses.includes(membershipStatus as MembershipStatus)) {
+        membershipStatus = MembershipStatus.DC;
+      }
+    }
+
     const member = new this.memberModel({
       ...processedDto,
       email: processedDto.email.toLowerCase(),
-      membershipStatus:
-        processedDto.membershipStatus || MembershipStatus.MEMBER,
+      membershipStatus,
       dateJoined: processedDto.dateJoined || new Date(),
       familyMembers: processedDto.familyMembers || [],
       ministries: processedDto.ministries || [],
@@ -1131,6 +1221,20 @@ export class MembersService {
     }
     if (updateData.unit) {
       member.unit = new Types.ObjectId(updateData.unit);
+
+      // Leadership statuses that should NOT be downgraded to DC
+      const leadershipStatuses = [
+        MembershipStatus.LXL,
+        MembershipStatus.DIRECTOR,
+        MembershipStatus.PASTOR,
+        MembershipStatus.CAMPUS_PASTOR,
+        MembershipStatus.SENIOR_PASTOR,
+      ];
+
+      // Auto-upgrade to DC if not already a leader (LXL or higher)
+      if (!leadershipStatuses.includes(member.membershipStatus as MembershipStatus)) {
+        member.membershipStatus = MembershipStatus.DC;
+      }
     }
     if (updateData.district) {
       member.district = new Types.ObjectId(updateData.district);

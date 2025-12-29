@@ -207,11 +207,14 @@ export class BulkOperationProcessor {
       const memberCSVMapping = this.getMemberCSVMapping();
 
       // Use the bulk operation utility
-      const result = await BulkOperationUtil.processBulkOperation(
-        csvContent,
+      const dtoClass =
         operationType === BulkOperationType.CREATE
           ? CreateMemberDto
-          : UpdateMemberDto,
+          : UpdateMemberDto;
+
+      const result = await BulkOperationUtil.processBulkOperation(
+        csvContent,
+        dtoClass as new () => CreateMemberDto,
         memberCSVMapping,
         // Create function
         async (dto: CreateMemberDto) => {
@@ -285,11 +288,14 @@ export class BulkOperationProcessor {
       const userCSVMapping = this.getUserCSVMapping();
 
       // Use the bulk operation utility
-      const result = await BulkOperationUtil.processBulkOperation(
-        csvContent,
+      const userDtoClass =
         operationType === BulkOperationType.CREATE
           ? CreateMemberDto
-          : UpdateMemberDto,
+          : UpdateMemberDto;
+
+      const result = await BulkOperationUtil.processBulkOperation(
+        csvContent,
+        userDtoClass as new () => CreateMemberDto,
         userCSVMapping,
         // Create function
         async (dto: CreateMemberDto) => {
