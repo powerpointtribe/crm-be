@@ -405,16 +405,17 @@ export class FirstTimersService {
           `Scheduling follow-up reminder for first-timer ${id} at ${scheduledDate}`,
         );
 
-        // Get the person who made the follow-up to send them the reminder
-        if (followUpDto.contactedBy) {
-          const contactPerson =
-            await this.membersService.findById(followUpDto.contactedBy);
-          if (contactPerson && contactPerson.email) {
+        // Get the person assigned to this first-timer to send them the reminder
+        const assignedToId = firstTimer.assignedTo?.toString();
+        if (assignedToId) {
+          const assignedPerson =
+            await this.membersService.findById(assignedToId);
+          if (assignedPerson && assignedPerson.email) {
             const job = await this.queueService.scheduleFollowUpReminder(
               {
                 firstTimerId: id,
-                assignedPersonEmail: contactPerson.email,
-                assignedPersonName: `${contactPerson.firstName} ${contactPerson.lastName}`,
+                assignedPersonEmail: assignedPerson.email,
+                assignedPersonName: `${assignedPerson.firstName} ${assignedPerson.lastName}`,
                 firstTimerName: `${firstTimer.firstName} ${firstTimer.lastName}`,
                 firstTimerPhone: firstTimer.phone,
                 firstTimerEmail: firstTimer.email,
@@ -423,13 +424,17 @@ export class FirstTimersService {
               scheduledDate,
             );
             this.logger.log(
-              `✅ Scheduled follow-up reminder - Job ID: ${job.id}, for ${scheduledDate}`,
+              `✅ Scheduled follow-up reminder - Job ID: ${job.id}, for ${assignedPerson.email} at ${scheduledDate}`,
             );
           } else {
             this.logger.warn(
-              `Cannot schedule reminder: Contact person ${followUpDto.contactedBy} not found or has no email`,
+              `Cannot schedule reminder: Assigned person ${assignedToId} not found or has no email`,
             );
           }
+        } else {
+          this.logger.warn(
+            `Cannot schedule reminder: First-timer ${id} has no assigned person`,
+          );
         }
       } catch (error) {
         this.logger.error(
