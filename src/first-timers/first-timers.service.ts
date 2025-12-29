@@ -341,7 +341,7 @@ export class FirstTimersService {
     }
 
     // Add the follow-up record
-    const followUp = {
+    const followUp: any = {
       date: new Date(),
       method: followUpDto.method,
       notes: followUpDto.notes,
@@ -351,6 +351,11 @@ export class FirstTimersService {
         ? new Date(followUpDto.nextFollowUpDate)
         : undefined,
     };
+
+    // Add visitNumber if method is in_visit
+    if (followUpDto.method === 'in_visit' && followUpDto.visitNumber) {
+      followUp.visitNumber = followUpDto.visitNumber;
+    }
 
     // Update status based on outcome
     let newStatus = firstTimer.status;
@@ -368,26 +373,31 @@ export class FirstTimersService {
         break;
     }
 
+    // Build the update object
+    const updateObj: any = {
+      $push: { followUps: followUp },
+      $inc: { followUpCount: 1 },
+      $set: {
+        status: newStatus,
+        nextFollowUpDate: followUpDto.nextFollowUpDate
+          ? new Date(followUpDto.nextFollowUpDate)
+          : null,
+      },
+    };
+
+    // If method is in_visit, also update totalVisits
+    if (followUpDto.method === 'in_visit' && followUpDto.visitNumber) {
+      // Set totalVisits to the visit number (e.g., 2nd visit = 2 total visits)
+      updateObj.$set.totalVisits = followUpDto.visitNumber;
+    }
+
     const updatedFirstTimer = await this.firstTimerModel
-      .findByIdAndUpdate(
-        id,
-        {
-          $push: { followUps: followUp },
-          $inc: { followUpCount: 1 },
-          $set: {
-            status: newStatus,
-            nextFollowUpDate: followUpDto.nextFollowUpDate
-              ? new Date(followUpDto.nextFollowUpDate)
-              : null,
-          },
-        },
-        { new: true },
-      )
+      .findByIdAndUpdate(id, updateObj, { new: true })
       .populate('followUps.contactedBy', 'firstName lastName');
 
     // Create a corresponding call report
     try {
-      const callReportData = {
+      const callReportData: any = {
         firstTimerId: id,
         callDate: new Date().toISOString(),
         status: this.mapFollowUpOutcomeToCallReportStatus(followUpDto.outcome),
@@ -396,6 +406,19 @@ export class FirstTimersService {
         nextFollowUpDate: followUpDto.nextFollowUpDate,
         reportNumber: updatedFirstTimer!.followUpCount, // Use the updated count
       };
+
+      // If method is in_visit, add visitNumber and set attended service flags
+      if (followUpDto.method === 'in_visit' && followUpDto.visitNumber) {
+        callReportData.visitNumber = followUpDto.visitNumber;
+        // Set the corresponding attended service flag
+        if (followUpDto.visitNumber === 2) {
+          callReportData.attended2ndService = true;
+        } else if (followUpDto.visitNumber === 3) {
+          callReportData.attended3rdService = true;
+        } else if (followUpDto.visitNumber === 4) {
+          callReportData.attended4thService = true;
+        }
+      }
 
       await this.callReportsService.create(
         callReportData,
@@ -725,6 +748,7 @@ export class FirstTimersService {
       weeklyStats,
       assignmentStats,
       readyForIntegrationCount,
+      totalClosedCount,
     ] = await Promise.all([
       // Status distribution (exclude archived)
       this.firstTimerModel.aggregate([
@@ -813,6 +837,12 @@ export class FirstTimersService {
         isArchived: { $ne: true },
         readyForIntegration: true,
       }),
+
+      // Closed count (converted to member or marked inactive)
+      this.firstTimerModel.countDocuments({
+        isActive: true,
+        status: EngagementStatus.CLOSED,
+      }),
     ]);
 
     const conversionRate = conversionStats[0]
@@ -828,6 +858,7 @@ export class FirstTimersService {
     return {
       total: totalAll, // All first timers including archived (for "All Visitors" tab)
       totalArchived: totalArchived, // Archived count (for "Archived" tab)
+      totalClosed: totalClosedCount, // Closed count (for "Closed" tab)
       readyForIntegration: readyForIntegrationCount, // Ready for integration count
       byStatus: statusStats,
       conversionRate,
@@ -1170,19 +1201,23 @@ export class FirstTimersService {
   }
 
   private mapFollowUpOutcomeToCallReportStatus(outcome: string): string {
-    switch (outcome) {
-      case 'successful':
-      case 'interested':
-        return 'willing_to_join';
-      case 'not_interested':
-        return 'committed_to_another_church';
-      case 'no_answer':
-      case 'busy':
-        return 'unreachable';
-      case 'follow_up_needed':
-      default:
-        return 'others';
+    // The follow-up outcomes match the call report status values
+    const validStatuses = [
+      'successful',
+      'no_answer',
+      'busy',
+      'not_interested',
+      'interested',
+      'follow_up_needed',
+      'completed',
+    ];
+
+    if (validStatuses.includes(outcome)) {
+      return outcome;
     }
+
+    // Default to 'follow_up_needed' if outcome doesn't match
+    return 'follow_up_needed';
   }
 
   async updateReminderCount(id: string): Promise<FirstTimerDocument> {
@@ -1543,6 +1578,18 @@ export class FirstTimersService {
       throw new NotFoundException('First-timer not found');
     }
 
+    if (!firstTimer.assignedTo) {
+      throw new BadRequestException(
+        'First-timer must be assigned to someone before marking as ready for integration',
+      );
+    }
+
+    if (!firstTimer.followUps || firstTimer.followUps.length === 0) {
+      throw new BadRequestException(
+        'At least one follow-up record is required before marking as ready for integration',
+      );
+    }
+
     if (firstTimer.readyForIntegration) {
       throw new BadRequestException('First-timer is already marked as ready for integration');
     }
@@ -1600,6 +1647,64 @@ export class FirstTimersService {
 
     this.logger.log(`First-timer ${id} unmarked from ready for integration`);
     return firstTimer;
+  }
+
+  /**
+   * Close a first timer as inactive (not converted to member)
+   * Requires at least one follow-up record
+   */
+  async closeFirstTimer(
+    id: string,
+    reason?: string,
+  ): Promise<FirstTimerDocument> {
+    const firstTimer = await this.firstTimerModel.findById(id);
+    if (!firstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    if (firstTimer.status === EngagementStatus.CLOSED) {
+      throw new BadRequestException('First-timer is already closed');
+    }
+
+    if (!firstTimer.assignedTo) {
+      throw new BadRequestException(
+        'First-timer must be assigned to someone before closing',
+      );
+    }
+
+    if (!firstTimer.followUps || firstTimer.followUps.length === 0) {
+      throw new BadRequestException(
+        'At least one follow-up record is required before closing',
+      );
+    }
+
+    const updatedFirstTimer = await this.firstTimerModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          status: EngagementStatus.CLOSED,
+          lastStatusChange: new Date(),
+          closedAt: new Date(),
+          closureReason: reason || 'Marked as inactive',
+          readyForIntegration: false,
+          isArchived: false,
+        },
+        $unset: {
+          readyForIntegrationDate: 1,
+          markedReadyBy: 1,
+          archivedAt: 1,
+          archiveReason: 1,
+        },
+      },
+      { new: true },
+    );
+
+    if (!updatedFirstTimer) {
+      throw new NotFoundException('First-timer not found');
+    }
+
+    this.logger.log(`First-timer ${id} closed as inactive. Reason: ${reason || 'No reason provided'}`);
+    return updatedFirstTimer;
   }
 
   /**
@@ -1719,6 +1824,18 @@ export class FirstTimersService {
     if (!firstTimer.readyForIntegration) {
       throw new BadRequestException(
         'First-timer must be marked as ready for integration before integrating',
+      );
+    }
+
+    if (!firstTimer.assignedTo) {
+      throw new BadRequestException(
+        'First-timer must be assigned to someone before integrating',
+      );
+    }
+
+    if (!firstTimer.followUps || firstTimer.followUps.length === 0) {
+      throw new BadRequestException(
+        'At least one follow-up record is required before integrating',
       );
     }
 

@@ -6,15 +6,18 @@ import {
   IsDateString,
   IsMongoId,
   ValidateIf,
+  IsNumber,
+  Min,
+  Max,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AddFollowUpDto {
   @ApiProperty({
     description: 'Follow-up method',
-    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call'],
+    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'],
   })
-  @IsEnum(['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call'])
+  @IsEnum(['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'])
   @IsNotEmpty()
   method: string;
 
@@ -61,4 +64,16 @@ export class AddFollowUpDto {
   @ValidateIf((o) => o.nextFollowUpDate !== '' && o.nextFollowUpDate !== null)
   @IsDateString()
   nextFollowUpDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Visit number when method is in_visit (2nd, 3rd, or 4th visit)',
+    minimum: 2,
+    maximum: 4,
+  })
+  @IsOptional()
+  @ValidateIf((o) => o.method === 'in_visit')
+  @IsNumber()
+  @Min(2)
+  @Max(4)
+  visitNumber?: number;
 }

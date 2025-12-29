@@ -61,7 +61,8 @@ export class CallReportsService {
     // Create the call report
     const callReport = new this.callReportModel({
       ...createCallReportDto,
-      callMadeBy: userId,
+      firstTimerId: new Types.ObjectId(createCallReportDto.firstTimerId),
+      callMadeBy: new Types.ObjectId(userId),
       callDate: new Date(createCallReportDto.callDate),
       nextFollowUpDate: createCallReportDto.nextFollowUpDate
         ? new Date(createCallReportDto.nextFollowUpDate)
@@ -283,76 +284,123 @@ export class CallReportsService {
   }
 
   // New comprehensive analytics methods
-  async getGlobalCallReportsAnalytics(): Promise<{
+  // Configurable threshold for pending follow-ups (in hours)
+  private readonly PENDING_FOLLOWUP_THRESHOLD_HOURS = 48;
+
+  async getGlobalCallReportsAnalytics(params?: {
+    fromDate?: Date;
+    toDate?: Date;
+  }): Promise<{
     totalReports: number;
     totalFirstTimers: number;
     avgReportsPerFirstTimer: number;
     completionRate: number;
-    statusDistribution: Record<string, number>;
-    contactMethodDistribution: Record<string, number>;
+    conversionRate: number;
+    statusDistribution: Array<{ status: string; count: number }>;
+    methodDistribution: Array<{ method: string; count: number }>;
     overdueFirstTimers: number;
+    pendingFollowUps: number;
+    contactedToday: number;
     monthlyTrends: Array<{
       month: string;
       reportsCreated: number;
       firstTimersWithReports: number;
     }>;
+    dateRange?: {
+      fromDate: Date;
+      toDate: Date;
+    };
   }> {
-    const [totalReports, reportsBreakdown, monthlyData] = await Promise.all([
-      this.callReportModel.countDocuments(),
-      this.callReportModel.aggregate([
-        {
-          $group: {
-            _id: null,
-            statusCounts: {
-              $push: {
-                k: '$status',
-                v: 1,
-              },
-            },
-            contactMethodCounts: {
-              $push: {
-                k: '$contactMethod',
-                v: 1,
-              },
-            },
-            uniqueFirstTimers: { $addToSet: '$firstTimerId' },
-          },
-        },
-        {
-          $project: {
-            statusDistribution: { $arrayToObject: '$statusCounts' },
-            contactMethodDistribution: {
-              $arrayToObject: '$contactMethodCounts',
-            },
-            totalFirstTimers: { $size: '$uniqueFirstTimers' },
-          },
-        },
-      ]),
-      this.callReportModel.aggregate([
-        {
-          $group: {
-            _id: {
-              year: { $year: '$createdAt' },
-              month: { $month: '$createdAt' },
-            },
-            reportsCreated: { $sum: 1 },
-            firstTimersWithReports: { $addToSet: '$firstTimerId' },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            reportsCreated: 1,
-            firstTimersWithReports: { $size: '$firstTimersWithReports' },
-          },
-        },
-        { $sort: { '_id.year': -1, '_id.month': -1 } },
-        { $limit: 12 },
-      ]),
-    ]);
+    // Build date filter if provided
+    const dateFilter: any = {};
+    if (params?.fromDate || params?.toDate) {
+      dateFilter.callDate = {};
+      if (params?.fromDate) {
+        dateFilter.callDate.$gte = params.fromDate;
+      }
+      if (params?.toDate) {
+        // Set toDate to end of day
+        const endOfDay = new Date(params.toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        dateFilter.callDate.$lte = endOfDay;
+      }
+    }
 
-    const breakdown = reportsBreakdown[0] || {};
-    const totalFirstTimers = breakdown.totalFirstTimers || 0;
+    const [totalReports, statusData, methodData, firstTimerCount, monthlyData] =
+      await Promise.all([
+        this.callReportModel.countDocuments(dateFilter),
+        // Get status distribution as array
+        this.callReportModel.aggregate([
+          { $match: dateFilter },
+          {
+            $group: {
+              _id: '$status',
+              count: { $sum: 1 },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              status: '$_id',
+              count: 1,
+            },
+          },
+        ]),
+        // Get method distribution as array
+        this.callReportModel.aggregate([
+          { $match: dateFilter },
+          {
+            $group: {
+              _id: '$contactMethod',
+              count: { $sum: 1 },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              method: '$_id',
+              count: 1,
+            },
+          },
+        ]),
+        // Get unique first timers count
+        this.callReportModel.aggregate([
+          { $match: dateFilter },
+          {
+            $group: {
+              _id: '$firstTimerId',
+            },
+          },
+          {
+            $count: 'total',
+          },
+        ]),
+        // Get monthly trends
+        this.callReportModel.aggregate([
+          { $match: dateFilter },
+          {
+            $group: {
+              _id: {
+                year: { $year: '$createdAt' },
+                month: { $month: '$createdAt' },
+              },
+              reportsCreated: { $sum: 1 },
+              firstTimersWithReports: { $addToSet: '$firstTimerId' },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              reportsCreated: 1,
+              firstTimersWithReports: { $size: '$firstTimersWithReports' },
+            },
+          },
+          { $sort: { '_id.year': -1, '_id.month': -1 } },
+          { $limit: 12 },
+        ]),
+      ]);
+
+    const totalFirstTimers = firstTimerCount[0]?.total || 0;
     const avgReportsPerFirstTimer =
       totalFirstTimers > 0 ? totalReports / totalFirstTimers : 0;
 
@@ -374,6 +422,27 @@ export class CallReportsService {
       lastStatusChange: { $lt: twoWeeksAgo },
       isActive: true,
       stage: { $ne: 'closed' },
+    });
+
+    // Count pending follow-ups: first timers created more than 48 hours ago with no follow-up records
+    const thresholdDate = new Date(
+      Date.now() - this.PENDING_FOLLOWUP_THRESHOLD_HOURS * 60 * 60 * 1000,
+    );
+    const pendingFollowUps = await this.firstTimerModel.countDocuments({
+      createdAt: { $lt: thresholdDate },
+      followUpCount: 0,
+      isActive: true,
+      isArchived: false,
+      status: { $nin: ['CLOSED'] },
+    });
+
+    // Count follow-ups done today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    const contactedToday = await this.callReportModel.countDocuments({
+      callDate: { $gte: todayStart, $lte: todayEnd },
     });
 
     // Format monthly trends
@@ -399,35 +468,83 @@ export class CallReportsService {
       }))
       .reverse();
 
+    // Calculate conversion rate (successful + interested / total reports)
+    const successfulCount = statusData.reduce((acc, item) => {
+      if (['successful', 'interested', 'completed'].includes(item.status)) {
+        return acc + item.count;
+      }
+      return acc;
+    }, 0);
+    const conversionRate =
+      totalReports > 0 ? (successfulCount / totalReports) * 100 : 0;
+
     return {
       totalReports,
       totalFirstTimers,
       avgReportsPerFirstTimer: Math.round(avgReportsPerFirstTimer * 100) / 100,
       completionRate: Math.round(completionRate * 100) / 100,
-      statusDistribution: breakdown.statusDistribution || {},
-      contactMethodDistribution: breakdown.contactMethodDistribution || {},
+      conversionRate: Math.round(conversionRate * 100) / 100,
+      statusDistribution: statusData,
+      methodDistribution: methodData,
       overdueFirstTimers,
+      pendingFollowUps,
+      contactedToday,
       monthlyTrends,
+      ...(params?.fromDate && params?.toDate
+        ? {
+            dateRange: {
+              fromDate: params.fromDate,
+              toDate: params.toDate,
+            },
+          }
+        : {}),
     };
   }
 
-  async getTeamPerformanceAnalytics(): Promise<
+  async getTeamPerformanceAnalytics(params?: {
+    fromDate?: Date;
+    toDate?: Date;
+  }): Promise<
     Array<{
-      callMadeBy: {
+      member: {
         _id: string;
         firstName: string;
         lastName: string;
         email: string;
       };
-      totalReports: number;
+      reportCount: number;
+      contactCount: number;
+      pendingFollowUps: number;
+      conversionRate: number;
       avgReportsPerFirstTimer: number;
-      successRate: number;
       firstTimersManaged: number;
       avgDaysBetweenReports: number;
       overdueFirstTimers: number;
     }>
   > {
-    const teamStats = await this.callReportModel.aggregate([
+    // Build date filter if provided
+    const dateFilter: any = {};
+    if (params?.fromDate || params?.toDate) {
+      dateFilter.callDate = {};
+      if (params?.fromDate) {
+        dateFilter.callDate.$gte = params.fromDate;
+      }
+      if (params?.toDate) {
+        // Set toDate to end of day
+        const endOfDay = new Date(params.toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        dateFilter.callDate.$lte = endOfDay;
+      }
+    }
+
+    const pipeline: any[] = [];
+
+    // Add date filter match at the beginning if provided
+    if (Object.keys(dateFilter).length > 0) {
+      pipeline.push({ $match: dateFilter });
+    }
+
+    pipeline.push(
       {
         $lookup: {
           from: 'members',
@@ -467,18 +584,22 @@ export class CallReportsService {
           reports: 1,
         },
       },
-    ]);
+    );
+
+    const teamStats = await this.callReportModel.aggregate(pipeline);
 
     const result: Array<{
-      callMadeBy: {
+      member: {
         _id: string;
         firstName: string;
         lastName: string;
         email: string;
       };
-      totalReports: number;
+      reportCount: number;
+      contactCount: number;
+      pendingFollowUps: number;
+      conversionRate: number;
       avgReportsPerFirstTimer: number;
-      successRate: number;
       firstTimersManaged: number;
       avgDaysBetweenReports: number;
       overdueFirstTimers: number;
@@ -522,24 +643,35 @@ export class CallReportsService {
         stage: { $ne: 'closed' },
       });
 
+      // Count pending follow-ups for this team member
+      const memberPendingFollowUps = await this.firstTimerModel.countDocuments({
+        assignedTo: stat._id,
+        followUpCount: 0,
+        isActive: true,
+        isArchived: false,
+        status: { $nin: ['CLOSED'] },
+      });
+
       result.push({
-        callMadeBy: {
+        member: {
           _id: stat.memberInfo._id,
           firstName: stat.memberInfo.firstName,
           lastName: stat.memberInfo.lastName,
           email: stat.memberInfo.email,
         },
-        totalReports: stat.totalReports,
+        reportCount: stat.totalReports,
+        contactCount: stat.totalReports,
+        pendingFollowUps: memberPendingFollowUps,
+        conversionRate: Math.round(successRate * 100) / 100,
         avgReportsPerFirstTimer:
           Math.round(avgReportsPerFirstTimer * 100) / 100,
-        successRate: Math.round(successRate * 100) / 100,
         firstTimersManaged: stat.firstTimersManaged,
         avgDaysBetweenReports,
         overdueFirstTimers,
       });
     }
 
-    return result.sort((a, b) => b.totalReports - a.totalReports);
+    return result.sort((a, b) => b.reportCount - a.reportCount);
   }
 
   async getOverdueReports(): Promise<
@@ -651,12 +783,14 @@ export class CallReportsService {
     fromDate?: Date;
     toDate?: Date;
     firstTimerName?: string;
+    callerName?: string;
   }): Promise<{
     reports: CallReport[];
     total: number;
     pagination: {
       page: number;
       limit: number;
+      total: number;
       totalPages: number;
       hasNext: boolean;
       hasPrev: boolean;
@@ -671,6 +805,7 @@ export class CallReportsService {
       fromDate,
       toDate,
       firstTimerName,
+      callerName,
     } = params;
 
     const skip = (page - 1) * limit;
@@ -682,16 +817,35 @@ export class CallReportsService {
 
     if (fromDate || toDate) {
       filter.callDate = {};
-      if (fromDate) filter.callDate.$gte = fromDate;
-      if (toDate) filter.callDate.$lte = toDate;
+      if (fromDate) {
+        filter.callDate.$gte = fromDate;
+      }
+      if (toDate) {
+        // Set toDate to end of day to include all records from that day
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        filter.callDate.$lte = endOfDay;
+      }
     }
 
     const pipeline: any[] = [
       { $match: filter },
+      // Convert firstTimerId string to ObjectId for lookup
+      {
+        $addFields: {
+          firstTimerIdObj: {
+            $cond: {
+              if: { $eq: [{ $type: '$firstTimerId' }, 'string'] },
+              then: { $toObjectId: '$firstTimerId' },
+              else: '$firstTimerId',
+            },
+          },
+        },
+      },
       {
         $lookup: {
           from: 'firsttimers',
-          localField: 'firstTimerId',
+          localField: 'firstTimerIdObj',
           foreignField: '_id',
           as: 'firstTimerInfo',
         },
@@ -705,14 +859,20 @@ export class CallReportsService {
         },
       },
       {
-        $unwind: '$firstTimerInfo',
+        $unwind: {
+          path: '$firstTimerInfo',
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
-        $unwind: '$memberInfo',
+        $unwind: {
+          path: '$memberInfo',
+          preserveNullAndEmptyArrays: true,
+        },
       },
     ];
 
-    // Add name search if provided
+    // Add first timer name search if provided
     if (firstTimerName) {
       pipeline.push({
         $match: {
@@ -749,9 +909,96 @@ export class CallReportsService {
       });
     }
 
+    // Add caller name search if provided
+    if (callerName) {
+      pipeline.push({
+        $match: {
+          $or: [
+            {
+              'memberInfo.firstName': {
+                $regex: callerName,
+                $options: 'i',
+              },
+            },
+            {
+              'memberInfo.lastName': {
+                $regex: callerName,
+                $options: 'i',
+              },
+            },
+            {
+              $expr: {
+                $regexMatch: {
+                  input: {
+                    $concat: [
+                      '$memberInfo.firstName',
+                      ' ',
+                      '$memberInfo.lastName',
+                    ],
+                  },
+                  regex: callerName,
+                  options: 'i',
+                },
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    // Add projection to rename fields to match frontend expectations
+    const projectionStage = {
+      $project: {
+        _id: 1,
+        firstTimerId: 1,
+        callDate: 1,
+        status: 1,
+        notes: 1,
+        deductions: 1,
+        contactMethod: 1,
+        nextFollowUpDate: 1,
+        reportNumber: 1,
+        visitNumber: 1,
+        attended2ndService: 1,
+        attended3rdService: 1,
+        attended4thService: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        contactDate: '$callDate',
+        // Rename firstTimerInfo to firstTimer (handle null)
+        firstTimer: {
+          $cond: {
+            if: { $ifNull: ['$firstTimerInfo', false] },
+            then: {
+              _id: '$firstTimerInfo._id',
+              firstName: '$firstTimerInfo.firstName',
+              lastName: '$firstTimerInfo.lastName',
+              phone: '$firstTimerInfo.phone',
+              email: '$firstTimerInfo.email',
+            },
+            else: null,
+          },
+        },
+        // Rename memberInfo to callMadeBy (handle null)
+        callMadeBy: {
+          $cond: {
+            if: { $ifNull: ['$memberInfo', false] },
+            then: {
+              _id: '$memberInfo._id',
+              firstName: '$memberInfo.firstName',
+              lastName: '$memberInfo.lastName',
+              email: '$memberInfo.email',
+            },
+            else: null,
+          },
+        },
+      },
+    };
+
     const [reports, totalCount] = await Promise.all([
       this.callReportModel.aggregate([
         ...pipeline,
+        projectionStage,
         { $sort: { callDate: -1, createdAt: -1 } },
         { $skip: skip },
         { $limit: limit },
@@ -768,6 +1015,7 @@ export class CallReportsService {
       pagination: {
         page,
         limit,
+        total,
         totalPages,
         hasNext: page < totalPages,
         hasPrev: page > 1,

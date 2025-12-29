@@ -147,6 +147,37 @@ export class CreateGroupDto {
   @IsMongoId()
   unitHead?: string;
 
+  @ApiPropertyOptional({
+    description: 'Assistant Unit Head member ID (for units)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  assistantUnitHead?: string;
+
+  // MINISTRY-SPECIFIC FIELDS
+  @ApiPropertyOptional({
+    description: 'Ministry Director member ID (for ministries)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  ministryDirector?: string;
+
+  @ApiPropertyOptional({
+    description: 'Linked Unit IDs for ministry auto-sync (members in these units auto-join the ministry)',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  linkedUnits?: string[];
+
+  // DEFAULT ROLE
+  @ApiPropertyOptional({
+    description: 'Default role ID to auto-assign when members join this group',
+  })
+  @IsOptional()
+  @IsMongoId()
+  defaultRole?: string;
+
   @ApiPropertyOptional({ description: 'Member IDs in this group' })
   @IsOptional()
   @IsArray()

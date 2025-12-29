@@ -50,7 +50,7 @@ export class CallReport {
 
   @Prop({
     type: String,
-    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call'],
+    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'],
     required: true,
   })
   contactMethod: string;
@@ -60,6 +60,10 @@ export class CallReport {
 
   @Prop({ type: Number, required: true, min: 1, max: 4 })
   reportNumber: number;
+
+  // Visit number for in_visit contact method (2nd, 3rd, 4th visit)
+  @Prop({ type: Number, min: 2, max: 4 })
+  visitNumber?: number;
 
   @Prop({ type: Date })
   createdAt: Date;

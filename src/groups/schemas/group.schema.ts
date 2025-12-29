@@ -47,6 +47,35 @@ export class Group {
   })
   unitHead?: Types.ObjectId;
 
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Member',
+  })
+  assistantUnitHead?: Types.ObjectId;
+
+  // MINISTRY-SPECIFIC FIELDS
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Member',
+  })
+  ministryDirector?: Types.ObjectId;
+
+  // Linked units for ministry - members in these units auto-join the ministry
+  @Prop([
+    {
+      type: Types.ObjectId,
+      ref: 'Group',
+    },
+  ])
+  linkedUnits: Types.ObjectId[];
+
+  // DEFAULT ROLE - Auto-assigned when member joins group
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Role',
+  })
+  defaultRole?: Types.ObjectId;
+
   // GENERAL FIELDS
   @Prop([{ type: Types.ObjectId, ref: 'Member' }])
   members: Types.ObjectId[];
@@ -146,6 +175,10 @@ export const GroupSchema = SchemaFactory.createForClass(Group);
 GroupSchema.index({ type: 1 });
 GroupSchema.index({ districtPastor: 1 });
 GroupSchema.index({ unitHead: 1 });
+GroupSchema.index({ assistantUnitHead: 1 });
+GroupSchema.index({ ministryDirector: 1 });
+GroupSchema.index({ linkedUnits: 1 });
+GroupSchema.index({ defaultRole: 1 });
 GroupSchema.index({ members: 1 });
 GroupSchema.index({ name: 1 });
 GroupSchema.index({ isActive: 1 });

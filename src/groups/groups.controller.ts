@@ -358,6 +358,191 @@ export class GroupsController {
     return ResponseUtil.success(group, 'Champ removed successfully');
   }
 
+  // UNIT LEADERSHIP
+  @Patch(':id/assign-assistant-unit-head/:memberId')
+  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
+  @ApiOperation({ summary: 'Assign assistant unit head to unit' })
+  @ApiParam({ name: 'id', description: 'Unit ID' })
+  @ApiParam({ name: 'memberId', description: 'Assistant Unit Head Member ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Assistant unit head assigned successfully',
+  })
+  async assignAssistantUnitHead(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+  ) {
+    const group = await this.groupsService.assignAssistantUnitHead(id, memberId);
+    return ResponseUtil.success(
+      group,
+      'Assistant unit head assigned successfully',
+    );
+  }
+
+  @Patch(':id/remove-assistant-unit-head')
+  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
+  @ApiOperation({ summary: 'Remove assistant unit head from unit' })
+  @ApiParam({ name: 'id', description: 'Unit ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Assistant unit head removed successfully',
+  })
+  async removeAssistantUnitHead(@Param('id') id: string) {
+    const group = await this.groupsService.removeAssistantUnitHead(id);
+    return ResponseUtil.success(
+      group,
+      'Assistant unit head removed successfully',
+    );
+  }
+
+  // MINISTRY LEADERSHIP
+  @Patch(':id/assign-ministry-director/:memberId')
+  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
+  @ApiOperation({ summary: 'Assign ministry director to ministry' })
+  @ApiParam({ name: 'id', description: 'Ministry ID' })
+  @ApiParam({ name: 'memberId', description: 'Director Member ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Ministry director assigned successfully',
+  })
+  async assignMinistryDirector(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+  ) {
+    const group = await this.groupsService.assignMinistryDirector(id, memberId);
+    return ResponseUtil.success(
+      group,
+      'Ministry director assigned successfully',
+    );
+  }
+
+  @Patch(':id/remove-ministry-director')
+  @RequirePermission(GroupsPermission.ASSIGN_GROUP_LEADER)
+  @ApiOperation({ summary: 'Remove ministry director from ministry' })
+  @ApiParam({ name: 'id', description: 'Ministry ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Ministry director removed successfully',
+  })
+  async removeMinistryDirector(@Param('id') id: string) {
+    const group = await this.groupsService.removeMinistryDirector(id);
+    return ResponseUtil.success(
+      group,
+      'Ministry director removed successfully',
+    );
+  }
+
+  // BULK MEMBER MANAGEMENT
+  @Patch(':id/members/bulk-add')
+  @RequirePermission(GroupsPermission.ADD_GROUP_MEMBER)
+  @AuditLog({
+    action: AuditAction.GROUP_MEMBER_ADDED,
+    entityType: AuditEntity.GROUP,
+    description: 'Bulk added members to group',
+    severity: 'medium',
+    getEntityId: (result, request) => request.params.id,
+  })
+  @ApiOperation({ summary: 'Bulk add members to group' })
+  @ApiParam({ name: 'id', description: 'Group ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Members added to group successfully',
+  })
+  async addMembers(
+    @Param('id') id: string,
+    @Body() body: { memberIds: string[] },
+  ) {
+    const group = await this.groupsService.addMembers(id, body.memberIds);
+    return ResponseUtil.success(group, 'Members added to group successfully');
+  }
+
+  // DEFAULT ROLE MANAGEMENT
+  @Patch(':id/default-role/:roleId')
+  @RequirePermission(GroupsPermission.UPDATE_GROUP)
+  @ApiOperation({ summary: 'Set default role for group' })
+  @ApiParam({ name: 'id', description: 'Group ID' })
+  @ApiParam({ name: 'roleId', description: 'Role ID to set as default' })
+  @ApiResponse({
+    status: 200,
+    description: 'Default role set successfully',
+  })
+  async setDefaultRole(
+    @Param('id') id: string,
+    @Param('roleId') roleId: string,
+  ) {
+    const group = await this.groupsService.setDefaultRole(id, roleId);
+    return ResponseUtil.success(group, 'Default role set successfully');
+  }
+
+  @Patch(':id/remove-default-role')
+  @RequirePermission(GroupsPermission.UPDATE_GROUP)
+  @ApiOperation({ summary: 'Remove default role from group' })
+  @ApiParam({ name: 'id', description: 'Group ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Default role removed successfully',
+  })
+  async removeDefaultRole(@Param('id') id: string) {
+    const group = await this.groupsService.removeDefaultRole(id);
+    return ResponseUtil.success(group, 'Default role removed successfully');
+  }
+
+  // MINISTRY-UNIT LINKING
+  @Patch(':id/link-units')
+  @RequirePermission(GroupsPermission.UPDATE_GROUP)
+  @AuditLog({
+    action: AuditAction.GROUP_UPDATED,
+    entityType: AuditEntity.GROUP,
+    description: 'Linked units to ministry',
+    severity: 'medium',
+    getEntityId: (result, request) => request.params.id,
+  })
+  @ApiOperation({ summary: 'Link units to ministry (auto-syncs members)' })
+  @ApiParam({ name: 'id', description: 'Ministry ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Units linked to ministry successfully',
+  })
+  async linkUnitsToMinistry(
+    @Param('id') id: string,
+    @Body() body: { unitIds: string[] },
+  ) {
+    const group = await this.groupsService.linkUnitsToMinistry(id, body.unitIds);
+    return ResponseUtil.success(
+      group,
+      'Units linked to ministry successfully',
+    );
+  }
+
+  @Patch(':id/unlink-units')
+  @RequirePermission(GroupsPermission.UPDATE_GROUP)
+  @AuditLog({
+    action: AuditAction.GROUP_UPDATED,
+    entityType: AuditEntity.GROUP,
+    description: 'Unlinked units from ministry',
+    severity: 'medium',
+    getEntityId: (result, request) => request.params.id,
+  })
+  @ApiOperation({ summary: 'Unlink units from ministry' })
+  @ApiParam({ name: 'id', description: 'Ministry ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Units unlinked from ministry successfully',
+  })
+  async unlinkUnitsFromMinistry(
+    @Param('id') id: string,
+    @Body() body: { unitIds: string[] },
+  ) {
+    const group = await this.groupsService.unlinkUnitsFromMinistry(
+      id,
+      body.unitIds,
+    );
+    return ResponseUtil.success(
+      group,
+      'Units unlinked from ministry successfully',
+    );
+  }
+
   // HOSTING MANAGEMENT (DISTRICTS)
   @Patch(':id/hosting')
   @RequirePermission(GroupsPermission.UPDATE_GROUP)

@@ -61,9 +61,9 @@ export class CreateCallReportDto {
 
   @ApiProperty({
     description: 'Contact method used',
-    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call'],
+    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'],
   })
-  @IsEnum(['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call'])
+  @IsEnum(['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'])
   @IsNotEmpty()
   contactMethod: string;
 
@@ -99,4 +99,15 @@ export class CreateCallReportDto {
   @Min(1)
   @Max(4)
   reportNumber: number;
+
+  @ApiPropertyOptional({
+    description: 'Visit number when contact method is in_visit (2nd, 3rd, or 4th visit)',
+    minimum: 2,
+    maximum: 4,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(2)
+  @Max(4)
+  visitNumber?: number;
 }

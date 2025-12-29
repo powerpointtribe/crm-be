@@ -158,7 +158,15 @@ export class FirstTimer {
         date: { type: Date, required: true },
         method: {
           type: String,
-          enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call'],
+          enum: [
+            'phone',
+            'email',
+            'sms',
+            'whatsapp',
+            'visit',
+            'video_call',
+            'in_visit',
+          ],
           required: true,
         },
         notes: String,
@@ -176,6 +184,8 @@ export class FirstTimer {
         },
         contactedBy: { type: Types.ObjectId, ref: 'Member', required: true },
         nextFollowUpDate: Date,
+        // Visit number for in_visit method (2nd, 3rd, 4th visit)
+        visitNumber: { type: Number, min: 2, max: 4 },
       },
     },
   ])
@@ -186,7 +196,12 @@ export class FirstTimer {
     outcome: string;
     contactedBy: Types.ObjectId;
     nextFollowUpDate?: Date;
+    visitNumber?: number;
   }>;
+
+  // Total church visits count (starts at 1 for first visit)
+  @Prop({ type: Number, default: 1, min: 1 })
+  totalVisits: number;
 
   // Visit information
   @Prop({
@@ -388,6 +403,13 @@ export class FirstTimer {
 
   @Prop({ type: Boolean, default: false })
   exemptFromAutoArchive: boolean;
+
+  // Closure tracking
+  @Prop({ type: Date })
+  closedAt?: Date;
+
+  @Prop({ type: String })
+  closureReason?: string;
 
   // Ready for Integration tracking
   @Prop({ type: Boolean, default: false })

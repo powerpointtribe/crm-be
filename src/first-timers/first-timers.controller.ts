@@ -531,9 +531,15 @@ export class FirstTimersController {
     status: 200,
     description: 'Global analytics retrieved successfully',
   })
-  async getGlobalCallReportsAnalytics() {
+  async getGlobalCallReportsAnalytics(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
     const analytics =
-      await this.callReportsService.getGlobalCallReportsAnalytics();
+      await this.callReportsService.getGlobalCallReportsAnalytics({
+        fromDate: fromDate ? new Date(fromDate) : undefined,
+        toDate: toDate ? new Date(toDate) : undefined,
+      });
     return ResponseUtil.success(
       analytics,
       'Global analytics retrieved successfully',
@@ -547,9 +553,15 @@ export class FirstTimersController {
     status: 200,
     description: 'Team performance analytics retrieved successfully',
   })
-  async getTeamPerformanceAnalytics() {
+  async getTeamPerformanceAnalytics(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
     const analytics =
-      await this.callReportsService.getTeamPerformanceAnalytics();
+      await this.callReportsService.getTeamPerformanceAnalytics({
+        fromDate: fromDate ? new Date(fromDate) : undefined,
+        toDate: toDate ? new Date(toDate) : undefined,
+      });
     return ResponseUtil.success(
       analytics,
       'Team performance analytics retrieved successfully',
@@ -588,6 +600,7 @@ export class FirstTimersController {
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
     @Query('firstTimerName') firstTimerName?: string,
+    @Query('callerName') callerName?: string,
   ) {
     const searchParams = {
       page: parseInt(page, 10) || 1,
@@ -598,6 +611,7 @@ export class FirstTimersController {
       fromDate: fromDate ? new Date(fromDate) : undefined,
       toDate: toDate ? new Date(toDate) : undefined,
       firstTimerName,
+      callerName,
     };
 
     const results =
@@ -1451,6 +1465,39 @@ export class FirstTimersController {
     return ResponseUtil.success(
       firstTimer,
       'First timer unmarked from ready for integration successfully',
+    );
+  }
+
+  @Post(':id/close')
+  @RequirePermission(FirstTimersPermission.UPDATE_FIRST_TIMER)
+  @ApiOperation({ summary: 'Close a first timer as inactive' })
+  @ApiParam({ name: 'id', description: 'First timer ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Reason for closing' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'First timer closed successfully',
+  })
+  @AuditLog({
+    action: AuditAction.UPDATE,
+    entityType: AuditEntity.FIRST_TIMER,
+    description: 'Closed first timer as inactive',
+    getEntityId: (result, request) => request.params.id,
+  })
+  async closeFirstTimer(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    const firstTimer = await this.firstTimersService.closeFirstTimer(id, body.reason);
+    return ResponseUtil.success(
+      firstTimer,
+      'First timer closed successfully',
     );
   }
 
