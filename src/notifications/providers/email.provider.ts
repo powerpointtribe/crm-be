@@ -426,13 +426,6 @@ export class EmailProvider {
 
       const result = await this.nodemailerTransporter.sendMail(mailOptions);
 
-      this.logger.log(`✅ ZeptoMail SMTP email sent successfully!`);
-      this.logger.log(`Message ID: ${result.messageId}`);
-      this.logger.log(
-        `ZeptoMail SMTP result:`,
-        JSON.stringify(result, null, 2),
-      );
-
       return {
         success: true,
         messageId: result.messageId,
