@@ -19,7 +19,10 @@ import {
   createPaginatedResult,
 } from '../common/utils/pagination.util';
 import { QueryBuilder } from '../common/utils/query-builder.util';
-import { ServiceReportsPdfService } from './service-reports-pdf.service';
+import {
+  ServiceReportsPdfService,
+  PdfComparisonStats,
+} from './service-reports-pdf.service';
 import {
   BranchAccessService,
   BranchFilterContext,
@@ -442,8 +445,127 @@ export class ServiceReportsService {
     }));
   }
 
+  async getPdfComparisonStats(
+    reportDate: Date,
+  ): Promise<PdfComparisonStats | undefined> {
+    try {
+      // Get overall statistics
+      const overallStats = await this.serviceReportModel.aggregate([
+        { $match: { isActive: true } },
+        {
+          $group: {
+            _id: null,
+            totalReports: { $sum: 1 },
+            averageAttendance: { $avg: '$totalAttendance' },
+            averageFirstTimers: { $avg: '$numberOfFirstTimers' },
+            averageMales: { $avg: '$numberOfMales' },
+            averageFemales: { $avg: '$numberOfFemales' },
+            averageChildren: { $avg: '$numberOfChildren' },
+            highestAttendance: { $max: '$totalAttendance' },
+            lowestAttendance: { $min: '$totalAttendance' },
+          },
+        },
+      ]);
+
+      if (!overallStats.length) {
+        return undefined;
+      }
+
+      // Get previous service report (before this report's date)
+      const previousReport = await this.serviceReportModel
+        .findOne({
+          isActive: true,
+          date: { $lt: reportDate },
+        })
+        .sort({ date: -1 })
+        .select('date serviceName totalAttendance numberOfFirstTimers')
+        .lean()
+        .exec();
+
+      // Get monthly trend data (last 12 months)
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+      const monthlyTrendData = await this.serviceReportModel.aggregate([
+        {
+          $match: {
+            isActive: true,
+            date: { $gte: twelveMonthsAgo },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$date' },
+              month: { $month: '$date' },
+            },
+            totalAttendance: { $sum: '$totalAttendance' },
+            reportCount: { $sum: 1 },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+      ]);
+
+      const monthNames = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+
+      const monthlyTrend = monthlyTrendData.map((item) => ({
+        month: `${monthNames[item._id.month - 1]} ${item._id.year.toString().slice(-2)}`,
+        attendance: Math.round(item.totalAttendance / item.reportCount),
+      }));
+
+      const stats = overallStats[0];
+
+      return {
+        averageAttendance: stats.averageAttendance || 0,
+        averageFirstTimers: stats.averageFirstTimers || 0,
+        averageMales: stats.averageMales || 0,
+        averageFemales: stats.averageFemales || 0,
+        averageChildren: stats.averageChildren || 0,
+        highestAttendance: stats.highestAttendance || 0,
+        lowestAttendance: stats.lowestAttendance || 0,
+        totalReports: stats.totalReports || 0,
+        previousReport: previousReport
+          ? {
+              date: previousReport.date,
+              serviceName: previousReport.serviceName,
+              totalAttendance: previousReport.totalAttendance,
+              numberOfFirstTimers: previousReport.numberOfFirstTimers,
+            }
+          : undefined,
+        monthlyTrend: monthlyTrend.length >= 2 ? monthlyTrend : undefined,
+      };
+    } catch (error) {
+      console.error('Error fetching PDF comparison stats:', error);
+      return undefined;
+    }
+  }
+
   async generatePdfHtml(id: string): Promise<string> {
-    const report = await this.findById(id);
-    return this.pdfService.generatePdf(report);
+    // Fetch report with branch populated for PDF
+    const report = await this.serviceReportModel
+      .findOne({ _id: id, isActive: true })
+      .populate('reportedBy', 'firstName lastName email')
+      .populate('branch', 'name')
+      .exec();
+
+    if (!report) {
+      throw new NotFoundException('Service report not found');
+    }
+
+    const stats = await this.getPdfComparisonStats(report.date);
+    return this.pdfService.generatePdf(report, stats);
   }
 }
