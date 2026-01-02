@@ -29,6 +29,10 @@ export class Role {
   @Prop([{ type: Types.ObjectId, ref: 'Permission' }])
   permissions: Types.ObjectId[];
 
+  // Selected modules for this role (auto-grants VIEW permissions for each module)
+  @Prop({ type: [String], default: [] })
+  modules: string[];
+
   // Role hierarchy (for role inheritance)
   @Prop({ type: Types.ObjectId, ref: 'Role' })
   parentRole?: Types.ObjectId;
@@ -71,3 +75,4 @@ RoleSchema.index({ slug: 1 });
 RoleSchema.index({ isActive: 1 });
 RoleSchema.index({ isSystemRole: 1 });
 RoleSchema.index({ level: -1 });
+RoleSchema.index({ modules: 1 });

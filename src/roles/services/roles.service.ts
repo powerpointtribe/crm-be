@@ -12,6 +12,7 @@ import { CreateRoleDto } from '../dto/create-role.dto';
 import { UpdateRoleDto } from '../dto/update-role.dto';
 import { AssignPermissionsDto } from '../dto/assign-permissions.dto';
 import { PermissionsService } from './permissions.service';
+import { ModulePermissionsService } from './module-permissions.service';
 
 @Injectable()
 export class RolesService {
@@ -19,6 +20,7 @@ export class RolesService {
     @InjectModel(Role.name)
     private roleModel: Model<RoleDocument>,
     private permissionsService: PermissionsService,
+    private modulePermissionsService: ModulePermissionsService,
   ) {}
 
   /**
@@ -39,14 +41,43 @@ export class RolesService {
       );
     }
 
-    // Validate permissions if provided
-    if (createRoleDto.permissions && createRoleDto.permissions.length > 0) {
-      await this.validatePermissions(createRoleDto.permissions);
+    // Collect all permission IDs
+    let allPermissionIds: string[] = [...(createRoleDto.permissions || [])];
+
+    // If modules are provided, auto-assign view permissions for those modules
+    if (createRoleDto.modules && createRoleDto.modules.length > 0) {
+      // Validate modules
+      const validation = this.modulePermissionsService.validateModules(createRoleDto.modules);
+      if (!validation.valid) {
+        throw new BadRequestException(
+          `Invalid modules: ${validation.invalidModules.join(', ')}`,
+        );
+      }
+
+      // Get view permission IDs for the selected modules
+      const modulePermissionIds = await this.modulePermissionsService.getViewPermissionIdsForModules(
+        createRoleDto.modules,
+      );
+
+      // Merge with existing permissions (avoid duplicates)
+      const existingIdSet = new Set(allPermissionIds);
+      modulePermissionIds.forEach((id) => {
+        const idStr = id.toString();
+        if (!existingIdSet.has(idStr)) {
+          allPermissionIds.push(idStr);
+        }
+      });
+    }
+
+    // Validate all permissions exist
+    if (allPermissionIds.length > 0) {
+      await this.validatePermissions(allPermissionIds);
     }
 
     const role = new this.roleModel({
       ...createRoleDto,
       slug,
+      permissions: allPermissionIds.map((id) => new Types.ObjectId(id)),
     });
 
     return role.save();
@@ -170,13 +201,49 @@ export class RolesService {
       updateRoleDto['slug'] = slug;
     }
 
+    // Handle module-based permission updates
+    let finalPermissionIds: string[] | undefined = updateRoleDto.permissions;
+
+    if (updateRoleDto.modules !== undefined) {
+      // Validate modules if provided
+      if (updateRoleDto.modules.length > 0) {
+        const validation = this.modulePermissionsService.validateModules(updateRoleDto.modules);
+        if (!validation.valid) {
+          throw new BadRequestException(
+            `Invalid modules: ${validation.invalidModules.join(', ')}`,
+          );
+        }
+      }
+
+      // Get view permission IDs for the new modules
+      const modulePermissionIds = await this.modulePermissionsService.getViewPermissionIdsForModules(
+        updateRoleDto.modules,
+      );
+
+      // Start with module permissions
+      const permissionIdSet = new Set(modulePermissionIds.map((id) => id.toString()));
+
+      // Add any explicitly provided permissions
+      if (updateRoleDto.permissions) {
+        updateRoleDto.permissions.forEach((id) => permissionIdSet.add(id));
+      }
+
+      finalPermissionIds = Array.from(permissionIdSet);
+    }
+
     // Validate permissions if provided
-    if (updateRoleDto.permissions && updateRoleDto.permissions.length > 0) {
-      await this.validatePermissions(updateRoleDto.permissions);
+    if (finalPermissionIds && finalPermissionIds.length > 0) {
+      await this.validatePermissions(finalPermissionIds);
+    }
+
+    // Build update object
+    const updateData: any = { ...updateRoleDto };
+    if (finalPermissionIds !== undefined) {
+      updateData.permissions = finalPermissionIds.map((id) => new Types.ObjectId(id));
     }
 
     const updatedRole = await this.roleModel
-      .findByIdAndUpdate(id, updateRoleDto, { new: true })
+      .findByIdAndUpdate(id, updateData, { new: true })
       .populate('permissions')
       .populate('parentRole');
 

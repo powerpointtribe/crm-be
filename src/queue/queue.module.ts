@@ -8,11 +8,13 @@ import { FirstTimerNotificationProcessor } from './processors/first-timer-notifi
 import { FirstTimerAutomationProcessor } from './processors/first-timer-automation.processor';
 import { AuditLogProcessor } from './processors/audit-log.processor';
 import { EmailNotificationProcessor } from './processors/email-notification.processor';
+import { ActivityLogProcessor } from './processors/activity-log.processor';
 import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RolesModule } from '../roles/roles.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { ActivityTrackerModule } from '../activity-tracker/activity-tracker.module';
 import {
   UserInvitation,
   UserInvitationSchema,
@@ -88,8 +90,12 @@ import {
     BullModule.registerQueue({
       name: QueueName.FIRST_TIMER_NOTIFICATIONS,
     }),
+    BullModule.registerQueue({
+      name: QueueName.ACTIVITY_LOGS,
+    }),
     NotificationsModule,
     forwardRef(() => AuditLogsModule),
+    forwardRef(() => ActivityTrackerModule),
   ],
   controllers: [QueueController],
   providers: [
@@ -98,6 +104,7 @@ import {
     // FirstTimerAutomationProcessor, // Temporarily disabled due to circular dependencies
     AuditLogProcessor,
     EmailNotificationProcessor,
+    ActivityLogProcessor,
     QueueService,
   ],
   exports: [QueueService, BullModule],

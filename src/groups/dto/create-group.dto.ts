@@ -45,6 +45,14 @@ class MeetingScheduleDto {
   time?: string;
 
   @ApiPropertyOptional({
+    description: 'Meeting frequency',
+    enum: ['weekly', 'biweekly', 'monthly'],
+  })
+  @IsOptional()
+  @IsString()
+  frequency?: string;
+
+  @ApiPropertyOptional({
     description: 'Meeting location name',
     example: 'Church Hall A',
   })
@@ -65,6 +73,7 @@ class MeetingScheduleDto {
     example: 'https://zoom.us/j/123456789',
   })
   @IsOptional()
+  @ValidateIf((o) => o.virtualLink !== undefined && o.virtualLink !== null && o.virtualLink !== '')
   @IsUrl()
   virtualLink?: string;
 
@@ -111,6 +120,13 @@ class HostingInfoDto {
 }
 
 export class CreateGroupDto {
+  @ApiPropertyOptional({
+    description: 'Branch ID (auto-filled from user context if not provided)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  branch?: string;
+
   @ApiProperty({ description: 'Group name', example: 'Lagos Island District' })
   @IsString()
   @IsNotEmpty()

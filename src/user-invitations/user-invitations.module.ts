@@ -8,6 +8,7 @@ import {
 } from './schemas/user-invitation.schema';
 import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { Role, RoleSchema } from '../roles/schemas/role.schema';
+import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
 import { QueueModule } from '../queue/queue.module';
 import { RolesModule } from '../roles/roles.module';
 
@@ -17,6 +18,7 @@ import { RolesModule } from '../roles/roles.module';
       { name: UserInvitation.name, schema: UserInvitationSchema },
       { name: Member.name, schema: MemberSchema },
       { name: Role.name, schema: RoleSchema },
+      { name: Branch.name, schema: BranchSchema },
     ]),
     QueueModule,
     RolesModule,

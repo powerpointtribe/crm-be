@@ -10,6 +10,7 @@ import {
   FirstTimerNotificationJobData,
   FirstTimerAutomationJobData,
   EmailNotificationJobData,
+  ActivityLogJobData,
 } from '../common/interfaces/queue-job.interface';
 
 @Injectable()
@@ -25,6 +26,8 @@ export class QueueService {
     // private firstTimerAutomationQueue: Queue<FirstTimerAutomationJobData>,
     @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
     private emailNotificationQueue: Queue<EmailNotificationJobData>,
+    @InjectQueue(QueueName.ACTIVITY_LOGS)
+    private activityLogQueue: Queue<ActivityLogJobData>,
   ) {}
 
   // Temporarily disabled - bulk operation queue not registered
@@ -273,5 +276,210 @@ export class QueueService {
     );
 
     return job;
+  }
+
+  // Activity Log Methods - Queue-based async logging
+  private async addActivityLogJob(
+    jobType: JobType,
+    data: ActivityLogJobData,
+  ): Promise<Job<ActivityLogJobData>> {
+    const job = await this.activityLogQueue.add(jobType, data, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000,
+      },
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
+
+    this.logger.debug(
+      `Activity log job ${jobType} queued for member ${data.memberId}`,
+    );
+    return job;
+  }
+
+  async logGroupMemberAddition(
+    memberId: string,
+    initiatedBy: string,
+    groupId: string,
+    groupName: string,
+    groupType: string,
+    isFirstAssignment?: boolean,
+  ): Promise<Job<ActivityLogJobData>> {
+    this.logger.log(`[logGroupMemberAddition] memberId=${memberId}, initiatedBy=${initiatedBy}, groupId=${groupId}, groupName=${groupName}, groupType=${groupType}`);
+    const job = await this.addActivityLogJob(JobType.LOG_GROUP_MEMBER_ADDITION, {
+      jobType: JobType.LOG_GROUP_MEMBER_ADDITION,
+      memberId,
+      initiatedBy,
+      data: {
+        groupId,
+        groupName,
+        groupType,
+        isFirstAssignment,
+      },
+    });
+    this.logger.log(`[logGroupMemberAddition] Job created with id: ${job.id}`);
+    return job;
+  }
+
+  async logGroupMemberRemoval(
+    memberId: string,
+    initiatedBy: string,
+    groupId: string,
+    groupName: string,
+    groupType: string,
+    reason?: string,
+  ): Promise<Job<ActivityLogJobData>> {
+    return this.addActivityLogJob(JobType.LOG_GROUP_MEMBER_REMOVAL, {
+      jobType: JobType.LOG_GROUP_MEMBER_REMOVAL,
+      memberId,
+      initiatedBy,
+      data: {
+        groupId,
+        groupName,
+        groupType,
+        reason,
+      },
+    });
+  }
+
+  async logMembershipStatusChange(
+    memberId: string,
+    initiatedBy: string,
+    fromStatus: string,
+    toStatus: string,
+    reason?: string,
+  ): Promise<Job<ActivityLogJobData>> {
+    return this.addActivityLogJob(JobType.LOG_MEMBERSHIP_STATUS_CHANGE, {
+      jobType: JobType.LOG_MEMBERSHIP_STATUS_CHANGE,
+      memberId,
+      initiatedBy,
+      data: {
+        fromStatus,
+        toStatus,
+        reason,
+      },
+    });
+  }
+
+  async logRoleAssignment(
+    memberId: string,
+    initiatedBy: string,
+    roleId: string,
+    roleName: string,
+    scopeType: string,
+    scopeId?: string,
+    scopeName?: string,
+    isPrimary?: boolean,
+  ): Promise<Job<ActivityLogJobData>> {
+    return this.addActivityLogJob(JobType.LOG_ROLE_ASSIGNMENT, {
+      jobType: JobType.LOG_ROLE_ASSIGNMENT,
+      memberId,
+      initiatedBy,
+      data: {
+        roleId,
+        roleName,
+        scopeType,
+        scopeId,
+        scopeName,
+        isPrimary,
+      },
+    });
+  }
+
+  async logRoleRemoval(
+    memberId: string,
+    initiatedBy: string,
+    roleName: string,
+    reason?: string,
+  ): Promise<Job<ActivityLogJobData>> {
+    return this.addActivityLogJob(JobType.LOG_ROLE_REMOVAL, {
+      jobType: JobType.LOG_ROLE_REMOVAL,
+      memberId,
+      initiatedBy,
+      data: {
+        roleName,
+        reason,
+      },
+    });
+  }
+
+  async logMemberRegistration(
+    memberId: string,
+    initiatedBy: string,
+    source?: string,
+    dateJoined?: Date,
+  ): Promise<Job<ActivityLogJobData>> {
+    return this.addActivityLogJob(JobType.LOG_MEMBER_REGISTRATION, {
+      jobType: JobType.LOG_MEMBER_REGISTRATION,
+      memberId,
+      initiatedBy,
+      data: {
+        source,
+        dateJoined: dateJoined?.toISOString(),
+      },
+    });
+  }
+
+  async logUnitAssignment(
+    memberId: string,
+    initiatedBy: string,
+    unitId: string,
+    unitName: string,
+    previousUnitId?: string,
+    previousUnitName?: string,
+    isFirstAssignment?: boolean,
+  ): Promise<Job<ActivityLogJobData>> {
+    return this.addActivityLogJob(JobType.LOG_UNIT_ASSIGNMENT, {
+      jobType: JobType.LOG_UNIT_ASSIGNMENT,
+      memberId,
+      initiatedBy,
+      data: {
+        unitId,
+        unitName,
+        previousUnitId,
+        previousUnitName,
+        isFirstAssignment,
+      },
+    });
+  }
+
+  async logDistrictAssignment(
+    memberId: string,
+    initiatedBy: string,
+    districtId: string,
+    districtName: string,
+    previousDistrictId?: string,
+    previousDistrictName?: string,
+  ): Promise<Job<ActivityLogJobData>> {
+    return this.addActivityLogJob(JobType.LOG_DISTRICT_ASSIGNMENT, {
+      jobType: JobType.LOG_DISTRICT_ASSIGNMENT,
+      memberId,
+      initiatedBy,
+      data: {
+        districtId,
+        districtName,
+        previousDistrictId,
+        previousDistrictName,
+      },
+    });
+  }
+
+  async logFirstTimerConversion(
+    memberId: string,
+    initiatedBy: string,
+    firstTimerId: string,
+    firstTimerDate?: Date,
+  ): Promise<Job<ActivityLogJobData>> {
+    return this.addActivityLogJob(JobType.LOG_FIRST_TIMER_CONVERSION, {
+      jobType: JobType.LOG_FIRST_TIMER_CONVERSION,
+      memberId,
+      initiatedBy,
+      data: {
+        firstTimerId,
+        firstTimerDate: firstTimerDate?.toISOString(),
+      },
+    });
   }
 }

@@ -20,6 +20,7 @@ import { AccessControlService } from '../common/services/access-control.service'
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
+import { BulkImportMasterDto, BulkImportMasterResultDto } from './dto/bulk-import-master.dto';
 import { Member, MemberDocument } from './schemas/member.schema';
 import { UserRole } from '../common/enums/user-roles.enums';
 import { PermissionGuard } from '../roles/guards/permission.guard';
@@ -51,7 +52,61 @@ export class MembersController {
     getEntityId: (result) => result._id.toString(),
   })
   async create(@Body() createMemberDto: CreateMemberDto, @Request() req) {
-    return this.membersService.create(createMemberDto);
+    const initiatedByUserId = req.user?._id?.toString();
+    return this.membersService.create(createMemberDto, initiatedByUserId);
+  }
+
+  /**
+   * Master Bulk Import - Creates members, districts, units, and assigns leadership
+   * This endpoint creates the entire church structure from a single import
+   */
+  @Post('bulk-import/master')
+  @RequirePermission(MembersPermission.CREATE_MEMBER)
+  @AuditLog({
+    action: AuditAction.MEMBER_CREATED,
+    entityType: AuditEntity.MEMBER,
+    description: 'Master bulk import - created members with districts, units, and leadership',
+    severity: 'high',
+  })
+  async bulkImportMaster(
+    @Body() bulkImportDto: BulkImportMasterDto,
+    @Request() req,
+  ): Promise<BulkImportMasterResultDto> {
+    // Branch is now required in each member row (branchName field)
+    // Branches will be created automatically if they don't exist
+    return this.membersService.bulkImportMaster(bulkImportDto);
+  }
+
+  /**
+   * Get CSV template for master bulk import
+   */
+  @Get('bulk-import/master/template')
+  @RequirePermission(MembersPermission.VIEW_MEMBERS)
+  async getMasterImportTemplate(): Promise<{ template: string; headers: string[] }> {
+    const template = this.membersService.generateMasterImportTemplate();
+    const headers = [
+      'firstName',
+      'lastName',
+      'email',
+      'phone',
+      'dateOfBirth',
+      'gender',
+      'maritalStatus',
+      'branchName',
+      'districtName',
+      'isDistrictPastor',
+      'unitName',
+      'isUnitHead',
+      'isAssistantUnitHead',
+      'membershipStatus',
+      'street',
+      'city',
+      'state',
+      'occupation',
+      'dateJoined',
+      'notes',
+    ];
+    return { template, headers };
   }
 
   @Get()
@@ -130,6 +185,33 @@ export class MembersController {
     return this.membersService.findById(req.user.sub);
   }
 
+  @Get('my-preferences')
+  @RequirePermission(MembersPermission.VIEW_OWN_PROFILE)
+  async getMyPreferences(@Request() req) {
+    const member = await this.membersService.findById(req.user.sub);
+    return member?.preferences || {
+      theme: 'system',
+      language: 'en',
+      notifications: {
+        email: true,
+        sms: false,
+        push: true,
+        followUpReminders: true,
+        weeklyReports: false,
+      },
+      display: {
+        compactMode: false,
+        showWelcomeMessage: true,
+      },
+    };
+  }
+
+  @Patch('my-preferences')
+  @RequirePermission(MembersPermission.VIEW_OWN_PROFILE)
+  async updateMyPreferences(@Request() req, @Body() preferences: any) {
+    return this.membersService.updatePreferences(req.user.sub, preferences);
+  }
+
   @Get('my-district')
   @RequirePermission(MembersPermission.VIEW_DISTRICT_MEMBERS)
   async getMyDistrictMembers(@Request() req, @Query() query: any) {
@@ -177,7 +259,8 @@ export class MembersController {
       throw new NotFoundException(`Member with ID ${id} not found`);
     }
 
-    return this.membersService.update(id, updateMemberDto);
+    const initiatedByUserId = req.user?._id?.toString();
+    return this.membersService.update(id, updateMemberDto, initiatedByUserId);
   }
 
   @Delete(':id')

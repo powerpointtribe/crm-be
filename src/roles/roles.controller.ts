@@ -10,7 +10,9 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RolesService } from './services/roles.service';
+import { ModulePermissionsService } from './services/module-permissions.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
@@ -22,11 +24,15 @@ import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
 import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
 
+@ApiTags('Roles')
 @Controller('roles')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @UseInterceptors(AuditLogInterceptor)
 export class RolesController {
-  constructor(private readonly rolesService: RolesService) {}
+  constructor(
+    private readonly rolesService: RolesService,
+    private readonly modulePermissionsService: ModulePermissionsService,
+  ) {}
 
   @Post()
   @RequirePermission(RolesModulePermission.CREATE_ROLE)
@@ -39,6 +45,19 @@ export class RolesController {
   })
   create(@Body() createRoleDto: CreateRoleDto) {
     return this.rolesService.create(createRoleDto);
+  }
+
+  @Get('available-modules')
+  @ApiOperation({ summary: 'Get all available modules for role assignment' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of available modules with their display names',
+  })
+  @RequirePermission(RolesModulePermission.VIEW_ROLES)
+  getAvailableModules() {
+    return {
+      modules: this.modulePermissionsService.getAllModulesWithDisplayNames(),
+    };
   }
 
   @Get()

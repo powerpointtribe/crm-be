@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, ForbiddenException } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -35,12 +35,12 @@ export class AuthController {
 
   @Public()
   @Post('register')
-  @ApiOperation({ summary: 'Register a new member account' })
-  @ApiResponse({ status: 201, description: 'Registration successful' })
-  @ApiResponse({ status: 409, description: 'Email already registered' })
-  async register(@Body() registerDto: CreateMemberDto) {
-    const result = await this.authService.register(registerDto);
-    return ResponseUtil.success(result, 'Registration successful');
+  @ApiOperation({ summary: 'Registration disabled - invitation required' })
+  @ApiResponse({ status: 403, description: 'Registration is disabled' })
+  async register() {
+    throw new ForbiddenException(
+      'Public registration is disabled. Please contact an administrator for an invitation.'
+    );
   }
 
   @UseGuards(JwtAuthGuard)

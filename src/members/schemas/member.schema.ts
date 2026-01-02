@@ -77,9 +77,9 @@ export class Member {
   systemRoles: UserRole[];
 
   // NEW ROLE-BASED ACCESS CONTROL
-  // Single role assignment - each user has exactly ONE role
-  @Prop({ type: Types.ObjectId, ref: 'Role', required: true })
-  role: Types.ObjectId;
+  // Single role assignment - each user has ONE role (optional for members without platform access)
+  @Prop({ type: Types.ObjectId, ref: 'Role', required: false, default: null })
+  role: Types.ObjectId | null;
 
   // ADDRESS INFORMATION
   @Prop({
@@ -116,7 +116,7 @@ export class Member {
   confirmationDate?: Date;
 
   // CHURCH STRUCTURE - Branch, District and Unit Assignments
-  // Branch assignment (required for all members)
+  // Branch assignment is required for all members
   @Prop({
     type: Types.ObjectId,
     ref: 'Branch',
@@ -249,6 +249,55 @@ export class Member {
     lastAttendance?: Date;
     attendanceCount: number;
     engagementScore: number;
+  };
+
+  // USER PREFERENCES
+  @Prop({
+    type: {
+      theme: { type: String, enum: ['light', 'dark', 'system'], default: 'system' },
+      language: { type: String, default: 'en' },
+      notifications: {
+        email: { type: Boolean, default: true },
+        sms: { type: Boolean, default: false },
+        push: { type: Boolean, default: true },
+        followUpReminders: { type: Boolean, default: true },
+        weeklyReports: { type: Boolean, default: false },
+      },
+      display: {
+        compactMode: { type: Boolean, default: false },
+        showWelcomeMessage: { type: Boolean, default: true },
+      },
+    },
+    default: {
+      theme: 'system',
+      language: 'en',
+      notifications: {
+        email: true,
+        sms: false,
+        push: true,
+        followUpReminders: true,
+        weeklyReports: false,
+      },
+      display: {
+        compactMode: false,
+        showWelcomeMessage: true,
+      },
+    },
+  })
+  preferences: {
+    theme: 'light' | 'dark' | 'system';
+    language: string;
+    notifications: {
+      email: boolean;
+      sms: boolean;
+      push: boolean;
+      followUpReminders: boolean;
+      weeklyReports: boolean;
+    };
+    display: {
+      compactMode: boolean;
+      showWelcomeMessage: boolean;
+    };
   };
 
   @Prop({ type: Date })

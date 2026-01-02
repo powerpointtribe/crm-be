@@ -4,6 +4,8 @@ import {
   ConflictException,
   BadRequestException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery } from 'mongoose';
@@ -19,6 +21,7 @@ import {
   BulkRoleAssignmentDto,
 } from '../dto/role-assignment.dto';
 import { RolesService } from './roles.service';
+import { MemberLifecycleService } from '../../activity-tracker/member-lifecycle.service';
 
 @Injectable()
 export class RoleAssignmentService {
@@ -28,6 +31,8 @@ export class RoleAssignmentService {
     @InjectModel(RoleAssignment.name)
     private roleAssignmentModel: Model<RoleAssignmentDocument>,
     private rolesService: RolesService,
+    @Inject(forwardRef(() => MemberLifecycleService))
+    private memberLifecycleService: MemberLifecycleService,
   ) {}
 
   /**
@@ -117,6 +122,31 @@ export class RoleAssignmentService {
     this.logger.log(
       `Created role assignment: member=${createDto.memberId}, role=${createDto.roleId}, scope=${createDto.scopeType}`,
     );
+
+    // Log activity as side effect (async, non-blocking)
+    if (assignedById) {
+      setImmediate(async () => {
+        try {
+          const scopeInfo = createDto.scopeType !== ScopeType.GLOBAL
+            ? ` at ${createDto.scopeType} level`
+            : ' (Global)';
+
+          await this.memberLifecycleService.logLifecycleEvent({
+            memberId: createDto.memberId,
+            activityType: 'ROLE_ASSIGNMENT' as any,
+            title: `Role Assigned: ${role.displayName || role.name}`,
+            description: `Assigned role "${role.displayName || role.name}"${scopeInfo}${createDto.isPrimary ? ' (Primary)' : ''}`,
+            initiatedBy: assignedById,
+            reason: 'Role assignment',
+            newPosition: role.displayName || role.name,
+            tags: ['role-assignment', createDto.scopeType.toLowerCase()],
+          });
+          this.logger.log(`[RoleAssignment] Activity logged for member ${createDto.memberId}`);
+        } catch (error) {
+          this.logger.warn(`Failed to log role assignment: ${error.message}`);
+        }
+      });
+    }
 
     return this.findById((saved._id as Types.ObjectId).toString());
   }
@@ -444,19 +474,48 @@ export class RoleAssignmentService {
   /**
    * Deactivate a role assignment (soft delete)
    */
-  async deactivate(id: string): Promise<RoleAssignmentDocument> {
+  async deactivate(id: string, deactivatedById?: string): Promise<RoleAssignmentDocument> {
+    // First fetch the assignment with role info for logging
+    const existingAssignment = await this.roleAssignmentModel
+      .findById(id)
+      .populate('role', 'name displayName')
+      .exec();
+
+    if (!existingAssignment) {
+      throw new NotFoundException(`Role assignment with ID ${id} not found`);
+    }
+
     const assignment = await this.roleAssignmentModel.findByIdAndUpdate(
       id,
       { $set: { isActive: false, isPrimary: false } },
       { new: true },
     );
 
-    if (!assignment) {
-      throw new NotFoundException(`Role assignment with ID ${id} not found`);
+    this.logger.log(`Deactivated role assignment: ${id}`);
+
+    // Log activity as side effect (async, non-blocking)
+    if (deactivatedById && existingAssignment.role) {
+      setImmediate(async () => {
+        try {
+          const role = existingAssignment.role as any;
+          await this.memberLifecycleService.logLifecycleEvent({
+            memberId: existingAssignment.member.toString(),
+            activityType: 'ROLE_REMOVAL' as any,
+            title: `Role Removed: ${role.displayName || role.name}`,
+            description: `Removed role "${role.displayName || role.name}"`,
+            initiatedBy: deactivatedById,
+            reason: 'Role assignment deactivated',
+            previousPosition: role.displayName || role.name,
+            tags: ['role-removal'],
+          });
+          this.logger.log(`[RoleRemoval] Activity logged for member ${existingAssignment.member.toString()}`);
+        } catch (error) {
+          this.logger.warn(`Failed to log role removal: ${error.message}`);
+        }
+      });
     }
 
-    this.logger.log(`Deactivated role assignment: ${id}`);
-    return assignment;
+    return assignment!;
   }
 
   /**

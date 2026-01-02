@@ -152,13 +152,14 @@ export class MemberLifecycleService {
 
   // Quick helper methods for common lifecycle events
 
-  async logMemberRegistration(memberId: string, registeredBy: string, source?: string): Promise<MemberActivity> {
+  async logMemberRegistration(memberId: string, registeredBy: string, source?: string, dateJoined?: Date): Promise<MemberActivity> {
     return this.logLifecycleEvent({
       memberId,
       activityType: ActivityType.MEMBER_REGISTRATION,
       title: 'Member Registration',
       description: 'New member registered in the system',
       priority: ActivityPriority.HIGH,
+      effectiveDate: dateJoined,
       initiatedBy: registeredBy,
       reason: 'New member registration',
       metadata: { source },
@@ -199,6 +200,32 @@ export class MemberLifecycleService {
     });
   }
 
+  async logDistrictAssignment(
+    memberId: string,
+    districtId: string,
+    districtName: string,
+    assignedBy: string,
+    previousDistrictId?: string,
+    previousDistrictName?: string,
+  ): Promise<MemberActivity> {
+    const isTransfer = !!previousDistrictId;
+
+    return this.logLifecycleEvent({
+      memberId,
+      activityType: isTransfer ? ActivityType.UNIT_TRANSFER : ActivityType.UNIT_ASSIGNMENT,
+      title: isTransfer ? `District Transfer` : `District Assignment`,
+      description: isTransfer
+        ? `Transferred from ${previousDistrictName} district to ${districtName} district`
+        : `Assigned to ${districtName} district`,
+      priority: ActivityPriority.MEDIUM,
+      fromDistrict: previousDistrictId,
+      toDistrict: districtId,
+      initiatedBy: assignedBy,
+      reason: isTransfer ? 'District transfer' : 'Initial district assignment',
+      tags: ['district'],
+    });
+  }
+
   async logUnitAssignment(
     memberId: string,
     unitId: string,
@@ -206,21 +233,210 @@ export class MemberLifecycleService {
     assignedBy: string,
     previousUnitId?: string,
     previousUnitName?: string,
+    isFirstUnitAssignment?: boolean,
   ): Promise<MemberActivity> {
     const isTransfer = !!previousUnitId;
 
+    // First unit assignment marks DC enrollment
+    const activityType = isFirstUnitAssignment
+      ? ActivityType.DC_ENROLLMENT
+      : isTransfer
+        ? ActivityType.UNIT_TRANSFER
+        : ActivityType.UNIT_ASSIGNMENT;
+
+    const title = isFirstUnitAssignment
+      ? 'DC Enrollment - Unit Assignment'
+      : isTransfer
+        ? 'Unit Transfer'
+        : 'Unit Assignment';
+
+    const description = isFirstUnitAssignment
+      ? `Enrolled as DC member and assigned to ${unitName}`
+      : isTransfer
+        ? `Transferred from ${previousUnitName} to ${unitName}`
+        : `Assigned to ${unitName}`;
+
     return this.logLifecycleEvent({
       memberId,
-      activityType: isTransfer ? ActivityType.UNIT_TRANSFER : ActivityType.UNIT_ASSIGNMENT,
-      title: isTransfer ? `Unit Transfer` : `Unit Assignment`,
-      description: isTransfer
-        ? `Transferred from ${previousUnitName} to ${unitName}`
-        : `Assigned to ${unitName}`,
-      priority: ActivityPriority.MEDIUM,
+      activityType,
+      title,
+      description,
+      priority: isFirstUnitAssignment ? ActivityPriority.HIGH : ActivityPriority.MEDIUM,
       fromUnit: previousUnitId,
       toUnit: unitId,
       initiatedBy: assignedBy,
-      reason: isTransfer ? 'Unit transfer' : 'Initial unit assignment',
+      reason: isFirstUnitAssignment
+        ? 'DC enrollment - first unit assignment'
+        : isTransfer
+          ? 'Unit transfer'
+          : 'Unit assignment',
+      tags: isFirstUnitAssignment ? ['dc-enrollment', 'milestone'] : ['unit'],
+    });
+  }
+
+  async logFirstTimerConversion(
+    memberId: string,
+    firstTimerId: string,
+    convertedBy: string,
+    firstTimerDate?: Date,
+  ): Promise<MemberActivity> {
+    // Log the first visit date as a separate activity
+    if (firstTimerDate) {
+      await this.logLifecycleEvent({
+        memberId,
+        activityType: ActivityType.FIRST_TIME_VISITOR,
+        title: 'First Time Visitor',
+        description: 'First visited the church as a first-timer',
+        priority: ActivityPriority.MEDIUM,
+        effectiveDate: firstTimerDate,
+        initiatedBy: convertedBy,
+        reason: 'First time visitor record',
+        tags: ['first-timer', 'first-visit'],
+        metadata: { source: 'first-timer-conversion' },
+        notes: `First-timer record ID: ${firstTimerId}`,
+      });
+    }
+
+    // Log the conversion to member
+    return this.logLifecycleEvent({
+      memberId,
+      activityType: ActivityType.MEMBERSHIP_STATUS_CHANGE,
+      title: 'Converted to Member',
+      description: 'Converted from first-time visitor to church member',
+      priority: ActivityPriority.HIGH,
+      initiatedBy: convertedBy,
+      reason: 'First timer integrated into membership',
+      tags: ['first-timer', 'conversion', 'milestone'],
+      metadata: { source: 'first-timer-conversion' },
+      notes: `Converted from first-timer record: ${firstTimerId}`,
+    });
+  }
+
+  async logMemberTransferOut(
+    memberId: string,
+    reason: string,
+    initiatedBy: string,
+    destination?: string,
+    notes?: string,
+  ): Promise<MemberActivity> {
+    return this.logLifecycleEvent({
+      memberId,
+      activityType: ActivityType.TRANSFER_OUT,
+      title: 'Member Transfer Out',
+      description: destination
+        ? `Member transferred out to ${destination}`
+        : 'Member transferred out of the church',
+      priority: ActivityPriority.HIGH,
+      newLocation: destination,
+      initiatedBy,
+      reason,
+      notes,
+      tags: ['transfer', 'departure'],
+    });
+  }
+
+  async logMemberLeave(
+    memberId: string,
+    leaveType: 'temporary' | 'extended',
+    reason: string,
+    initiatedBy: string,
+    expectedReturnDate?: Date,
+    notes?: string,
+  ): Promise<MemberActivity> {
+    return this.logLifecycleEvent({
+      memberId,
+      activityType: leaveType === 'temporary' ? ActivityType.TEMPORARY_LEAVE : ActivityType.EXTENDED_LEAVE,
+      title: leaveType === 'temporary' ? 'Temporary Leave' : 'Extended Leave',
+      description: `Member is on ${leaveType} leave`,
+      priority: ActivityPriority.MEDIUM,
+      travelStatus: TravelStatus.ON_LEAVE,
+      expectedReturnDate,
+      initiatedBy,
+      reason,
+      notes,
+      isTemporary: leaveType === 'temporary',
+      requiresFollowUp: true,
+      nextFollowUpDate: expectedReturnDate,
+      tags: ['leave', leaveType],
+    });
+  }
+
+  async logMemberReturn(
+    memberId: string,
+    initiatedBy: string,
+    notes?: string,
+  ): Promise<MemberActivity> {
+    return this.logLifecycleEvent({
+      memberId,
+      activityType: ActivityType.RETURN_FROM_LEAVE,
+      title: 'Return from Leave',
+      description: 'Member has returned from leave',
+      priority: ActivityPriority.MEDIUM,
+      travelStatus: TravelStatus.LOCAL,
+      initiatedBy,
+      reason: 'Member returned from leave',
+      notes,
+      tags: ['return', 'leave'],
+    });
+  }
+
+  async logMemberDeactivation(
+    memberId: string,
+    reason: string,
+    initiatedBy: string,
+    notes?: string,
+  ): Promise<MemberActivity> {
+    return this.logLifecycleEvent({
+      memberId,
+      activityType: ActivityType.MEMBERSHIP_STATUS_CHANGE,
+      title: 'Member Deactivated',
+      description: 'Member record has been deactivated',
+      priority: ActivityPriority.HIGH,
+      initiatedBy,
+      reason,
+      notes,
+      tags: ['deactivation', 'inactive'],
+    });
+  }
+
+  async logMemberReactivation(
+    memberId: string,
+    initiatedBy: string,
+    notes?: string,
+  ): Promise<MemberActivity> {
+    return this.logLifecycleEvent({
+      memberId,
+      activityType: ActivityType.MEMBERSHIP_STATUS_CHANGE,
+      title: 'Member Reactivated',
+      description: 'Member record has been reactivated',
+      priority: ActivityPriority.MEDIUM,
+      initiatedBy,
+      reason: 'Member reactivated',
+      notes,
+      tags: ['reactivation', 'active'],
+    });
+  }
+
+  async logBranchTransfer(
+    memberId: string,
+    fromBranchId: string,
+    fromBranchName: string,
+    toBranchId: string,
+    toBranchName: string,
+    initiatedBy: string,
+    reason?: string,
+  ): Promise<MemberActivity> {
+    return this.logLifecycleEvent({
+      memberId,
+      activityType: ActivityType.BRANCH_TRANSFER,
+      title: 'Branch Transfer',
+      description: `Transferred from ${fromBranchName} to ${toBranchName}`,
+      priority: ActivityPriority.HIGH,
+      previousLocation: fromBranchName,
+      newLocation: toBranchName,
+      initiatedBy,
+      reason: reason || 'Branch transfer',
+      tags: ['branch-transfer', 'transfer'],
     });
   }
 
@@ -371,32 +587,44 @@ export class MemberLifecycleService {
     activities: MemberActivity[];
     total: number;
   }> {
-    const query = {
-      member: new Types.ObjectId(memberId),
-      isVisible: true,
-    };
+    // Validate memberId format
+    if (!memberId || !Types.ObjectId.isValid(memberId)) {
+      console.warn(`Invalid memberId provided to getMemberTimeline: ${memberId}`);
+      return { activities: [], total: 0 };
+    }
 
-    const [activities, total] = await Promise.all([
-      this.memberActivityModel
-        .find(query)
-        .populate('initiatedBy', 'firstName lastName email')
-        .populate('approvedBy', 'firstName lastName email')
-        .populate('supervisedBy', 'firstName lastName email')
-        .populate('fromUnit', 'name type')
-        .populate('toUnit', 'name type')
-        .populate('fromDistrict', 'name type')
-        .populate('toDistrict', 'name type')
-        .populate('fromMinistries', 'name type')
-        .populate('toMinistries', 'name type')
-        .populate('relatedCohort', 'name code type')
-        .sort({ activityDate: -1 })
-        .skip(offset || 0)
-        .limit(limit || 50)
-        .exec(),
-      this.memberActivityModel.countDocuments(query).exec(),
-    ]);
+    try {
+      const query = {
+        member: new Types.ObjectId(memberId),
+        isVisible: true,
+      };
 
-    return { activities, total };
+      const [activities, total] = await Promise.all([
+        this.memberActivityModel
+          .find(query)
+          .populate('initiatedBy', 'firstName lastName email')
+          .populate('approvedBy', 'firstName lastName email')
+          .populate('supervisedBy', 'firstName lastName email')
+          .populate('fromUnit', 'name type')
+          .populate('toUnit', 'name type')
+          .populate('fromDistrict', 'name type')
+          .populate('toDistrict', 'name type')
+          .populate('fromMinistries', 'name type')
+          .populate('toMinistries', 'name type')
+          .populate('relatedCohort', 'name code type')
+          .sort({ activityDate: -1 })
+          .skip(offset || 0)
+          .limit(limit || 50)
+          .lean()
+          .exec(),
+        this.memberActivityModel.countDocuments(query).exec(),
+      ]);
+
+      return { activities: activities as MemberActivity[], total };
+    } catch (error) {
+      console.error(`Error fetching member timeline for ${memberId}:`, error);
+      return { activities: [], total: 0 };
+    }
   }
 
   // Get lifecycle statistics

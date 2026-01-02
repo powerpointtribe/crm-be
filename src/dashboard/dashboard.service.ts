@@ -7,7 +7,9 @@ import {
   RecentActivityDto,
   MembershipTrendsDto,
   UpcomingTasksDto,
+  DashboardScopeDto,
 } from './dto/dashboard-overview.dto';
+import { MODULE_DASHBOARD_STATS, ModuleIdentifier } from '../roles/constants/modules.constant';
 import {
   GrowthAnalyticsDto,
   GrowthMetricsDto,
@@ -65,6 +67,192 @@ export class DashboardService {
         startDate,
         endDate,
       },
+    };
+  }
+
+  /**
+   * Get scoped dashboard overview based on user's accessible modules
+   * Filters stats to only include data from modules the user has access to
+   */
+  async getScopedDashboardOverview(
+    userId: string,
+    userRole: string,
+    accessibleModules: string[],
+    isAdmin: boolean,
+    startDateParam?: string,
+    endDateParam?: string,
+  ): Promise<DashboardOverviewDto> {
+    // Default to past 3 months if no date range provided
+    const endDate = endDateParam ? new Date(endDateParam) : new Date();
+    const startDate = startDateParam
+      ? new Date(startDateParam)
+      : new Date(endDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    // Build scope information
+    const scope: DashboardScopeDto = {
+      type: isAdmin ? 'full' : 'module-limited',
+      accessibleModules,
+      isAdmin,
+      userRole,
+    };
+
+    // Get all data
+    const [stats, recentActivity, membershipTrends, upcomingTasks] =
+      await Promise.all([
+        this.getScopedStats(accessibleModules, isAdmin),
+        this.getScopedRecentActivity(accessibleModules, isAdmin, startDate, endDate),
+        this.getScopedMembershipTrends(accessibleModules, isAdmin),
+        this.getUpcomingTasks(userId),
+      ]);
+
+    return {
+      stats,
+      recentActivity,
+      membershipTrends,
+      upcomingTasks,
+      userRole,
+      lastUpdated: new Date(),
+      dateRange: {
+        startDate,
+        endDate,
+      },
+      scope,
+      accessibleModules,
+    };
+  }
+
+  /**
+   * Get stats filtered by accessible modules
+   */
+  private async getScopedStats(
+    accessibleModules: string[],
+    isAdmin: boolean,
+  ): Promise<DashboardStatsDto> {
+    // Admin gets all stats
+    if (isAdmin) {
+      return this.getGeneralStats();
+    }
+
+    // Filter stats based on accessible modules
+    const hasMembers = accessibleModules.includes(ModuleIdentifier.MEMBERS);
+    const hasFirstTimers = accessibleModules.includes(ModuleIdentifier.FIRST_TIMERS);
+    const hasGroups = accessibleModules.includes(ModuleIdentifier.GROUPS);
+
+    const [
+      totalMembers,
+      activeMembers,
+      totalFirstTimers,
+      totalGroups,
+    ] = await Promise.all([
+      hasMembers ? this.memberModel.countDocuments() : Promise.resolve(0),
+      hasMembers ? this.memberModel.countDocuments({ isActive: true }) : Promise.resolve(0),
+      hasFirstTimers ? this.firstTimerModel.countDocuments() : Promise.resolve(0),
+      hasGroups ? this.groupModel.countDocuments() : Promise.resolve(0),
+    ]);
+
+    return {
+      totalMembers,
+      activeMembers,
+      totalFirstTimers,
+      totalUsers: totalMembers, // Same as totalMembers for scoped view
+      totalGroups,
+    };
+  }
+
+  /**
+   * Get recent activity filtered by accessible modules
+   */
+  private async getScopedRecentActivity(
+    accessibleModules: string[],
+    isAdmin: boolean,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<RecentActivityDto> {
+    if (isAdmin) {
+      return this.getRecentActivityWithDateRange(startDate, endDate);
+    }
+
+    const hasMembers = accessibleModules.includes(ModuleIdentifier.MEMBERS);
+    const hasFirstTimers = accessibleModules.includes(ModuleIdentifier.FIRST_TIMERS);
+    const hasGroups = accessibleModules.includes(ModuleIdentifier.GROUPS);
+
+    const periodDuration = endDate.getTime() - startDate.getTime();
+    const prevEndDate = new Date(startDate.getTime());
+    const prevStartDate = new Date(startDate.getTime() - periodDuration);
+
+    // Get current period data (only for accessible modules)
+    const [recentMembersCount, recentFirstTimersCount, recentGroupsCount] =
+      await Promise.all([
+        hasMembers
+          ? this.memberModel.countDocuments({ createdAt: { $gte: startDate, $lte: endDate } })
+          : Promise.resolve(0),
+        hasFirstTimers
+          ? this.firstTimerModel.countDocuments({ createdAt: { $gte: startDate, $lte: endDate } })
+          : Promise.resolve(0),
+        hasGroups
+          ? this.groupModel.countDocuments({ createdAt: { $gte: startDate, $lte: endDate } })
+          : Promise.resolve(0),
+      ]);
+
+    // Get previous period data for comparison
+    const [prevMembersCount, prevFirstTimersCount, prevGroupsCount] =
+      await Promise.all([
+        hasMembers
+          ? this.memberModel.countDocuments({ createdAt: { $gte: prevStartDate, $lt: prevEndDate } })
+          : Promise.resolve(0),
+        hasFirstTimers
+          ? this.firstTimerModel.countDocuments({ createdAt: { $gte: prevStartDate, $lt: prevEndDate } })
+          : Promise.resolve(0),
+        hasGroups
+          ? this.groupModel.countDocuments({ createdAt: { $gte: prevStartDate, $lt: prevEndDate } })
+          : Promise.resolve(0),
+      ]);
+
+    return {
+      recentMembers: {
+        count: recentMembersCount,
+        percentage: this.calculatePercentageChange(recentMembersCount, prevMembersCount),
+        trend: this.getTrend(recentMembersCount, prevMembersCount),
+      },
+      recentFirstTimers: {
+        count: recentFirstTimersCount,
+        percentage: this.calculatePercentageChange(recentFirstTimersCount, prevFirstTimersCount),
+        trend: this.getTrend(recentFirstTimersCount, prevFirstTimersCount),
+      },
+      recentGroups: {
+        count: recentGroupsCount,
+        percentage: this.calculatePercentageChange(recentGroupsCount, prevGroupsCount),
+        trend: this.getTrend(recentGroupsCount, prevGroupsCount),
+      },
+    };
+  }
+
+  /**
+   * Get membership trends filtered by accessible modules
+   */
+  private async getScopedMembershipTrends(
+    accessibleModules: string[],
+    isAdmin: boolean,
+  ): Promise<MembershipTrendsDto> {
+    if (isAdmin) {
+      return this.getMembershipTrends();
+    }
+
+    const hasMembers = accessibleModules.includes(ModuleIdentifier.MEMBERS);
+
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const monthlyGrowth = hasMembers
+      ? await this.getMonthlyGrowthData(sixMonthsAgo)
+      : [];
+    const ageDistribution = hasMembers ? await this.getAgeDistribution() : [];
+    const genderDistribution = hasMembers ? await this.getGenderDistribution() : [];
+
+    return {
+      monthlyGrowth,
+      ageDistribution,
+      genderDistribution,
     };
   }
 

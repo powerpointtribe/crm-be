@@ -36,6 +36,7 @@ import {
   BranchAccessService,
   BranchFilterContext,
 } from '../common/services/branch-access.service';
+import { MemberLifecycleService } from '../activity-tracker/member-lifecycle.service';
 
 @Injectable()
 export class FirstTimersService {
@@ -51,6 +52,7 @@ export class FirstTimersService {
     private branchesService: BranchesService,
     private branchAccessService: BranchAccessService,
     private rolesService: RolesService,
+    private memberLifecycleService: MemberLifecycleService,
   ) {}
 
   async create(
@@ -1873,6 +1875,7 @@ export class FirstTimersService {
     id: string,
     districtId: string,
     unitId?: string,
+    initiatedByUserId?: string,
   ): Promise<{ firstTimer: FirstTimerDocument; memberId: string }> {
     const firstTimer = await this.firstTimerModel.findById(id);
     if (!firstTimer) {
@@ -1969,8 +1972,23 @@ export class FirstTimersService {
       role: memberRoleId,
     };
 
-    const newMember = await this.membersService.create(memberData);
+    // Create the member - pass the user who initiated the conversion
+    const newMember = await this.membersService.create(memberData, initiatedByUserId);
     const memberId = newMember._id?.toString();
+
+    // Log first-timer conversion event with the first visit date
+    try {
+      const effectiveInitiator = initiatedByUserId || memberId;
+      await this.memberLifecycleService.logFirstTimerConversion(
+        memberId,
+        id, // first timer ID
+        effectiveInitiator,
+        firstTimer.dateOfVisit,
+      );
+      this.logger.log(`Activity logged: First-timer conversion for ${memberId}, first visit: ${firstTimer.dateOfVisit}`);
+    } catch (error) {
+      this.logger.warn(`Failed to log first-timer conversion event: ${error.message}`);
+    }
 
     // Add member to district
     await this.groupsService.addMember(districtId, memberId);

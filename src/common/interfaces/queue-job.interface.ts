@@ -4,6 +4,7 @@ export enum QueueName {
   FIRST_TIMER_AUTOMATION = 'first-timer-automation',
   AUDIT_LOGS = 'audit-logs',
   EMAIL_NOTIFICATIONS = 'email-notifications',
+  ACTIVITY_LOGS = 'activity-logs',
 }
 
 export enum JobType {
@@ -34,6 +35,17 @@ export enum JobType {
   // Email notification jobs
   USER_INVITATION_EMAIL = 'user-invitation-email',
   USER_INVITATION_RESEND_EMAIL = 'user-invitation-resend-email',
+
+  // Activity log jobs
+  LOG_GROUP_MEMBER_ADDITION = 'log-group-member-addition',
+  LOG_GROUP_MEMBER_REMOVAL = 'log-group-member-removal',
+  LOG_MEMBERSHIP_STATUS_CHANGE = 'log-membership-status-change',
+  LOG_ROLE_ASSIGNMENT = 'log-role-assignment',
+  LOG_ROLE_REMOVAL = 'log-role-removal',
+  LOG_MEMBER_REGISTRATION = 'log-member-registration',
+  LOG_UNIT_ASSIGNMENT = 'log-unit-assignment',
+  LOG_DISTRICT_ASSIGNMENT = 'log-district-assignment',
+  LOG_FIRST_TIMER_CONVERSION = 'log-first-timer-conversion',
 }
 
 export interface BulkOperationJobData {
@@ -118,6 +130,54 @@ export interface EmailNotificationJobData {
   temporaryPassword: string;
   metadata?: {
     invitedById?: string;
+    notes?: string;
+  };
+}
+
+// Activity log job data interface
+export interface ActivityLogJobData {
+  jobType: JobType;
+  memberId: string;
+  initiatedBy: string;
+  data: {
+    // Group member addition/removal
+    groupId?: string;
+    groupName?: string;
+    groupType?: string;
+
+    // Membership status change
+    fromStatus?: string;
+    toStatus?: string;
+    reason?: string;
+
+    // Role assignment
+    roleId?: string;
+    roleName?: string;
+    scopeType?: string;
+    scopeId?: string;
+    scopeName?: string;
+    isPrimary?: boolean;
+
+    // Unit/District assignment
+    unitId?: string;
+    unitName?: string;
+    previousUnitId?: string;
+    previousUnitName?: string;
+    districtId?: string;
+    districtName?: string;
+    previousDistrictId?: string;
+    previousDistrictName?: string;
+    isFirstAssignment?: boolean;
+
+    // First timer conversion
+    firstTimerId?: string;
+    firstTimerDate?: string;
+
+    // Member registration
+    source?: string;
+    dateJoined?: string;
+
+    // Additional metadata
     notes?: string;
   };
 }

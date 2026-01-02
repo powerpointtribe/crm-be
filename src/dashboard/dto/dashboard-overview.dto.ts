@@ -92,6 +92,20 @@ export class DateRangeDto {
   endDate: Date;
 }
 
+export class DashboardScopeDto {
+  @ApiProperty({ description: 'Scope type: full (all data), module-limited (filtered by accessible modules)' })
+  type: 'full' | 'module-limited';
+
+  @ApiProperty({ description: 'List of accessible modules for this user' })
+  accessibleModules: string[];
+
+  @ApiProperty({ description: 'Whether the user is an admin with full access' })
+  isAdmin: boolean;
+
+  @ApiProperty({ description: 'User\'s highest role' })
+  userRole: string;
+}
+
 export class DashboardOverviewDto {
   @ApiProperty({ description: 'General statistics' })
   stats: DashboardStatsDto;
@@ -113,4 +127,10 @@ export class DashboardOverviewDto {
 
   @ApiProperty({ description: 'Date range used for the stats calculation' })
   dateRange?: DateRangeDto;
+
+  @ApiProperty({ description: 'Dashboard scope information for filtering' })
+  scope?: DashboardScopeDto;
+
+  @ApiProperty({ description: 'List of modules the user has access to' })
+  accessibleModules?: string[];
 }

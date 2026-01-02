@@ -97,3 +97,4 @@ UserInvitationSchema.index({ expiresAt: 1 });
 UserInvitationSchema.index({ createdAt: -1 });
 UserInvitationSchema.index({ branch: 1 }); // Branch index for RBAC filtering
 UserInvitationSchema.index({ branch: 1, status: 1 }); // Compound index for branch-scoped queries
+UserInvitationSchema.index({ member: 1, status: 1 }); // Compound index for login invitation lookup

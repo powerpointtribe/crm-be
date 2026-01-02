@@ -278,8 +278,11 @@ export class RoleAssignmentController {
     status: 404,
     description: 'Role assignment not found',
   })
-  async deactivate(@Param('id') id: string) {
-    const assignment = await this.roleAssignmentService.deactivate(id);
+  async deactivate(@Param('id') id: string, @Request() req) {
+    const assignment = await this.roleAssignmentService.deactivate(
+      id,
+      req.user?.sub || req.user?._id,
+    );
     return ResponseUtil.success(
       assignment,
       'Role assignment deactivated successfully',

@@ -69,11 +69,44 @@ export class DashboardController {
     type: String,
     description: 'End date for stats (ISO format). Defaults to now.',
   })
+  @ApiQuery({
+    name: 'scoped',
+    required: false,
+    type: Boolean,
+    description: 'If true, returns scoped data based on user accessible modules.',
+  })
   async getDashboardOverview(
     @CurrentUser() user: any,
+    @Req() req: RequestWithUserUnit,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('scoped') scoped?: string,
   ) {
+    const useScoped = scoped === 'true';
+    const highestRole = RoleUtils.getHighestRole(user);
+    const isAdmin = user.systemRoles?.includes('admin') || user.roles?.includes('admin');
+
+    if (useScoped) {
+      // Get accessible modules from user permissions or calculate them
+      const accessibleModules = user.accessibleModules ||
+        RoleUtils.getAccessibleModules(user, req.userUnit).map(m => m.toString());
+
+      const overview = await this.dashboardService.getScopedDashboardOverview(
+        user.sub,
+        highestRole,
+        accessibleModules,
+        isAdmin,
+        startDate,
+        endDate,
+      );
+
+      return ResponseUtil.success(
+        overview,
+        'Scoped dashboard overview retrieved successfully',
+      );
+    }
+
+    // Default: return full overview (existing behavior)
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
       user.roles,

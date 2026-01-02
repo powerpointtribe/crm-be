@@ -14,6 +14,7 @@ import {
   UploadedFile,
   BadRequestException,
   ConflictException,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
@@ -1525,11 +1526,14 @@ export class FirstTimersController {
   async integrateFirstTimer(
     @Param('id') id: string,
     @Body() integrateDto: IntegrateFirstTimerDto,
+    @Request() req,
   ) {
+    const initiatedByUserId = req.user?._id?.toString();
     const result = await this.firstTimersService.integrateFirstTimer(
       id,
       integrateDto.districtId,
       integrateDto.unitId,
+      initiatedByUserId,
     );
     return ResponseUtil.success(
       result,

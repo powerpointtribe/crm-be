@@ -61,7 +61,16 @@ export class GroupsController {
   @ApiResponse({ status: 201, description: 'Group created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid group requirements' })
   @ApiResponse({ status: 409, description: 'Group already exists' })
-  async create(@Body() createGroupDto: CreateGroupDto) {
+  async create(@Body() createGroupDto: CreateGroupDto, @CurrentUser() user: any) {
+    // Auto-fill branch from user context if not provided
+    if (!createGroupDto.branch) {
+      const userBranchId = user.branch?._id || user.branch;
+      if (!userBranchId) {
+        throw new ForbiddenException('User does not have an assigned branch');
+      }
+      createGroupDto.branch = userBranchId.toString();
+    }
+
     const group = await this.groupsService.create(createGroupDto);
     return ResponseUtil.success(group, 'Group created successfully');
   }
@@ -269,7 +278,7 @@ export class GroupsController {
     @Param('memberId') memberId: string,
     @CurrentUser() user: any,
   ) {
-    const group = await this.groupsService.addMember(id, memberId);
+    const group = await this.groupsService.addMember(id, memberId, user?._id?.toString());
     return ResponseUtil.success(group, 'Member added to group successfully');
   }
 
@@ -294,7 +303,7 @@ export class GroupsController {
     @Param('memberId') memberId: string,
     @CurrentUser() user: any,
   ) {
-    const group = await this.groupsService.removeMember(id, memberId);
+    const group = await this.groupsService.removeMember(id, memberId, user?._id?.toString());
     return ResponseUtil.success(
       group,
       'Member removed from group successfully',

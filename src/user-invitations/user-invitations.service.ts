@@ -18,6 +18,7 @@ import { UpdateInvitationRoleDto } from './dto/update-invitation-role.dto';
 import { InvitationQueryDto } from './dto/invitation-query.dto';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { Role, RoleDocument } from '../roles/schemas/role.schema';
+import { Branch, BranchDocument } from '../branches/schemas/branch.schema';
 import { QueueService } from '../queue/queue.service';
 
 @Injectable()
@@ -29,6 +30,8 @@ export class UserInvitationsService {
     private memberModel: Model<MemberDocument>,
     @InjectModel(Role.name)
     private roleModel: Model<RoleDocument>,
+    @InjectModel(Branch.name)
+    private branchModel: Model<BranchDocument>,
     private queueService: QueueService,
   ) {}
 
@@ -80,6 +83,20 @@ export class UserInvitationsService {
       throw new BadRequestException('Cannot assign inactive role');
     }
 
+    // Validate branch exists
+    if (!Types.ObjectId.isValid(createInvitationDto.branchId)) {
+      throw new BadRequestException('Invalid branch ID');
+    }
+
+    const branch = await this.branchModel.findById(createInvitationDto.branchId);
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+
+    if (!branch.isActive) {
+      throw new BadRequestException('Cannot assign to inactive branch');
+    }
+
     // Check for existing pending invitation for this member
     const existingInvitation = await this.invitationModel.findOne({
       member: createInvitationDto.memberId,
@@ -102,12 +119,28 @@ export class UserInvitationsService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
+    // Set the member's password using findByIdAndUpdate to avoid full document validation
+    // Also set branch if not already set (for legacy members)
+    await this.memberModel.findByIdAndUpdate(
+      createInvitationDto.memberId,
+      {
+        $set: {
+          password: hashedPassword,
+          isActive: true,
+          ...(member.branch ? {} : { branch: createInvitationDto.branchId }),
+        },
+      },
+      { runValidators: false },
+    );
+
     const invitation = new this.invitationModel({
-      member: createInvitationDto.memberId,
-      role: createInvitationDto.roleId,
+      member: new Types.ObjectId(createInvitationDto.memberId),
+      role: new Types.ObjectId(createInvitationDto.roleId),
+      branch: new Types.ObjectId(createInvitationDto.branchId),
+      assignedDistricts: (createInvitationDto.assignedDistricts || []).map(id => new Types.ObjectId(id)),
       temporaryPassword: hashedPassword,
       status: InvitationStatus.PENDING,
-      invitedBy: invitedById,
+      invitedBy: new Types.ObjectId(invitedById),
       expiresAt,
       notes: createInvitationDto.notes,
     });
@@ -134,7 +167,7 @@ export class UserInvitationsService {
       // Don't fail the invitation creation if queueing fails
     }
 
-    return invitation.populate(['member', 'role', 'invitedBy']);
+    return invitation.populate(['member', 'role', 'branch', 'invitedBy']);
   }
 
 
@@ -168,6 +201,7 @@ export class UserInvitationsService {
         .find(query)
         .populate('member', 'firstName lastName email phone')
         .populate('role', 'name displayName')
+        .populate('branch', 'name code')
         .populate('invitedBy', 'firstName lastName email')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -216,6 +250,7 @@ export class UserInvitationsService {
       .findById(id)
       .populate('member', 'firstName lastName email phone')
       .populate('role', 'name displayName')
+      .populate('branch', 'name code')
       .populate('invitedBy', 'firstName lastName email')
       .exec();
 
@@ -262,6 +297,19 @@ export class UserInvitationsService {
       throw new NotFoundException('Role not found');
     }
 
+    // Update member's password using findByIdAndUpdate to avoid full document validation
+    // This is necessary for members created before branch was required
+    await this.memberModel.findByIdAndUpdate(
+      invitation.member,
+      {
+        $set: {
+          password: hashedPassword,
+          isActive: true,
+        },
+      },
+      { runValidators: false },
+    );
+
     await invitation.save();
 
     // Queue invitation email for async sending (non-blocking)
@@ -280,7 +328,7 @@ export class UserInvitationsService {
       // Don't fail the resend if queueing fails
     }
 
-    return await invitation.populate(['member', 'role', 'invitedBy']);
+    return await invitation.populate(['member', 'role', 'branch', 'invitedBy']);
   }
 
   /**
@@ -301,7 +349,7 @@ export class UserInvitationsService {
     invitation.revocationReason = revokeDto.reason;
 
     await invitation.save();
-    return await invitation.populate(['member', 'role', 'invitedBy']);
+    return await invitation.populate(['member', 'role', 'branch', 'invitedBy']);
   }
 
   /**
@@ -337,7 +385,7 @@ export class UserInvitationsService {
     }
 
     await invitation.save();
-    return await invitation.populate(['member', 'role', 'invitedBy']);
+    return await invitation.populate(['member', 'role', 'branch', 'invitedBy']);
   }
 
   /**
@@ -478,9 +526,15 @@ export class UserInvitationsService {
       throw new BadRequestException('Cannot assign inactive role');
     }
 
-    member.role = new Types.ObjectId(roleId);
-    await member.save();
+    // Use findByIdAndUpdate to avoid full document validation
+    // This is necessary for members created before branch was required
+    await this.memberModel.findByIdAndUpdate(
+      memberId,
+      { $set: { role: new Types.ObjectId(roleId) } },
+      { runValidators: false },
+    );
 
+    member.role = new Types.ObjectId(roleId);
     return member.populate('role', 'name displayName');
   }
 
@@ -501,9 +555,14 @@ export class UserInvitationsService {
       throw new BadRequestException('User is already deactivated');
     }
 
-    member.isActive = false;
-    await member.save();
+    // Use findByIdAndUpdate to avoid full document validation
+    await this.memberModel.findByIdAndUpdate(
+      memberId,
+      { $set: { isActive: false } },
+      { runValidators: false },
+    );
 
+    member.isActive = false;
     return member;
   }
 
@@ -524,9 +583,14 @@ export class UserInvitationsService {
       throw new BadRequestException('User is already active');
     }
 
-    member.isActive = true;
-    await member.save();
+    // Use findByIdAndUpdate to avoid full document validation
+    await this.memberModel.findByIdAndUpdate(
+      memberId,
+      { $set: { isActive: true } },
+      { runValidators: false },
+    );
 
+    member.isActive = true;
     return member;
   }
 
@@ -543,10 +607,17 @@ export class UserInvitationsService {
       throw new NotFoundException('Member not found');
     }
 
-    // Remove role and deactivate
-    member.role = null as any; // Force null to remove platform access
+    // Use findByIdAndUpdate to avoid full document validation
+    // Remove role and deactivate to revoke platform access
+    await this.memberModel.findByIdAndUpdate(
+      memberId,
+      { $set: { role: null, isActive: false } },
+      { runValidators: false },
+    );
+
+    // Update local member object for return
+    member.role = null;
     member.isActive = false;
-    await member.save();
 
     // Also revoke any pending invitations
     await this.invitationModel.updateMany(

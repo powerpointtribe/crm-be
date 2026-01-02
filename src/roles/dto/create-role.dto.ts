@@ -29,6 +29,11 @@ export class CreateRoleDto {
   @IsOptional()
   permissions?: string[];
 
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  modules?: string[]; // Selected modules - auto-grants VIEW permissions for each module
+
   @IsMongoId()
   @IsOptional()
   parentRole?: string;

@@ -88,6 +88,11 @@ export class Group {
         ],
       },
       time: String,
+      frequency: {
+        type: String,
+        enum: ['weekly', 'biweekly', 'monthly'],
+        default: 'weekly',
+      },
       location: String,
       isVirtual: { type: Boolean, default: false },
       virtualLink: String, // For online meetings (Zoom, Teams, etc.)
@@ -102,6 +107,7 @@ export class Group {
   meetingSchedule?: {
     day: string;
     time: string;
+    frequency?: string;
     location: string;
     isVirtual?: boolean;
     virtualLink?: string;

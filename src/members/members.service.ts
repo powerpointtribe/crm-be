@@ -16,6 +16,14 @@ import {
   BulkMemberResultDto,
 } from './dto/bulk-member.dto';
 import {
+  BulkImportMasterDto,
+  MasterImportMemberDto,
+  BulkImportMasterResultDto,
+} from './dto/bulk-import-master.dto';
+import { GroupType } from '../common/enums/group-types.enum';
+import { Group, GroupDocument } from '../groups/schemas/group.schema';
+import { Branch, BranchDocument } from '../branches/schemas/branch.schema';
+import {
   PaginatedResult,
   createPaginatedResult,
 } from '../common/utils/pagination.util';
@@ -29,17 +37,21 @@ import {
   BranchFilterContext,
 } from '../common/services/branch-access.service';
 import { RolesService } from '../roles/services/roles.service';
+import { MemberLifecycleService } from '../activity-tracker/member-lifecycle.service';
 
 @Injectable()
 export class MembersService {
   constructor(
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
+    @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
+    @InjectModel(Branch.name) private branchModel: Model<BranchDocument>,
     private branchAccessService: BranchAccessService,
     @Inject(forwardRef(() => RolesService))
     private rolesService: RolesService,
+    private memberLifecycleService: MemberLifecycleService,
   ) {}
 
-  async create(createMemberDto: CreateMemberDto): Promise<MemberDocument> {
+  async create(createMemberDto: CreateMemberDto, initiatedByUserId?: string): Promise<MemberDocument> {
     // District assignment is now optional
     // Members can be created without district assignment and assigned later
 
@@ -99,7 +111,79 @@ export class MembersService {
           },
     });
 
-    return member.save();
+    const savedMember = await member.save();
+
+    // Log lifecycle events asynchronously (don't block the response)
+    // Use the provided user ID or fall back to the member's own ID
+    const effectiveInitiatorId = initiatedByUserId || savedMember._id.toString();
+    this.logMemberCreationEvents(savedMember, createMemberDto, effectiveInitiatorId).catch((err) => {
+      console.error('Error logging member creation events:', err);
+    });
+
+    return savedMember;
+  }
+
+  /**
+   * Log all lifecycle events for member creation
+   */
+  private async logMemberCreationEvents(
+    member: MemberDocument,
+    createMemberDto: CreateMemberDto,
+    initiatedBy: string,
+  ): Promise<void> {
+    const memberId = member._id.toString();
+
+    try {
+      // 1. Log member registration with the dateJoined
+      await this.memberLifecycleService.logMemberRegistration(
+        memberId,
+        initiatedBy,
+        'member-creation',
+        member.dateJoined,
+      );
+      console.log(`Activity logged: Member registration for ${memberId}, dateJoined: ${member.dateJoined}`);
+    } catch (error) {
+      console.error(`Failed to log member registration for ${memberId}:`, error);
+    }
+
+    // 2. Log district assignment if provided
+    if (createMemberDto.district) {
+      try {
+        const district = await this.groupModel.findById(createMemberDto.district);
+        if (district) {
+          await this.memberLifecycleService.logDistrictAssignment(
+            memberId,
+            createMemberDto.district.toString(),
+            district.name,
+            initiatedBy,
+          );
+          console.log(`Activity logged: District assignment for ${memberId}`);
+        }
+      } catch (error) {
+        console.error(`Failed to log district assignment for ${memberId}:`, error);
+      }
+    }
+
+    // 3. Log unit assignment if provided (first-time = DC enrollment)
+    if (createMemberDto.unit) {
+      try {
+        const unit = await this.groupModel.findById(createMemberDto.unit);
+        if (unit) {
+          await this.memberLifecycleService.logUnitAssignment(
+            memberId,
+            createMemberDto.unit.toString(),
+            unit.name,
+            initiatedBy,
+            undefined, // no previous unit
+            undefined, // no previous unit name
+            true, // is first unit assignment (DC enrollment)
+          );
+          console.log(`Activity logged: Unit assignment (DC enrollment) for ${memberId}`);
+        }
+      } catch (error) {
+        console.error(`Failed to log unit assignment for ${memberId}:`, error);
+      }
+    }
   }
 
   // Duplicate checking methods
@@ -551,6 +635,55 @@ export class MembersService {
     return this.memberModel.findById(userId).exec();
   }
 
+  async updatePreferences(
+    memberId: string,
+    preferences: Partial<{
+      theme: 'light' | 'dark' | 'system';
+      language: string;
+      notifications: {
+        email?: boolean;
+        sms?: boolean;
+        push?: boolean;
+        followUpReminders?: boolean;
+        weeklyReports?: boolean;
+      };
+      display: {
+        compactMode?: boolean;
+        showWelcomeMessage?: boolean;
+      };
+    }>,
+  ): Promise<MemberDocument | null> {
+    const member = await this.memberModel.findById(memberId);
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    // Merge preferences with existing
+    const updatedPreferences = {
+      theme: preferences.theme || member.preferences?.theme || 'system',
+      language: preferences.language || member.preferences?.language || 'en',
+      notifications: {
+        email: preferences.notifications?.email ?? member.preferences?.notifications?.email ?? true,
+        sms: preferences.notifications?.sms ?? member.preferences?.notifications?.sms ?? false,
+        push: preferences.notifications?.push ?? member.preferences?.notifications?.push ?? true,
+        followUpReminders: preferences.notifications?.followUpReminders ?? member.preferences?.notifications?.followUpReminders ?? true,
+        weeklyReports: preferences.notifications?.weeklyReports ?? member.preferences?.notifications?.weeklyReports ?? false,
+      },
+      display: {
+        compactMode: preferences.display?.compactMode ?? member.preferences?.display?.compactMode ?? false,
+        showWelcomeMessage: preferences.display?.showWelcomeMessage ?? member.preferences?.display?.showWelcomeMessage ?? true,
+      },
+    };
+
+    return this.memberModel
+      .findByIdAndUpdate(
+        memberId,
+        { $set: { preferences: updatedPreferences } },
+        { new: true },
+      )
+      .exec();
+  }
+
   async findByEmail(email: string): Promise<MemberDocument | null> {
     return this.memberModel
       .findOne({ email: email.toLowerCase(), isActive: true })
@@ -563,7 +696,19 @@ export class MembersService {
   async update(
     id: string,
     updateMemberDto: UpdateMemberDto,
+    initiatedByUserId?: string,
   ): Promise<MemberDocument> {
+    // Get the existing member to compare changes
+    const existingMember = await this.memberModel
+      .findById(id)
+      .populate('district', 'name type')
+      .populate('unit', 'name type')
+      .exec();
+
+    if (!existingMember) {
+      throw new NotFoundException('Member not found');
+    }
+
     // Check for duplicates when updating email or phone
     if (updateMemberDto.email || updateMemberDto.phone) {
       await this.checkForDuplicatesExcludingMember(
@@ -578,23 +723,23 @@ export class MembersService {
       updateMemberDto.email = updateMemberDto.email.toLowerCase();
     }
 
+    // Track if this is a first-time unit assignment
+    const isFirstUnitAssignment = !existingMember.unit && !!updateMemberDto.unit;
+
     // If unit is being assigned, check if membership status needs to be upgraded to DC
     if (updateMemberDto.unit) {
-      const existingMember = await this.memberModel.findById(id);
-      if (existingMember) {
-        // Leadership statuses that should NOT be downgraded to DC
-        const leadershipStatuses = [
-          MembershipStatus.LXL,
-          MembershipStatus.DIRECTOR,
-          MembershipStatus.PASTOR,
-          MembershipStatus.CAMPUS_PASTOR,
-          MembershipStatus.SENIOR_PASTOR,
-        ];
+      // Leadership statuses that should NOT be downgraded to DC
+      const leadershipStatuses = [
+        MembershipStatus.LXL,
+        MembershipStatus.DIRECTOR,
+        MembershipStatus.PASTOR,
+        MembershipStatus.CAMPUS_PASTOR,
+        MembershipStatus.SENIOR_PASTOR,
+      ];
 
-        // Auto-upgrade to DC if not already a leader (LXL or higher)
-        if (!leadershipStatuses.includes(existingMember.membershipStatus as MembershipStatus)) {
-          (updateMemberDto as any).membershipStatus = MembershipStatus.DC;
-        }
+      // Auto-upgrade to DC if not already a leader (LXL or higher)
+      if (!leadershipStatuses.includes(existingMember.membershipStatus as MembershipStatus)) {
+        (updateMemberDto as any).membershipStatus = MembershipStatus.DC;
       }
     }
 
@@ -612,7 +757,144 @@ export class MembersService {
       throw new NotFoundException('Member not found');
     }
 
+    // Log lifecycle events asynchronously (don't block the response)
+    // Use the provided user ID or fall back to the member's own ID
+    const effectiveInitiatorId = initiatedByUserId || member._id.toString();
+    this.logMemberUpdateEvents(existingMember, member, updateMemberDto, isFirstUnitAssignment, effectiveInitiatorId).catch((err) => {
+      console.error('Error logging member update events:', err);
+    });
+
     return member;
+  }
+
+  /**
+   * Log lifecycle events for member updates
+   */
+  private async logMemberUpdateEvents(
+    oldMember: MemberDocument,
+    newMember: MemberDocument,
+    updateMemberDto: UpdateMemberDto,
+    isFirstUnitAssignment: boolean,
+    initiatedBy: string,
+  ): Promise<void> {
+    const memberId = newMember._id.toString();
+
+    // 1. Log isActive change (deactivation/reactivation)
+    if (updateMemberDto.isActive !== undefined && oldMember.isActive !== updateMemberDto.isActive) {
+      try {
+        if (updateMemberDto.isActive === false) {
+          await this.memberLifecycleService.logMemberDeactivation(
+            memberId,
+            'Member deactivated',
+            initiatedBy,
+          );
+          console.log(`Activity logged: Member deactivation for ${memberId}`);
+        } else {
+          await this.memberLifecycleService.logMemberReactivation(
+            memberId,
+            initiatedBy,
+          );
+          console.log(`Activity logged: Member reactivation for ${memberId}`);
+        }
+      } catch (error) {
+        console.error(`Failed to log isActive change for ${memberId}:`, error);
+      }
+    }
+
+    // 2. Log branch change (branch transfer)
+    const oldBranchId = (oldMember.branch as any)?._id?.toString() || oldMember.branch?.toString();
+    const newBranchId = updateMemberDto.branch?.toString();
+
+    if (newBranchId && newBranchId !== oldBranchId) {
+      try {
+        const newBranch = await this.branchModel.findById(newBranchId);
+        const oldBranch = oldBranchId ? await this.branchModel.findById(oldBranchId) : null;
+
+        if (newBranch && oldBranch) {
+          await this.memberLifecycleService.logBranchTransfer(
+            memberId,
+            oldBranchId,
+            oldBranch.name,
+            newBranchId,
+            newBranch.name,
+            initiatedBy,
+          );
+          console.log(`Activity logged: Branch transfer for ${memberId}`);
+        }
+      } catch (error) {
+        console.error(`Failed to log branch transfer for ${memberId}:`, error);
+      }
+    }
+
+    // 3. Log district change
+    const oldDistrictId = (oldMember.district as any)?._id?.toString() || oldMember.district?.toString();
+    const newDistrictId = updateMemberDto.district?.toString();
+
+    if (newDistrictId && newDistrictId !== oldDistrictId) {
+      try {
+        const newDistrict = await this.groupModel.findById(newDistrictId);
+        const oldDistrict = oldDistrictId ? await this.groupModel.findById(oldDistrictId) : null;
+
+        if (newDistrict) {
+          await this.memberLifecycleService.logDistrictAssignment(
+            memberId,
+            newDistrictId,
+            newDistrict.name,
+            initiatedBy,
+            oldDistrictId,
+            oldDistrict?.name,
+          );
+          console.log(`Activity logged: District change for ${memberId}`);
+        }
+      } catch (error) {
+        console.error(`Failed to log district change for ${memberId}:`, error);
+      }
+    }
+
+    // 4. Log unit change
+    const oldUnitId = (oldMember.unit as any)?._id?.toString() || oldMember.unit?.toString();
+    const newUnitId = updateMemberDto.unit?.toString();
+
+    if (newUnitId && newUnitId !== oldUnitId) {
+      try {
+        const newUnit = await this.groupModel.findById(newUnitId);
+        const oldUnit = oldUnitId ? await this.groupModel.findById(oldUnitId) : null;
+
+        if (newUnit) {
+          await this.memberLifecycleService.logUnitAssignment(
+            memberId,
+            newUnitId,
+            newUnit.name,
+            initiatedBy,
+            oldUnitId,
+            oldUnit?.name,
+            isFirstUnitAssignment, // Mark as DC enrollment if first unit
+          );
+          console.log(`Activity logged: Unit change for ${memberId}`);
+        }
+      } catch (error) {
+        console.error(`Failed to log unit change for ${memberId}:`, error);
+      }
+    }
+
+    // 5. Log membership status change
+    const oldStatus = oldMember.membershipStatus;
+    const newStatus = updateMemberDto.membershipStatus || (newMember as any).membershipStatus;
+
+    if (newStatus && oldStatus !== newStatus) {
+      try {
+        await this.memberLifecycleService.logMembershipStatusChange(
+          memberId,
+          oldStatus,
+          newStatus,
+          initiatedBy,
+          'Membership status updated',
+        );
+        console.log(`Activity logged: Membership status change for ${memberId}`);
+      } catch (error) {
+        console.error(`Failed to log membership status change for ${memberId}:`, error);
+      }
+    }
   }
 
   private async checkForDuplicatesExcludingMember(
@@ -1389,5 +1671,407 @@ export class MembersService {
       member.resetPasswordOtpExpires = undefined;
       await member.save();
     }
+  }
+
+  // ============================================
+  // MASTER BULK IMPORT
+  // Creates members, districts, units, and assigns leadership
+  // ============================================
+
+  /**
+   * Master bulk import - creates members with their districts, units, and leadership assignments
+   * This is the comprehensive import that can create the entire church structure from a spreadsheet
+   */
+  async bulkImportMaster(
+    dto: BulkImportMasterDto,
+  ): Promise<BulkImportMasterResultDto> {
+    const result: BulkImportMasterResultDto = {
+      totalProcessed: 0,
+      membersCreated: 0,
+      membersSkipped: 0,
+      branchesCreated: 0,
+      districtsCreated: 0,
+      unitsCreated: 0,
+      districtPastorsAssigned: 0,
+      unitHeadsAssigned: 0,
+      errors: [],
+      createdMemberIds: [],
+    };
+
+    const { members, defaultPassword = 'Welcome123!', skipExisting = true } = dto;
+
+    // Get default member role
+    const memberRole = await this.rolesService.findBySlug('member');
+    const districtPastorRole = await this.rolesService.findBySlug('district-pastor');
+    const unitHeadRole = await this.rolesService.findBySlug('unit-head');
+
+    if (!memberRole) {
+      throw new BadRequestException('Default member role not found. Please run seed:admin first.');
+    }
+
+    // Cache for branches, districts and units to avoid duplicate lookups/creations
+    const branchCache = new Map<string, Types.ObjectId>();
+    const districtCache = new Map<string, Types.ObjectId>();
+    const unitCache = new Map<string, Types.ObjectId>();
+
+    // Track leadership assignments to process after all members are created
+    const leadershipAssignments: Array<{
+      memberId: Types.ObjectId;
+      memberEmail: string;
+      districtName?: string;
+      unitName?: string;
+      isDistrictPastor: boolean;
+      isUnitHead: boolean;
+      isAssistantUnitHead: boolean;
+    }> = [];
+
+    // Hash the default password once
+    const bcrypt = await import('bcryptjs');
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    // Process each member
+    for (let i = 0; i < members.length; i++) {
+      const row = members[i];
+      result.totalProcessed++;
+
+      try {
+        // Check if member already exists
+        const existingMember = await this.memberModel.findOne({
+          email: row.email.toLowerCase(),
+        });
+
+        if (existingMember) {
+          if (skipExisting) {
+            result.membersSkipped++;
+            continue;
+          } else {
+            result.errors.push({
+              row: i + 1,
+              email: row.email,
+              error: 'Member with this email already exists',
+            });
+            continue;
+          }
+        }
+
+        // Get or create branch first (required for each member)
+        const branchId = await this.getOrCreateBranch(
+          row.branchName,
+          branchCache,
+          result,
+        );
+
+        // Get or create district
+        let districtId: Types.ObjectId | undefined;
+        if (row.districtName) {
+          districtId = await this.getOrCreateGroup(
+            row.districtName,
+            GroupType.DISTRICT,
+            branchId.toString(),
+            districtCache,
+            result,
+          );
+        }
+
+        // Get or create unit
+        let unitId: Types.ObjectId | undefined;
+        if (row.unitName) {
+          unitId = await this.getOrCreateGroup(
+            row.unitName,
+            GroupType.UNIT,
+            branchId.toString(),
+            unitCache,
+            result,
+          );
+        }
+
+        // Determine initial role
+        let roleId = (memberRole as any)._id;
+        let membershipStatus = row.membershipStatus || MembershipStatus.MEMBER;
+
+        // If they're a leader, upgrade their role and status
+        if (row.isDistrictPastor && districtPastorRole) {
+          roleId = (districtPastorRole as any)._id;
+          if (membershipStatus === MembershipStatus.MEMBER || membershipStatus === MembershipStatus.DC) {
+            membershipStatus = MembershipStatus.LXL;
+          }
+        } else if ((row.isUnitHead || row.isAssistantUnitHead) && unitHeadRole) {
+          roleId = (unitHeadRole as any)._id;
+          if (membershipStatus === MembershipStatus.MEMBER) {
+            membershipStatus = MembershipStatus.DC;
+          }
+        } else if (unitId) {
+          // Regular member with unit assignment gets DC status
+          if (membershipStatus === MembershipStatus.MEMBER) {
+            membershipStatus = MembershipStatus.DC;
+          }
+        }
+
+        // Validate and parse date of birth
+        let dateOfBirth: Date | undefined;
+        if (row.dateOfBirth) {
+          dateOfBirth = new Date(row.dateOfBirth);
+          if (isNaN(dateOfBirth.getTime())) {
+            dateOfBirth = new Date('1990-01-01'); // Default if invalid
+          }
+        } else {
+          dateOfBirth = new Date('1990-01-01'); // Default
+        }
+
+        // Create the member
+        const newMember = new this.memberModel({
+          firstName: row.firstName.trim(),
+          lastName: row.lastName.trim(),
+          email: row.email.toLowerCase().trim(),
+          phone: row.phone.trim(),
+          password: hashedPassword,
+          dateOfBirth,
+          gender: row.gender,
+          maritalStatus: row.maritalStatus || 'single',
+          membershipStatus,
+          role: roleId,
+          branch: branchId,
+          district: districtId,
+          unit: unitId,
+          isActive: true,
+          dateJoined: row.dateJoined ? new Date(row.dateJoined) : new Date(),
+          occupation: row.occupation,
+          notes: row.notes,
+          address: {
+            street: row.street || '',
+            city: row.city || '',
+            state: row.state || 'Lagos',
+            country: 'Nigeria',
+          },
+        });
+
+        await newMember.save();
+        result.membersCreated++;
+        result.createdMemberIds.push(newMember._id.toString());
+
+        // Add member to district
+        if (districtId) {
+          await this.groupModel.findByIdAndUpdate(districtId, {
+            $addToSet: { members: newMember._id },
+            $inc: { currentMemberCount: 1 },
+          });
+        }
+
+        // Add member to unit
+        if (unitId) {
+          await this.groupModel.findByIdAndUpdate(unitId, {
+            $addToSet: { members: newMember._id },
+            $inc: { currentMemberCount: 1 },
+          });
+        }
+
+        // Track leadership assignments for later
+        if (row.isDistrictPastor || row.isUnitHead || row.isAssistantUnitHead) {
+          leadershipAssignments.push({
+            memberId: newMember._id,
+            memberEmail: row.email,
+            districtName: row.districtName,
+            unitName: row.unitName,
+            isDistrictPastor: row.isDistrictPastor || false,
+            isUnitHead: row.isUnitHead || false,
+            isAssistantUnitHead: row.isAssistantUnitHead || false,
+          });
+        }
+      } catch (error) {
+        result.errors.push({
+          row: i + 1,
+          email: row.email,
+          error: error.message || 'Unknown error',
+        });
+      }
+    }
+
+    // Process leadership assignments
+    for (const assignment of leadershipAssignments) {
+      try {
+        // Assign district pastor
+        if (assignment.isDistrictPastor && assignment.districtName) {
+          const districtId = districtCache.get(assignment.districtName);
+          if (districtId) {
+            await this.groupModel.findByIdAndUpdate(districtId, {
+              $set: { districtPastor: assignment.memberId },
+            });
+
+            // Update member's assignedDistricts
+            await this.memberModel.findByIdAndUpdate(assignment.memberId, {
+              $addToSet: { assignedDistricts: districtId },
+            });
+
+            result.districtPastorsAssigned++;
+          }
+        }
+
+        // Assign unit head
+        if (assignment.isUnitHead && assignment.unitName) {
+          const unitId = unitCache.get(assignment.unitName);
+          if (unitId) {
+            await this.groupModel.findByIdAndUpdate(unitId, {
+              $set: { unitHead: assignment.memberId },
+            });
+            result.unitHeadsAssigned++;
+          }
+        }
+
+        // Assign assistant unit head
+        if (assignment.isAssistantUnitHead && assignment.unitName) {
+          const unitId = unitCache.get(assignment.unitName);
+          if (unitId) {
+            await this.groupModel.findByIdAndUpdate(unitId, {
+              $set: { assistantUnitHead: assignment.memberId },
+            });
+          }
+        }
+      } catch (error) {
+        result.errors.push({
+          row: 0,
+          email: assignment.memberEmail,
+          error: `Leadership assignment failed: ${error.message}`,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Helper: Get or create a branch by name
+   */
+  private async getOrCreateBranch(
+    name: string,
+    cache: Map<string, Types.ObjectId>,
+    result: BulkImportMasterResultDto,
+  ): Promise<Types.ObjectId> {
+    // Check cache first
+    const cacheKey = name.toLowerCase().trim();
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey)!;
+    }
+
+    // Try to find existing branch
+    let branch = await this.branchModel.findOne({
+      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+      isActive: true,
+    });
+
+    if (!branch) {
+      // Create new branch with slug
+      const slug = name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      branch = new this.branchModel({
+        name: name.trim(),
+        slug,
+        isActive: true,
+        isMainBranch: false,
+        timezone: 'Africa/Lagos',
+        address: {
+          street: '',
+          city: '',
+          state: '',
+          country: 'Nigeria',
+        },
+      });
+      await branch.save();
+      result.branchesCreated++;
+    }
+
+    // Cache for future lookups
+    cache.set(cacheKey, branch._id as Types.ObjectId);
+
+    return branch._id as Types.ObjectId;
+  }
+
+  /**
+   * Helper: Get or create a group (district/unit) by name
+   */
+  private async getOrCreateGroup(
+    name: string,
+    type: GroupType,
+    branchId: string,
+    cache: Map<string, Types.ObjectId>,
+    result: BulkImportMasterResultDto,
+  ): Promise<Types.ObjectId> {
+    // Check cache first
+    const cacheKey = name.toLowerCase().trim();
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey)!;
+    }
+
+    // Try to find existing group
+    let group = await this.groupModel.findOne({
+      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+      type,
+      branch: new Types.ObjectId(branchId),
+      isActive: true,
+    });
+
+    if (!group) {
+      // Create new group
+      group = new this.groupModel({
+        name: name.trim(),
+        type,
+        branch: new Types.ObjectId(branchId),
+        isActive: true,
+        currentMemberCount: 0,
+        members: [],
+      });
+      await group.save();
+
+      // Update result counters
+      if (type === GroupType.DISTRICT) {
+        result.districtsCreated++;
+      } else if (type === GroupType.UNIT) {
+        result.unitsCreated++;
+      }
+    }
+
+    // Cache for future lookups
+    cache.set(cacheKey, group._id as Types.ObjectId);
+
+    return group._id as Types.ObjectId;
+  }
+
+  /**
+   * Generate a sample CSV template for master import
+   */
+  generateMasterImportTemplate(): string {
+    const headers = [
+      'firstName',
+      'lastName',
+      'email',
+      'phone',
+      'dateOfBirth',
+      'gender',
+      'maritalStatus',
+      'branchName',
+      'districtName',
+      'isDistrictPastor',
+      'unitName',
+      'isUnitHead',
+      'isAssistantUnitHead',
+      'membershipStatus',
+      'street',
+      'city',
+      'state',
+      'occupation',
+      'dateJoined',
+      'notes',
+    ];
+
+    const sampleRows = [
+      // District Pastor
+      'Pastor,Emmanuel,pastor.emmanuel@church.com,+2348010000001,1980-03-15,male,married,Main Campus,District 1 - Ikeja,true,,,false,PASTOR,,Lagos,Lagos,Minister,2020-01-01,Senior Pastor of District 1',
+      // Unit Head
+      'David,Ojo,david.ojo@church.com,+2348020000001,1990-05-10,male,single,Main Campus,District 1 - Ikeja,false,Media Unit,true,false,DC,,Lagos,Lagos,Software Engineer,2021-06-15,Leads media team',
+      // Assistant Unit Head
+      'Sarah,Adeyemi,sarah.adeyemi@church.com,+2348020000002,1992-11-25,female,married,Main Campus,District 2 - Lekki,false,Choir Unit,false,true,DC,,Lagos,Lagos,Music Teacher,2021-03-20,Assistant choir leader',
+      // Regular Member
+      'John,Okonkwo,john.okonkwo@church.com,+2348030000001,1995-01-15,male,single,Main Campus,District 1 - Ikeja,false,Media Unit,false,false,MEMBER,15 Allen Avenue,Ikeja,Lagos,Accountant,2022-01-01,',
+    ];
+
+    return [headers.join(','), ...sampleRows].join('\n');
   }
 }

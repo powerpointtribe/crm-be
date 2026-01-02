@@ -61,11 +61,31 @@ export class AuthService {
       throw new UnauthorizedException('Account is deactivated');
     }
 
-    // Check for pending invitation and mark as accepted
-    const pendingInvitation = await this.invitationModel.findOne({
+    // Check for valid invitation (PENDING or ACCEPTED) - required for platform access
+    const invitation = await this.invitationModel.findOne({
       member: member._id,
-      status: InvitationStatus.PENDING,
+      status: { $in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
     });
+
+    if (!invitation) {
+      throw new UnauthorizedException({
+        message: 'Access denied. You need an invitation to access this platform.',
+        errorCode: 'INVITATION_REQUIRED',
+      });
+    }
+
+    // Check if PENDING invitation has expired
+    if (invitation.status === InvitationStatus.PENDING && new Date() > invitation.expiresAt) {
+      invitation.status = InvitationStatus.EXPIRED;
+      await invitation.save();
+      throw new UnauthorizedException({
+        message: 'Your invitation has expired. Please contact an administrator.',
+        errorCode: 'INVITATION_EXPIRED',
+      });
+    }
+
+    // Use the found invitation for the rest of the flow
+    const pendingInvitation = invitation.status === InvitationStatus.PENDING ? invitation : null;
 
     let isFirstLogin = false;
     let requirePasswordChange = false;

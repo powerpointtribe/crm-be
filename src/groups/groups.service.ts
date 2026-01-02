@@ -3,6 +3,9 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Inject,
+  forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery, Types } from 'mongoose';
@@ -22,13 +25,21 @@ import {
   BranchAccessService,
   BranchFilterContext,
 } from '../common/services/branch-access.service';
+import { MemberLifecycleService } from '../activity-tracker/member-lifecycle.service';
+import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 export class GroupsService {
+  private readonly logger = new Logger(GroupsService.name);
+
   constructor(
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
     private branchAccessService: BranchAccessService,
+    @Inject(forwardRef(() => MemberLifecycleService))
+    private memberLifecycleService: MemberLifecycleService,
+    @Inject(forwardRef(() => QueueService))
+    private queueService: QueueService,
   ) {}
 
   async create(createGroupDto: CreateGroupDto): Promise<GroupDocument> {
@@ -458,7 +469,7 @@ export class GroupsService {
   }
 
   // Member Management
-  async addMember(groupId: string, memberId: string): Promise<GroupDocument> {
+  async addMember(groupId: string, memberId: string, initiatedByUserId?: string): Promise<GroupDocument> {
     const group = await this.groupModel.findById(groupId);
     if (!group) {
       throw new NotFoundException('Group not found');
@@ -474,6 +485,11 @@ export class GroupsService {
       throw new BadRequestException('Group is at maximum capacity');
     }
 
+    // Get member info for checking first assignment and status
+    const member = await this.memberModel.findById(memberId);
+    const isFirstUnitAssignment = group.type === GroupType.UNIT &&
+      member && member.membershipStatus === MembershipStatus.MEMBER ? true : false;
+
     const updatedGroup = await this.groupModel
       .findByIdAndUpdate(
         groupId,
@@ -486,6 +502,7 @@ export class GroupsService {
       .populate('members', 'firstName lastName email phone');
 
     // If this is a unit, update member's membershipStatus to DC (unless already LXL or higher)
+    const previousStatus = member?.membershipStatus;
     if (group.type === GroupType.UNIT) {
       const leadershipStatuses: string[] = [
         MembershipStatus.LXL,
@@ -495,12 +512,66 @@ export class GroupsService {
         MembershipStatus.SENIOR_PASTOR,
       ];
 
-      const member = await this.memberModel.findById(memberId);
       if (member && !leadershipStatuses.includes(member.membershipStatus)) {
         await this.memberModel.findByIdAndUpdate(memberId, {
           $set: { membershipStatus: MembershipStatus.DC },
         });
       }
+    }
+
+    // Log activity as side effect (async, non-blocking)
+    if (initiatedByUserId) {
+      // Use setImmediate to not block the response
+      setImmediate(async () => {
+        try {
+          // Determine activity type based on group type
+          let activityType: any = 'VOLUNTEER_ASSIGNMENT';
+          let title = `Added to ${group.type}: ${group.name}`;
+
+          if (group.type === GroupType.UNIT) {
+            if (isFirstUnitAssignment) {
+              activityType = 'DC_ENROLLMENT';
+              title = 'DC Enrollment - Unit Assignment';
+            } else {
+              activityType = 'UNIT_ASSIGNMENT';
+              title = 'Unit Assignment';
+            }
+          } else if (group.type === GroupType.DISTRICT) {
+            activityType = 'DISTRICT_ASSIGNMENT';
+            title = 'District Assignment';
+          } else if (group.type === GroupType.MINISTRY) {
+            activityType = 'MINISTRY_ASSIGNMENT';
+            title = 'Ministry Assignment';
+          }
+
+          await this.memberLifecycleService.logLifecycleEvent({
+            memberId,
+            activityType,
+            title,
+            description: `Added to ${group.name}`,
+            initiatedBy: initiatedByUserId,
+            reason: `Added to ${group.type}: ${group.name}`,
+            toUnit: group.type === GroupType.UNIT ? groupId : undefined,
+            toDistrict: group.type === GroupType.DISTRICT ? groupId : undefined,
+            tags: [group.type, 'assignment'],
+          });
+          this.logger.log(`[AddMember] Activity logged for member ${memberId} added to ${group.name}`);
+
+          // If status changed to DC, also log the status change
+          if (group.type === GroupType.UNIT && previousStatus === MembershipStatus.MEMBER) {
+            await this.memberLifecycleService.logMembershipStatusChange(
+              memberId,
+              MembershipStatus.MEMBER,
+              MembershipStatus.DC,
+              initiatedByUserId,
+              `Promoted to DC upon joining unit: ${group.name}`,
+            );
+            this.logger.log(`[AddMember] Status change logged for member ${memberId}`);
+          }
+        } catch (error) {
+          this.logger.error(`[AddMember] Failed to log activity: ${error.message}`);
+        }
+      });
     }
 
     return updatedGroup!;
@@ -509,6 +580,7 @@ export class GroupsService {
   async removeMember(
     groupId: string,
     memberId: string,
+    initiatedByUserId?: string,
   ): Promise<GroupDocument> {
     const group = await this.groupModel.findById(groupId);
     if (!group) {
@@ -525,6 +597,37 @@ export class GroupsService {
         { new: true },
       )
       .populate('members', 'firstName lastName email phone');
+
+    // Log activity as side effect (async, non-blocking)
+    if (initiatedByUserId) {
+      setImmediate(async () => {
+        try {
+          let activityType: any = 'COMMITTEE_REMOVAL';
+          if (group.type === GroupType.UNIT) {
+            activityType = 'UNIT_REMOVAL';
+          } else if (group.type === GroupType.DISTRICT) {
+            activityType = 'DISTRICT_REMOVAL';
+          } else if (group.type === GroupType.MINISTRY) {
+            activityType = 'MINISTRY_REMOVAL';
+          }
+
+          await this.memberLifecycleService.logLifecycleEvent({
+            memberId,
+            activityType,
+            title: `Removed from ${group.type}: ${group.name}`,
+            description: `Removed from ${group.name}`,
+            initiatedBy: initiatedByUserId,
+            reason: `Removed from ${group.type}`,
+            fromUnit: group.type === GroupType.UNIT ? groupId : undefined,
+            fromDistrict: group.type === GroupType.DISTRICT ? groupId : undefined,
+            tags: [group.type, 'removal'],
+          });
+          this.logger.log(`[RemoveMember] Activity logged for member ${memberId} removed from ${group.name}`);
+        } catch (error) {
+          this.logger.error(`[RemoveMember] Failed to log activity: ${error.message}`);
+        }
+      });
+    }
 
     return updatedGroup!;
   }
@@ -574,6 +677,9 @@ export class GroupsService {
       throw new NotFoundException('Group not found');
     }
 
+    // Store the previous pastor's ID before removing
+    const previousPastorId = group.districtPastor?.toString();
+
     const updatedGroup = await this.groupModel
       .findByIdAndUpdate(
         groupId,
@@ -581,6 +687,11 @@ export class GroupsService {
         { new: true },
       )
       .exec();
+
+    // Check if the previous pastor has any other leadership roles, if not demote to DC
+    if (previousPastorId) {
+      await this.demoteToMemberIfNoLeadershipRoles(previousPastorId);
+    }
 
     return updatedGroup!;
   }
@@ -634,6 +745,9 @@ export class GroupsService {
       throw new NotFoundException('Group not found');
     }
 
+    // Store the previous unit head's ID before removing
+    const previousHeadId = group.unitHead?.toString();
+
     const updatedGroup = await this.groupModel
       .findByIdAndUpdate(
         groupId,
@@ -641,6 +755,11 @@ export class GroupsService {
         { new: true },
       )
       .exec();
+
+    // Check if the previous head has any other leadership roles, if not demote to DC
+    if (previousHeadId) {
+      await this.demoteToMemberIfNoLeadershipRoles(previousHeadId);
+    }
 
     return updatedGroup!;
   }
@@ -701,86 +820,131 @@ export class GroupsService {
 
   // Analytics and Reports
   async getGroupStats(): Promise<any> {
-    const [typeStats, leadershipStats, capacityStats, totalGroups] =
-      await Promise.all([
-        // Groups by type
-        this.groupModel.aggregate([
-          { $match: { isActive: true } },
-          { $group: { _id: '$type', count: { $sum: 1 } } },
-        ]),
+    const [
+      typeStats,
+      leadershipStats,
+      capacityStats,
+      totalGroups,
+      activeGroups,
+      totalMembers,
+    ] = await Promise.all([
+      // Groups by type
+      this.groupModel.aggregate([
+        { $match: { isActive: true } },
+        { $group: { _id: '$type', count: { $sum: 1 } } },
+      ]),
 
-        // Leadership coverage
-        this.groupModel.aggregate([
-          { $match: { isActive: true } },
-          {
-            $group: {
-              _id: '$type',
-              total: { $sum: 1 },
-              withLeaders: {
-                $sum: {
-                  $cond: [
-                    {
-                      $or: [
-                        {
-                          $and: [
-                            { $eq: ['$type', 'district'] },
-                            { $ne: ['$districtPastor', null] },
-                          ],
-                        },
-                        {
-                          $and: [
-                            { $eq: ['$type', 'unit'] },
-                            { $ne: ['$unitHead', null] },
-                          ],
-                        },
-                        { $not: { $in: ['$type', ['district', 'unit']] } },
-                      ],
-                    },
-                    1,
-                    0,
-                  ],
-                },
-              },
-            },
-          },
-        ]),
-
-        // Capacity utilization
-        this.groupModel.aggregate([
-          { $match: { isActive: true, maxCapacity: { $gt: 0 } } },
-          {
-            $project: {
-              name: 1,
-              type: 1,
-              currentMemberCount: 1,
-              maxCapacity: 1,
-              utilizationRate: {
-                $multiply: [
-                  { $divide: ['$currentMemberCount', '$maxCapacity'] },
-                  100,
+      // Leadership coverage - fixed to check all group types properly
+      this.groupModel.aggregate([
+        { $match: { isActive: true } },
+        {
+          $group: {
+            _id: '$type',
+            total: { $sum: 1 },
+            withLeaders: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$type', 'district'] },
+                          { $ne: ['$districtPastor', null] },
+                        ],
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$type', 'unit'] },
+                          { $ne: ['$unitHead', null] },
+                        ],
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$type', 'ministry'] },
+                          { $ne: ['$ministryDirector', null] },
+                        ],
+                      },
+                      // Fellowship and committee don't have specific leader fields
+                      // so we don't count them as having leaders by default
+                    ],
+                  },
+                  1,
+                  0,
                 ],
               },
             },
           },
-          {
-            $bucket: {
-              groupBy: '$utilizationRate',
-              boundaries: [0, 50, 75, 90, 100, 150],
-              default: 'over-capacity',
-              output: {
-                count: { $sum: 1 },
-                avgUtilization: { $avg: '$utilizationRate' },
-              },
+        },
+      ]),
+
+      // Capacity utilization
+      this.groupModel.aggregate([
+        { $match: { isActive: true, maxCapacity: { $gt: 0 } } },
+        {
+          $project: {
+            name: 1,
+            type: 1,
+            currentMemberCount: { $ifNull: ['$currentMemberCount', 0] },
+            maxCapacity: 1,
+            utilizationRate: {
+              $multiply: [
+                {
+                  $divide: [
+                    { $ifNull: ['$currentMemberCount', 0] },
+                    '$maxCapacity',
+                  ],
+                },
+                100,
+              ],
             },
           },
-        ]),
+        },
+        {
+          $bucket: {
+            groupBy: '$utilizationRate',
+            boundaries: [0, 50, 75, 90, 100, 150],
+            default: 'over-capacity',
+            output: {
+              count: { $sum: 1 },
+              avgUtilization: { $avg: '$utilizationRate' },
+            },
+          },
+        },
+      ]),
 
-        // Total active groups
-        this.groupModel.countDocuments({ isActive: true }),
-      ]);
+      // Total active groups
+      this.groupModel.countDocuments({ isActive: true }),
+
+      // Active groups count
+      this.groupModel.countDocuments({ isActive: true }),
+
+      // Total members across all active groups
+      this.groupModel.aggregate([
+        { $match: { isActive: true } },
+        {
+          $group: {
+            _id: null,
+            totalMembers: { $sum: { $ifNull: ['$currentMemberCount', 0] } },
+          },
+        },
+      ]),
+    ]);
+
+    // Convert typeStats array to object for easier frontend access
+    const typeCounts: Record<string, number> = {};
+    typeStats.forEach((stat: { _id: string; count: number }) => {
+      typeCounts[stat._id] = stat.count;
+    });
 
     return {
       total: totalGroups,
+      active: activeGroups,
+      districts: typeCounts['district'] || 0,
+      units: typeCounts['unit'] || 0,
+      ministries: typeCounts['ministry'] || 0,
+      fellowships: typeCounts['fellowship'] || 0,
+      committees: typeCounts['committee'] || 0,
+      totalMembers: totalMembers[0]?.totalMembers || 0,
       byType: typeStats,
       leadershipCoverage: leadershipStats,
       capacityUtilization: capacityStats,
@@ -953,6 +1117,9 @@ export class GroupsService {
       throw new NotFoundException('Group not found');
     }
 
+    // Store the previous assistant's ID before removing
+    const previousAssistantId = group.assistantUnitHead?.toString();
+
     const updatedGroup = await this.groupModel
       .findByIdAndUpdate(
         groupId,
@@ -960,6 +1127,11 @@ export class GroupsService {
         { new: true },
       )
       .exec();
+
+    // Check if the previous assistant has any other leadership roles, if not demote to DC
+    if (previousAssistantId) {
+      await this.demoteToMemberIfNoLeadershipRoles(previousAssistantId);
+    }
 
     return updatedGroup!;
   }
@@ -1012,6 +1184,9 @@ export class GroupsService {
       throw new NotFoundException('Group not found');
     }
 
+    // Store the previous director's ID before removing
+    const previousDirectorId = group.ministryDirector?.toString();
+
     const updatedGroup = await this.groupModel
       .findByIdAndUpdate(
         groupId,
@@ -1019,6 +1194,11 @@ export class GroupsService {
         { new: true },
       )
       .exec();
+
+    // Check if the previous director has any other leadership roles, if not demote to DC
+    if (previousDirectorId) {
+      await this.demoteToMemberIfNoLeadershipRoles(previousDirectorId);
+    }
 
     return updatedGroup!;
   }
@@ -1319,5 +1499,54 @@ export class GroupsService {
     }
 
     return updatedGroup!;
+  }
+
+  // Helper: Check if member has any leadership roles, if not demote to DC
+  private async demoteToMemberIfNoLeadershipRoles(memberId: string): Promise<void> {
+    try {
+      // Check all leadership positions across all groups
+      const leadershipRoles = await this.getGroupsByLeader(memberId);
+
+      const totalLeadershipRoles =
+        leadershipRoles.districtsAsPastor.length +
+        leadershipRoles.unitsAsHead.length +
+        leadershipRoles.unitsAsAssistant.length +
+        leadershipRoles.ministriesAsDirector.length;
+
+      // If member has no other leadership roles, demote to DC
+      if (totalLeadershipRoles === 0) {
+        const member = await this.memberModel.findById(memberId);
+        if (member) {
+          const previousStatus = member.membershipStatus;
+
+          // Only demote if currently in a leadership status
+          const leadershipStatuses: string[] = [
+            MembershipStatus.LXL,
+            MembershipStatus.DIRECTOR,
+          ];
+
+          if (leadershipStatuses.includes(member.membershipStatus)) {
+            await this.memberModel.findByIdAndUpdate(memberId, {
+              $set: { membershipStatus: MembershipStatus.DC },
+            });
+
+            // Log the status change in timeline
+            try {
+              await this.memberLifecycleService.logMembershipStatusChange(
+                memberId,
+                previousStatus,
+                MembershipStatus.DC,
+                memberId,
+                'Removed from leadership role',
+              );
+            } catch (error) {
+              this.logger.warn(`Failed to log leadership demotion to timeline: ${error.message}`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Error checking leadership roles for member ${memberId}: ${error.message}`);
+    }
   }
 }

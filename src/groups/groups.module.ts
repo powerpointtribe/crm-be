@@ -8,6 +8,7 @@ import { MembersModule } from '../members/members.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { QueueModule } from '../queue/queue.module';
 import { CommonModule } from '../common/common.module';
+import { ActivityTrackerModule } from '../activity-tracker/activity-tracker.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { CommonModule } from '../common/common.module';
     forwardRef(() => AuditLogsModule), // Forward ref to avoid circular dependency
     forwardRef(() => QueueModule), // Import QueueModule for audit logging queue
     CommonModule, // Import CommonModule for BranchAccessService
+    forwardRef(() => ActivityTrackerModule), // For lifecycle tracking
   ],
   controllers: [GroupsController],
   providers: [GroupsService],
