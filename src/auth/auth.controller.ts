@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Query, ForbiddenException } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -99,10 +99,10 @@ export class AuthController {
   // PASSWORD RESET ENDPOINTS
   @Public()
   @Post('forgot-password')
-  @ApiOperation({ summary: 'Request password reset OTP' })
+  @ApiOperation({ summary: 'Request password reset link' })
   @ApiResponse({
     status: 200,
-    description: 'Password reset OTP sent if email exists',
+    description: 'Password reset link sent if email exists',
   })
   @ApiResponse({ status: 400, description: 'Invalid email format' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
@@ -111,8 +111,18 @@ export class AuthController {
   }
 
   @Public()
+  @Get('verify-reset-token')
+  @ApiOperation({ summary: 'Verify password reset token validity' })
+  @ApiResponse({ status: 200, description: 'Token is valid' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  async verifyResetToken(@Query('token') token: string) {
+    const result = await this.authService.verifyResetToken(token);
+    return ResponseUtil.success(result, 'Token is valid');
+  }
+
+  @Public()
   @Post('verify-otp')
-  @ApiOperation({ summary: 'Verify password reset OTP' })
+  @ApiOperation({ summary: 'Verify password reset OTP (deprecated)' })
   @ApiResponse({ status: 200, description: 'OTP verified successfully' })
   @ApiResponse({ status: 401, description: 'Invalid or expired OTP' })
   async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
@@ -122,9 +132,9 @@ export class AuthController {
 
   @Public()
   @Post('reset-password')
-  @ApiOperation({ summary: 'Reset password with OTP' })
+  @ApiOperation({ summary: 'Reset password with token from email link' })
   @ApiResponse({ status: 200, description: 'Password reset successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid OTP or request' })
+  @ApiResponse({ status: 400, description: 'Invalid token or request' })
   @ApiResponse({ status: 404, description: 'Member not found' })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     const result = await this.authService.resetPassword(resetPasswordDto);

@@ -1660,6 +1660,58 @@ export class MembersService {
     await member.save();
   }
 
+  /**
+   * Reset password using a token (from email link)
+   */
+  async resetPasswordWithToken(token: string, newPassword: string): Promise<void> {
+    // Find member by reset token
+    const member = await this.memberModel.findOne({
+      resetPasswordOtp: token,
+      isActive: true,
+    });
+
+    if (!member) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+
+    // Check if token has expired
+    if (!member.resetPasswordOtpExpires || new Date() > member.resetPasswordOtpExpires) {
+      // Clear expired token
+      member.resetPasswordOtp = undefined;
+      member.resetPasswordOtpExpires = undefined;
+      await member.save();
+      throw new BadRequestException('Reset link has expired. Please request a new one.');
+    }
+
+    // Update password and clear token fields
+    const bcrypt = await import('bcryptjs');
+    member.password = await bcrypt.hash(newPassword, 10);
+    member.resetPasswordOtp = undefined;
+    member.resetPasswordOtpExpires = undefined;
+
+    await member.save();
+  }
+
+  /**
+   * Verify if a reset token is valid (for frontend validation)
+   */
+  async verifyResetToken(token: string): Promise<{ valid: boolean; email?: string }> {
+    const member = await this.memberModel.findOne({
+      resetPasswordOtp: token,
+      isActive: true,
+    });
+
+    if (!member || !member.resetPasswordOtpExpires) {
+      return { valid: false };
+    }
+
+    if (new Date() > member.resetPasswordOtpExpires) {
+      return { valid: false };
+    }
+
+    return { valid: true, email: member.email };
+  }
+
   async clearPasswordResetOtp(email: string): Promise<void> {
     const member = await this.memberModel.findOne({
       email: email.toLowerCase(),

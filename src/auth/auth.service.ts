@@ -345,16 +345,17 @@ export class AuthService {
   // PASSWORD RESET METHODS
 
   /**
-   * Generate a random 6-digit OTP
+   * Generate a secure random reset token
    */
-  private generateOtp(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+  private generateResetToken(): string {
+    const crypto = require('crypto');
+    return crypto.randomBytes(32).toString('hex');
   }
 
   /**
-   * Generate password reset email HTML
+   * Generate password reset email HTML with reset link
    */
-  private generatePasswordResetEmailHtml(firstName: string, otp: string): string {
+  private generatePasswordResetEmailHtml(firstName: string, resetLink: string): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -369,12 +370,13 @@ export class AuthService {
         </div>
         <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
           <p style="font-size: 16px;">Hello <strong>${firstName}</strong>,</p>
-          <p style="font-size: 16px;">We received a request to reset your password. Use the OTP code below to proceed:</p>
-          <div style="background: #f8f9fa; border: 2px dashed #667eea; border-radius: 8px; padding: 20px; text-align: center; margin: 25px 0;">
-            <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">Your One-Time Password (OTP)</p>
-            <p style="font-size: 36px; font-weight: bold; color: #667eea; margin: 0; letter-spacing: 8px;">${otp}</p>
+          <p style="font-size: 16px;">We received a request to reset your password. Click the button below to create a new password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: bold;">Reset Password</a>
           </div>
-          <p style="font-size: 14px; color: #666;">This OTP will expire in <strong>15 minutes</strong>.</p>
+          <p style="font-size: 14px; color: #666;">Or copy and paste this link in your browser:</p>
+          <p style="font-size: 12px; color: #667eea; word-break: break-all; background: #f8f9fa; padding: 10px; border-radius: 4px;">${resetLink}</p>
+          <p style="font-size: 14px; color: #666; margin-top: 20px;">This link will expire in <strong>15 minutes</strong>.</p>
           <p style="font-size: 14px; color: #666;">If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
           <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
           <p style="font-size: 12px; color: #999; text-align: center;">
@@ -396,34 +398,37 @@ export class AuthService {
       if (!member) {
         // Don't reveal if email exists or not for security
         return {
-          message: 'If the email exists, a password reset OTP has been sent.',
+          message: 'If the email exists, a password reset link has been sent.',
         };
       }
 
-      // Generate random 6-digit OTP
-      const otp = this.generateOtp();
+      // Generate secure reset token
+      const resetToken = this.generateResetToken();
 
-      // Store OTP in database
-      await this.membersService.setPasswordResetOtp(email, otp);
+      // Store token in database (reusing the OTP fields)
+      await this.membersService.setPasswordResetOtp(email, resetToken);
+
+      // Build reset link
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
       // Send password reset email
       try {
         await this.emailProvider.sendEmail({
           to: email,
-          subject: 'Password Reset OTP - Church Management System',
-          html: this.generatePasswordResetEmailHtml(member.firstName, otp),
+          subject: 'Reset Your Password - Church Management System',
+          html: this.generatePasswordResetEmailHtml(member.firstName, resetLink),
         });
-        this.logger.log(`Password reset OTP email sent to ${email}`);
+        this.logger.log(`Password reset link email sent to ${email}`);
       } catch (emailError) {
         this.logger.error(`Failed to send password reset email to ${email}:`, emailError);
         // Don't throw - we still want to return success for security reasons
-        // The OTP is stored in DB, user can request resend
       }
 
       return {
-        message: 'If the email exists, a password reset OTP has been sent.',
-        // For development purposes only, include the OTP
-        ...(process.env.NODE_ENV !== 'production' && { otp }),
+        message: 'If the email exists, a password reset link has been sent.',
+        // For development purposes only, include the reset link
+        ...(process.env.NODE_ENV !== 'production' && { resetLink }),
       };
     } catch (error) {
       this.logger.error('Error in forgotPassword:', error);
@@ -450,10 +455,10 @@ export class AuthService {
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
-    const { email, otp, newPassword } = resetPasswordDto;
+    const { token, newPassword } = resetPasswordDto;
 
     try {
-      await this.membersService.resetPassword(email, otp, newPassword);
+      await this.membersService.resetPasswordWithToken(token, newPassword);
 
       return {
         message:
@@ -468,6 +473,22 @@ export class AuthService {
       }
       throw new BadRequestException('Failed to reset password');
     }
+  }
+
+  /**
+   * Verify reset token validity
+   */
+  async verifyResetToken(token: string) {
+    const result = await this.membersService.verifyResetToken(token);
+
+    if (!result.valid) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+
+    return {
+      valid: true,
+      email: result.email,
+    };
   }
 
   /**

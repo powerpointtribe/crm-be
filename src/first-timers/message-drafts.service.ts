@@ -246,7 +246,7 @@ export class MessageDraftsService {
    * Cron job to check and send scheduled drafts
    * Runs every 5 minutes
    */
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron(CronExpression.EVERY_HOUR)
   async checkAndSendScheduledDrafts(): Promise<void> {
     this.logger.log('Checking for scheduled message drafts to send...');
 
