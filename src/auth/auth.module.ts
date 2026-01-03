@@ -9,6 +9,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { MembersModule } from '../members/members.module';
 import { CommonModule } from '../common/common.module';
 import { RolesModule } from '../roles/roles.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UserInvitation, UserInvitationSchema } from '../user-invitations/schemas/user-invitation.schema';
 
@@ -31,6 +32,7 @@ import { UserInvitation, UserInvitationSchema } from '../user-invitations/schema
     MembersModule,
     CommonModule,
     forwardRef(() => RolesModule),
+    NotificationsModule,
   ],
   controllers: [AuthController],
   providers: [

@@ -4,12 +4,14 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { MembersService } from '../members/members.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { UserPermissionsService } from '../roles/services/user-permissions.service';
+import { EmailProvider } from '../notifications/providers/email.provider';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -26,11 +28,14 @@ import { UserInvitation, UserInvitationDocument, InvitationStatus } from '../use
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private membersService: MembersService,
     private jwtService: JwtService,
     private accessControlService: AccessControlService,
     private userPermissionsService: UserPermissionsService,
+    private emailProvider: EmailProvider,
     @InjectModel(UserInvitation.name)
     private invitationModel: Model<UserInvitationDocument>,
   ) {}
@@ -338,6 +343,50 @@ export class AuthService {
   }
 
   // PASSWORD RESET METHODS
+
+  /**
+   * Generate a random 6-digit OTP
+   */
+  private generateOtp(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  /**
+   * Generate password reset email HTML
+   */
+  private generatePasswordResetEmailHtml(firstName: string, otp: string): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Password Reset</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Password Reset Request</h1>
+        </div>
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
+          <p style="font-size: 16px;">Hello <strong>${firstName}</strong>,</p>
+          <p style="font-size: 16px;">We received a request to reset your password. Use the OTP code below to proceed:</p>
+          <div style="background: #f8f9fa; border: 2px dashed #667eea; border-radius: 8px; padding: 20px; text-align: center; margin: 25px 0;">
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">Your One-Time Password (OTP)</p>
+            <p style="font-size: 36px; font-weight: bold; color: #667eea; margin: 0; letter-spacing: 8px;">${otp}</p>
+          </div>
+          <p style="font-size: 14px; color: #666;">This OTP will expire in <strong>15 minutes</strong>.</p>
+          <p style="font-size: 14px; color: #666;">If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
+          <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
+          <p style="font-size: 12px; color: #999; text-align: center;">
+            This is an automated message from the Church Management System.<br>
+            Please do not reply to this email.
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
     try {
       const { email } = forgotPasswordDto;
@@ -351,21 +400,33 @@ export class AuthService {
         };
       }
 
-      // Generate default OTP
-      const otp = '123456';
+      // Generate random 6-digit OTP
+      const otp = this.generateOtp();
 
       // Store OTP in database
       await this.membersService.setPasswordResetOtp(email, otp);
 
-      // In a real application, you would send this OTP via email
-      // For now, we'll just return success message
+      // Send password reset email
+      try {
+        await this.emailProvider.sendEmail({
+          to: email,
+          subject: 'Password Reset OTP - Church Management System',
+          html: this.generatePasswordResetEmailHtml(member.firstName, otp),
+        });
+        this.logger.log(`Password reset OTP email sent to ${email}`);
+      } catch (emailError) {
+        this.logger.error(`Failed to send password reset email to ${email}:`, emailError);
+        // Don't throw - we still want to return success for security reasons
+        // The OTP is stored in DB, user can request resend
+      }
+
       return {
         message: 'If the email exists, a password reset OTP has been sent.',
-        // For development purposes, include the OTP
+        // For development purposes only, include the OTP
         ...(process.env.NODE_ENV !== 'production' && { otp }),
       };
     } catch (error) {
-      console.error('Error in forgotPassword:', error);
+      this.logger.error('Error in forgotPassword:', error);
       throw new BadRequestException('Failed to process password reset request');
     }
   }
