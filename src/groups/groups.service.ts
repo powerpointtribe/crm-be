@@ -209,6 +209,20 @@ export class GroupsService {
                 },
               },
             },
+            // Lookup the unit for each member
+            {
+              $lookup: {
+                from: 'groups',
+                localField: 'unit',
+                foreignField: '_id',
+                as: 'unitData',
+              },
+            },
+            {
+              $addFields: {
+                unit: { $arrayElemAt: ['$unitData', 0] },
+              },
+            },
             {
               $project: {
                 _id: 1,
@@ -218,6 +232,7 @@ export class GroupsService {
                 phone: 1,
                 membershipStatus: 1,
                 dateJoined: 1,
+                unit: { _id: 1, name: 1, type: 1 },
               },
             },
           ],
@@ -501,7 +516,7 @@ export class GroupsService {
       )
       .populate('members', 'firstName lastName email phone');
 
-    // If this is a unit, update member's membershipStatus to DC (unless already LXL or higher)
+    // If this is a unit, update member's unit field and membershipStatus to DC (unless already LXL or higher)
     const previousStatus = member?.membershipStatus;
     if (group.type === GroupType.UNIT) {
       const leadershipStatuses: string[] = [
@@ -512,11 +527,15 @@ export class GroupsService {
         MembershipStatus.SENIOR_PASTOR,
       ];
 
+      const updateFields: any = {
+        unit: new Types.ObjectId(groupId), // Set the member's unit reference
+      };
+
       if (member && !leadershipStatuses.includes(member.membershipStatus)) {
-        await this.memberModel.findByIdAndUpdate(memberId, {
-          $set: { membershipStatus: MembershipStatus.DC },
-        });
+        updateFields.membershipStatus = MembershipStatus.DC;
       }
+
+      await this.memberModel.findByIdAndUpdate(memberId, { $set: updateFields });
     }
 
     // Log activity as side effect (async, non-blocking)
@@ -597,6 +616,13 @@ export class GroupsService {
         { new: true },
       )
       .populate('members', 'firstName lastName email phone');
+
+    // If this is a unit, clear the member's unit reference
+    if (group.type === GroupType.UNIT) {
+      await this.memberModel.findByIdAndUpdate(memberId, {
+        $unset: { unit: 1 },
+      });
+    }
 
     // Log activity as side effect (async, non-blocking)
     if (initiatedByUserId) {
@@ -1251,7 +1277,7 @@ export class GroupsService {
     // If this is a unit linked to ministries, sync members to those ministries
     await this.syncMembersToLinkedMinistries(groupId, newMemberIds, 'add');
 
-    // If this is a unit, update members' membershipStatus to DC (unless already LXL or higher)
+    // If this is a unit, update members' unit field and membershipStatus to DC (unless already LXL or higher)
     if (group.type === GroupType.UNIT) {
       const leadershipStatuses: string[] = [
         MembershipStatus.LXL,
@@ -1261,7 +1287,15 @@ export class GroupsService {
         MembershipStatus.SENIOR_PASTOR,
       ];
 
-      // Update all new members who are not already leaders
+      const unitObjectId = new Types.ObjectId(groupId);
+
+      // Update unit field for all new members
+      await this.memberModel.updateMany(
+        { _id: { $in: newMemberIds } },
+        { $set: { unit: unitObjectId } },
+      );
+
+      // Update membershipStatus to DC for members who are not already leaders
       await this.memberModel.updateMany(
         {
           _id: { $in: newMemberIds },
@@ -1336,11 +1370,12 @@ export class GroupsService {
       );
     }
 
-    // Link the units
+    // Link the units - convert string IDs to ObjectIds
+    const unitObjectIds = unitIds.map((id) => new Types.ObjectId(id));
     const updatedMinistry = await this.groupModel
       .findByIdAndUpdate(
         ministryId,
-        { $addToSet: { linkedUnits: { $each: unitIds } } },
+        { $addToSet: { linkedUnits: { $each: unitObjectIds } } },
         { new: true },
       )
       .populate('linkedUnits', 'name type currentMemberCount');
@@ -1380,40 +1415,27 @@ export class GroupsService {
       throw new BadRequestException('Only ministries can have linked units');
     }
 
-    // Get members from units being unlinked
+    // Get all members from units being unlinked
     const unitsToUnlink = await this.groupModel.find({
-      _id: { $in: unitIds },
+      _id: { $in: unitIds.map((id) => new Types.ObjectId(id)) },
     });
 
-    const membersToRemove = new Set<string>();
+    // Collect all member IDs from units being unlinked
+    const membersToRemove: Types.ObjectId[] = [];
     for (const unit of unitsToUnlink) {
-      unit.members.forEach((m) => membersToRemove.add(m.toString()));
+      for (const memberId of unit.members) {
+        membersToRemove.push(
+          typeof memberId === 'string' ? new Types.ObjectId(memberId) : memberId,
+        );
+      }
     }
 
-    // Get members from remaining linked units (they should stay in ministry)
-    const remainingLinkedUnitIds = ministry.linkedUnits
-      .filter((id) => !unitIds.includes(id.toString()))
-      .map((id) => id.toString());
-
-    const remainingUnits = await this.groupModel.find({
-      _id: { $in: remainingLinkedUnitIds },
-    });
-
-    const membersToKeep = new Set<string>();
-    for (const unit of remainingUnits) {
-      unit.members.forEach((m) => membersToKeep.add(m.toString()));
-    }
-
-    // Only remove members that are not in any remaining linked unit
-    const finalMembersToRemove = [...membersToRemove].filter(
-      (m) => !membersToKeep.has(m),
-    );
-
-    // Unlink units and remove members
+    // Unlink units and remove all their members from the ministry
+    const unitObjectIds = unitIds.map((id) => new Types.ObjectId(id));
     await this.groupModel.findByIdAndUpdate(ministryId, {
       $pull: {
-        linkedUnits: { $in: unitIds },
-        members: { $in: finalMembersToRemove },
+        linkedUnits: { $in: unitObjectIds },
+        members: { $in: membersToRemove },
       },
     });
 
@@ -1435,9 +1457,10 @@ export class GroupsService {
     action: 'add' | 'remove',
   ): Promise<void> {
     // Find all ministries that have this unit linked
+    const unitObjectId = new Types.ObjectId(unitId);
     const linkedMinistries = await this.groupModel.find({
       type: GroupType.MINISTRY,
-      linkedUnits: unitId,
+      linkedUnits: unitObjectId,
       isActive: true,
     });
 
@@ -1450,7 +1473,7 @@ export class GroupsService {
         // For removal, check if member is in any other linked unit
         for (const memberId of memberIds) {
           const isInOtherLinkedUnit = await this.groupModel.exists({
-            _id: { $in: ministry.linkedUnits, $ne: unitId },
+            _id: { $in: ministry.linkedUnits, $ne: unitObjectId },
             members: memberId,
           });
 
@@ -1493,8 +1516,11 @@ export class GroupsService {
       )
       .populate('members', 'firstName lastName email phone');
 
-    // If this is a unit, sync removal to linked ministries
+    // If this is a unit, clear the member's unit reference and sync removal to linked ministries
     if (group.type === GroupType.UNIT) {
+      await this.memberModel.findByIdAndUpdate(memberId, {
+        $unset: { unit: 1 },
+      });
       await this.syncMembersToLinkedMinistries(groupId, [memberId], 'remove');
     }
 

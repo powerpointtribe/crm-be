@@ -1261,6 +1261,127 @@ export class MembersService {
     ]);
   }
 
+  /**
+   * Get members whose birthday is today
+   */
+  async getBirthdaysToday(branchId?: string): Promise<MemberDocument[]> {
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+
+    const matchStage: any = {
+      birthdayThisYear: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+      isActive: true,
+    };
+
+    if (branchId) {
+      matchStage.branch = new Types.ObjectId(branchId);
+    }
+
+    return this.memberModel.aggregate([
+      {
+        $addFields: {
+          birthdayThisYear: {
+            $dateFromParts: {
+              year: today.getFullYear(),
+              month: { $month: '$dateOfBirth' },
+              day: { $dayOfMonth: '$dateOfBirth' },
+            },
+          },
+        },
+      },
+      {
+        $match: matchStage,
+      },
+      {
+        $lookup: {
+          from: 'groups',
+          localField: 'district',
+          foreignField: '_id',
+          as: 'district',
+        },
+      },
+      {
+        $lookup: {
+          from: 'branches',
+          localField: 'branch',
+          foreignField: '_id',
+          as: 'branch',
+        },
+      },
+      {
+        $unwind: { path: '$district', preserveNullAndEmptyArrays: true },
+      },
+      {
+        $unwind: { path: '$branch', preserveNullAndEmptyArrays: true },
+      },
+    ]);
+  }
+
+  /**
+   * Get members whose birthday is in N days
+   */
+  async getBirthdaysInDays(days: number, branchId?: string): Promise<MemberDocument[]> {
+    const today = new Date();
+    const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days);
+    const startOfTargetDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    const endOfTargetDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+
+    const matchStage: any = {
+      birthdayThisYear: {
+        $gte: startOfTargetDay,
+        $lte: endOfTargetDay,
+      },
+      isActive: true,
+    };
+
+    if (branchId) {
+      matchStage.branch = new Types.ObjectId(branchId);
+    }
+
+    return this.memberModel.aggregate([
+      {
+        $addFields: {
+          birthdayThisYear: {
+            $dateFromParts: {
+              year: targetDate.getFullYear(),
+              month: { $month: '$dateOfBirth' },
+              day: { $dayOfMonth: '$dateOfBirth' },
+            },
+          },
+        },
+      },
+      {
+        $match: matchStage,
+      },
+      {
+        $lookup: {
+          from: 'groups',
+          localField: 'district',
+          foreignField: '_id',
+          as: 'district',
+        },
+      },
+      {
+        $lookup: {
+          from: 'branches',
+          localField: 'branch',
+          foreignField: '_id',
+          as: 'branch',
+        },
+      },
+      {
+        $unwind: { path: '$district', preserveNullAndEmptyArrays: true },
+      },
+      {
+        $unwind: { path: '$branch', preserveNullAndEmptyArrays: true },
+      },
+    ]);
+  }
+
   async deactivate(id: string): Promise<MemberDocument> {
     const member = await this.memberModel.findByIdAndUpdate(
       id,

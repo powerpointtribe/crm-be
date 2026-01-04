@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Role, RoleDocument } from '../schemas/role.schema';
 import { Permission, PermissionDocument } from '../schemas/permission.schema';
+import { Member, MemberDocument } from '../../members/schemas/member.schema';
 
 export interface UserPermissionsResponse {
   role: {
@@ -21,6 +22,7 @@ export class UserPermissionsService {
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
     @InjectModel(Permission.name)
     private permissionModel: Model<PermissionDocument>,
+    @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
   ) {}
 
   /**
@@ -127,5 +129,57 @@ export class UserPermissionsService {
   ): Promise<string[]> {
     const userPermissions = await this.getUserPermissions(roleId);
     return Object.keys(userPermissions.permissionsGrouped);
+  }
+
+  /**
+   * Get all members who have a specific permission
+   * This is used for sending notifications to users with certain permissions
+   */
+  async getMembersWithPermission(
+    permissionName: string,
+    branchId?: string,
+  ): Promise<MemberDocument[]> {
+    // First, find the permission
+    const permission = await this.permissionModel.findOne({
+      name: permissionName,
+      isActive: true,
+    });
+
+    if (!permission) {
+      return [];
+    }
+
+    // Find all roles that have this permission (including parent roles)
+    const rolesWithPermission = await this.roleModel.find({
+      permissions: permission._id,
+      isActive: true,
+    });
+
+    const roleIds = rolesWithPermission.map((role) => role._id);
+
+    // Also check for roles that inherit from roles with this permission
+    const childRoles = await this.roleModel.find({
+      parentRole: { $in: roleIds },
+      isActive: true,
+    });
+
+    const allRoleIds = [...roleIds, ...childRoles.map((role) => role._id)];
+
+    // Find members with these roles
+    const query: any = {
+      role: { $in: allRoleIds },
+      isActive: true,
+      email: { $exists: true, $nin: [null, ''] },
+    };
+
+    if (branchId) {
+      query.branch = new Types.ObjectId(branchId);
+    }
+
+    return this.memberModel
+      .find(query)
+      .populate('role', 'name displayName')
+      .populate('branch', 'name')
+      .exec();
   }
 }

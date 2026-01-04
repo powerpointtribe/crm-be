@@ -66,6 +66,10 @@ import {
   BranchesPermission,
   BranchesPermissionMetadata,
 } from '../../branches/permissions';
+import {
+  NotificationsPermission,
+  NotificationsPermissionMetadata,
+} from '../../notifications/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -244,6 +248,15 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       perm,
       BranchesPermissionMetadata[perm] || {},
       'branches',
+    ),
+  ),
+
+  // Notifications Module
+  ...Object.values(NotificationsPermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      NotificationsPermissionMetadata[perm] || {},
+      'notifications',
     ),
   ),
 ];

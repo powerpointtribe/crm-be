@@ -167,6 +167,203 @@ export class NotificationsService {
     });
   }
 
+  /**
+   * Send pre-birthday notification to team members (3 days before)
+   */
+  async sendPreBirthdayNotification(data: {
+    recipientEmail: string;
+    recipientName: string;
+    upcomingBirthdays: Array<{
+      firstName: string;
+      lastName: string;
+      dateOfBirth: Date;
+      email?: string;
+      phone?: string;
+      branch?: string;
+    }>;
+    frontendUrl: string;
+  }): Promise<void> {
+    const birthdayDate = new Date(data.upcomingBirthdays[0]?.dateOfBirth);
+    const formattedDate = birthdayDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const birthdayListHtml = data.upcomingBirthdays
+      .map(
+        (member) => `
+        <tr>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            <strong>${member.firstName} ${member.lastName}</strong>
+          </td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            ${member.phone || '-'}
+          </td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            ${member.email || '-'}
+          </td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            ${member.branch || '-'}
+          </td>
+        </tr>
+      `,
+      )
+      .join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Upcoming Birthdays</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">🎂 Upcoming Birthdays Alert</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Birthdays in 3 days - ${formattedDate}</p>
+        </div>
+
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+          <p style="margin-top: 0;">Hi ${data.recipientName},</p>
+
+          <p>The following ${data.upcomingBirthdays.length === 1 ? 'member has a' : 'members have'} birthday coming up in <strong>3 days</strong>:</p>
+
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+            <thead>
+              <tr style="background: #f9fafb;">
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Name</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Phone</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Email</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Campus</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${birthdayListHtml}
+            </tbody>
+          </table>
+
+          <div style="background: #fef3c7; border-radius: 8px; padding: 16px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+            <p style="margin: 0; font-size: 14px;">
+              <strong>Reminder:</strong> Consider reaching out to wish them a happy birthday or organizing a celebration!
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${data.frontendUrl}/members?tab=birthdays" style="display: inline-block; background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 500;">View All Birthdays</a>
+          </div>
+        </div>
+
+        <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+          <p>Sent from Church Management System</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.recipientEmail,
+      subject: `🎂 Upcoming Birthdays: ${data.upcomingBirthdays.length} member${data.upcomingBirthdays.length > 1 ? 's' : ''} in 3 days`,
+      html,
+    });
+  }
+
+  /**
+   * Send birthday day notification to team members (on the day)
+   */
+  async sendBirthdayDayNotification(data: {
+    recipientEmail: string;
+    recipientName: string;
+    todaysBirthdays: Array<{
+      firstName: string;
+      lastName: string;
+      dateOfBirth: Date;
+      email?: string;
+      phone?: string;
+      branch?: string;
+    }>;
+    frontendUrl: string;
+  }): Promise<void> {
+    const birthdayListHtml = data.todaysBirthdays
+      .map(
+        (member) => `
+        <tr>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            <strong>${member.firstName} ${member.lastName}</strong>
+          </td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            ${member.phone || '-'}
+          </td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            ${member.email || '-'}
+          </td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            ${member.branch || '-'}
+          </td>
+        </tr>
+      `,
+      )
+      .join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Today's Birthdays</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">🎉 Today's Birthdays! 🎉</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+        </div>
+
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+          <p style="margin-top: 0;">Hi ${data.recipientName},</p>
+
+          <p>The following ${data.todaysBirthdays.length === 1 ? 'member is' : 'members are'} celebrating ${data.todaysBirthdays.length === 1 ? 'their' : 'their'} birthday <strong>today</strong>:</p>
+
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+            <thead>
+              <tr style="background: #f9fafb;">
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Name</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Phone</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Email</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Campus</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${birthdayListHtml}
+            </tbody>
+          </table>
+
+          <div style="background: #dbeafe; border-radius: 8px; padding: 16px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+            <p style="margin: 0; font-size: 14px;">
+              <strong>Action:</strong> Don't forget to reach out and wish them a happy birthday! A personal call or message can make their day special.
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${data.frontendUrl}/members?tab=birthdays" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 500;">View All Birthdays</a>
+          </div>
+        </div>
+
+        <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+          <p>Sent from Church Management System</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.recipientEmail,
+      subject: `🎉 Today's Birthdays: ${data.todaysBirthdays.length} member${data.todaysBirthdays.length > 1 ? 's' : ''} celebrating!`,
+      html,
+    });
+  }
+
   async sendLeadershipAssignmentNotification(data: {
     email: string;
     firstName: string;

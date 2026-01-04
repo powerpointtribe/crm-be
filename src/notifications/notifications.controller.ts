@@ -1,7 +1,10 @@
-import { Controller, Post, Body, Logger } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Post, Get, Delete, Body, Param, Logger, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { EmailProvider } from './providers/email.provider';
+import { UserNotificationsService } from './user-notifications.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 class TestEmailDto {
   email: string;
@@ -17,7 +20,94 @@ export class NotificationsController {
   constructor(
     private notificationsService: NotificationsService,
     private emailProvider: EmailProvider,
+    private userNotificationsService: UserNotificationsService,
   ) {}
+
+  @Get('my')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user notifications' })
+  @ApiResponse({ status: 200, description: 'User notifications retrieved successfully' })
+  async getMyNotifications(@CurrentUser() user: any) {
+    const userId = user._id?.toString() || user.id?.toString();
+    const roleId = user.role?._id?.toString() || user.role?.toString();
+    const branchId = user.branch?._id?.toString() || user.branch?.toString();
+
+    const notifications = await this.userNotificationsService.getUserNotifications(
+      userId,
+      roleId,
+      branchId,
+    );
+
+    return {
+      success: true,
+      data: notifications,
+    };
+  }
+
+  @Get('count')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get notification count for badge display' })
+  @ApiResponse({ status: 200, description: 'Notification count retrieved successfully' })
+  async getNotificationCount(@CurrentUser() user: any) {
+    const userId = user._id?.toString() || user.id?.toString();
+    const roleId = user.role?._id?.toString() || user.role?.toString();
+    const branchId = user.branch?._id?.toString() || user.branch?.toString();
+
+    const count = await this.userNotificationsService.getNotificationCount(
+      userId,
+      roleId,
+      branchId,
+    );
+
+    return {
+      success: true,
+      data: { count },
+    };
+  }
+
+  @Delete(':notificationId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Dismiss a single notification' })
+  @ApiResponse({ status: 200, description: 'Notification dismissed successfully' })
+  async dismissNotification(
+    @Param('notificationId') notificationId: string,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user._id?.toString() || user.id?.toString();
+
+    await this.userNotificationsService.dismissNotification(userId, notificationId);
+
+    return {
+      success: true,
+      message: 'Notification dismissed',
+    };
+  }
+
+  @Delete()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Dismiss all notifications' })
+  @ApiResponse({ status: 200, description: 'All notifications dismissed successfully' })
+  async dismissAllNotifications(@CurrentUser() user: any) {
+    const userId = user._id?.toString() || user.id?.toString();
+    const roleId = user.role?._id?.toString() || user.role?.toString();
+    const branchId = user.branch?._id?.toString() || user.branch?.toString();
+
+    const count = await this.userNotificationsService.dismissAllNotifications(
+      userId,
+      roleId,
+      branchId,
+    );
+
+    return {
+      success: true,
+      message: `${count} notifications dismissed`,
+      data: { dismissedCount: count },
+    };
+  }
 
   @Post('test-email')
   @ApiOperation({ summary: 'Send test email for debugging' })

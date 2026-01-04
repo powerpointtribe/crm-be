@@ -9,6 +9,7 @@ import {
 } from './schemas/role-assignment.schema';
 import { UserInvitation, UserInvitationSchema } from '../user-invitations/schemas/user-invitation.schema';
 import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
+import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { PermissionsService } from './services/permissions.service';
 import { RolesService } from './services/roles.service';
 import { RolesSeederService } from './services/roles-seeder.service';
@@ -35,6 +36,7 @@ import { QueueModule } from '../queue/queue.module';
       { name: RoleAssignment.name, schema: RoleAssignmentSchema },
       { name: UserInvitation.name, schema: UserInvitationSchema },
       { name: Branch.name, schema: BranchSchema },
+      { name: Member.name, schema: MemberSchema },
     ]),
     DiscoveryModule, // For endpoint discovery
     forwardRef(() => MembersModule), // Forward ref to avoid circular dependency
