@@ -2119,4 +2119,209 @@ export class FirstTimersService {
       reminders,
     };
   }
+
+  // ==================== REPORT STATISTICS ====================
+
+  /**
+   * Get comprehensive report statistics for first timers
+   * Includes traffic sources, join us choices, and 2nd/3rd timer retention rates
+   */
+  async getReportStatistics(startDate: string, endDate: string): Promise<any> {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const dateFilter = {
+      isActive: true,
+      dateOfVisit: { $gte: start, $lte: end },
+    };
+
+    // Get all first timers in the date range
+    const firstTimers = await this.firstTimerModel.find(dateFilter).exec();
+    const totalFirstTimers = firstTimers.length;
+
+    // Traffic Source by Service (grouped by date of visit)
+    const trafficSourceByService = await this.firstTimerModel.aggregate([
+      { $match: dateFilter },
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: '%b %d, %Y', date: '$dateOfVisit' } },
+            source: '$howDidYouHear',
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.date': 1 } },
+    ]);
+
+    // Transform traffic source by service for stacked bar chart
+    const serviceMap = new Map<string, any>();
+    trafficSourceByService.forEach((item) => {
+      const service = item._id.date;
+      const source = this.mapHowDidYouHear(item._id.source);
+      if (!serviceMap.has(service)) {
+        serviceMap.set(service, {
+          service,
+          'Friend/Colleague': 0,
+          'Others': 0,
+          'Outreach': 0,
+          'Social Media': 0,
+          'Special Programs': 0,
+          'Family': 0,
+        });
+      }
+      const entry = serviceMap.get(service);
+      entry[source] = (entry[source] || 0) + item.count;
+    });
+
+    // Traffic Source Summary (donut chart)
+    const trafficSourceSummary = await this.firstTimerModel.aggregate([
+      { $match: dateFilter },
+      { $group: { _id: '$howDidYouHear', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+
+    const trafficSummary = trafficSourceSummary.map((item) => ({
+      name: this.mapHowDidYouHear(item._id),
+      value: item.count,
+      percentage: totalFirstTimers > 0 ? (item.count / totalFirstTimers) * 100 : 0,
+    }));
+
+    // Join Us Choices by Service
+    const joinUsChoicesByService = await this.firstTimerModel.aggregate([
+      { $match: dateFilter },
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: '%b %d, %Y', date: '$dateOfVisit' } },
+            joinUs: '$interestedInJoining',
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.date': 1 } },
+    ]);
+
+    // Transform join us choices for stacked bar chart
+    const joinUsMap = new Map<string, any>();
+    joinUsChoicesByService.forEach((item) => {
+      const service = item._id.date;
+      // Map string values to display labels
+      const joinUsValue = item._id.joinUs;
+      const choice = joinUsValue === 'yes' ? 'Yes' : joinUsValue === 'no' ? 'No' : 'Maybe';
+      if (!joinUsMap.has(service)) {
+        joinUsMap.set(service, { service, Yes: 0, Maybe: 0, No: 0 });
+      }
+      const entry = joinUsMap.get(service);
+      entry[choice] = (entry[choice] || 0) + item.count;
+    });
+
+    // Join Us Choices Summary
+    const yesCount = firstTimers.filter((ft) => ft.interestedInJoining === 'yes').length;
+    const noCount = firstTimers.filter((ft) => ft.interestedInJoining === 'no').length;
+    const maybeCount = firstTimers.filter((ft) => ft.interestedInJoining === 'maybe' || !ft.interestedInJoining).length;
+
+    const joinUsSummary = [
+      { name: 'Yes', value: yesCount, percentage: totalFirstTimers > 0 ? (yesCount / totalFirstTimers) * 100 : 0 },
+      { name: 'Maybe', value: maybeCount, percentage: totalFirstTimers > 0 ? (maybeCount / totalFirstTimers) * 100 : 0 },
+      { name: 'No', value: noCount, percentage: totalFirstTimers > 0 ? (noCount / totalFirstTimers) * 100 : 0 },
+    ];
+
+    // 2nd Timer Retention (based on follow-ups with visitNumber = 2)
+    const secondTimerData = await this.calculateRetentionByVisitNumber(firstTimers, 2);
+
+    // 3rd Timer Retention (based on follow-ups with visitNumber = 3)
+    const thirdTimerData = await this.calculateRetentionByVisitNumber(firstTimers, 3);
+
+    return {
+      totalFirstTimers,
+      trafficSourceByService: Array.from(serviceMap.values()),
+      trafficSourceSummary: trafficSummary,
+      joinUsChoicesByService: Array.from(joinUsMap.values()),
+      joinUsChoicesSummary: joinUsSummary,
+      secondTimerRetention: secondTimerData,
+      thirdTimerRetention: thirdTimerData,
+    };
+  }
+
+  /**
+   * Map howDidYouHear values to friendly labels
+   */
+  private mapHowDidYouHear(source: string): string {
+    const mapping: Record<string, string> = {
+      friend: 'Friend/Colleague',
+      family: 'Family',
+      advertisement: 'Others',
+      online: 'Social Media',
+      event: 'Special Programs',
+      walkby: 'Others',
+      website: 'Social Media',
+      social_media: 'Social Media',
+      other: 'Others',
+      outreach: 'Outreach',
+    };
+    return mapping[source] || 'Others';
+  }
+
+  /**
+   * Calculate retention data for a specific visit number
+   */
+  private async calculateRetentionByVisitNumber(
+    firstTimers: FirstTimerDocument[],
+    visitNumber: number,
+  ): Promise<{
+    byService: Array<{ service: string; Yes: number; null: number }>;
+    expectedCount: number;
+    actualCount: number;
+    retentionRate: number;
+  }> {
+    // Group by date of visit
+    const serviceMap = new Map<string, { Yes: number; null: number }>();
+
+    // Expected count = those who said "Yes" to joining
+    const expectedCount = firstTimers.filter((ft) => ft.interestedInJoining === 'yes').length;
+
+    let actualCount = 0;
+
+    firstTimers.forEach((ft) => {
+      const service = new Date(ft.dateOfVisit).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+
+      if (!serviceMap.has(service)) {
+        serviceMap.set(service, { Yes: 0, null: 0 });
+      }
+
+      const entry = serviceMap.get(service)!;
+
+      // Check if there's a follow-up with the specified visitNumber
+      const hasVisit = ft.followUps?.some(
+        (followUp: any) => followUp.visitNumber === visitNumber
+      );
+
+      if (hasVisit) {
+        entry.Yes++;
+        actualCount++;
+      } else {
+        entry.null++;
+      }
+    });
+
+    const retentionRate = expectedCount > 0 ? (actualCount / expectedCount) * 100 : 0;
+
+    return {
+      byService: Array.from(serviceMap.entries()).map(([service, data]) => ({
+        service,
+        Yes: data.Yes,
+        null: data.null,
+      })),
+      expectedCount,
+      actualCount,
+      retentionRate: Math.round(retentionRate * 100) / 100,
+    };
+  }
 }

@@ -24,6 +24,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { WorkersTrainingModule } from './workers-training/workers-training.module';
 import { ActivityTrackerModule } from './activity-tracker/activity-tracker.module';
 import { UserInvitationsModule } from './user-invitations/user-invitations.module';
+import { FinanceModule } from './finance/finance.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { UserInvitationsModule } from './user-invitations/user-invitations.modul
     WorkersTrainingModule,
     ActivityTrackerModule,
     UserInvitationsModule,
+    FinanceModule,
   ],
   controllers: [AppController],
   providers: [

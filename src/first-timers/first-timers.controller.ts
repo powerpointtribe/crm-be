@@ -418,6 +418,26 @@ export class FirstTimersController {
     );
   }
 
+  @Get('reports/statistics')
+  @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMER_STATS)
+  @ApiOperation({ summary: 'Get comprehensive first-timer report statistics' })
+  @ApiQuery({ name: 'startDate', required: true, description: 'Start date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'endDate', required: true, description: 'End date (YYYY-MM-DD)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Report statistics retrieved successfully',
+  })
+  async getReportStatistics(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const stats = await this.firstTimersService.getReportStatistics(startDate, endDate);
+    return ResponseUtil.success(
+      stats,
+      'Report statistics retrieved successfully',
+    );
+  }
+
   @Get('needing-follow-up')
   @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
   @ApiOperation({ summary: 'Get first-timers needing follow-up' })
