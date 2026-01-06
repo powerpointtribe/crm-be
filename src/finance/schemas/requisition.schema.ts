@@ -2,14 +2,15 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 // Enum for requisition status
+// Workflow: DRAFT -> PENDING_APPROVAL -> APPROVED -> DISBURSED -> CLOSED
+//                                     -> REJECTED
 export enum RequisitionStatus {
   DRAFT = 'draft',
-  SUBMITTED = 'submitted',
   PENDING_APPROVAL = 'pending_approval',
   APPROVED = 'approved',
   REJECTED = 'rejected',
-  PENDING_DISBURSEMENT = 'pending_disbursement',
   DISBURSED = 'disbursed',
+  CLOSED = 'closed',
 }
 
 // Embedded schema for cost breakdown items
@@ -55,7 +56,7 @@ export class Requisition {
   @Prop({ type: Types.ObjectId, ref: 'Member', required: true, index: true })
   requestor: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Unit', index: true })
+  @Prop({ type: Types.ObjectId, ref: 'Group', index: true })
   unit?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'ExpenseCategory', required: true, index: true })

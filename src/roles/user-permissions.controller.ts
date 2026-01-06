@@ -16,10 +16,14 @@ export class UserPermissionsController {
   /**
    * Get current user's permissions
    * Frontend calls this to know what the user can access
+   * Includes both role-based and membership-based permissions
    */
   @Get('me')
   async getMyPermissions(@Request() req) {
-    return this.userPermissionsService.getUserPermissions(req.user.role);
+    return this.userPermissionsService.getUserPermissions(
+      req.user.role,
+      req.user.membershipStatus,
+    );
   }
 
   /**

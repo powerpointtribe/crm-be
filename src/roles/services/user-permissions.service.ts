@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Role, RoleDocument } from '../schemas/role.schema';
 import { Permission, PermissionDocument } from '../schemas/permission.schema';
 import { Member, MemberDocument } from '../../members/schemas/member.schema';
+import { getPermissionsForMembershipStatus } from '../constants/membership-permissions.constant';
 
 export interface UserPermissionsResponse {
   role: {
@@ -12,7 +13,10 @@ export interface UserPermissionsResponse {
     displayName: string;
     level: number;
   };
+  membershipStatus?: string;
   permissions: string[];
+  rolePermissions: string[];
+  membershipPermissions: string[];
   permissionsGrouped: Record<string, string[]>;
 }
 
@@ -26,11 +30,15 @@ export class UserPermissionsService {
   ) {}
 
   /**
-   * Get all permissions for a user based on their role
+   * Get all permissions for a user based on their role and membership status
    * This is used by the frontend to determine what UI elements to show
+   *
+   * @param roleId The user's role ID
+   * @param membershipStatus Optional membership status for auto-granted permissions
    */
   async getUserPermissions(
     roleId: string | Types.ObjectId,
+    membershipStatus?: string,
   ): Promise<UserPermissionsResponse> {
     const objectId =
       typeof roleId === 'string' ? new Types.ObjectId(roleId) : roleId;
@@ -43,7 +51,7 @@ export class UserPermissionsService {
       throw new Error('Role not found or inactive');
     }
 
-    const allPermissions = new Set<string>();
+    const rolePermissions = new Set<string>();
     const permissionsGrouped: Record<string, string[]> = {};
 
     // Fetch permissions manually to avoid populate issues
@@ -54,7 +62,7 @@ export class UserPermissionsService {
       });
 
       for (const perm of permissionDocs) {
-        allPermissions.add(perm.name);
+        rolePermissions.add(perm.name);
 
         // Group by module
         if (!permissionsGrouped[perm.module]) {
@@ -74,7 +82,7 @@ export class UserPermissionsService {
         });
 
         for (const perm of parentPermissionDocs) {
-          allPermissions.add(perm.name);
+          rolePermissions.add(perm.name);
 
           // Group by module
           if (!permissionsGrouped[perm.module]) {
@@ -87,6 +95,25 @@ export class UserPermissionsService {
       }
     }
 
+    // Get membership-based permissions (auto-granted based on membershipStatus)
+    const membershipPermissions = membershipStatus
+      ? getPermissionsForMembershipStatus(membershipStatus)
+      : [];
+
+    // Add membership permissions to grouped permissions
+    for (const permName of membershipPermissions) {
+      const moduleName = permName.split(':')[0];
+      if (!permissionsGrouped[moduleName]) {
+        permissionsGrouped[moduleName] = [];
+      }
+      if (!permissionsGrouped[moduleName].includes(permName)) {
+        permissionsGrouped[moduleName].push(permName);
+      }
+    }
+
+    // Combine all permissions
+    const allPermissions = new Set([...rolePermissions, ...membershipPermissions]);
+
     return {
       role: {
         id: role._id.toString(),
@@ -94,7 +121,10 @@ export class UserPermissionsService {
         displayName: role.displayName,
         level: role.level,
       },
+      membershipStatus,
       permissions: Array.from(allPermissions),
+      rolePermissions: Array.from(rolePermissions),
+      membershipPermissions,
       permissionsGrouped,
     };
   }

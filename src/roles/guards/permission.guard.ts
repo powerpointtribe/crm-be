@@ -11,6 +11,7 @@ import { Model, Types } from 'mongoose';
 import { PERMISSION_KEY, PERMISSIONS_KEY } from '../decorators/require-permission.decorator';
 import { Role, RoleDocument } from '../schemas/role.schema';
 import { Permission, PermissionDocument } from '../schemas/permission.schema';
+import { getPermissionsForMembershipStatus } from '../constants/membership-permissions.constant';
 
 @Injectable()
 export class PermissionGuard implements CanActivate {
@@ -52,7 +53,13 @@ export class PermissionGuard implements CanActivate {
     // Get all user's permissions from their role
     // user.role can be either an ObjectId or a populated role object
     const roleId = user.role._id || user.role;
-    const userPermissions = await this.getUserPermissions(roleId);
+    const rolePermissions = await this.getUserPermissions(roleId);
+
+    // Get membership-based permissions (auto-granted based on membershipStatus)
+    const membershipPermissions = getPermissionsForMembershipStatus(user.membershipStatus);
+
+    // Combine role permissions and membership-based permissions
+    const userPermissions = [...new Set([...rolePermissions, ...membershipPermissions])];
 
     // Check single permission
     if (requiredPermission) {

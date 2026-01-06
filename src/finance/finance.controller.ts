@@ -192,6 +192,14 @@ export class FinanceController {
     return ResponseUtil.success(result, 'Requisition disbursed successfully');
   }
 
+  @Post('requisitions/:id/close')
+  @RequirePermission(FinancePermission.DISBURSE)
+  @ApiOperation({ summary: 'Close a disbursed requisition' })
+  async closeRequisition(@Param('id') id: string, @Req() req: any) {
+    const result = await this.financeService.close(id, req.user);
+    return ResponseUtil.success(result, 'Requisition closed successfully');
+  }
+
   @Delete('requisitions/:id')
   @RequirePermission(FinancePermission.DELETE_REQUISITION)
   @ApiOperation({ summary: 'Delete a draft requisition' })
@@ -274,6 +282,49 @@ export class FinanceController {
   async deleteExpenseCategory(@Param('id') id: string) {
     await this.expenseCategoryService.remove(id);
     return ResponseUtil.success(null, 'Expense category deleted successfully');
+  }
+
+  @Post('expense-categories/initialize')
+  @RequirePermission(FinancePermission.MANAGE_EXPENSE_CATEGORIES)
+  @ApiOperation({ summary: 'Initialize default expense categories for the branch' })
+  async initializeExpenseCategories(@Req() req: any) {
+    const branchId = this.getBranchId(req.user);
+    const memberId = req.user._id.toString();
+
+    const result = await this.expenseCategoryService.initializeDefaults(
+      branchId,
+      memberId,
+    );
+
+    if (!result.created) {
+      return ResponseUtil.success(
+        result,
+        `Expense categories already exist (${result.count} categories)`,
+      );
+    }
+
+    return ResponseUtil.success(
+      result,
+      `Successfully created ${result.count} default expense categories`,
+    );
+  }
+
+  @Post('expense-categories/reset')
+  @RequirePermission(FinancePermission.MANAGE_EXPENSE_CATEGORIES)
+  @ApiOperation({ summary: 'Reset and reinitialize expense categories (deletes all existing)' })
+  async resetExpenseCategories(@Req() req: any) {
+    const branchId = this.getBranchId(req.user);
+    const memberId = req.user._id.toString();
+
+    const result = await this.expenseCategoryService.resetAndInitialize(
+      branchId,
+      memberId,
+    );
+
+    return ResponseUtil.success(
+      result,
+      `Expense categories reset and reinitialized (${result.count} categories created)`,
+    );
   }
 
   // ============== Form Field Configuration Endpoints ==============

@@ -14,6 +14,7 @@ import {
   FormFieldConfig,
   FormFieldConfigSchema,
 } from './schemas/form-field-config.schema';
+import { Group, GroupSchema } from '../groups/schemas/group.schema';
 import { RolesModule } from '../roles/roles.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CommonModule } from '../common/common.module';
@@ -25,6 +26,7 @@ import { CommonModule } from '../common/common.module';
       { name: Requisition.name, schema: RequisitionSchema },
       { name: ExpenseCategory.name, schema: ExpenseCategorySchema },
       { name: FormFieldConfig.name, schema: FormFieldConfigSchema },
+      { name: Group.name, schema: GroupSchema },
     ]),
     forwardRef(() => RolesModule),
     forwardRef(() => NotificationsModule),

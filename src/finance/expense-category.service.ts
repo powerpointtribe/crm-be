@@ -14,6 +14,26 @@ import {
   UpdateExpenseCategoryDto,
 } from './dto/expense-category.dto';
 
+// Default expense categories to seed
+const DEFAULT_EXPENSE_CATEGORIES = [
+  { name: 'Repairs and Maintenance', description: 'Equipment repairs, building maintenance, and general upkeep' },
+  { name: "Lead Pastor's Welfare", description: "Expenses related to the Lead Pastor's welfare and support" },
+  { name: 'Venue Expenses', description: 'Costs for venue rentals, hall bookings, and related expenses' },
+  { name: 'Programme & Events', description: 'Church programs, events, and activities expenses' },
+  { name: 'Missions', description: 'Mission trips, outreach programs, and evangelism expenses' },
+  { name: 'Monthly Bulk Outflows', description: 'Regular monthly bulk payments and recurring expenses' },
+  { name: 'Subscriptions', description: 'Software, services, and other subscription expenses' },
+  { name: 'Logistics', description: 'Transportation, delivery, and logistics-related expenses' },
+  { name: 'Honorarium', description: 'Guest speakers, ministers, and service honorariums' },
+  { name: 'In-Reach', description: 'Internal ministry and member care initiatives' },
+  { name: 'Birthdays', description: 'Birthday celebrations and related expenses' },
+  { name: 'Capital Expenditure', description: 'Major equipment purchases and capital investments' },
+  { name: 'Utilities', description: 'Electricity, water, internet, and other utility bills' },
+  { name: 'General Welfare', description: 'Member welfare, benevolence, and support programs' },
+  { name: 'Member Celebrations', description: 'Weddings, anniversaries, and member milestone celebrations' },
+  { name: 'Others', description: 'Miscellaneous expenses not covered by other categories' },
+];
+
 @Injectable()
 export class ExpenseCategoryService {
   constructor(
@@ -155,5 +175,65 @@ export class ExpenseCategoryService {
     if (!result) {
       throw new NotFoundException('Expense category not found');
     }
+  }
+
+  /**
+   * Initialize default expense categories for a branch
+   */
+  async initializeDefaults(
+    branchId: string,
+    createdBy: string,
+  ): Promise<{ created: boolean; count: number }> {
+    // Check if categories already exist for this branch
+    const existingCount = await this.expenseCategoryModel.countDocuments({
+      branch: new Types.ObjectId(branchId),
+    });
+
+    if (existingCount > 0) {
+      return { created: false, count: existingCount };
+    }
+
+    // Create default categories
+    const categories = DEFAULT_EXPENSE_CATEGORIES.map((cat, index) => ({
+      branch: new Types.ObjectId(branchId),
+      name: cat.name,
+      description: cat.description,
+      isActive: true,
+      requiresApproval: true,
+      sortOrder: index,
+      createdBy: new Types.ObjectId(createdBy),
+    }));
+
+    await this.expenseCategoryModel.insertMany(categories);
+
+    return { created: true, count: categories.length };
+  }
+
+  /**
+   * Reset and reinitialize expense categories for a branch
+   */
+  async resetAndInitialize(
+    branchId: string,
+    createdBy: string,
+  ): Promise<{ count: number }> {
+    // Delete all existing categories for this branch
+    await this.expenseCategoryModel.deleteMany({
+      branch: new Types.ObjectId(branchId),
+    });
+
+    // Create default categories
+    const categories = DEFAULT_EXPENSE_CATEGORIES.map((cat, index) => ({
+      branch: new Types.ObjectId(branchId),
+      name: cat.name,
+      description: cat.description,
+      isActive: true,
+      requiresApproval: true,
+      sortOrder: index,
+      createdBy: new Types.ObjectId(createdBy),
+    }));
+
+    await this.expenseCategoryModel.insertMany(categories);
+
+    return { count: categories.length };
   }
 }

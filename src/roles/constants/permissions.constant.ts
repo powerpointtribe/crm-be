@@ -70,6 +70,10 @@ import {
   NotificationsPermission,
   NotificationsPermissionMetadata,
 } from '../../notifications/permissions';
+import {
+  FinancePermission,
+  FinancePermissionMetadata,
+} from '../../finance/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -257,6 +261,15 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       perm,
       NotificationsPermissionMetadata[perm] || {},
       'notifications',
+    ),
+  ),
+
+  // Finance Module
+  ...Object.values(FinancePermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      FinancePermissionMetadata[perm] || {},
+      'finance',
     ),
   ),
 ];
