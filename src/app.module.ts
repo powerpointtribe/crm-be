@@ -25,6 +25,7 @@ import { WorkersTrainingModule } from './workers-training/workers-training.modul
 import { ActivityTrackerModule } from './activity-tracker/activity-tracker.module';
 import { UserInvitationsModule } from './user-invitations/user-invitations.module';
 import { FinanceModule } from './finance/finance.module';
+import { EntryImportModule } from './entry-import/entry-import.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { FinanceModule } from './finance/finance.module';
     ActivityTrackerModule,
     UserInvitationsModule,
     FinanceModule,
+    EntryImportModule,
   ],
   controllers: [AppController],
   providers: [

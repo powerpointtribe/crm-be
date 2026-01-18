@@ -5,13 +5,14 @@ import {
   Min,
   IsMongoId,
   IsArray,
-  IsBoolean,
+  IsIn,
   ValidateNested,
   IsDateString,
   MaxLength,
   IsNotEmpty,
   ArrayMinSize,
   Length,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -105,9 +106,13 @@ export class CreateRequisitionDto {
   @IsString({ each: true })
   documentUrls?: string[];
 
-  @ApiProperty({ description: 'Whether this has been discussed with P.Dams' })
-  @IsBoolean()
-  discussedWithPDams: boolean;
+  @ApiProperty({
+    description: 'Whether this has been discussed with P.Dams',
+    enum: ['yes', 'not_required', 'no'],
+  })
+  @IsString()
+  @IsIn(['yes', 'not_required', 'no'], { message: 'discussedWithPDams must be one of: yes, not_required, no' })
+  discussedWithPDams: 'yes' | 'not_required' | 'no';
 
   @ApiPropertyOptional({ description: 'Date when discussed with P.Dams' })
   @IsOptional()

@@ -63,6 +63,22 @@ export class RolesSeederService {
   }
 
   /**
+   * Check if a permission name is a view/read-only permission
+   * View permissions include: view*, export*, and similar read-only actions
+   */
+  private isViewPermission(permissionName: string): boolean {
+    const viewPatterns = [
+      ':view',
+      ':export',
+      '-view',
+      '-export',
+      ':view-',
+      ':preview', // preview is read-only
+    ];
+    return viewPatterns.some((pattern) => permissionName.includes(pattern));
+  }
+
+  /**
    * Seed default system roles
    */
   async seedRoles(): Promise<void> {
@@ -85,6 +101,41 @@ export class RolesSeederService {
             isActive: true,
           });
           permissionIds = allPermissions.map((p) => p._id);
+        } else if (roleConfig.permissions.includes('view:*')) {
+          // Roles with view:* get all view/export permissions plus any additional specific permissions
+          const allPermissions = await this.permissionModel.find({
+            isActive: true,
+          });
+
+          // Get all view permissions
+          const viewPermissions = allPermissions.filter((p) =>
+            this.isViewPermission(p.name),
+          );
+
+          // Get additional specific permissions (excluding the 'view:*' marker)
+          const additionalPermissionNames = roleConfig.permissions.filter(
+            (p) => p !== 'view:*',
+          );
+          const additionalPermissions = additionalPermissionNames.length > 0
+            ? allPermissions.filter((p) =>
+                additionalPermissionNames.includes(p.name),
+              )
+            : [];
+
+          // Combine view permissions with additional permissions (using Set to avoid duplicates)
+          const permissionIdSet = new Set<string>();
+          viewPermissions.forEach((p) => permissionIdSet.add(p._id.toString()));
+          additionalPermissions.forEach((p) =>
+            permissionIdSet.add(p._id.toString()),
+          );
+
+          permissionIds = Array.from(permissionIdSet).map(
+            (id) => new Types.ObjectId(id),
+          );
+
+          this.logger.log(
+            `Role "${roleConfig.name}" assigned ${viewPermissions.length} view permissions + ${additionalPermissions.length} additional permissions`,
+          );
         } else {
           // Get specific permissions
           const permissions = await this.permissionModel.find({

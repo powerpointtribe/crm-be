@@ -5,6 +5,7 @@ export enum QueueName {
   AUDIT_LOGS = 'audit-logs',
   EMAIL_NOTIFICATIONS = 'email-notifications',
   ACTIVITY_LOGS = 'activity-logs',
+  ENTRY_IMPORT = 'entry-import',
 }
 
 export enum JobType {
@@ -35,6 +36,10 @@ export enum JobType {
   // Email notification jobs
   USER_INVITATION_EMAIL = 'user-invitation-email',
   USER_INVITATION_RESEND_EMAIL = 'user-invitation-resend-email',
+
+  // Entry Import jobs
+  ENTRY_IMPORT_PROCESS = 'entry-import-process',
+  ENTRY_IMPORT_ITEM_PROCESS = 'entry-import-item-process',
 
   // Activity log jobs
   LOG_GROUP_MEMBER_ADDITION = 'log-group-member-addition',
@@ -180,4 +185,16 @@ export interface ActivityLogJobData {
     // Additional metadata
     notes?: string;
   };
+}
+
+// Entry Import job data interfaces
+export interface EntryImportJobData {
+  entryImportId: string;
+  branchId?: string;
+}
+
+export interface EntryImportItemJobData {
+  entryImportId: string;
+  entryImportItemId: string;
+  branchId?: string;
 }

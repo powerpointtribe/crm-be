@@ -106,24 +106,29 @@ export class CSVParserUtil {
     if (csvRow['Last Name'] || csvRow['lastName']) {
       mappedData.lastName = csvRow['Last Name'] || csvRow['lastName'];
     }
-    if (csvRow['Phone'] || csvRow['phone']) {
-      mappedData.phone = csvRow['Phone'] || csvRow['phone'];
+    // Phone - support multiple header variations
+    if (csvRow['Phone'] || csvRow['phone'] || csvRow['Phone Number']) {
+      mappedData.phone = csvRow['Phone'] || csvRow['phone'] || csvRow['Phone Number'];
     }
-    if (csvRow['Email'] || csvRow['email']) {
-      mappedData.email = csvRow['Email'] || csvRow['email'];
+    // Email - support multiple header variations
+    if (csvRow['Email'] || csvRow['email'] || csvRow['Email Address']) {
+      mappedData.email = csvRow['Email'] || csvRow['email'] || csvRow['Email Address'];
     }
-    if (csvRow['Date of Visit'] || csvRow['dateOfVisit']) {
-      const dateValue = csvRow['Date of Visit'] || csvRow['dateOfVisit'];
+    // Date of Visit / Entry Date
+    if (csvRow['Date of Visit'] || csvRow['dateOfVisit'] || csvRow['Entry Date']) {
+      const dateValue = csvRow['Date of Visit'] || csvRow['dateOfVisit'] || csvRow['Entry Date'];
       mappedData.dateOfVisit = dateValue;
     }
 
     // Handle optional fields
-    if (csvRow['Invited By'] || csvRow['invitedBy']) {
-      mappedData.invitedBy = csvRow['Invited By'] || csvRow['invitedBy'];
+    // Invited By - support multiple variations
+    if (csvRow['Invited By'] || csvRow['invitedBy'] || csvRow['Can you remember who invited you?']) {
+      mappedData.invitedBy = csvRow['Invited By'] || csvRow['invitedBy'] || csvRow['Can you remember who invited you?'];
     }
-    if (csvRow['How Did You Hear'] || csvRow['howDidYouHear']) {
-      mappedData.howDidYouHear =
-        csvRow['How Did You Hear'] || csvRow['howDidYouHear'];
+    // How Did You Hear - support multiple variations
+    if (csvRow['How Did You Hear'] || csvRow['howDidYouHear'] || csvRow['How did you hear about Us?']) {
+      const howHeard = csvRow['How Did You Hear'] || csvRow['howDidYouHear'] || csvRow['How did you hear about Us?'];
+      mappedData.howDidYouHear = this.mapHowDidYouHear(howHeard);
     }
     if (csvRow['Previous Church'] || csvRow['previousChurch']) {
       mappedData.previousChurch =
@@ -144,8 +149,60 @@ export class CSVParserUtil {
       }
     }
 
-    // Handle address
+    // Gender - support multiple variations
+    if (csvRow['Gender'] || csvRow['gender']) {
+      const gender = (csvRow['Gender'] || csvRow['gender'] || '').toLowerCase().trim();
+      if (gender === 'male' || gender === 'm') {
+        mappedData.gender = 'male';
+      } else if (gender === 'female' || gender === 'f') {
+        mappedData.gender = 'female';
+      }
+    }
+
+    // Birthday / Date of Birth
+    if (csvRow['Birthday'] || csvRow['Date of Birth'] || csvRow['dateOfBirth']) {
+      mappedData.dateOfBirth = csvRow['Birthday'] || csvRow['Date of Birth'] || csvRow['dateOfBirth'];
+    }
+
+    // Occupation
+    if (csvRow['Occupation'] || csvRow['occupation']) {
+      mappedData.occupation = csvRow['Occupation'] || csvRow['occupation'];
+    }
+
+    // Alternate phone
+    if (csvRow['Phone Number (2)'] || csvRow['alternateContactMethod']) {
+      mappedData.alternateContactMethod = csvRow['Phone Number (2)'] || csvRow['alternateContactMethod'];
+    }
+
+    // Social Media Handle
+    if (csvRow['Social Media handle'] || csvRow['socialMediaHandle']) {
+      mappedData.socialMediaHandles = {
+        other: csvRow['Social Media handle'] || csvRow['socialMediaHandle'],
+      };
+    }
+
+    // Service Experience - What did you enjoy about today's service?
+    if (csvRow['What did you enjoy about today\'s service?'] || csvRow['serviceExperience']) {
+      mappedData.serviceExperience = csvRow['What did you enjoy about today\'s service?'] || csvRow['serviceExperience'];
+    }
+
+    // Interested in Joining - Would you like to join The PowerPoint Tribe?
+    if (csvRow['Would you like to join The PowerPoint Tribe?'] || csvRow['interestedInJoining']) {
+      const interested = (csvRow['Would you like to join The PowerPoint Tribe?'] || csvRow['interestedInJoining'] || '').toLowerCase().trim();
+      if (interested === 'yes' || interested === 'y') {
+        mappedData.interestedInJoining = 'yes';
+      } else if (interested === 'no' || interested === 'n') {
+        mappedData.interestedInJoining = 'no';
+      } else if (interested === 'maybe' || interested === 'undecided') {
+        mappedData.interestedInJoining = 'maybe';
+      }
+    }
+
+    // Handle address - support "Home Address" as full address
     const address: any = {};
+    if (csvRow['Home Address']) {
+      address.street = csvRow['Home Address'];
+    }
     if (csvRow['Street'] || csvRow['street']) {
       address.street = csvRow['Street'] || csvRow['street'];
     }
@@ -191,11 +248,112 @@ export class CSVParserUtil {
       }
     }
 
+    // Build notes from various fields
+    const noteParts: string[] = [];
     if (csvRow['Notes'] || csvRow['notes']) {
-      mappedData.notes = csvRow['Notes'] || csvRow['notes'];
+      noteParts.push(csvRow['Notes'] || csvRow['notes']);
+    }
+    // Service attendance
+    if (csvRow['Attended 2nd Service?']) {
+      noteParts.push(`Attended 2nd Service: ${csvRow['Attended 2nd Service?']}`);
+    }
+    if (csvRow['Attended 3rd Service?']) {
+      noteParts.push(`Attended 3rd Service: ${csvRow['Attended 3rd Service?']}`);
+    }
+    // Follow-up allocation
+    if (csvRow['Follow Up Allocation']) {
+      noteParts.push(`Follow Up Allocation: ${csvRow['Follow Up Allocation']}`);
+    }
+    // Call reports
+    if (csvRow['1st Call Report']) {
+      noteParts.push(`1st Call Report: ${csvRow['1st Call Report']}`);
+    }
+    if (csvRow['Call Report - Notes']) {
+      noteParts.push(`Call Report Notes: ${csvRow['Call Report - Notes']}`);
+    }
+    if (csvRow['2nd Call Report']) {
+      noteParts.push(`2nd Call Report: ${csvRow['2nd Call Report']}`);
+    }
+    if (csvRow['3rd Call Report']) {
+      noteParts.push(`3rd Call Report: ${csvRow['3rd Call Report']}`);
+    }
+    if (csvRow['4th Call Report']) {
+      noteParts.push(`4th Call Report: ${csvRow['4th Call Report']}`);
+    }
+    if (noteParts.length > 0) {
+      mappedData.notes = noteParts.join('\n');
     }
 
     return mappedData;
+  }
+
+  /**
+   * Map free-text "how did you hear" responses to valid enum values
+   */
+  private static mapHowDidYouHear(value: string): string {
+    if (!value) return 'other';
+
+    const lowerValue = value.toLowerCase().trim();
+
+    // Direct matches
+    const directMappings: Record<string, string> = {
+      'friend': 'friend',
+      'family': 'family',
+      'facebook': 'facebook',
+      'instagram': 'instagram',
+      'twitter': 'twitter',
+      'whatsapp': 'whatsapp',
+      'youtube': 'youtube',
+      'google': 'google_search',
+      'google search': 'google_search',
+      'website': 'website',
+      'church website': 'church_website',
+      'online': 'online',
+      'social media': 'social_media',
+      'radio': 'radio',
+      'tv': 'television',
+      'television': 'television',
+      'podcast': 'podcast',
+      'flyer': 'flyer',
+      'banner': 'banner',
+      'billboard': 'billboard',
+      'invitation card': 'invitation_card',
+      'outreach': 'outreach',
+      'crusade': 'crusade',
+      'conference': 'conference',
+      'event': 'event',
+      'advertisement': 'advertisement',
+      'walkby': 'walkby',
+      'walk by': 'walkby',
+      'walked by': 'walkby',
+    };
+
+    // Check for direct match
+    if (directMappings[lowerValue]) {
+      return directMappings[lowerValue];
+    }
+
+    // Check for partial matches
+    if (lowerValue.includes('friend')) return 'friend';
+    if (lowerValue.includes('family') || lowerValue.includes('relative')) return 'family';
+    if (lowerValue.includes('facebook')) return 'facebook';
+    if (lowerValue.includes('instagram')) return 'instagram';
+    if (lowerValue.includes('twitter') || lowerValue.includes('x.com')) return 'twitter';
+    if (lowerValue.includes('whatsapp')) return 'whatsapp';
+    if (lowerValue.includes('youtube')) return 'youtube';
+    if (lowerValue.includes('google')) return 'google_search';
+    if (lowerValue.includes('online') || lowerValue.includes('internet')) return 'online';
+    if (lowerValue.includes('social media')) return 'social_media';
+    if (lowerValue.includes('radio')) return 'radio';
+    if (lowerValue.includes('tv') || lowerValue.includes('television')) return 'television';
+    if (lowerValue.includes('flyer') || lowerValue.includes('handbill')) return 'flyer';
+    if (lowerValue.includes('invite') || lowerValue.includes('invitation')) return 'invitation_card';
+    if (lowerValue.includes('outreach') || lowerValue.includes('evangelism')) return 'outreach';
+    if (lowerValue.includes('crusade')) return 'crusade';
+    if (lowerValue.includes('conference')) return 'conference';
+    if (lowerValue.includes('walk')) return 'walkby';
+
+    return 'other';
   }
 
   static validateFileType(filename: string): boolean {

@@ -1242,6 +1242,185 @@ export class FirstTimersService {
     return CSVParserUtil.generateSampleCSV();
   }
 
+  /**
+   * Entry Import - Import first timers from external CSV format (e.g., Google Forms, Excel)
+   * Supports flexible column mapping for various CSV formats
+   */
+  async entryImport(
+    csvContent: string,
+    options: {
+      skipErrors?: boolean;
+      branchId?: string;
+    } = {},
+  ): Promise<BulkUploadResultDto> {
+    const { skipErrors = true, branchId } = options;
+
+    // Parse CSV content
+    let csvData: any[];
+    try {
+      csvData = CSVParserUtil.parseCSV(csvContent, {
+        headerRow: true,
+        skipEmptyLines: true,
+      });
+    } catch (error) {
+      throw new BadRequestException(`CSV parsing failed: ${error.message}`);
+    }
+
+    if (csvData.length === 0) {
+      throw new BadRequestException('No valid data found in CSV file');
+    }
+
+    const result: BulkUploadResultDto = {
+      successCount: 0,
+      errorCount: 0,
+      totalCount: csvData.length,
+      successfulRecords: [],
+      failedRecords: [],
+      message: '',
+    };
+
+    // Process each row
+    for (let i = 0; i < csvData.length; i++) {
+      const row = csvData[i];
+      const rowNumber = i + 2; // +2 because array is 0-indexed and first row is header
+
+      try {
+        // Map CSV data to CreateFirstTimerDto format using flexible mapper
+        const mappedData = CSVParserUtil.mapCSVToFirstTimer(row);
+
+        // Apply branch if provided
+        if (branchId) {
+          mappedData.branch = branchId;
+        }
+
+        // Skip rows without essential data
+        if (!mappedData.firstName && !mappedData.lastName && !mappedData.phone) {
+          this.logger.debug(`Skipping row ${rowNumber}: No essential data found`);
+          continue;
+        }
+
+        // Handle missing required fields with defaults
+        if (!mappedData.firstName) {
+          mappedData.firstName = 'Unknown';
+        }
+        if (!mappedData.lastName) {
+          mappedData.lastName = 'Unknown';
+        }
+        if (!mappedData.phone) {
+          // Skip rows without phone number
+          throw new Error('Phone number is required');
+        }
+        if (!mappedData.dateOfVisit) {
+          // Default to today if no entry date
+          mappedData.dateOfVisit = new Date().toISOString().split('T')[0];
+        }
+
+        // Create the first-timer record
+        const firstTimer = await this.createSafe(
+          plainToClass(CreateFirstTimerDto, mappedData),
+        );
+        result.successfulRecords.push({
+          row: rowNumber,
+          firstName: firstTimer.firstName,
+          lastName: firstTimer.lastName,
+          phone: firstTimer.phone,
+        });
+        result.successCount++;
+      } catch (error) {
+        result.errorCount++;
+        result.failedRecords.push({
+          row: rowNumber,
+          data: {
+            firstName: row['First Name'] || row['firstName'],
+            lastName: row['Last Name'] || row['lastName'],
+            phone: row['Phone Number'] || row['Phone'] || row['phone'],
+          },
+          errors: [error.message],
+        });
+
+        // If not skipping errors, stop processing
+        if (!skipErrors) {
+          result.message = `Processing stopped at row ${rowNumber} due to error: ${error.message}`;
+          break;
+        }
+      }
+    }
+
+    // Generate summary message
+    if (result.errorCount === 0) {
+      result.message = `Successfully imported all ${result.successCount} first timer entries`;
+    } else if (result.successCount === 0) {
+      result.message = `Failed to import any entries. ${result.errorCount} errors encountered`;
+    } else {
+      result.message = `Imported ${result.successCount} entries successfully, ${result.errorCount} failed`;
+    }
+
+    this.logger.log(
+      `Entry Import completed: ${result.successCount} success, ${result.errorCount} failed out of ${result.totalCount} total`,
+    );
+
+    return result;
+  }
+
+  /**
+   * Generate sample CSV for Entry Import with all supported column headers
+   */
+  generateEntryImportSampleCSV(): string {
+    const headers = [
+      'First Name',
+      'Last Name',
+      'Phone Number',
+      'Email Address',
+      'Entry Date',
+      'Gender',
+      'Birthday',
+      'Occupation',
+      'Home Address',
+      'Can you remember who invited you?',
+      'How did you hear about Us?',
+      'What did you enjoy about today\'s service?',
+      'Would you like to join The PowerPoint Tribe?',
+      'Social Media handle',
+      'Phone Number (2)',
+      'Attended 2nd Service?',
+      'Attended 3rd Service?',
+      'Follow Up Allocation',
+      '1st Call Report',
+      'Call Report - Notes',
+      '2nd Call Report',
+      '3rd Call Report',
+      '4th Call Report',
+    ];
+
+    const sampleRow = [
+      'John',
+      'Doe',
+      '+2348012345678',
+      'john.doe@email.com',
+      '2024-01-15',
+      'Male',
+      '1990-05-20',
+      'Software Developer',
+      '123 Main Street, Lagos',
+      'Jane Smith',
+      'Friend',
+      'The worship was amazing',
+      'Yes',
+      '@johndoe',
+      '+2348098765432',
+      'Yes',
+      'No',
+      'Mary Johnson',
+      'Called, interested in joining',
+      'Follow up next week',
+      'Second call made',
+      '',
+      '',
+    ];
+
+    return headers.join(',') + '\n' + sampleRow.map(val => `"${val}"`).join(',');
+  }
+
   // New methods for automation
   async findStaleFirstTimers(cutoffDate: Date): Promise<FirstTimerDocument[]> {
     return this.firstTimerModel.find({

@@ -1,7 +1,15 @@
 /**
  * Default system roles configuration
- * Only Super Admin is created by default as a system role.
- * All other roles should be created by administrators as custom roles.
+ *
+ * System roles:
+ * - Super Admin: Full system access with all permissions
+ * - Admin: Broad administrative permissions except critical system settings
+ * - Senior Pastor: All view permissions with GLOBAL scope (can view all branches)
+ * - Campus Pastor: All view permissions with BRANCH scope (filtered by their assigned branch)
+ *
+ * Note: The difference between Senior Pastor and Campus Pastor is handled at the
+ * role assignment level via scopeType (GLOBAL vs BRANCH), not at the permission level.
+ * Both have the same view permissions, but Campus Pastor's data is filtered by branch.
  */
 
 export interface DefaultRoleConfig {
@@ -12,7 +20,7 @@ export interface DefaultRoleConfig {
   level: number;
   isSystemRole: boolean;
   colorCode?: string;
-  permissions: string[]; // Permission names
+  permissions: string[]; // Permission names. Special values: '*' = all, 'view:*' = all view permissions
 }
 
 export const DEFAULT_ROLES: DefaultRoleConfig[] = [
@@ -148,6 +156,36 @@ export const DEFAULT_ROLES: DefaultRoleConfig[] = [
       'finance:view-reports',
       'finance:export-reports',
       'finance:view-dashboard',
+    ],
+  },
+  {
+    name: 'Senior Pastor',
+    slug: 'senior-pastor',
+    displayName: 'Senior Pastor',
+    description:
+      'Senior Pastor with view access to all data across all branches. Can approve requisition requests.',
+    level: 80,
+    isSystemRole: true,
+    colorCode: '#8B5CF6', // Purple
+    permissions: [
+      'view:*', // All view/read-only permissions (handled by seeder)
+      'finance:approve-requisition',
+      'finance:reject-requisition',
+    ],
+  },
+  {
+    name: 'Campus Pastor',
+    slug: 'campus-pastor',
+    displayName: 'Campus Pastor',
+    description:
+      'Campus Pastor with view access to data within their assigned branch. Can approve requisition requests for their branch.',
+    level: 70,
+    isSystemRole: true,
+    colorCode: '#06B6D4', // Cyan
+    permissions: [
+      'view:*', // All view/read-only permissions (handled by seeder)
+      'finance:approve-requisition',
+      'finance:reject-requisition',
     ],
   },
 ];

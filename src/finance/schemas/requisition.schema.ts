@@ -49,12 +49,25 @@ export type RequisitionDocument = Requisition &
   collection: 'requisitions',
 })
 export class Requisition {
-  // Reference fields
-  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true, index: true })
-  branch: Types.ObjectId;
+  // Public submission flag and submitter info
+  @Prop({ default: false })
+  isPublicSubmission: boolean;
 
-  @Prop({ type: Types.ObjectId, ref: 'Member', required: true, index: true })
-  requestor: Types.ObjectId;
+  @Prop({ trim: true })
+  submitterName?: string;
+
+  @Prop({ trim: true, lowercase: true })
+  submitterEmail?: string;
+
+  @Prop({ trim: true })
+  submitterPhone?: string;
+
+  // Reference fields - optional for public submissions
+  @Prop({ type: Types.ObjectId, ref: 'Branch', index: true })
+  branch?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Member', index: true })
+  requestor?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Group', index: true })
   unit?: Types.ObjectId;
@@ -114,8 +127,8 @@ export class Requisition {
   documentUrls: string[];
 
   // P.Dams discussion confirmation
-  @Prop({ required: true, default: false })
-  discussedWithPDams: boolean;
+  @Prop({ required: true, enum: ['yes', 'not_required', 'no'], default: 'no' })
+  discussedWithPDams: 'yes' | 'not_required' | 'no';
 
   @Prop({ type: Date })
   discussedDate?: Date;
@@ -166,9 +179,9 @@ export class Requisition {
   @Prop({ trim: true })
   disbursementReference?: string;
 
-  // Audit fields
-  @Prop({ type: Types.ObjectId, ref: 'Member', required: true })
-  createdBy: Types.ObjectId;
+  // Audit fields - optional for public submissions
+  @Prop({ type: Types.ObjectId, ref: 'Member' })
+  createdBy?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Member' })
   updatedBy?: Types.ObjectId;
@@ -197,3 +210,7 @@ RequisitionSchema.index({ branch: 1, status: 1, submittedAt: -1 });
 
 // Text index for search
 RequisitionSchema.index({ eventDescription: 'text' });
+
+// Index for public submissions
+RequisitionSchema.index({ isPublicSubmission: 1 });
+RequisitionSchema.index({ submitterEmail: 1 });

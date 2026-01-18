@@ -9,6 +9,7 @@ import {
   ExpenseCategory,
   ExpenseCategoryDocument,
 } from './schemas/expense-category.schema';
+import { Branch, BranchDocument } from '../branches/schemas/branch.schema';
 import {
   CreateExpenseCategoryDto,
   UpdateExpenseCategoryDto,
@@ -39,6 +40,8 @@ export class ExpenseCategoryService {
   constructor(
     @InjectModel(ExpenseCategory.name)
     private expenseCategoryModel: Model<ExpenseCategoryDocument>,
+    @InjectModel(Branch.name)
+    private branchModel: Model<BranchDocument>,
   ) {}
 
   async create(
@@ -235,5 +238,29 @@ export class ExpenseCategoryService {
     await this.expenseCategoryModel.insertMany(categories);
 
     return { count: categories.length };
+  }
+
+  /**
+   * Find expense categories by branch slug (for public endpoints)
+   */
+  async findByBranchSlug(branchSlug: string): Promise<ExpenseCategory[]> {
+    // Find branch by slug
+    const branch = await this.branchModel.findOne({
+      slug: branchSlug.toLowerCase(),
+      isActive: true,
+    });
+
+    if (!branch) {
+      throw new NotFoundException(`Branch with slug "${branchSlug}" not found`);
+    }
+
+    return this.expenseCategoryModel
+      .find({
+        branch: branch._id,
+        isActive: true,
+      })
+      .select('_id name description')
+      .sort({ sortOrder: 1, name: 1 })
+      .exec();
   }
 }
