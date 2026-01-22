@@ -26,6 +26,7 @@ import { ActivityTrackerModule } from './activity-tracker/activity-tracker.modul
 import { UserInvitationsModule } from './user-invitations/user-invitations.module';
 import { FinanceModule } from './finance/finance.module';
 import { EntryImportModule } from './entry-import/entry-import.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { EntryImportModule } from './entry-import/entry-import.module';
     UserInvitationsModule,
     FinanceModule,
     EntryImportModule,
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [

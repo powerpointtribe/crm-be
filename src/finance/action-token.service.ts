@@ -18,7 +18,7 @@ export interface TokenValidationResult {
 @Injectable()
 export class ActionTokenService {
   private readonly logger = new Logger(ActionTokenService.name);
-  private readonly TOKEN_EXPIRY_HOURS = 24;
+  private readonly TOKEN_EXPIRY_HOURS = 504; // 21 days (21 * 24 hours)
 
   constructor(
     @InjectModel(ActionToken.name)

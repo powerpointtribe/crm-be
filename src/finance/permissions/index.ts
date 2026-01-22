@@ -21,6 +21,7 @@ export enum FinancePermission {
   APPROVE_REQUISITION = 'finance:approve-requisition',
   REJECT_REQUISITION = 'finance:reject-requisition',
   DISBURSE = 'finance:disburse',
+  RECEIVE_DISBURSE_CONFIRMATION = 'finance:receive-disburse-confirmation',
 
   // Requisition - DELETE operations
   DELETE_REQUISITION = 'finance:delete-requisition',
@@ -93,6 +94,11 @@ export const FinancePermissionMetadata = {
     path: '/finance/requisitions/:id/disburse',
     method: 'POST',
     description: 'Disburse funds for an approved requisition',
+  },
+  [FinancePermission.RECEIVE_DISBURSE_CONFIRMATION]: {
+    path: null,
+    method: null,
+    description: 'Receive email notifications when requisitions are disbursed',
   },
   [FinancePermission.DELETE_REQUISITION]: {
     path: '/finance/requisitions/:id',

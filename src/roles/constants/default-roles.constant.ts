@@ -188,4 +188,31 @@ export const DEFAULT_ROLES: DefaultRoleConfig[] = [
       'finance:reject-requisition',
     ],
   },
+  {
+    name: 'Finance Manager',
+    slug: 'finance-manager',
+    displayName: 'Finance Manager',
+    description:
+      'Finance Manager with all finance view permissions, can approve requisitions, and receives disbursement confirmations.',
+    level: 60,
+    isSystemRole: true,
+    colorCode: '#10B981', // Green
+    permissions: [
+      // Finance - All view permissions
+      'finance:view-requisitions',
+      'finance:view-requisition-details',
+      'finance:view-my-requisitions',
+      'finance:view-pending-approvals',
+      'finance:view-pending-disbursements',
+      'finance:view-expense-categories',
+      'finance:view-form-fields',
+      'finance:view-reports',
+      'finance:view-dashboard',
+      // Finance - Workflow permissions
+      'finance:approve-requisition',
+      'finance:reject-requisition',
+      // Finance - Disbursement notification
+      'finance:receive-disburse-confirmation',
+    ],
+  },
 ];

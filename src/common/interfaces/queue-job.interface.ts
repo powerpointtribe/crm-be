@@ -37,6 +37,14 @@ export enum JobType {
   USER_INVITATION_EMAIL = 'user-invitation-email',
   USER_INVITATION_RESEND_EMAIL = 'user-invitation-resend-email',
 
+  // Finance email notification jobs
+  FINANCE_NOTIFY_APPROVERS = 'finance-notify-approvers',
+  FINANCE_NOTIFY_REQUESTOR_APPROVAL = 'finance-notify-requestor-approval',
+  FINANCE_NOTIFY_REQUESTOR_REJECTION = 'finance-notify-requestor-rejection',
+  FINANCE_NOTIFY_DISBURSERS = 'finance-notify-disbursers',
+  FINANCE_NOTIFY_REQUESTOR_DISBURSEMENT = 'finance-notify-requestor-disbursement',
+  FINANCE_NOTIFY_DISBURSE_CONFIRMATION = 'finance-notify-disburse-confirmation',
+
   // Entry Import jobs
   ENTRY_IMPORT_PROCESS = 'entry-import-process',
   ENTRY_IMPORT_ITEM_PROCESS = 'entry-import-item-process',
@@ -184,6 +192,26 @@ export interface ActivityLogJobData {
 
     // Additional metadata
     notes?: string;
+  };
+}
+
+// Finance email notification job data interface
+export interface FinanceEmailJobData {
+  jobType: JobType;
+  requisitionId: string;
+  // Email content
+  emailHtml: string;
+  emailSubject: string;
+  // Recipients
+  recipients: Array<{
+    email: string;
+    name?: string;
+  }>;
+  // Optional metadata for logging
+  metadata?: {
+    actionType?: 'approval' | 'rejection' | 'disbursement' | 'notification';
+    initiatedBy?: string;
+    requisitionAmount?: number;
   };
 }
 

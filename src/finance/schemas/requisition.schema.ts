@@ -49,6 +49,10 @@ export type RequisitionDocument = Requisition &
   collection: 'requisitions',
 })
 export class Requisition {
+  // Reference number (auto-generated)
+  @Prop({ trim: true, unique: true, sparse: true, index: true })
+  referenceNumber?: string;
+
   // Public submission flag and submitter info
   @Prop({ default: false })
   isPublicSubmission: boolean;
@@ -208,9 +212,23 @@ RequisitionSchema.index({ disbursedBy: 1 });
 // Compound index for pending approvals query
 RequisitionSchema.index({ branch: 1, status: 1, submittedAt: -1 });
 
-// Text index for search
-RequisitionSchema.index({ eventDescription: 'text' });
+// Text index for search (includes reference number)
+RequisitionSchema.index({ eventDescription: 'text', referenceNumber: 'text' });
 
 // Index for public submissions
 RequisitionSchema.index({ isPublicSubmission: 1 });
 RequisitionSchema.index({ submitterEmail: 1 });
+
+// Pre-save hook to handle legacy boolean values for discussedWithPDams
+RequisitionSchema.pre('save', function (next) {
+  // Convert legacy boolean values to new enum format
+  if (this.discussedWithPDams !== undefined) {
+    const value = this.discussedWithPDams as any;
+    if (value === true || value === 'true') {
+      this.discussedWithPDams = 'yes';
+    } else if (value === false || value === 'false') {
+      this.discussedWithPDams = 'no';
+    }
+  }
+  next();
+});

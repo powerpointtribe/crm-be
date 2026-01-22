@@ -23,6 +23,8 @@ import {
   PublicRejectDto,
   PublicDisburseDto,
   TokenVerificationResponseDto,
+  CheckLxlEligibilityDto,
+  LxlEligibilityResponseDto,
 } from './dto/public-requisition.dto';
 import { ResponseUtil } from '../common/utils/response.util';
 
@@ -34,6 +36,20 @@ export class PublicFinanceController {
     private readonly expenseCategoryService: ExpenseCategoryService,
     private readonly actionTokenService: ActionTokenService,
   ) {}
+
+  /**
+   * Check if a member is eligible to raise requisitions (LXL status)
+   */
+  @Public()
+  @Post('check-eligibility')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check if member is eligible to raise requisitions (LXL status)' })
+  @ApiResponse({ status: 200, description: 'Eligibility check result', type: LxlEligibilityResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  async checkLxlEligibility(@Body() dto: CheckLxlEligibilityDto) {
+    const result = await this.financeService.checkLxlEligibility(dto.email, dto.branchSlug);
+    return ResponseUtil.success(result, 'Eligibility check completed');
+  }
 
   /**
    * Create a public requisition (no authentication required)

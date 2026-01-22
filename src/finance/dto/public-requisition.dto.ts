@@ -228,3 +228,36 @@ export class PublicExpenseCategoryDto {
   @ApiPropertyOptional()
   description?: string;
 }
+
+/**
+ * DTO for checking LXL eligibility by email
+ */
+export class CheckLxlEligibilityDto {
+  @ApiProperty({ description: 'Email address to check for LXL eligibility' })
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @ApiProperty({ description: 'Branch slug for the requisition' })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[a-z0-9-]+$/, { message: 'Branch slug must be lowercase alphanumeric with hyphens' })
+  branchSlug: string;
+}
+
+/**
+ * Response DTO for LXL eligibility check
+ */
+export class LxlEligibilityResponseDto {
+  @ApiProperty({ description: 'Whether the member is eligible to raise requisitions' })
+  eligible: boolean;
+
+  @ApiPropertyOptional({ description: 'Member name if found and eligible' })
+  memberName?: string;
+
+  @ApiPropertyOptional({ description: 'Reason for ineligibility' })
+  reason?: string;
+
+  @ApiPropertyOptional({ description: 'Member\'s leadership role if applicable' })
+  leadershipRole?: string;
+}

@@ -4,6 +4,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   QueueName,
   EmailNotificationJobData,
+  FinanceEmailJobData,
   JobType,
 } from '../../common/interfaces/queue-job.interface';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -119,5 +120,91 @@ export class EmailNotificationProcessor {
       );
       throw error;
     }
+  }
+
+  // ============== Finance Email Handlers ==============
+  // These handlers process pre-generated HTML emails for finance notifications
+
+  /**
+   * Generic finance email handler - sends emails to all recipients
+   * Uses Promise.allSettled for parallel sending without failing on individual errors
+   */
+  private async processFinanceEmail(
+    job: Job<FinanceEmailJobData>,
+    jobDescription: string,
+  ): Promise<{ success: boolean; sent: number; failed: number }> {
+    const { requisitionId, emailHtml, emailSubject, recipients, metadata } =
+      job.data;
+
+    this.logger.log(
+      `Processing ${jobDescription} for requisition ${requisitionId} to ${recipients.length} recipient(s)`,
+    );
+
+    const results = await Promise.allSettled(
+      recipients.map(async (recipient) => {
+        await this.notificationsService['emailProvider'].sendEmail({
+          to: recipient.email,
+          subject: emailSubject,
+          html: emailHtml,
+        });
+        return recipient.email;
+      }),
+    );
+
+    const sent = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected').length;
+
+    // Log failures for debugging
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        this.logger.warn(
+          `Failed to send ${jobDescription} to ${recipients[index].email}: ${result.reason?.message || 'Unknown error'}`,
+        );
+      }
+    });
+
+    this.logger.log(
+      `${jobDescription} completed for requisition ${requisitionId}: ${sent} sent, ${failed} failed`,
+    );
+
+    return { success: failed === 0, sent, failed };
+  }
+
+  @Process(JobType.FINANCE_NOTIFY_APPROVERS)
+  async handleFinanceNotifyApprovers(job: Job<FinanceEmailJobData>) {
+    return this.processFinanceEmail(job, 'approver notification');
+  }
+
+  @Process(JobType.FINANCE_NOTIFY_REQUESTOR_APPROVAL)
+  async handleFinanceNotifyRequestorApproval(job: Job<FinanceEmailJobData>) {
+    return this.processFinanceEmail(job, 'approval notification to requestor');
+  }
+
+  @Process(JobType.FINANCE_NOTIFY_REQUESTOR_REJECTION)
+  async handleFinanceNotifyRequestorRejection(job: Job<FinanceEmailJobData>) {
+    return this.processFinanceEmail(job, 'rejection notification to requestor');
+  }
+
+  @Process(JobType.FINANCE_NOTIFY_DISBURSERS)
+  async handleFinanceNotifyDisbursers(job: Job<FinanceEmailJobData>) {
+    return this.processFinanceEmail(job, 'disburser notification');
+  }
+
+  @Process(JobType.FINANCE_NOTIFY_REQUESTOR_DISBURSEMENT)
+  async handleFinanceNotifyRequestorDisbursement(
+    job: Job<FinanceEmailJobData>,
+  ) {
+    return this.processFinanceEmail(
+      job,
+      'disbursement notification to requestor',
+    );
+  }
+
+  @Process(JobType.FINANCE_NOTIFY_DISBURSE_CONFIRMATION)
+  async handleFinanceNotifyDisburseConfirmation(job: Job<FinanceEmailJobData>) {
+    return this.processFinanceEmail(
+      job,
+      'disbursement confirmation to finance team',
+    );
   }
 }

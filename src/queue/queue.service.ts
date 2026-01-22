@@ -11,6 +11,7 @@ import {
   FirstTimerAutomationJobData,
   EmailNotificationJobData,
   ActivityLogJobData,
+  FinanceEmailJobData,
 } from '../common/interfaces/queue-job.interface';
 
 @Injectable()
@@ -205,6 +206,161 @@ export class QueueService {
       JobType.USER_INVITATION_RESEND_EMAIL,
       invitationData,
     );
+  }
+
+  // Finance email notification methods (non-blocking, fire-and-forget)
+
+  /**
+   * Queue a finance email notification job (non-blocking)
+   * @param data - Finance email job data including recipients and email content
+   * @returns The queued job, or null if queueing failed (logged but not thrown)
+   */
+  async addFinanceEmailJob(
+    data: FinanceEmailJobData,
+  ): Promise<Job<FinanceEmailJobData> | null> {
+    try {
+      // Cast to any since Bull queue handles different job types via job name
+      // The processor will receive the correct FinanceEmailJobData type
+      const job = await this.emailNotificationQueue.add(
+        data.jobType,
+        data as any,
+        {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          },
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+
+      this.logger.log(
+        `Finance email job ${data.jobType} queued for requisition ${data.requisitionId} to ${data.recipients.length} recipient(s)`,
+      );
+      return job as unknown as Job<FinanceEmailJobData>;
+    } catch (error) {
+      // Log but don't throw - email should not block the main operation
+      this.logger.error(
+        `Failed to queue finance email job ${data.jobType} for requisition ${data.requisitionId}: ${error.message}`,
+        error.stack,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Queue approval notification to approvers (non-blocking)
+   */
+  async queueApproverNotification(
+    requisitionId: string,
+    emailHtml: string,
+    emailSubject: string,
+    recipients: Array<{ email: string; name?: string }>,
+  ): Promise<void> {
+    await this.addFinanceEmailJob({
+      jobType: JobType.FINANCE_NOTIFY_APPROVERS,
+      requisitionId,
+      emailHtml,
+      emailSubject,
+      recipients,
+      metadata: { actionType: 'notification' },
+    });
+  }
+
+  /**
+   * Queue approval notification to requestor (non-blocking)
+   */
+  async queueRequestorApprovalNotification(
+    requisitionId: string,
+    emailHtml: string,
+    emailSubject: string,
+    recipients: Array<{ email: string; name?: string }>,
+  ): Promise<void> {
+    await this.addFinanceEmailJob({
+      jobType: JobType.FINANCE_NOTIFY_REQUESTOR_APPROVAL,
+      requisitionId,
+      emailHtml,
+      emailSubject,
+      recipients,
+      metadata: { actionType: 'approval' },
+    });
+  }
+
+  /**
+   * Queue rejection notification to requestor (non-blocking)
+   */
+  async queueRequestorRejectionNotification(
+    requisitionId: string,
+    emailHtml: string,
+    emailSubject: string,
+    recipients: Array<{ email: string; name?: string }>,
+  ): Promise<void> {
+    await this.addFinanceEmailJob({
+      jobType: JobType.FINANCE_NOTIFY_REQUESTOR_REJECTION,
+      requisitionId,
+      emailHtml,
+      emailSubject,
+      recipients,
+      metadata: { actionType: 'rejection' },
+    });
+  }
+
+  /**
+   * Queue disbursement notification to disbursers (non-blocking)
+   */
+  async queueDisburserNotification(
+    requisitionId: string,
+    emailHtml: string,
+    emailSubject: string,
+    recipients: Array<{ email: string; name?: string }>,
+  ): Promise<void> {
+    await this.addFinanceEmailJob({
+      jobType: JobType.FINANCE_NOTIFY_DISBURSERS,
+      requisitionId,
+      emailHtml,
+      emailSubject,
+      recipients,
+      metadata: { actionType: 'notification' },
+    });
+  }
+
+  /**
+   * Queue disbursement confirmation to requestor (non-blocking)
+   */
+  async queueRequestorDisbursementNotification(
+    requisitionId: string,
+    emailHtml: string,
+    emailSubject: string,
+    recipients: Array<{ email: string; name?: string }>,
+  ): Promise<void> {
+    await this.addFinanceEmailJob({
+      jobType: JobType.FINANCE_NOTIFY_REQUESTOR_DISBURSEMENT,
+      requisitionId,
+      emailHtml,
+      emailSubject,
+      recipients,
+      metadata: { actionType: 'disbursement' },
+    });
+  }
+
+  /**
+   * Queue disbursement confirmation to finance team (non-blocking)
+   */
+  async queueDisburseConfirmationNotification(
+    requisitionId: string,
+    emailHtml: string,
+    emailSubject: string,
+    recipients: Array<{ email: string; name?: string }>,
+  ): Promise<void> {
+    await this.addFinanceEmailJob({
+      jobType: JobType.FINANCE_NOTIFY_DISBURSE_CONFIRMATION,
+      requisitionId,
+      emailHtml,
+      emailSubject,
+      recipients,
+      metadata: { actionType: 'disbursement' },
+    });
   }
 
   /**

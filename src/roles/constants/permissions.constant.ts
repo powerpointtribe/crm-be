@@ -74,6 +74,10 @@ import {
   FinancePermission,
   FinancePermissionMetadata,
 } from '../../finance/permissions';
+import {
+  EventsPermission,
+  EventsPermissionMetadata,
+} from '../../events/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -272,6 +276,15 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       'finance',
     ),
   ),
+
+  // Events Module
+  ...Object.values(EventsPermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      EventsPermissionMetadata[perm] || {},
+      'events',
+    ),
+  ),
 ];
 
 /**
@@ -292,4 +305,8 @@ export const PUBLIC_ENDPOINTS = [
 
   // Upload endpoints (public image upload for first-timers)
   'upload:image',
+
+  // Events public endpoints
+  'events:public-event',
+  'events:public-register',
 ];

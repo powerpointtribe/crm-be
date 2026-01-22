@@ -20,9 +20,11 @@ import {
 import { ActionToken, ActionTokenSchema } from './schemas/action-token.schema';
 import { Group, GroupSchema } from '../groups/schemas/group.schema';
 import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
+import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { RolesModule } from '../roles/roles.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CommonModule } from '../common/common.module';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
   imports: [
@@ -35,9 +37,11 @@ import { CommonModule } from '../common/common.module';
       { name: ActionToken.name, schema: ActionTokenSchema },
       { name: Group.name, schema: GroupSchema },
       { name: Branch.name, schema: BranchSchema },
+      { name: Member.name, schema: MemberSchema },
     ]),
     forwardRef(() => RolesModule),
     forwardRef(() => NotificationsModule),
+    forwardRef(() => QueueModule),
     CommonModule,
   ],
   controllers: [FinanceController, PublicFinanceController],
