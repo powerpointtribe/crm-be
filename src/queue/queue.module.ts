@@ -20,6 +20,10 @@ import {
   UserInvitationSchema,
 } from '../user-invitations/schemas/user-invitation.schema';
 
+// Singleton Redis connections to minimize connection count
+let sharedClient: any = null;
+let sharedSubscriber: any = null;
+
 @Module({
   imports: [
     RolesModule,
@@ -38,6 +42,21 @@ import {
           db: configService.get('REDIS_DB', 0),
           maxRetriesPerRequest: null, // Required for Bull
           enableReadyCheck: false,
+          // Connection optimization settings
+          lazyConnect: true, // Don't connect until first command
+          enableOfflineQueue: true, // Queue commands when disconnected
+          connectTimeout: 10000,
+          disconnectTimeout: 2000,
+          // Keep-alive to reduce reconnections
+          keepAlive: 30000,
+          // Reduce retry overhead
+          retryStrategy: (times: number) => {
+            if (times > 3) {
+              console.warn(`Redis connection retry attempt ${times}, backing off...`);
+              return Math.min(times * 1000, 30000); // Max 30 second backoff
+            }
+            return Math.min(times * 200, 2000);
+          },
         };
 
         console.log('Bull Redis configuration:', {
@@ -46,21 +65,44 @@ import {
           db: redisConfig.db,
         });
 
-        // Create shared connection factory
+        // Create shared connection factory - reuses connections across queues
         const createClient = (type: string) => {
-          console.log(`Creating Bull ${type} connection`);
-          const client = new Redis(redisConfig);
+          // Reuse client connection for 'client' type (commands)
+          if (type === 'client') {
+            if (!sharedClient) {
+              console.log('Creating shared Bull client connection');
+              sharedClient = new Redis(redisConfig);
+              sharedClient.on('error', (err: any) => {
+                console.error('Bull Redis client error:', err.message);
+              });
+              sharedClient.on('connect', () => {
+                console.log('Bull Redis client connected');
+              });
+            }
+            return sharedClient;
+          }
+
+          // Reuse subscriber connection for 'subscriber' type
+          if (type === 'subscriber') {
+            if (!sharedSubscriber) {
+              console.log('Creating shared Bull subscriber connection');
+              sharedSubscriber = new Redis(redisConfig);
+              sharedSubscriber.on('error', (err: any) => {
+                console.error('Bull Redis subscriber error:', err.message);
+              });
+              sharedSubscriber.on('connect', () => {
+                console.log('Bull Redis subscriber connected');
+              });
+            }
+            return sharedSubscriber;
+          }
+
+          // For 'bclient' (blocking client), create new but with lazy connect
+          console.log(`Creating Bull ${type} connection (on-demand)`);
+          const client = new Redis({ ...redisConfig, lazyConnect: true });
 
           client.on('error', (err: any) => {
             console.error(`Bull Redis ${type} error:`, err.message);
-          });
-
-          client.on('connect', () => {
-            console.log(`Bull Redis ${type} connected`);
-          });
-
-          client.on('ready', () => {
-            console.log(`Bull Redis ${type} ready`);
           });
 
           return client;
