@@ -21,6 +21,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { MembersModule } from '../members/members.module';
 import { BranchesModule } from '../branches/branches.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { BranchesModule } from '../branches/branches.module';
     forwardRef(() => AuditLogsModule),
     forwardRef(() => MembersModule),
     forwardRef(() => BranchesModule),
+    NotificationsModule,
   ],
   controllers: [EventsController],
   providers: [EventsService],

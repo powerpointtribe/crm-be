@@ -169,6 +169,20 @@ export class EventsController {
     };
   }
 
+  @Post('public/:slug/partner')
+  @Public()
+  async submitPartnership(
+    @Param('slug') slug: string,
+    @Body() partnerDto: { name: string; company?: string; email: string; phone: string; interestDetails: string },
+  ) {
+    const result = await this.eventsService.submitPartnership(slug, partnerDto);
+
+    return {
+      success: true,
+      message: 'Partnership inquiry submitted successfully',
+    };
+  }
+
   // ========== ANALYTICS ENDPOINTS - MUST BE BEFORE :id ROUTES ==========
 
   @Get('analytics/overview')

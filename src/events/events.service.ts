@@ -74,6 +74,7 @@ import {
   BranchAccessService,
   BranchFilterContext,
 } from '../common/services/branch-access.service';
+import { EmailProvider } from '../notifications/providers/email.provider';
 
 @Injectable()
 export class EventsService {
@@ -88,6 +89,7 @@ export class EventsService {
     @InjectModel(SessionAttendance.name)
     private sessionAttendanceModel: Model<SessionAttendanceDocument>,
     private branchAccessService: BranchAccessService,
+    private emailProvider: EmailProvider,
   ) {}
 
   // ========== EVENT CRUD OPERATIONS ==========
@@ -704,6 +706,94 @@ export class EventsService {
     await this.updateEventCounts(event._id.toString());
 
     return savedReg;
+  }
+
+  async submitPartnership(
+    slug: string,
+    partnerDto: { name: string; company?: string; email: string; phone: string; interestDetails: string },
+  ): Promise<any> {
+    const event = await this.findBySlug(slug);
+
+    const partnershipData = {
+      eventTitle: event.title,
+      eventSlug: slug,
+      submittedAt: new Date(),
+      ...partnerDto,
+    };
+
+    this.logger.log('Partnership Inquiry Received:', partnershipData);
+
+    // Prepare email content
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+            .content { background: #f9f9f9; padding: 20px; border: 1px solid #e0e0e0; }
+            .field { margin-bottom: 15px; }
+            .label { font-weight: bold; color: #555; }
+            .value { margin-top: 5px; padding: 10px; background: white; border-radius: 4px; }
+            .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #777; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2 style="margin: 0;">🤝 New Partnership Inquiry</h2>
+              <p style="margin: 5px 0 0 0; opacity: 0.9;">for ${event.title}</p>
+            </div>
+            <div class="content">
+              <div class="field">
+                <div class="label">Name:</div>
+                <div class="value">${partnerDto.name}</div>
+              </div>
+              <div class="field">
+                <div class="label">Company:</div>
+                <div class="value">${partnerDto.company || 'Not provided'}</div>
+              </div>
+              <div class="field">
+                <div class="label">Email:</div>
+                <div class="value"><a href="mailto:${partnerDto.email}">${partnerDto.email}</a></div>
+              </div>
+              <div class="field">
+                <div class="label">Phone:</div>
+                <div class="value"><a href="tel:${partnerDto.phone}">${partnerDto.phone}</a></div>
+              </div>
+              <div class="field">
+                <div class="label">Partnership Interest:</div>
+                <div class="value">${partnerDto.interestDetails}</div>
+              </div>
+              <div class="footer">
+                <p>Submitted at: ${new Date().toLocaleString('en-US', {
+                  timeZone: 'Africa/Lagos',
+                  dateStyle: 'full',
+                  timeStyle: 'long'
+                })}</p>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    try {
+      // Send email to lbs@powerpointtribe.org
+      await this.emailProvider.sendEmail({
+        to: 'lbs@powerpointtribe.org',
+        subject: `Partnership Inquiry: ${event.title} - ${partnerDto.name}`,
+        html: emailHtml,
+      });
+
+      this.logger.log(`Partnership inquiry email sent successfully to lbs@powerpointtribe.org`);
+    } catch (error) {
+      this.logger.error('Failed to send partnership inquiry email:', error);
+      // Don't throw error - we still want to acknowledge receipt even if email fails
+    }
+
+    return partnershipData;
   }
 
   // ========== HELPER METHODS ==========
