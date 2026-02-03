@@ -245,7 +245,7 @@ export class FirstTimerSchedulerService implements OnModuleInit {
       sms: 'SMS',
       whatsapp: 'WhatsApp',
       visit: 'Home Visit',
-      video_call: 'Video Call',
+      in_visit: 'In-Person Visit',
     };
 
     return `

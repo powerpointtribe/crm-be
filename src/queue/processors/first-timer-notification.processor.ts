@@ -1,6 +1,13 @@
-import { Processor, Process } from '@nestjs/bull';
+import {
+  Processor,
+  Process,
+  OnQueueActive,
+  OnQueueCompleted,
+  OnQueueFailed,
+  OnQueueError,
+} from '@nestjs/bull';
 import { Job } from 'bull';
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import {
   QueueName,
   FirstTimerNotificationJobData,
@@ -8,13 +15,47 @@ import {
 } from '../../common/interfaces/queue-job.interface';
 import { NotificationsService } from '../../notifications/notifications.service';
 
-@Injectable()
+/**
+ * Processor for first-timer notification jobs
+ * Handles all notification-related jobs for first-timers including:
+ * - Thank you emails
+ * - Conversion notifications
+ * - Follow-up reminders
+ * - District pastor notifications
+ * - Member followup assignments
+ */
 @Processor(QueueName.FIRST_TIMER_NOTIFICATIONS)
 export class FirstTimerNotificationProcessor {
   private readonly logger = new Logger(FirstTimerNotificationProcessor.name);
 
   constructor(private notificationsService: NotificationsService) {
     this.logger.log('FirstTimerNotificationProcessor initialized');
+  }
+
+  // Queue event handlers for monitoring
+  @OnQueueActive()
+  onActive(job: Job) {
+    this.logger.log(
+      `Processing job ${job.id} of type ${job.name}`,
+    );
+  }
+
+  @OnQueueCompleted()
+  onCompleted(job: Job, result: any) {
+    this.logger.log(`Job ${job.id} of type ${job.name} completed successfully`);
+  }
+
+  @OnQueueFailed()
+  onFailed(job: Job, error: Error) {
+    this.logger.error(
+      `Job ${job.id} of type ${job.name} failed: ${error.message}`,
+      error.stack,
+    );
+  }
+
+  @OnQueueError()
+  onError(error: Error) {
+    this.logger.error(`Queue error: ${error.message}`, error.stack);
   }
 
   @Process(JobType.FIRST_TIMER_THANK_YOU_EMAIL)
@@ -53,7 +94,7 @@ export class FirstTimerNotificationProcessor {
     this.logger.log(`Processing conversion notification for job: ${job.id}`);
 
     try {
-      const { firstTimerId, additionalData } = job.data;
+      const { additionalData } = job.data;
       const {
         firstTimerName,
         giaLeaderEmail,
@@ -104,9 +145,7 @@ export class FirstTimerNotificationProcessor {
 
     try {
       const { firstTimerId, additionalData } = job.data;
-      const { reminderType } = additionalData || {};
-
-      const { email, firstName, lastName, interestedInJoining } =
+      const { reminderType, email, firstName, lastName, interestedInJoining } =
         additionalData || {};
 
       if (!email) {
@@ -148,8 +187,6 @@ export class FirstTimerNotificationProcessor {
     try {
       const { additionalData } = job.data;
       const {
-        memberId,
-        districtId,
         newMembers,
         districtName,
         pastorEmail,
@@ -269,7 +306,7 @@ export class FirstTimerNotificationProcessor {
             ? new Date(ft.dateOfVisit).toLocaleDateString()
             : new Date().toLocaleDateString(),
         })),
-        assignmentType: assignmentType || 'followup', // 'followup' or 'assignment'
+        assignmentType: assignmentType || 'followup',
         assignedBy: assignedBy || 'Church Leadership',
       });
 
@@ -290,7 +327,7 @@ export class FirstTimerNotificationProcessor {
     job: Job<FirstTimerNotificationJobData>,
   ) {
     this.logger.log(
-      `🔔 Processing scheduled follow-up reminder - Job ID: ${job.id}, Data: ${JSON.stringify(job.data)}`,
+      `Processing scheduled follow-up reminder - Job ID: ${job.id}`,
     );
 
     try {
@@ -331,13 +368,47 @@ export class FirstTimerNotificationProcessor {
       });
 
       this.logger.log(
-        `✅ Scheduled follow-up reminder sent to ${assignedPersonEmail} for first-timer ${firstTimerId}`,
+        `Scheduled follow-up reminder sent to ${assignedPersonEmail} for first-timer ${firstTimerId}`,
       );
       return { success: true, assignedPersonEmail, firstTimerId };
     } catch (error) {
       this.logger.error(
-        `❌ Failed to send scheduled follow-up reminder: ${error.message}`,
+        `Failed to send scheduled follow-up reminder: ${error.message}`,
         error.stack,
+      );
+      throw error;
+    }
+  }
+
+  @Process('ready-for-integration-notification')
+  async handleReadyForIntegrationNotification(
+    job: Job<{
+      firstTimerId: string;
+      firstTimerName: string;
+      markedBy: string;
+      markedAt: string;
+    }>,
+  ) {
+    this.logger.log(
+      `Processing ready-for-integration notification for job: ${job.id}`,
+    );
+
+    try {
+      const { firstTimerId, firstTimerName, markedBy, markedAt } = job.data;
+
+      this.logger.log(
+        `First-timer "${firstTimerName}" (${firstTimerId}) marked as ready for integration by ${markedBy} at ${markedAt}`,
+      );
+
+      return {
+        success: true,
+        firstTimerId,
+        firstTimerName,
+        message: 'Ready for integration notification processed',
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to process ready-for-integration notification: ${error.message}`,
       );
       throw error;
     }

@@ -50,7 +50,7 @@ export class CallReport {
 
   @Prop({
     type: String,
-    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'],
+    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'in_visit'],
     required: true,
   })
   contactMethod: string;

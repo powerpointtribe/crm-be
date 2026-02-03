@@ -35,16 +35,79 @@ export interface EventLocation {
   virtualLink?: string;
 }
 
-// Custom field type definition
+// Validation rules for custom fields
+export interface FieldValidation {
+  minLength?: number;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  patternMessage?: string;
+}
+
+// Conditional logic rule
+export interface ConditionalRule {
+  fieldId: string;
+  operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'greater_than' | 'less_than' | 'is_empty' | 'is_not_empty';
+  value?: string;
+}
+
+// Conditional logic configuration
+export interface ConditionalLogic {
+  enabled: boolean;
+  action: 'show' | 'hide';
+  rules: ConditionalRule[];
+  logicType: 'all' | 'any';
+}
+
+// Custom field type definition (enhanced)
 export interface CustomField {
   id: string;
   label: string;
-  type: 'text' | 'textarea' | 'select' | 'checkbox' | 'radio';
+  type: 'text' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'email' | 'phone' | 'number' | 'date' | 'time' | 'rating' | 'multi-checkbox';
   required: boolean;
   options?: string[];
+  placeholder?: string;
+  helpText?: string;
+  description?: string;
+  sectionId?: string;
+  order: number;
+  validation?: FieldValidation;
+  conditionalLogic?: ConditionalLogic;
 }
 
-// Registration settings type definition
+// Form section for multi-section forms
+export interface FormSection {
+  id: string;
+  title: string;
+  description?: string;
+  order: number;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
+}
+
+// Form header configuration
+export interface FormHeader {
+  title?: string;
+  description?: string;
+  logoUrl?: string;
+}
+
+// Success message configuration
+export interface SuccessMessage {
+  title?: string;
+  message?: string;
+  showCheckInQR?: boolean;
+}
+
+// Terms and conditions configuration
+export interface TermsAndConditions {
+  enabled: boolean;
+  text?: string;
+  linkUrl?: string;
+}
+
+// Registration settings type definition (enhanced)
 export interface RegistrationSettings {
   isOpen: boolean;
   maxAttendees?: number;
@@ -52,6 +115,13 @@ export interface RegistrationSettings {
   requireApproval: boolean;
   allowWaitlist: boolean;
   customFields: CustomField[];
+  formLayout?: 'single-page' | 'multi-section';
+  formSections?: FormSection[];
+  qrCodeEnabled?: boolean;
+  formHeader?: FormHeader;
+  successMessage?: SuccessMessage;
+  termsAndConditions?: TermsAndConditions;
+  formStatus?: 'draft' | 'live';
 }
 
 // Committee member type definition
@@ -155,18 +225,78 @@ export class Event {
           label: { type: String },
           type: {
             type: String,
-            enum: ['text', 'textarea', 'select', 'checkbox', 'radio'],
+            enum: ['text', 'textarea', 'select', 'checkbox', 'radio', 'email', 'phone', 'number', 'date', 'time', 'rating', 'multi-checkbox'],
           },
           required: { type: Boolean, default: false },
           options: [{ type: String }],
+          placeholder: { type: String },
+          helpText: { type: String },
+          description: { type: String },
+          sectionId: { type: String },
+          order: { type: Number, default: 0 },
+          validation: {
+            minLength: { type: Number },
+            maxLength: { type: Number },
+            min: { type: Number },
+            max: { type: Number },
+            pattern: { type: String },
+            patternMessage: { type: String },
+          },
+          conditionalLogic: {
+            enabled: { type: Boolean, default: false },
+            action: { type: String, enum: ['show', 'hide'], default: 'show' },
+            rules: [
+              {
+                fieldId: { type: String },
+                operator: {
+                  type: String,
+                  enum: ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'is_empty', 'is_not_empty'],
+                },
+                value: { type: String },
+              },
+            ],
+            logicType: { type: String, enum: ['all', 'any'], default: 'all' },
+          },
         },
       ],
+      formLayout: { type: String, enum: ['single-page', 'multi-section'], default: 'single-page' },
+      formSections: [
+        {
+          id: { type: String },
+          title: { type: String },
+          description: { type: String },
+          order: { type: Number, default: 0 },
+          collapsible: { type: Boolean, default: false },
+          defaultExpanded: { type: Boolean, default: true },
+        },
+      ],
+      qrCodeEnabled: { type: Boolean, default: false },
+      formHeader: {
+        title: { type: String },
+        description: { type: String },
+        logoUrl: { type: String },
+      },
+      successMessage: {
+        title: { type: String },
+        message: { type: String },
+        showCheckInQR: { type: Boolean, default: true },
+      },
+      termsAndConditions: {
+        enabled: { type: Boolean, default: false },
+        text: { type: String },
+        linkUrl: { type: String },
+      },
+      formStatus: { type: String, enum: ['draft', 'live'], default: 'draft' },
     },
     default: {
       isOpen: true,
       requireApproval: false,
       allowWaitlist: true,
       customFields: [],
+      formLayout: 'single-page',
+      formSections: [],
+      qrCodeEnabled: false,
+      formStatus: 'draft',
     },
   })
   registrationSettings: RegistrationSettings;
@@ -204,6 +334,9 @@ export class Event {
 
   @Prop({ trim: true })
   contactPhone?: string;
+
+  @Prop({ trim: true })
+  websiteUrl?: string;
 
   @Prop([{ type: String }])
   tags: string[];

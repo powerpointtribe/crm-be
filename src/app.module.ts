@@ -27,6 +27,8 @@ import { UserInvitationsModule } from './user-invitations/user-invitations.modul
 import { FinanceModule } from './finance/finance.module';
 import { EntryImportModule } from './entry-import/entry-import.module';
 import { EventsModule } from './events/events.module';
+import { LibraryModule } from './library/library.module';
+import { BulkEmailModule } from './bulk-email/bulk-email.module';
 
 @Module({
   imports: [
@@ -81,6 +83,8 @@ import { EventsModule } from './events/events.module';
     FinanceModule,
     EntryImportModule,
     EventsModule,
+    LibraryModule,
+    BulkEmailModule,
   ],
   controllers: [AppController],
   providers: [

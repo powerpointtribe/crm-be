@@ -15,9 +15,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class AddFollowUpDto {
   @ApiProperty({
     description: 'Follow-up method',
-    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'],
+    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'in_visit'],
   })
-  @IsEnum(['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'])
+  @IsEnum(['phone', 'email', 'sms', 'whatsapp', 'visit', 'in_visit'])
   @IsNotEmpty()
   method: string;
 

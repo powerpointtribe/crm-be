@@ -164,7 +164,6 @@ export class FirstTimer {
             'sms',
             'whatsapp',
             'visit',
-            'video_call',
             'in_visit',
           ],
           required: true,

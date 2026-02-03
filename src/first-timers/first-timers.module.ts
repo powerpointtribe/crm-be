@@ -1,7 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { FirstTimersService } from './first-timers.service';
-import { FirstTimerSchedulerService } from './first-timer-scheduler.service';
+// import { FirstTimerSchedulerService } from './first-timer-scheduler.service'; // Disabled - was causing Redis connection limit issues
 import { CallReportsService } from './call-reports.service';
 import { MessageDraftsService } from './message-drafts.service';
 import { FirstTimersController } from './first-timers.controller';
@@ -39,7 +39,7 @@ import { CommonModule } from '../common/common.module';
   controllers: [MessageDraftsController, FirstTimersController],
   providers: [
     FirstTimersService,
-    FirstTimerSchedulerService,
+    // FirstTimerSchedulerService, // Disabled - was causing Redis connection limit issues
     CallReportsService,
     MessageDraftsService,
   ],

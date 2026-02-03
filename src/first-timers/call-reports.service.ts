@@ -598,6 +598,10 @@ export class CallReportsService {
       };
       reportCount: number;
       contactCount: number;
+      uniqueContacts: number;
+      totalAssigned: number;
+      expectedContacts: number;
+      contactCompletionRate: number;
       pendingFollowUps: number;
       conversionRate: number;
       avgReportsPerFirstTimer: number;
@@ -681,6 +685,10 @@ export class CallReportsService {
       };
       reportCount: number;
       contactCount: number;
+      uniqueContacts: number;
+      totalAssigned: number;
+      expectedContacts: number;
+      contactCompletionRate: number;
       pendingFollowUps: number;
       conversionRate: number;
       avgReportsPerFirstTimer: number;
@@ -736,6 +744,24 @@ export class CallReportsService {
         status: { $nin: ['CLOSED'] },
       });
 
+      // Count total first timers assigned to this member
+      const totalAssigned = await this.firstTimerModel.countDocuments({
+        assignedTo: stat._id,
+        isActive: true,
+        isArchived: false,
+      });
+
+      // Expected contacts = total assigned (each first timer should be contacted)
+      // Expected call reports = totalAssigned * 4 (4 reports per first timer)
+      const expectedContacts = totalAssigned;
+      const expectedCallReports = totalAssigned * 4;
+
+      // Contact completion rate: unique contacts / total assigned * 100
+      const contactCompletionRate =
+        totalAssigned > 0
+          ? (stat.firstTimersManaged / totalAssigned) * 100
+          : 0;
+
       result.push({
         member: {
           _id: stat.memberInfo._id,
@@ -745,6 +771,10 @@ export class CallReportsService {
         },
         reportCount: stat.totalReports,
         contactCount: stat.totalReports,
+        uniqueContacts: stat.firstTimersManaged,
+        totalAssigned,
+        expectedContacts,
+        contactCompletionRate: Math.round(contactCompletionRate * 100) / 100,
         pendingFollowUps: memberPendingFollowUps,
         conversionRate: Math.round(successRate * 100) / 100,
         avgReportsPerFirstTimer:

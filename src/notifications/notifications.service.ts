@@ -1,9 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EmailProvider } from './providers/email.provider';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private emailProvider: EmailProvider) {}
+  private readonly frontendUrl: string;
+
+  constructor(
+    private emailProvider: EmailProvider,
+    private configService: ConfigService,
+  ) {
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:5173');
+  }
 
   async sendWelcomeEmail(memberData: {
     email: string;
@@ -439,6 +447,11 @@ export class NotificationsService {
             <li>Update their integration stage as they progress</li>
           </ul>
         </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${this.frontendUrl}/login" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+            Login to View Details
+          </a>
+        </div>
         <p>Thank you for your commitment to following up with our visitors!</p>
         <p>Blessings,<br/>The Powerpoint Tribe Leadership Team</p>
       </div>
@@ -838,6 +851,12 @@ export class NotificationsService {
               💡 <strong>Remember:</strong> Your role is crucial in helping these visitors feel connected and welcomed.
               Each person represents someone God has brought to our church family!
             </p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${this.frontendUrl}/login" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+              Login to View Details
+            </a>
           </div>
 
           <p style="margin-top: 30px;">Thank you for your heart for people and your commitment to excellent follow-up!</p>

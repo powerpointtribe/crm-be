@@ -30,7 +30,7 @@ class LearningObjectiveDto {
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()
-  isRequired?: boolean;
+  required?: boolean;
 }
 
 // Session Resource DTO
@@ -114,7 +114,7 @@ class AssessmentConfigDto {
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()
-  isRequired?: boolean;
+  required?: boolean;
 }
 
 // Attendance Config DTO

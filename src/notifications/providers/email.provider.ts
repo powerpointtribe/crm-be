@@ -140,7 +140,7 @@ export class EmailProvider {
       this.configService.get<string>('ZEPTOMAIL_SMTP_HOST') ||
       'smtp.zeptomail.com';
     const port = parseInt(
-      this.configService.get<string>('ZEPTOMAIL_SMTP_PORT') || '587',
+      this.configService.get<string>('ZEPTOMAIL_SMTP_PORT') || '465',
       10,
     );
 
@@ -154,14 +154,10 @@ export class EmailProvider {
     this.nodemailerTransporter = nodemailer.createTransport({
       host: host,
       port: port,
-      secure: false, // Use TLS
+      secure: true, // Use SSL for port 465
       auth: {
         user: username,
         pass: apiKey, // Use API key as password
-      },
-      tls: {
-        ciphers: 'SSLv3',
-        rejectUnauthorized: false,
       },
       debug: process.env.NODE_ENV === 'development',
       logger: process.env.NODE_ENV === 'development',

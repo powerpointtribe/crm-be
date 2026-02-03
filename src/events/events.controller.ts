@@ -111,6 +111,183 @@ export class EventsController {
     }
   }
 
+  // ========== PUBLIC ENDPOINTS (No Auth) - MUST BE BEFORE :id ROUTES ==========
+
+  @Get('public/:slug')
+  @Public()
+  async getPublicEvent(@Param('slug') slug: string) {
+    const event = await this.eventsService.findBySlug(slug);
+
+    // Return limited public information
+    return {
+      _id: event._id,
+      title: event.title,
+      description: event.description,
+      type: event.type,
+      status: event.status,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      location: event.location,
+      bannerImage: event.bannerImage,
+      contactEmail: event.contactEmail,
+      contactPhone: event.contactPhone,
+      websiteUrl: event.websiteUrl,
+      registrationSettings: {
+        isOpen: event.registrationSettings?.isOpen,
+        maxAttendees: event.registrationSettings?.maxAttendees,
+        deadline: event.registrationSettings?.deadline,
+        customFields: event.registrationSettings?.customFields,
+      },
+      registrationCount: event.registrationCount,
+      branch: event.branch,
+    };
+  }
+
+  @Post('public/:slug/register')
+  @Public()
+  async publicRegister(
+    @Param('slug') slug: string,
+    @Body() dto: PublicRegistrationDto,
+  ) {
+    const registration = await this.eventsService.publicRegister(slug, dto);
+
+    // Return limited information
+    return {
+      success: true,
+      message: 'Registration successful',
+      registration: {
+        _id: registration._id,
+        status: registration.status,
+        checkInCode: registration.checkInCode,
+        attendeeInfo: {
+          firstName: registration.attendeeInfo.firstName,
+          lastName: registration.attendeeInfo.lastName,
+        },
+      },
+    };
+  }
+
+  // ========== ANALYTICS ENDPOINTS - MUST BE BEFORE :id ROUTES ==========
+
+  @Get('analytics/overview')
+  @RequirePermission(EventsPermission.VIEW_EVENTS)
+  async getOverviewStats(@Query() query: EventAnalyticsQueryDto, @Request() req) {
+    const branchId = req.user.branch?._id || req.user.branch;
+    return this.eventsService.getOverviewStats(branchId, query);
+  }
+
+  @Get('analytics/trends')
+  @RequirePermission(EventsPermission.VIEW_EVENTS)
+  async getAttendanceTrends(@Query() query: TrendAnalyticsQueryDto, @Request() req) {
+    const branchId = query.branchId || req.user.branch?._id || req.user.branch;
+    return this.eventsService.getAttendanceTrends(branchId, query);
+  }
+
+  @Get('analytics/engagement')
+  @RequirePermission(EventsPermission.VIEW_EVENTS)
+  async getMemberEngagement(@Query() query: EventAnalyticsQueryDto, @Request() req) {
+    const branchId = req.user.branch?._id || req.user.branch;
+    return this.eventsService.getMemberEngagementAnalytics(branchId, query);
+  }
+
+  @Get('analytics/dashboard')
+  @RequirePermission(EventsPermission.VIEW_EVENTS)
+  async getDashboardAnalytics(@Query() query: EventAnalyticsQueryDto, @Request() req) {
+    const branchId = req.user.branch?._id || req.user.branch;
+    return this.eventsService.getDashboardAnalytics(branchId, query);
+  }
+
+  // ========== SESSION ENDPOINTS (without event id) - MUST BE BEFORE :id ROUTES ==========
+
+  @Get('sessions/:sessionId')
+  @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
+  async getSessionById(@Param('sessionId') sessionId: string) {
+    return this.eventsService.getSessionById(sessionId);
+  }
+
+  @Patch('sessions/:sessionId')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  @AuditLog({
+    action: AuditAction.EVENT_UPDATED,
+    entityType: AuditEntity.EVENT,
+    description: 'Updated session',
+    getEntityId: (result, request) => request.params.sessionId,
+  })
+  async updateSession(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: UpdateSessionDto,
+  ) {
+    return this.eventsService.updateSession(sessionId, dto);
+  }
+
+  @Delete('sessions/:sessionId')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  @AuditLog({
+    action: AuditAction.EVENT_UPDATED,
+    entityType: AuditEntity.EVENT,
+    description: 'Deleted session',
+    severity: 'high',
+    getEntityId: (result, request) => request.params.sessionId,
+  })
+  async deleteSession(@Param('sessionId') sessionId: string) {
+    await this.eventsService.deleteSession(sessionId);
+    return { message: 'Session deleted successfully' };
+  }
+
+  // ========== SESSION ATTENDANCE ENDPOINTS - MUST BE BEFORE :id ROUTES ==========
+
+  @Post('sessions/:sessionId/attendance')
+  @RequirePermission(EventsPermission.CHECK_IN)
+  @AuditLog({
+    action: AuditAction.EVENT_CHECK_IN,
+    entityType: AuditEntity.EVENT_REGISTRATION,
+    description: 'Recorded session attendance',
+  })
+  async recordSessionAttendance(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: RecordSessionAttendanceDto,
+  ) {
+    return this.eventsService.recordSessionAttendance(sessionId, dto);
+  }
+
+  @Post('sessions/:sessionId/attendance/bulk')
+  @RequirePermission(EventsPermission.CHECK_IN)
+  @AuditLog({
+    action: AuditAction.EVENT_CHECK_IN,
+    entityType: AuditEntity.EVENT_REGISTRATION,
+    description: 'Recorded bulk session attendance',
+  })
+  async recordBulkAttendance(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: BulkRecordAttendanceDto,
+  ) {
+    return this.eventsService.bulkRecordAttendance(sessionId, dto);
+  }
+
+  @Post('sessions/:sessionId/assessment')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  @AuditLog({
+    action: AuditAction.EVENT_UPDATED,
+    entityType: AuditEntity.EVENT,
+    description: 'Recorded assessment result',
+  })
+  async recordAssessmentResult(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: RecordAssessmentResultDto,
+  ) {
+    return this.eventsService.recordAssessmentResult(sessionId, dto);
+  }
+
+  @Get('sessions/:sessionId/attendance')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  async getSessionAttendance(@Param('sessionId') sessionId: string) {
+    return this.eventsService.getSessionAttendance(sessionId);
+  }
+
+  // ========== DYNAMIC EVENT ROUTES (:id) ==========
+
   @Get(':id')
   @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
   async findOne(@Param('id') id: string) {
@@ -271,7 +448,7 @@ export class EventsController {
     return this.eventsService.checkInByCode(id, checkInCode);
   }
 
-  // ========== SESSION MANAGEMENT ENDPOINTS ==========
+  // ========== SESSION MANAGEMENT ENDPOINTS (with event id) ==========
 
   @Post(':id/sessions')
   @RequirePermission(EventsPermission.UPDATE_EVENT)
@@ -298,120 +475,7 @@ export class EventsController {
     return this.eventsService.getSessions(eventId, query);
   }
 
-  @Get('sessions/:sessionId')
-  @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
-  async getSessionById(@Param('sessionId') sessionId: string) {
-    return this.eventsService.getSessionById(sessionId);
-  }
-
-  @Patch('sessions/:sessionId')
-  @RequirePermission(EventsPermission.UPDATE_EVENT)
-  @AuditLog({
-    action: AuditAction.EVENT_UPDATED,
-    entityType: AuditEntity.EVENT,
-    description: 'Updated session',
-    getEntityId: (result, request) => request.params.sessionId,
-  })
-  async updateSession(
-    @Param('sessionId') sessionId: string,
-    @Body() dto: UpdateSessionDto,
-  ) {
-    return this.eventsService.updateSession(sessionId, dto);
-  }
-
-  @Delete('sessions/:sessionId')
-  @RequirePermission(EventsPermission.UPDATE_EVENT)
-  @AuditLog({
-    action: AuditAction.EVENT_UPDATED,
-    entityType: AuditEntity.EVENT,
-    description: 'Deleted session',
-    severity: 'high',
-    getEntityId: (result, request) => request.params.sessionId,
-  })
-  async deleteSession(@Param('sessionId') sessionId: string) {
-    await this.eventsService.deleteSession(sessionId);
-    return { message: 'Session deleted successfully' };
-  }
-
-  // ========== SESSION ATTENDANCE ENDPOINTS ==========
-
-  @Post('sessions/:sessionId/attendance')
-  @RequirePermission(EventsPermission.CHECK_IN)
-  @AuditLog({
-    action: AuditAction.EVENT_CHECK_IN,
-    entityType: AuditEntity.EVENT_REGISTRATION,
-    description: 'Recorded session attendance',
-  })
-  async recordSessionAttendance(
-    @Param('sessionId') sessionId: string,
-    @Body() dto: RecordSessionAttendanceDto,
-  ) {
-    return this.eventsService.recordSessionAttendance(sessionId, dto);
-  }
-
-  @Post('sessions/:sessionId/attendance/bulk')
-  @RequirePermission(EventsPermission.CHECK_IN)
-  @AuditLog({
-    action: AuditAction.EVENT_CHECK_IN,
-    entityType: AuditEntity.EVENT_REGISTRATION,
-    description: 'Recorded bulk session attendance',
-  })
-  async recordBulkAttendance(
-    @Param('sessionId') sessionId: string,
-    @Body() dto: BulkRecordAttendanceDto,
-  ) {
-    return this.eventsService.bulkRecordAttendance(sessionId, dto);
-  }
-
-  @Post('sessions/:sessionId/assessment')
-  @RequirePermission(EventsPermission.UPDATE_EVENT)
-  @AuditLog({
-    action: AuditAction.EVENT_UPDATED,
-    entityType: AuditEntity.EVENT,
-    description: 'Recorded assessment result',
-  })
-  async recordAssessmentResult(
-    @Param('sessionId') sessionId: string,
-    @Body() dto: RecordAssessmentResultDto,
-  ) {
-    return this.eventsService.recordAssessmentResult(sessionId, dto);
-  }
-
-  @Get('sessions/:sessionId/attendance')
-  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
-  async getSessionAttendance(@Param('sessionId') sessionId: string) {
-    return this.eventsService.getSessionAttendance(sessionId);
-  }
-
-  // ========== ANALYTICS ENDPOINTS ==========
-
-  @Get('analytics/overview')
-  @RequirePermission(EventsPermission.VIEW_EVENTS)
-  async getOverviewStats(@Query() query: EventAnalyticsQueryDto, @Request() req) {
-    const branchId = req.user.branch?._id || req.user.branch;
-    return this.eventsService.getOverviewStats(branchId, query);
-  }
-
-  @Get('analytics/trends')
-  @RequirePermission(EventsPermission.VIEW_EVENTS)
-  async getAttendanceTrends(@Query() query: TrendAnalyticsQueryDto, @Request() req) {
-    const branchId = query.branchId || req.user.branch?._id || req.user.branch;
-    return this.eventsService.getAttendanceTrends(branchId, query);
-  }
-
-  @Get('analytics/engagement')
-  @RequirePermission(EventsPermission.VIEW_EVENTS)
-  async getMemberEngagement(@Query() query: EventAnalyticsQueryDto, @Request() req) {
-    const branchId = req.user.branch?._id || req.user.branch;
-    return this.eventsService.getMemberEngagementAnalytics(branchId, query);
-  }
-
-  @Get('analytics/dashboard')
-  @RequirePermission(EventsPermission.VIEW_EVENTS)
-  async getDashboardAnalytics(@Query() query: EventAnalyticsQueryDto, @Request() req) {
-    const branchId = req.user.branch?._id || req.user.branch;
-    return this.eventsService.getDashboardAnalytics(branchId, query);
-  }
+  // ========== EVENT-SPECIFIC ANALYTICS ENDPOINTS ==========
 
   @Get(':id/analytics')
   @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
@@ -479,62 +543,5 @@ export class EventsController {
     @Query() query: ParticipantAccountabilityQueryDto,
   ) {
     return this.eventsService.getTrainingAccountabilityReport(id, query);
-  }
-
-  // ========== PUBLIC ENDPOINTS (No Auth) ==========
-
-  @Get('public/:slug')
-  @Public()
-  async getPublicEvent(@Param('slug') slug: string) {
-    const event = await this.eventsService.findBySlug(slug);
-
-    // Return limited public information
-    return {
-      _id: event._id,
-      title: event.title,
-      description: event.description,
-      type: event.type,
-      status: event.status,
-      startDate: event.startDate,
-      endDate: event.endDate,
-      startTime: event.startTime,
-      endTime: event.endTime,
-      location: event.location,
-      bannerImage: event.bannerImage,
-      contactEmail: event.contactEmail,
-      contactPhone: event.contactPhone,
-      registrationSettings: {
-        isOpen: event.registrationSettings?.isOpen,
-        maxAttendees: event.registrationSettings?.maxAttendees,
-        deadline: event.registrationSettings?.deadline,
-        customFields: event.registrationSettings?.customFields,
-      },
-      registrationCount: event.registrationCount,
-      branch: event.branch,
-    };
-  }
-
-  @Post('public/:slug/register')
-  @Public()
-  async publicRegister(
-    @Param('slug') slug: string,
-    @Body() dto: PublicRegistrationDto,
-  ) {
-    const registration = await this.eventsService.publicRegister(slug, dto);
-
-    // Return limited information
-    return {
-      success: true,
-      message: 'Registration successful',
-      registration: {
-        _id: registration._id,
-        status: registration.status,
-        checkInCode: registration.checkInCode,
-        attendeeInfo: {
-          firstName: registration.attendeeInfo.firstName,
-          lastName: registration.attendeeInfo.lastName,
-        },
-      },
-    };
   }
 }

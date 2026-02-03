@@ -6,7 +6,7 @@ export type EventSessionDocument = EventSession & Document & { _id: Types.Object
 // Session status
 export enum SessionStatus {
   SCHEDULED = 'scheduled',
-  IN_PROGRESS = 'in-progress',
+  IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
 }
@@ -26,7 +26,7 @@ export enum SessionType {
 export interface LearningObjective {
   id: string;
   description: string;
-  isRequired: boolean;
+  required: boolean;
 }
 
 // Resource/Material type
@@ -126,7 +126,7 @@ export class EventSession {
       {
         id: { type: String },
         description: { type: String },
-        isRequired: { type: Boolean, default: true },
+        required: { type: Boolean, default: true },
       },
     ],
     default: [],
@@ -155,7 +155,7 @@ export class EventSession {
       assessmentType: { type: String, enum: ['quiz', 'assignment', 'practical', 'presentation'] },
       passingScore: { type: Number },
       maxScore: { type: Number },
-      isRequired: { type: Boolean, default: false },
+      required: { type: Boolean, default: false },
     },
     default: { hasAssessment: false },
   })
@@ -164,7 +164,7 @@ export class EventSession {
     assessmentType?: 'quiz' | 'assignment' | 'practical' | 'presentation';
     passingScore?: number;
     maxScore?: number;
-    isRequired?: boolean;
+    required?: boolean;
   };
 
   // Attendance Tracking Configuration

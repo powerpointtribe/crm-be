@@ -15,6 +15,9 @@ export enum JobType {
   BULK_USER_UPDATE = 'bulk-user-update',
   BULK_FIRST_TIMER_CREATE = 'bulk-first-timer-create',
 
+  // Bulk Email jobs
+  BULK_EMAIL_CAMPAIGN_SEND = 'bulk-email-campaign-send',
+
   // First Timer specific jobs
   FIRST_TIMER_THANK_YOU_EMAIL = 'first-timer-thank-you-email',
   FIRST_TIMER_CONVERSION_NOTIFICATION = 'first-timer-conversion-notification',

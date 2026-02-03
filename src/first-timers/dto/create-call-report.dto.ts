@@ -61,9 +61,9 @@ export class CreateCallReportDto {
 
   @ApiProperty({
     description: 'Contact method used',
-    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'],
+    enum: ['phone', 'email', 'sms', 'whatsapp', 'visit', 'in_visit'],
   })
-  @IsEnum(['phone', 'email', 'sms', 'whatsapp', 'visit', 'video_call', 'in_visit'])
+  @IsEnum(['phone', 'email', 'sms', 'whatsapp', 'visit', 'in_visit'])
   @IsNotEmpty()
   contactMethod: string;
 
