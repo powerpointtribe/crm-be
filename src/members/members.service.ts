@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery, Types } from 'mongoose';
@@ -38,9 +39,12 @@ import {
 } from '../common/services/branch-access.service';
 import { RolesService } from '../roles/services/roles.service';
 import { MemberLifecycleService } from '../activity-tracker/member-lifecycle.service';
+import { generateDefaultPassword } from '../common/utils/password-generator';
 
 @Injectable()
 export class MembersService {
+  private readonly logger = new Logger(MembersService.name);
+
   constructor(
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
@@ -71,8 +75,35 @@ export class MembersService {
       );
     }
 
-    // TODO: Add validation to ensure district exists and is of type 'district'
-    // TODO: Add validation to ensure unit (if provided) exists and is of type 'unit'
+    // Validate district exists and is of type 'district'
+    if (createMemberDto.district) {
+      const district = await this.groupModel.findById(createMemberDto.district);
+      if (!district) {
+        throw new BadRequestException(
+          `District with ID ${createMemberDto.district} not found`,
+        );
+      }
+      if (district.type !== GroupType.DISTRICT) {
+        throw new BadRequestException(
+          `Group with ID ${createMemberDto.district} is not a district (type: ${district.type})`,
+        );
+      }
+    }
+
+    // Validate unit (if provided) exists and is of type 'unit'
+    if (createMemberDto.unit) {
+      const unit = await this.groupModel.findById(createMemberDto.unit);
+      if (!unit) {
+        throw new BadRequestException(
+          `Unit with ID ${createMemberDto.unit} not found`,
+        );
+      }
+      if (unit.type !== GroupType.UNIT) {
+        throw new BadRequestException(
+          `Group with ID ${createMemberDto.unit} is not a unit (type: ${unit.type})`,
+        );
+      }
+    }
 
     // Determine membership status: if assigned to a unit, upgrade to DC unless already LXL or higher
     let membershipStatus = createMemberDto.membershipStatus;
@@ -566,10 +597,12 @@ export class MembersService {
     const sortQuery = QueryBuilder.buildSortQuery(sortBy, sortOrder);
 
     // Execute queries with proper population
-    // Note: Using lean() with manual population to handle invalid ObjectId references gracefully
+    // Optimized query with lean() and reduced populates for list view
+    // Only populate essential fields needed for list display
     const [members, total] = await Promise.all([
       this.memberModel
         .find(filterQuery)
+        .select('_id firstName lastName email phone membershipStatus dateJoined branch district unit isActive')
         .populate({
           path: 'branch',
           select: '_id name',
@@ -577,18 +610,15 @@ export class MembersService {
         })
         .populate({
           path: 'district',
-          select: '_id name type branch',
+          select: '_id name type',
           options: { strictPopulate: false }
         })
         .populate({
           path: 'unit',
-          select: '_id name type branch',
+          select: '_id name type',
           options: { strictPopulate: false }
         })
-        .populate('spouse', 'firstName lastName')
-        .populate('children', 'firstName lastName')
-        .populate('parent', 'firstName lastName')
-        .populate('additionalGroups', 'name type')
+        .lean() // Return plain JS objects for better performance
         .sort(sortQuery)
         .skip(skip)
         .limit(limit)
@@ -596,21 +626,20 @@ export class MembersService {
       this.memberModel.countDocuments(filterQuery),
     ]);
 
-    // Filter out or clean members with invalid district/unit references
+    // Clean members with invalid district/unit references
+    // Since we're using lean(), members are already plain objects
     const cleanedMembers = members.map(member => {
-      const memberObj = member.toObject();
-
       // If district is not a valid populated object, set it to undefined
-      if (memberObj.district && typeof memberObj.district === 'string') {
-        delete memberObj.district;
+      if (member.district && typeof member.district === 'string') {
+        delete member.district;
       }
 
       // If unit is not a valid populated object, set it to undefined
-      if (memberObj.unit && typeof memberObj.unit === 'string') {
-        delete memberObj.unit;
+      if (member.unit && typeof member.unit === 'string') {
+        delete member.unit;
       }
 
-      return memberObj;
+      return member;
     });
 
     return createPaginatedResult(cleanedMembers as any, total, page, limit);
@@ -951,7 +980,17 @@ export class MembersService {
     memberId: string,
     districtId: string,
   ): Promise<MemberDocument> {
-    // TODO: Validate that districtId is a valid district
+    // Validate that districtId is a valid district
+    const district = await this.groupModel.findById(districtId);
+    if (!district) {
+      throw new NotFoundException(`District with ID ${districtId} not found`);
+    }
+    if (district.type !== GroupType.DISTRICT) {
+      throw new BadRequestException(
+        `Group with ID ${districtId} is not a district (type: ${district.type})`,
+      );
+    }
+
     const member = await this.memberModel
       .findByIdAndUpdate(
         memberId,
@@ -971,9 +1010,18 @@ export class MembersService {
     memberId: string,
     unitId: string,
   ): Promise<MemberDocument> {
-    // TODO: Validate that unitId is a valid unit
-    const member = await this.memberModel.findById(memberId);
+    // Validate that unitId is a valid unit
+    const unit = await this.groupModel.findById(unitId);
+    if (!unit) {
+      throw new NotFoundException(`Unit with ID ${unitId} not found`);
+    }
+    if (unit.type !== GroupType.UNIT) {
+      throw new BadRequestException(
+        `Group with ID ${unitId} is not a unit (type: ${unit.type})`,
+      );
+    }
 
+    const member = await this.memberModel.findById(memberId);
     if (!member) {
       throw new NotFoundException('Member not found');
     }
@@ -1871,7 +1919,19 @@ export class MembersService {
       createdMemberIds: [],
     };
 
-    const { members, defaultPassword = 'Welcome123!', skipExisting = true } = dto;
+    // Generate secure default password if not provided
+    // IMPORTANT: If using bulk import, consider providing a strong password
+    // and sending it to users via email
+    let defaultPassword = dto.defaultPassword;
+    if (!defaultPassword) {
+      defaultPassword = generateDefaultPassword();
+      this.logger.warn(
+        `No default password provided for bulk import. Generated secure password: ${defaultPassword}. ` +
+        `IMPORTANT: Share this password with imported users securely and require them to change it on first login.`,
+      );
+    }
+
+    const { members, skipExisting = true } = dto;
 
     // Get default member role
     const memberRole = await this.rolesService.findBySlug('member');

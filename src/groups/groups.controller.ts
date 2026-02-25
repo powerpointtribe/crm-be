@@ -110,8 +110,14 @@ export class GroupsController {
     status: 200,
     description: 'Group stats retrieved successfully',
   })
-  async getGroupStats() {
-    const stats = await this.groupsService.getGroupStats();
+  async getGroupStats(
+    @Query('type') type?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    const stats = await this.groupsService.getGroupStats(
+      type as any,
+      branchId,
+    );
     return ResponseUtil.success(stats, 'Group stats retrieved successfully');
   }
 

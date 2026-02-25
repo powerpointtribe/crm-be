@@ -6,7 +6,7 @@ import {
   UnitType,
 } from '../enums/dashboard-modules.enums';
 import { Member } from '../../members/schemas/member.schema';
-import { Unit, UnitDocument } from '../../units/schemas/unit.schema';
+import { Group, GroupDocument } from '../../groups/schemas/group.schema';
 
 export class RoleUtils {
   static hasRole(user: Member, role: UserRole): boolean {
@@ -29,7 +29,7 @@ export class RoleUtils {
   static canAccessModule(
     user: Member,
     module: DashboardModule,
-    userUnit?: UnitDocument,
+    userUnit?: GroupDocument,
   ): boolean {
     // Admin can access everything
     if (this.hasRole(user, UserRole.ADMIN)) {
@@ -60,7 +60,7 @@ export class RoleUtils {
 
   static getAccessibleModules(
     user: Member,
-    userUnit?: Unit,
+    userUnit?: Group,
   ): DashboardModule[] {
     // Admin can access everything
     if (this.hasRole(user, UserRole.ADMIN)) {

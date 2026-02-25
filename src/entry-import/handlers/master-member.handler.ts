@@ -51,9 +51,15 @@ export class MasterMemberHandler implements EntityHandler {
       mappedData.lastName = (rawData['Last Name'] || rawData['lastName']).trim();
     }
 
-    // Email (required)
+    // Email (required) - generate placeholder if missing
     if (rawData['Email'] || rawData['email'] || rawData['Email Address']) {
       mappedData.email = (rawData['Email'] || rawData['email'] || rawData['Email Address']).toLowerCase().trim();
+    } else {
+      // Generate placeholder email from first name and last name
+      const firstName = (rawData['First Name'] || rawData['firstName'] || 'user').trim().toLowerCase().replace(/\s+/g, '');
+      const lastName = (rawData['Last Name'] || rawData['lastName'] || 'unknown').trim().toLowerCase().replace(/\s+/g, '');
+      const timestamp = Date.now().toString().slice(-6); // Last 6 digits for uniqueness
+      mappedData.email = `${firstName}.${lastName}.${timestamp}@placeholder.com`;
     }
 
     // Phone (required)
@@ -71,9 +77,25 @@ export class MasterMemberHandler implements EntityHandler {
       }
     }
 
-    // Date of Birth (required)
+    // Date of Birth (required) - parse and default to 1990-01-01 if missing
     if (rawData['Date Of Birth'] || rawData['Date of Birth'] || rawData['dateOfBirth'] || rawData['DOB']) {
-      mappedData.dateOfBirth = rawData['Date Of Birth'] || rawData['Date of Birth'] || rawData['dateOfBirth'] || rawData['DOB'];
+      let dobValue = rawData['Date Of Birth'] || rawData['Date of Birth'] || rawData['dateOfBirth'] || rawData['DOB'];
+
+      // Check if date is in format like "31-Aug" or "20-May" (missing year)
+      if (typeof dobValue === 'string') {
+        dobValue = dobValue.trim();
+        // Pattern: day-month without year (e.g., "31-Aug", "20-May")
+        const dayMonthPattern = /^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/i;
+        if (dayMonthPattern.test(dobValue)) {
+          // Add default year 1990
+          dobValue = `${dobValue}-1990`;
+        }
+      }
+
+      mappedData.dateOfBirth = dobValue;
+    } else {
+      // If date of birth is completely missing, default to 1st January 1990
+      mappedData.dateOfBirth = '1990-01-01';
     }
 
     // Marital Status
@@ -90,20 +112,43 @@ export class MasterMemberHandler implements EntityHandler {
       mappedData.membershipStatus = this.mapMembershipStatus(status);
     }
 
-    // Address fields
+    // Address fields - Try structured fields first, fallback to Address column
     const address: any = {};
-    if (rawData['Street'] || rawData['street']) {
-      address.street = (rawData['Street'] || rawData['street']).trim();
+
+    // Check if structured address fields are provided
+    const hasStructuredAddress =
+      rawData['Street'] || rawData['street'] ||
+      rawData['City'] || rawData['city'] ||
+      rawData['State'] || rawData['state'];
+
+    if (hasStructuredAddress) {
+      // Use structured address fields
+      if (rawData['Street'] || rawData['street']) {
+        address.street = (rawData['Street'] || rawData['street']).trim();
+      }
+      if (rawData['City'] || rawData['city']) {
+        address.city = (rawData['City'] || rawData['city']).trim();
+      }
+      if (rawData['State'] || rawData['state']) {
+        address.state = (rawData['State'] || rawData['state']).trim();
+      }
+      if (rawData['Country'] || rawData['country']) {
+        address.country = (rawData['Country'] || rawData['country']).trim();
+      }
+    } else if (rawData['Address'] || rawData['address']) {
+      // Fallback to generic Address column
+      const addressText = (rawData['Address'] || rawData['address']).trim();
+      if (addressText) {
+        // Store the entire address text in street field
+        address.street = addressText;
+        // Default to Lagos, Nigeria
+        address.city = 'Lagos';
+        address.state = 'Lagos';
+        address.country = 'Nigeria';
+      }
     }
-    if (rawData['City'] || rawData['city']) {
-      address.city = (rawData['City'] || rawData['city']).trim();
-    }
-    if (rawData['State'] || rawData['state']) {
-      address.state = (rawData['State'] || rawData['state']).trim();
-    }
-    if (rawData['Country'] || rawData['country']) {
-      address.country = (rawData['Country'] || rawData['country']).trim();
-    }
+
+    // If no address provided at all, will default to Lagos, Nigeria in createEntity
     if (Object.keys(address).length > 0) {
       mappedData.address = address;
     }
@@ -141,8 +186,10 @@ export class MasterMemberHandler implements EntityHandler {
     // Ministry Role
     if (rawData['Ministry Role'] || rawData['ministryRole']) {
       const role = (rawData['Ministry Role'] || rawData['ministryRole'] || '').toLowerCase().trim();
-      if (role === 'ministry director' || role === 'director') {
+      if (role === 'ministry director' || role === 'director' || role === 'hod') {
         mappedData.ministryRole = 'director';
+      } else if (role === 'dga' || role === 'asst. hod' || role === 'assistant hod' || role === 'assist. hod') {
+        mappedData.ministryRole = 'assistant_director';
       }
     }
 
@@ -154,9 +201,11 @@ export class MasterMemberHandler implements EntityHandler {
     // Unit Role
     if (rawData['Unit Role'] || rawData['unitRole']) {
       const role = (rawData['Unit Role'] || rawData['unitRole'] || '').toLowerCase().trim();
-      if (role === 'unit head' || role === 'head') {
+      if (role === 'unit head' || role === 'head' || role === 'hod') {
         mappedData.unitRole = 'head';
-      } else if (role === 'assistant head' || role === 'assistant') {
+      } else if (role === 'assistant head' || role === 'assistant' || role === 'asst. hod' || role === 'assist. hod' || role === 'assistant hod') {
+        mappedData.unitRole = 'assistant_head';
+      } else if (role === 'dga') {
         mappedData.unitRole = 'assistant_head';
       }
     }
@@ -244,8 +293,9 @@ export class MasterMemberHandler implements EntityHandler {
       'worker': MembershipStatus.DC,
       'lxl': MembershipStatus.LXL,
       'leader': MembershipStatus.LXL,
+      'minister': MembershipStatus.LXL,
       'director': MembershipStatus.DIRECTOR,
-      'pastor': MembershipStatus.PASTOR,
+      'Pastor': MembershipStatus.PASTOR,
       'senior pastor': MembershipStatus.SENIOR_PASTOR,
     };
     return mapping[value] || MembershipStatus.MEMBER;
@@ -256,7 +306,7 @@ export class MasterMemberHandler implements EntityHandler {
     options?: Record<string, any>,
   ): Promise<EntityCreationResult> {
     try {
-      // Step 1: Validate and get the branch/campus
+      // Step 1: Get or create the branch/campus
       let branch: BranchDocument | null = null;
       if (mappedData.campusName) {
         branch = await this.branchModel.findOne({
@@ -265,10 +315,23 @@ export class MasterMemberHandler implements EntityHandler {
         });
 
         if (!branch) {
-          return {
-            success: false,
-            errors: [`Campus/Branch "${mappedData.campusName}" not found in the system`],
-          };
+          // Auto-create branch if it doesn't exist
+          this.logger.log(`Creating new branch: ${mappedData.campusName}`);
+          const slug = mappedData.campusName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          branch = await this.branchModel.create({
+            name: mappedData.campusName,
+            slug,
+            description: `${mappedData.campusName} Campus`,
+            address: {
+              street: '',
+              city: 'Lagos',
+              state: 'Lagos',
+              country: 'Nigeria',
+            },
+            isActive: true,
+            isMainBranch: false,
+          });
+          this.logger.log(`✓ Created new branch: ${mappedData.campusName}`);
         }
       } else if (options?.branchId) {
         branch = await this.branchModel.findById(options.branchId);
@@ -583,10 +646,11 @@ export class MasterMemberHandler implements EntityHandler {
       'Date Of Birth',
       'Marital Status',
       'Member Status',
-      'Street',
-      'City',
-      'State',
-      'Country',
+      'Address (Optional - use this OR Street/City/State)',
+      'Street (Optional)',
+      'City (Optional)',
+      'State (Optional)',
+      'Country (Optional)',
       'Date Joined',
       'Campus',
       'Leadership Role',
@@ -610,10 +674,11 @@ export class MasterMemberHandler implements EntityHandler {
       '1985-03-15',
       'Married',
       'DC',
-      '12 Victoria Island',
-      'Lagos',
-      'Lagos',
-      'Nigeria',
+      '', // Address (leave empty if using Street/City/State)
+      '12 Victoria Island', // Street
+      'Lagos', // City
+      'Lagos', // State
+      'Nigeria', // Country
       '2020-01-15',
       'Main Campus',
       'Associate Pastor',

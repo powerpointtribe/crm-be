@@ -24,15 +24,37 @@ export class CSVParserUtil {
 
     let startIndex = 0;
     if (headerRow && lines.length > 0) {
-      headers = this.parseCSVLine(lines[0], delimiter);
-      startIndex = 1;
+      // Find the first non-empty line for headers (skip lines with only delimiters)
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.length === 0) {
+          continue;
+        }
+        // Check if line only contains delimiters (commas) with no actual data
+        const onlyDelimiters = line.split(delimiter).every(field => field.trim().length === 0);
+        if (onlyDelimiters) {
+          continue;
+        }
+        // Found a valid header line
+        headers = this.parseCSVLine(line, delimiter);
+        startIndex = i + 1;
+        break;
+      }
     }
 
     for (let i = startIndex; i < lines.length; i++) {
       const line = lines[i].trim();
 
-      if (skipEmptyLines && line.length === 0) {
-        continue;
+      // Skip empty lines or lines that only contain delimiters
+      if (skipEmptyLines) {
+        if (line.length === 0) {
+          continue;
+        }
+        // Check if line only contains delimiters (commas) with no actual data
+        const onlyDelimiters = line.split(delimiter).every(field => field.trim().length === 0);
+        if (onlyDelimiters) {
+          continue;
+        }
       }
 
       try {
@@ -248,37 +270,77 @@ export class CSVParserUtil {
       }
     }
 
-    // Build notes from various fields
+    // Extract service attendance (for follow-up records)
+    if (csvRow['Attended 2nd Service?']) {
+      mappedData.attended2ndService = csvRow['Attended 2nd Service?'];
+    }
+    if (csvRow['Attended 3rd Service?']) {
+      mappedData.attended3rdService = csvRow['Attended 3rd Service?'];
+    }
+
+    // Extract age range (for birthday inference)
+    if (csvRow['How long have you been on this planet?']) {
+      mappedData.ageRange = csvRow['How long have you been on this planet?'];
+    }
+
+    // Extract follow-up allocation
+    if (csvRow['Follow Up Allocation']) {
+      mappedData.followUpAllocation = csvRow['Follow Up Allocation'];
+    }
+
+    // Extract membership status and integration stage
+    if (csvRow['Membership Database']) {
+      mappedData.membershipDatabase = csvRow['Membership Database'];
+    }
+    if (csvRow['Integration Stage']) {
+      mappedData.integrationStage = csvRow['Integration Stage'];
+    }
+    if (csvRow['Member Status'] || csvRow['memberStatus'] || csvRow['Membership Status']) {
+      mappedData.memberStatus = csvRow['Member Status'] || csvRow['memberStatus'] || csvRow['Membership Status'];
+    }
+
+    // Extract call reports (for follow-up records creation)
+    const callReports: any[] = [];
+    if (csvRow['1st Call Report']) {
+      callReports.push({
+        type: '1st',
+        content: csvRow['1st Call Report'],
+        notes: csvRow['Call Report - Notes'] || '',
+      });
+    }
+    if (csvRow['2nd Call Report']) {
+      callReports.push({
+        type: '2nd',
+        content: csvRow['2nd Call Report'],
+        notes: csvRow['Call Report - Notes 2'] || '',
+      });
+    }
+    if (csvRow['3rd Call Report']) {
+      callReports.push({
+        type: '3rd',
+        content: csvRow['3rd Call Report'],
+      });
+    }
+    if (csvRow['4th Call Report']) {
+      callReports.push({
+        type: '4th',
+        content: csvRow['4th Call Report'],
+      });
+    }
+    if (csvRow['PCU Conversation Status']) {
+      callReports.push({
+        type: 'PCU',
+        content: csvRow['PCU Conversation Status'],
+      });
+    }
+    if (callReports.length > 0) {
+      mappedData.callReports = callReports;
+    }
+
+    // Build notes from remaining fields
     const noteParts: string[] = [];
     if (csvRow['Notes'] || csvRow['notes']) {
       noteParts.push(csvRow['Notes'] || csvRow['notes']);
-    }
-    // Service attendance
-    if (csvRow['Attended 2nd Service?']) {
-      noteParts.push(`Attended 2nd Service: ${csvRow['Attended 2nd Service?']}`);
-    }
-    if (csvRow['Attended 3rd Service?']) {
-      noteParts.push(`Attended 3rd Service: ${csvRow['Attended 3rd Service?']}`);
-    }
-    // Follow-up allocation
-    if (csvRow['Follow Up Allocation']) {
-      noteParts.push(`Follow Up Allocation: ${csvRow['Follow Up Allocation']}`);
-    }
-    // Call reports
-    if (csvRow['1st Call Report']) {
-      noteParts.push(`1st Call Report: ${csvRow['1st Call Report']}`);
-    }
-    if (csvRow['Call Report - Notes']) {
-      noteParts.push(`Call Report Notes: ${csvRow['Call Report - Notes']}`);
-    }
-    if (csvRow['2nd Call Report']) {
-      noteParts.push(`2nd Call Report: ${csvRow['2nd Call Report']}`);
-    }
-    if (csvRow['3rd Call Report']) {
-      noteParts.push(`3rd Call Report: ${csvRow['3rd Call Report']}`);
-    }
-    if (csvRow['4th Call Report']) {
-      noteParts.push(`4th Call Report: ${csvRow['4th Call Report']}`);
     }
     if (noteParts.length > 0) {
       mappedData.notes = noteParts.join('\n');

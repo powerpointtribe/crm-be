@@ -48,10 +48,8 @@ export class ServiceReportHandler implements EntityHandler {
       mappedData.date = rawData['Date'] || rawData['date'] || rawData['Service Date'];
     }
 
-    // Service Name (required)
-    if (rawData['Service Name'] || rawData['serviceName'] || rawData['Name']) {
-      mappedData.serviceName = rawData['Service Name'] || rawData['serviceName'] || rawData['Name'];
-    }
+    // Service Name (optional - defaults to 'N/A')
+    mappedData.serviceName = (rawData['Service Name'] || rawData['serviceName'] || rawData['Name'] || '').trim() || 'N/A';
 
     // Service Tags (optional)
     if (rawData['Service Tags'] || rawData['serviceTags'] || rawData['Tags']) {
@@ -96,12 +94,17 @@ export class ServiceReportHandler implements EntityHandler {
       }
     }
 
-    // Number of Children (required)
-    if (rawData['Children'] || rawData['numberOfChildren'] || rawData['Number of Children'] || rawData['Kids']) {
-      const children = parseInt(rawData['Children'] || rawData['numberOfChildren'] || rawData['Number of Children'] || rawData['Kids'], 10);
+    // Number of Children (optional - defaults to 0)
+    const childrenRaw = rawData['Children'] || rawData['numberOfChildren'] || rawData['Number of Children'] || rawData['Kids'];
+    if (childrenRaw !== undefined && childrenRaw !== null && childrenRaw !== '') {
+      const children = parseInt(childrenRaw, 10);
       if (!isNaN(children)) {
         mappedData.numberOfChildren = children;
+      } else {
+        mappedData.numberOfChildren = 0;
       }
+    } else {
+      mappedData.numberOfChildren = 0;
     }
 
     // Number of First Timers (required)
@@ -128,41 +131,40 @@ export class ServiceReportHandler implements EntityHandler {
     if (!mappedData.date) {
       errors.push('Date is required');
     }
-    if (!mappedData.serviceName) {
-      errors.push('Service name is required');
-    }
-    if (mappedData.totalAttendance === undefined) {
-      errors.push('Total attendance is required');
-    }
+    // Service name is optional - defaults to 'N/A' if not provided
+    // Number of children is optional - defaults to 0 if not provided
+    // Total attendance will be auto-calculated from Males + Females + Children
     if (mappedData.numberOfMales === undefined) {
       errors.push('Number of males is required');
     }
     if (mappedData.numberOfFemales === undefined) {
       errors.push('Number of females is required');
     }
-    if (mappedData.numberOfChildren === undefined) {
-      errors.push('Number of children is required');
-    }
     if (mappedData.numberOfFirstTimers === undefined) {
       errors.push('Number of first timers is required');
     }
 
-    // Validate attendance calculation
+    // Auto-calculate total attendance from breakdown (Males + Females + Children)
+    // If total attendance is provided but doesn't match, use the calculated sum
     if (
-      mappedData.totalAttendance !== undefined &&
       mappedData.numberOfMales !== undefined &&
-      mappedData.numberOfFemales !== undefined &&
-      mappedData.numberOfChildren !== undefined
+      mappedData.numberOfFemales !== undefined
     ) {
-      const calculatedTotal = mappedData.numberOfMales + mappedData.numberOfFemales + mappedData.numberOfChildren;
-      if (calculatedTotal !== mappedData.totalAttendance) {
-        errors.push(
-          `Total attendance (${mappedData.totalAttendance}) must equal Males (${mappedData.numberOfMales}) + Females (${mappedData.numberOfFemales}) + Children (${mappedData.numberOfChildren}) = ${calculatedTotal}`
+      const numberOfChildren = mappedData.numberOfChildren ?? 0;
+      const calculatedTotal = mappedData.numberOfMales + mappedData.numberOfFemales + numberOfChildren;
+
+      // Always use the calculated total (sum of breakdown)
+      // This ensures data consistency regardless of what's in the CSV
+      if (mappedData.totalAttendance !== undefined && calculatedTotal !== mappedData.totalAttendance) {
+        // Log the discrepancy for tracking purposes (will be visible in import summary)
+        this.logger.warn(
+          `Total attendance mismatch: CSV has ${mappedData.totalAttendance}, calculated ${calculatedTotal}. Using calculated value.`
         );
       }
+      mappedData.totalAttendance = calculatedTotal;
     }
 
-    // Validate first timers count
+    // Validate first timers count (using calculated total attendance)
     if (
       mappedData.numberOfFirstTimers !== undefined &&
       mappedData.totalAttendance !== undefined &&
@@ -284,12 +286,12 @@ export class ServiceReportHandler implements EntityHandler {
     return [
       'Campus',
       'Date',
-      'Service Name',
+      'Service Name (Optional)',
       'Service Tags',
       'Total Attendance',
       'Males',
       'Females',
-      'Children',
+      'Children (Optional)',
       'First Timers',
       'Notes',
     ];

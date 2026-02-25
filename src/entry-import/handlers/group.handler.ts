@@ -147,9 +147,9 @@ export class GroupHandler implements EntityHandler {
         };
       }
 
-      // Check for duplicate by name and branch
+      // Check for duplicate by name and branch (case-insensitive)
       const existing = await this.groupModel.findOne({
-        name: mappedData.name,
+        name: { $regex: new RegExp(`^${mappedData.name}$`, 'i') },
         branch: mappedData.branch,
         isActive: true,
       });

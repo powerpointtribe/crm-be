@@ -46,7 +46,7 @@ export class DashboardController {
         modules: accessibleModules,
         userRole: RoleUtils.getHighestRole(user),
         isUnitLeader: !!user.leaderOfUnit,
-        unitType: req.userUnit?.unitType || null,
+        unitType: req.userUnit?.type || null,
       },
       'Accessible modules retrieved successfully',
     );

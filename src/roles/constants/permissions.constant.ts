@@ -3,21 +3,9 @@ import {
   MembersPermissionMetadata,
 } from '../../members/permissions';
 import {
-  MinistriesPermission,
-  MinistriesPermissionMetadata,
-} from '../../ministries/permissions';
-import {
-  UnitsPermission,
-  UnitsPermissionMetadata,
-} from '../../units/permissions';
-import {
   FirstTimersPermission,
   FirstTimersPermissionMetadata,
 } from '../../first-timers/permissions';
-import {
-  AttendancePermission,
-  AttendancePermissionMetadata,
-} from '../../attendance/permissions';
 import {
   GroupsPermission,
   GroupsPermissionMetadata,
@@ -127,20 +115,6 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
     ),
   ),
 
-  // Ministries Module
-  ...Object.values(MinistriesPermission).map((perm) =>
-    createPermissionDto(
-      perm,
-      MinistriesPermissionMetadata[perm] || {},
-      'ministries',
-    ),
-  ),
-
-  // Units Module
-  ...Object.values(UnitsPermission).map((perm) =>
-    createPermissionDto(perm, UnitsPermissionMetadata[perm] || {}, 'units'),
-  ),
-
   // First Timers Module
   ...Object.values(FirstTimersPermission).map((perm) =>
     createPermissionDto(
@@ -150,16 +124,7 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
     ),
   ),
 
-  // Attendance Module
-  ...Object.values(AttendancePermission).map((perm) =>
-    createPermissionDto(
-      perm,
-      AttendancePermissionMetadata[perm] || {},
-      'attendance',
-    ),
-  ),
-
-  // Groups Module
+  // Groups Module (handles Districts, Units, and Ministries)
   ...Object.values(GroupsPermission).map((perm) =>
     createPermissionDto(perm, GroupsPermissionMetadata[perm] || {}, 'groups'),
   ),

@@ -471,3 +471,13 @@ FirstTimerSchema.index({ exemptFromAutoArchive: 1 });
 FirstTimerSchema.index({ followUpCount: 1, dateOfVisit: 1, isArchived: 1, exemptFromAutoArchive: 1 }); // For auto-archive job
 FirstTimerSchema.index({ readyForIntegration: 1 }); // For ready for integration queries
 FirstTimerSchema.index({ readyForIntegration: 1, isArchived: 1, isActive: 1 }); // Compound index for ready for integration tab
+
+// Prevent duplicate first-timer entries for the same phone on the same date
+// This allows the same person to visit on different dates, but prevents accidental duplicate entries on same day
+FirstTimerSchema.index(
+  { phone: 1, dateOfVisit: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isActive: true } // Only enforce for active records
+  }
+);

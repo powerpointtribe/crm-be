@@ -1,13 +1,15 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import * as compression from 'compression';
 import { AppModule } from './app.module';
 import { BullBoardService } from './bull-board/bull-board.service';
+import { createBullBoardBasicAuthMiddleware } from './common/middleware/bull-board-auth.middleware';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, {
     logger:
       process.env.NODE_ENV === 'production'
@@ -16,6 +18,7 @@ async function bootstrap() {
   });
 
   const configService = app.get(ConfigService);
+  const isProduction = configService.get('NODE_ENV') === 'production';
 
   // Security
   app.use(
@@ -61,38 +64,58 @@ async function bootstrap() {
   // API prefix
   app.setGlobalPrefix('api/v1');
 
-  // Swagger documentation (only in development)
+  // Swagger documentation (disabled in production for security)
+  if (!isProduction) {
+    const config = new DocumentBuilder()
+      .setTitle('Church Management System API')
+      .setDescription('API for Church Management System - PowerPoint Tribe')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
 
-  const config = new DocumentBuilder()
-    .setTitle('Church Management System API')
-    .setDescription('API for Church Management System - PowerPoint Tribe')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+    logger.log('📚 Swagger documentation enabled at /api/docs');
+  } else {
+    logger.log('📚 Swagger documentation disabled in production');
+  }
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
-
-  // Setup Bull Board (only in development for security)
-
+  // Setup Bull Board with authentication
   const bullBoardService = app.get(BullBoardService);
-  app.use('/admin/queues', bullBoardService.getRouter());
+
+  // Get Bull Board credentials from environment or use defaults
+  const bullBoardUsername = configService.get('BULL_BOARD_USERNAME', 'admin');
+  const bullBoardPassword = configService.get('BULL_BOARD_PASSWORD', 'change-this-password');
+
+  // Add authentication middleware
+  const bullBoardAuth = createBullBoardBasicAuthMiddleware(
+    bullBoardUsername,
+    bullBoardPassword,
+  );
+
+  app.use('/admin/queues', bullBoardAuth, bullBoardService.getRouter());
+
+  if (!isProduction) {
+    logger.log('🎛️  Bull Board secured with Basic Auth at /admin/queues');
+    logger.warn(`🔐 Bull Board credentials: ${bullBoardUsername} / ${bullBoardPassword}`);
+  } else {
+    logger.log('🎛️  Bull Board secured with authentication at /admin/queues');
+  }
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port, '0.0.0.0');
 
-  console.log(`🚀 Church Management System API is running on port ${port}`);
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(
-      `📚 API Documentation available at: http://localhost:${port}/api/docs`,
-    );
-    console.log(
-      `🎛️  Bull Board (Queue Dashboard) available at: http://localhost:${port}/admin/queues`,
-    );
+  logger.log(`🚀 Church Management System API is running on port ${port}`);
+  logger.log(`🌍 Environment: ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
+
+  if (!isProduction) {
+    logger.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
+    logger.log(`🎛️  Bull Board Dashboard: http://localhost:${port}/admin/queues`);
   }
 }
 
 bootstrap().catch((err) => {
-  console.error('Application failed to start:', err);
+  const logger = new Logger('Bootstrap');
+  logger.error('❌ Application failed to start:', err);
   process.exit(1);
 });

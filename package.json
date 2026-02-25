@@ -18,6 +18,7 @@
     "seed:all": "npm run seed:admin && npm run seed:data",
     "fix:invalid-districts": "npx ts-node src/scripts/fix-invalid-districts.ts",
     "migrate:member-statuses": "npx ts-node src/scripts/migrate-member-statuses.ts",
+    "migrate:roles-to-custom": "npx ts-node src/scripts/migrate-roles-to-custom.ts",
     "sync:super-admin-permissions": "npx ts-node src/scripts/sync-super-admin-permissions.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",

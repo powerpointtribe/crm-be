@@ -180,3 +180,14 @@ GroupSchema.index({ defaultRole: 1 });
 GroupSchema.index({ members: 1 });
 GroupSchema.index({ name: 1 });
 GroupSchema.index({ isActive: 1 });
+
+// Unique compound index: prevent duplicate group names within same branch
+// Uses case-insensitive collation for name comparison
+GroupSchema.index(
+  { name: 1, branch: 1, isActive: 1 },
+  {
+    unique: true,
+    collation: { locale: 'en', strength: 2 }, // Case-insensitive
+    partialFilterExpression: { isActive: true } // Only enforce for active groups
+  }
+);

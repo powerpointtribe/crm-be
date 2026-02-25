@@ -25,6 +25,7 @@ import { UserRole } from '../common/enums/user-roles.enums';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { UserInvitation, UserInvitationDocument, InvitationStatus } from '../user-invitations/schemas/user-invitation.schema';
+import { generateDefaultPassword } from '../common/utils/password-generator';
 
 @Injectable()
 export class AuthService {
@@ -174,12 +175,21 @@ export class AuthService {
       throw new ConflictException('Email already registered');
     }
 
-    // Hash password
-    const defaultPassword = 'ppt12345'; // Default password for new registrations
+    // Generate secure default password if not provided
+    // User will be required to change password on first login
+    const defaultPassword = generateDefaultPassword();
     const hashedPassword = await bcrypt.hash(
       registerDto.password || defaultPassword,
       10,
     );
+
+    // Log default password for admin notification (only if generated)
+    if (!registerDto.password) {
+      this.logger.log(
+        `Generated default password for ${registerDto.email}: ${defaultPassword}`,
+      );
+      // TODO: Send password to user via email instead of logging
+    }
 
     // Create new member with authentication capabilities
     const memberData = {

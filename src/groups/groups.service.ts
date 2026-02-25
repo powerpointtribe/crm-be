@@ -46,16 +46,16 @@ export class GroupsService {
     // Validate group type specific requirements
     await this.validateGroupRequirements(createGroupDto);
 
-    // Check if group name already exists
+    // Check if group name already exists within the same branch (case-insensitive)
     const existingGroup = await this.groupModel.findOne({
-      name: createGroupDto.name,
-      type: createGroupDto.type,
+      name: { $regex: new RegExp(`^${createGroupDto.name}$`, 'i') },
+      branch: createGroupDto.branch,
       isActive: true,
     });
 
     if (existingGroup) {
       throw new ConflictException(
-        `${createGroupDto.type} with name '${createGroupDto.name}' already exists`,
+        `A group with name '${createGroupDto.name}' already exists in this branch`,
       );
     }
 
@@ -70,17 +70,61 @@ export class GroupsService {
 
   private async validateGroupRequirements(
     groupDto: CreateGroupDto | UpdateGroupDto,
+    existingGroupId?: string,
   ): Promise<void> {
     const { type, districtPastor, unitHead } = groupDto;
 
     // District pastor and unit head are now optional
     // Validation only occurs if they are provided
+
     if (type === GroupType.DISTRICT && districtPastor) {
-      // TODO: Validate that districtPastor exists and is not already pastoring another district
+      // Validate that districtPastor exists
+      const pastor = await this.memberModel.findById(districtPastor);
+      if (!pastor) {
+        throw new NotFoundException(
+          `District pastor with ID ${districtPastor} not found`,
+        );
+      }
+
+      // Validate districtPastor is not already pastoring another district
+      const existingDistrict = await this.groupModel.findOne({
+        type: GroupType.DISTRICT,
+        districtPastor: new Types.ObjectId(districtPastor),
+        isActive: true,
+        _id: existingGroupId ? { $ne: existingGroupId } : undefined,
+      });
+
+      if (existingDistrict) {
+        throw new BadRequestException(
+          `Member ${pastor.firstName} ${pastor.lastName} is already assigned as pastor of district "${existingDistrict.name}". ` +
+          `Please remove them from the existing district first or choose a different pastor.`,
+        );
+      }
     }
 
     if (type === GroupType.UNIT && unitHead) {
-      // TODO: Validate that unitHead exists and is not already leading another unit
+      // Validate that unitHead exists
+      const head = await this.memberModel.findById(unitHead);
+      if (!head) {
+        throw new NotFoundException(
+          `Unit head with ID ${unitHead} not found`,
+        );
+      }
+
+      // Validate unitHead is not already leading another unit
+      const existingUnit = await this.groupModel.findOne({
+        type: GroupType.UNIT,
+        unitHead: new Types.ObjectId(unitHead),
+        isActive: true,
+        _id: existingGroupId ? { $ne: existingGroupId } : undefined,
+      });
+
+      if (existingUnit) {
+        throw new BadRequestException(
+          `Member ${head.firstName} ${head.lastName} is already assigned as head of unit "${existingUnit.name}". ` +
+          `Please remove them from the existing unit first or choose a different head.`,
+        );
+      }
     }
   }
 
@@ -163,16 +207,19 @@ export class GroupsService {
     // Build sort query
     const sortQuery = QueryBuilder.buildSortQuery(sortBy, sortOrder);
 
-    // Execute queries with proper population
+    // Execute queries with lean() optimization
+    // NOTE: Removed heavy 'members' population from list query for performance
+    // Members array only contains IDs, use currentMemberCount for display
+    // For full member details, use the individual group detail endpoint
     const [groups, total] = await Promise.all([
       this.groupModel
         .find(filterQuery)
+        .select('_id name type description branch districtPastor unitHead assistantUnitHead ministryDirector meetingSchedule currentMemberCount maxCapacity isActive createdAt')
         .populate('districtPastor', 'firstName lastName email phone')
         .populate('unitHead', 'firstName lastName email phone')
-        .populate('members', 'firstName lastName email phone membershipStatus')
-        .populate('hostingInfo.hostMember', 'firstName lastName phone')
-        .populate('hostingInfo.rotatingHosts', 'firstName lastName phone')
-        .populate('hostingInfo.currentHost', 'firstName lastName phone')
+        .populate('assistantUnitHead', 'firstName lastName email phone')
+        .populate('ministryDirector', 'firstName lastName email phone')
+        .lean() // Return plain JS objects instead of Mongoose documents (faster)
         .sort(sortQuery)
         .skip(skip)
         .limit(limit)
@@ -449,6 +496,31 @@ export class GroupsService {
     id: string,
     updateGroupDto: UpdateGroupDto,
   ): Promise<GroupDocument> {
+    // Check if name is being updated and if it conflicts with existing group
+    if (updateGroupDto.name || updateGroupDto.branch) {
+      const currentGroup = await this.groupModel.findById(id);
+      if (!currentGroup) {
+        throw new NotFoundException('Group not found');
+      }
+
+      // Use the new branch if being updated, otherwise use the existing branch
+      const branchToCheck = updateGroupDto.branch || currentGroup.branch;
+      const nameToCheck = updateGroupDto.name || currentGroup.name;
+
+      const existingGroup = await this.groupModel.findOne({
+        name: { $regex: new RegExp(`^${nameToCheck}$`, 'i') },
+        branch: branchToCheck,
+        isActive: true,
+        _id: { $ne: id }, // Exclude current group from search
+      });
+
+      if (existingGroup) {
+        throw new ConflictException(
+          `A group with name '${nameToCheck}' already exists in this branch`,
+        );
+      }
+    }
+
     // Validate requirements if type or leadership is being updated
     if (
       updateGroupDto.type ||
@@ -458,7 +530,7 @@ export class GroupsService {
       const existingGroup = await this.findById(id);
       if (existingGroup) {
         const mergedData = { ...existingGroup.toObject(), ...updateGroupDto };
-        await this.validateGroupRequirements(mergedData);
+        await this.validateGroupRequirements(mergedData, id);
       }
     }
 
@@ -845,24 +917,33 @@ export class GroupsService {
   }
 
   // Analytics and Reports
-  async getGroupStats(): Promise<any> {
+  async getGroupStats(type?: GroupType, branchId?: string): Promise<any> {
+    // Build base filter
+    const baseFilter: any = { isActive: true };
+    if (type) {
+      baseFilter.type = type;
+    }
+    if (branchId) {
+      baseFilter.branch = new Types.ObjectId(branchId);
+    }
     const [
       typeStats,
       leadershipStats,
       capacityStats,
       totalGroups,
       activeGroups,
+      inactiveGroups,
       totalMembers,
     ] = await Promise.all([
       // Groups by type
       this.groupModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: baseFilter },
         { $group: { _id: '$type', count: { $sum: 1 } } },
       ]),
 
       // Leadership coverage - fixed to check all group types properly
       this.groupModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: baseFilter },
         {
           $group: {
             _id: '$type',
@@ -905,7 +986,7 @@ export class GroupsService {
 
       // Capacity utilization
       this.groupModel.aggregate([
-        { $match: { isActive: true, maxCapacity: { $gt: 0 } } },
+        { $match: { ...baseFilter, maxCapacity: { $gt: 0 } } },
         {
           $project: {
             name: 1,
@@ -939,14 +1020,20 @@ export class GroupsService {
       ]),
 
       // Total active groups
-      this.groupModel.countDocuments({ isActive: true }),
+      this.groupModel.countDocuments(baseFilter),
 
       // Active groups count
-      this.groupModel.countDocuments({ isActive: true }),
+      this.groupModel.countDocuments(baseFilter),
+
+      // Inactive groups count (for filtered type stats)
+      this.groupModel.countDocuments({
+        ...baseFilter,
+        isActive: false,
+      }),
 
       // Total members across all active groups
       this.groupModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: baseFilter },
         {
           $group: {
             _id: null,
@@ -965,6 +1052,7 @@ export class GroupsService {
     return {
       total: totalGroups,
       active: activeGroups,
+      inactive: inactiveGroups,
       districts: typeCounts['district'] || 0,
       units: typeCounts['unit'] || 0,
       ministries: typeCounts['ministry'] || 0,

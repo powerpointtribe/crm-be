@@ -111,9 +111,9 @@ export class AutoInitService implements OnModuleInit {
       this.logger.log('🔐 Checking super admin setup...');
       await this.assignSuperAdminRole();
 
-      // Setup finance manager account if configured
-      this.logger.log('💰 Checking finance manager setup...');
-      await this.assignFinanceManagerRole();
+      // Note: Finance Manager is no longer a system role
+      // It should be created as a custom role via API if needed
+      // See PRODUCTION_SETUP_GUIDE.md for instructions
 
       // Display final statistics
       const finalStats = await this.rolesSeederService.getStats();
@@ -183,8 +183,8 @@ export class AutoInitService implements OnModuleInit {
       if (!defaultBranch) {
         this.logger.log('Creating default headquarters branch...');
         defaultBranch = await this.branchModel.create({
-          name: 'PPT Main Campus',
-          slug: 'ppt-main-campus',
+          name: 'Anthony',
+          slug: 'anthony',
           description: 'Main PPT campus',
           address: {
             street: '300 ikorodu Rood, anthony Bus stop',
@@ -303,110 +303,23 @@ export class AutoInitService implements OnModuleInit {
   }
 
   /**
-   * Create and setup finance manager account
-   * Similar to super admin but with finance-manager role
+   * DEPRECATED: Finance Manager auto-initialization removed
+   *
+   * Finance Manager is now a custom role, not a system role.
+   * To create a Finance Manager account:
+   *
+   * 1. Create the custom Finance Manager role via API:
+   *    POST /api/v1/roles
+   *    {
+   *      "name": "Finance Manager",
+   *      "slug": "finance-manager",
+   *      "isSystemRole": false,
+   *      "permissions": [...finance permissions...]
+   *    }
+   *
+   * 2. Create a member account
+   * 3. Invite the member with the Finance Manager role
+   *
+   * See PRODUCTION_SETUP_GUIDE.md for complete instructions.
    */
-  private async assignFinanceManagerRole(): Promise<void> {
-    try {
-      const financeEmail = this.configService.get<string>('FINANCE_MANAGER_EMAIL');
-      const financePassword = this.configService.get<string>('FINANCE_MANAGER_PASSWORD');
-      const financeFirstName = this.configService.get<string>('FINANCE_MANAGER_FIRST_NAME', 'Finance');
-      const financeLastName = this.configService.get<string>('FINANCE_MANAGER_LAST_NAME', 'Manager');
-
-      // Skip if not configured
-      if (!financeEmail) {
-        this.logger.log('Finance manager not configured (FINANCE_MANAGER_EMAIL not set), skipping...');
-        return;
-      }
-
-      this.logger.log(`📧 FINANCE_MANAGER_EMAIL = ${financeEmail}`);
-      this.logger.log(`🔑 FINANCE_MANAGER_PASSWORD = ${financePassword ? '[SET]' : '[NOT SET]'}`);
-
-      // Find a default branch (should already exist from super admin setup)
-      const defaultBranch = await this.branchModel.findOne({ isActive: true });
-
-      if (!defaultBranch) {
-        this.logger.error('No branch found for finance manager setup');
-        return;
-      }
-
-      // Find or create finance manager user
-      let financeUser = await this.membersService.findByEmail(financeEmail);
-
-      if (!financeUser && financePassword) {
-        // Create the finance manager member
-        this.logger.log(`Creating finance manager member: ${financeEmail}...`);
-        const hashedPassword = await bcrypt.hash(financePassword, 10);
-        financeUser = await this.membersService.create({
-          email: financeEmail,
-          password: hashedPassword,
-          firstName: financeFirstName,
-          lastName: financeLastName,
-          phone: '0000000001',
-          dateOfBirth: '1990-01-01',
-          gender: 'male',
-          address: {
-            state: 'Lagos',
-          },
-          branch: defaultBranch._id,
-          isActive: true,
-        } as any);
-        this.logger.log(`✓ Created finance manager member: ${financeEmail}`);
-      }
-
-      if (!financeUser) {
-        this.logger.warn(
-          'Finance manager not created. Set FINANCE_MANAGER_EMAIL and FINANCE_MANAGER_PASSWORD environment variables.',
-        );
-        return;
-      }
-
-      // Find finance-manager role by slug
-      const financeManagerRole = await this.rolesService.findBySlug('finance-manager');
-
-      if (!financeManagerRole) {
-        this.logger.error('Finance manager role not found after seeding');
-        return;
-      }
-
-      const roleId = (financeManagerRole as any)._id;
-
-      // Check if user already has the role
-      if (financeUser.role?.toString() !== roleId.toString()) {
-        await this.membersService.update(financeUser._id.toString(), {
-          role: roleId,
-        } as any);
-        this.logger.log(`✓ Finance manager role assigned to ${financeEmail}`);
-      } else {
-        this.logger.log(`✓ ${financeEmail} already has finance_manager role`);
-      }
-
-      // Create ACCEPTED invitation if none exists
-      const existingInvitation = await this.invitationModel.findOne({
-        member: financeUser._id,
-        status: { $in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
-      });
-
-      if (!existingInvitation) {
-        await this.invitationModel.create({
-          member: financeUser._id,
-          role: roleId,
-          branch: defaultBranch._id,
-          temporaryPassword: 'N/A',
-          status: InvitationStatus.ACCEPTED,
-          invitedBy: financeUser._id,
-          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-          acceptedAt: new Date(),
-          emailSent: true,
-        });
-        this.logger.log(`✓ Created accepted invitation for ${financeEmail}`);
-      } else {
-        this.logger.log(`✓ ${financeEmail} already has a valid invitation`);
-      }
-    } catch (error) {
-      this.logger.error('Failed to assign finance manager role:', error.message);
-      this.logger.error('Stack:', error.stack);
-      // Don't throw - this is optional
-    }
-  }
 }

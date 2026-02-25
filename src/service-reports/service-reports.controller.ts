@@ -149,13 +149,31 @@ export class ServiceReportsController {
     type: Number,
     description: 'Number of records to return (default: 10)',
   })
+  @ApiQuery({
+    name: 'dateFrom',
+    required: false,
+    type: String,
+    description: 'Start date for filtering chart data (ISO format)',
+  })
+  @ApiQuery({
+    name: 'dateTo',
+    required: false,
+    type: String,
+    description: 'End date for filtering chart data (ISO format)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Attendance chart data retrieved successfully',
   })
-  async getAttendanceChartData(@Query('limit') limit?: number) {
+  async getAttendanceChartData(
+    @Query('limit') limit?: number,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
     const chartData = await this.serviceReportsService.getAttendanceChartData(
       limit || 10,
+      dateFrom,
+      dateTo,
     );
     return ResponseUtil.success(
       chartData,

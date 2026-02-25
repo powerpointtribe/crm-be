@@ -1,0 +1,59 @@
+s/n,First Name,Last Name,email,phone,Gender,Date Of Birth,Marital Status,Member Status,Address,Date Joined,Campus,Role Category,District,District Role,Ministry,Ministry Role,unit,unit role,occupation
+1,Ayomide,Arowele,arowele.ayomide@gmail.com,8072270994,Male,31-Aug,Single,Pastor,,,Anthony,Leader,Bethel,Pastor,,,,,Data Analyst
+2,Afolake,Afolabi,afolakejulianah@gmail.com,8034642104,Female,20-May,Single,Minister,,,Anthony,Leader,Bethel,Member,Discipleship,HOD,HOBz,HOD,Entrepreneur/Logistics and supply chain
+3,Emmanuella,Anyabuike,anyabuikeemmanuella@gmail.com,8167523185,Female,25-Dec,Single,Minister,,,Anthony,Leader,Bethel,Member,Worship,DGA,The Beckoners,DGA,Banker
+4,Tobi,Eniafe,ennytoby0@gmail.com,8131083046,Male,13-Mar,Single,DC,,,Anthony,Worker,Bethel,Champ,Operations,Member,Waves,Member,Visual artist & Realtor
+5,Jola,Atoki,gossip4jesus@gmail.com,8136855448,Female,31-Dec,Single,Director,,,Anthony,Leader,Bethel,Member,Discipleship,Director,,,
+6,Emmanuel,Ayeni,emmaayeni3@gmail.com,7043223716,Male,21-Feb,Single,Minister,,,Anthony,Leader,Bethel,Member,Operations,HOD,J. 9:4,HOD,Spatial Designer
+7,OluwaPelumi,Olajide,olajidepelumi@gmail.com,8170135301,Male,12-Dec,Single,Minister,,,Anthony,Leader,Bethel,Member,Operations,HOD,Waves,HOD,Export Documentation Officer
+8,Tofunmi,Akinbo,olutitofunmi@gmail.com,7030900404,Female,1-Jul,Single,Minister,,,Anthony,Leader,Bethel,Member,Worship,Asst. HOD,The Beckoners,Asst. HOD,Business Analysis
+9,Tosin,Oyebanji,tosinoyebanji77@gmail.com,7011051764,Male,7-Feb,Single,Minister,,,Anthony,Leader,Bethel,Member,Specialised,HOD,Protocol,HOD,Real estate Developer
+10,Amarachi,Anoliefo,tamarh191@gmail.com,8092654191,Female,11-May,Single,DC,,,Anthony,Worker,Bethel,Member,Media,Member,Chi-Chi,Member,Banker
+11,Busayo,Ojo,ojobusayo310@gmail.com,9012163073,Female,25-Feb,Single,DC,,,Anthony,Worker,Bethel,Member,Missions,Member,Tribes Heart,Member,Makeup Artist/hairstylist
+12,Cephas,Afolabi,cephas.speaks01@gmail.com,9056265471,Male,6-Jul,Single,DC,,,Anthony,Worker,Bethel,Member,Media,Member,Chi-Chi,Member,Marketing Communications
+13,Chidi,Austin,austinchidiemmanuel@gmail.com,8152513977,Male,18-Oct,Single,DC,,,Anthony,Worker,Bethel,Member,Worship,Member,The Beckoners,Member,Business/ IT Development
+14,Chike,Ibekwe,Ibekwechike9@gmail.com,9064041301,Male,6-Mar,Single,DC,,,Anthony,Worker,Bethel,Member,Media,Member,Buzz Team,Member,Photographer
+15,Chioma,Kalu,kaluchioma2003@gmail.com,8137131365,Female,10-Feb,Single,DC,,,Anthony,Worker,Bethel,Member,Operations,Member,TGX,Member,Banking Operations
+16,Elizabeth,Habebe,habebeelizabeth@gmail.com,8132621060,Female,11-Dec,Single,DC,,,Anthony,Worker,Bethel,Member,Discipleship,Member,GIA,Member,"Fashion designer, Hair Stylist"
+17,Efunyemi,Siffre,alexandriasiffre@gmail.com,9082125035,Female,7-Apr,Single,DC,,,Anthony,Worker,Bethel,Member,Specialised,Member,Pillars,Member,Downstream Market Research
+18,Eniola,Ogundipe,ogundipee4@gmail.com,8080285018,Female,24-Jan,Single,DC,,,Anthony,Worker,Bethel,Champ,Discipleship,Member,GIA,Member,Dental Nurse
+19,Gavy,Ochonu,lord.cains@gmail.com,8061571913,Male,15-Jul,Single,DC,,,Anthony,Worker,Bethel,Member,Discipleship,Member,GIA,Member,Cyber Security
+20,Ifetioluwa,Taiwo,taiwooluwabukola27@gmail.com,8119632490,Female,23-Apr,Single,DC,,,Anthony,Worker,Bethel,Member,Operations,Member,TGX,Member,Customer Service Representative
+21,Inyang,Okon,g20001967@gmail.com,9024222763,Female,5-May,Single,DC,,,Anthony,Worker,Bethel,Member,Discipleship,Member,GIA,Member,Project Management
+22,Israel,Akinboboye,israelibukun09@gmail.com,7067004544,Male,9-Aug,Single,DC,,,Anthony,Worker,Bethel,Member,Media,Member,Chi-Chi,Member,Mobile Videography/Content Creation
+23,Joseph,Ichi,Ichijoseph@gmail.com,8034646889,Male,14-Oct,Married,DC,,,Anthony,Worker,Bethel,Member,Discipleship,Member,GIA,Member,Application Support Analyst
+24,Lewis,Osako,osakolewis@gmail.com,9131404044,Male,10-Jul,Single,DC,,,Anthony,Worker,Bethel,Member,Media,Member,Chi-Chi,Member,Business Analyst
+25,Onyinye,Allison,allisononyii@gmail.com,8135511207,Female,31-Dec,Single,DC,,,Anthony,Worker,Bethel,Member,Missions,Member,LDI,Member,Nurse
+26,Peace,Joseph,peacebello.pb@gmail.com,7055687327,Male,6-May,Married,LXL,,,Anthony,Leader,Bethel,Member,Media,Asst. HOD,Buzz Team,Asst. HOD,Channels Support (Banking
+27,Precious,Aleshinloye,preciousalesinloye@gmail.com,8073028329,Female,17-Sep,Single,DC,,,Anthony,Worker,Bethel,Member,Operations,Member,Waves,Member,Quantity surveyor and Virtual Assitant
+28,Ramat,Hamat-Ajaari,yvonneajaari@gmail.com,9030049099,Female,4-Apr,Single,DC,,,Anthony,Worker,Bethel,Champ,Discipleship,Member,GIA,Member,Flight attendant
+29,Rebecca,Oladiti,oladitibukola78@gmail.com,8039266801,Female,29-Jul,Single,DC,,,Anthony,Worker,Bethel,Member,Missions,Member,Tribes Heart,Member,Customer support
+30,Tinuadedayo,Fatiregun,tinuadedayo@gmail.com,8130848343,Female,8-Jun,Single,DC,,,Anthony,Worker,Bethel,Member,Discipleship,Member,HOBz,Member,Student
+31,Funmilayo,Onyegasi,funmilayonyegasi@gmail.com,8068743775,Female,17-May,Married,Member,,,Anthony,Worker,Bethel,Member,Missions,Member,R. 1:99,Member,Business/DevOps Student
+32,Leah,Afolabi,afolabileahibukun@gmail.com,7089067901,Female,23-May,Single,Member,,,Anthony,Worker,Bethel,Member,Media,Member,Buzz Team,Member,Copywriter
+33,Victor,Ola,olavictor755@gmail.com,8136025303,Male,3-Apr,Married,Member,,,Anthony,Worker,Bethel,Member,Operations,Member,TGX,Member,Accountant
+34,Maria,Hassan,midehassan.mh@gmail.com,9022528550,Female,18-Mar,Single,Member,,,Anthony,Worker,Bethel,Member,Discipleship,Member,HOBz,Member,Runs a Non-Profit Organization
+35,Abraham,Nworie,,7040764405,Male,31-Dec,Single,Member,,,Anthony,Member,Bethel,Member,,,,,0
+36,Bami,Omodamiro,bamitaleomodamiro@gmail.com,9127250267,Female,7-May,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Pharmacist
+37,Chidinma,OKOYE,chidip.project@gmail.com,7011148276,Female,22-Dec,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Finance Executive - Accountant
+38,Christian,Idio,chrisdmentor@gmail.com,8092202110,Male,26-Oct,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Brand and Marketing Professional
+39,Daniel,Onyegasi,dteofor@gmail.com,8067190018,Male,13-May,Married,Member,,,Anthony,Member,Bethel,Member,,,,,Banker
+40,Obiajulu,Emereum,emeruemobiajulu@gmail.com,7035534380,Male,7-Jan,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Work in a bank
+41,Glory,Chinyere,glorychinyerezinnia14@gmail.com,7036821368,Female,14-Aug,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Business development management
+42,Mary,Umokoro,omodolapoumukoro@gmail.com,7030553815,Female,17-Apr,Single,Member,,,Anthony,Member,Bethel,Member,,,,,HR Business Partner and a Learning and Development Specialist
+43,Remilekun,Olatunde,Deboraholatunde22@gmail.com,8165540639,Female,20-Nov,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Banker
+44,Hendewe,Aromavo,hendeweseun@gmail.com,8138141297,Male,13-Mar,Single,Member,,,Anthony,Member,Bethel,Member,,,,,
+45,Seunfunmi,Oyegoke,Elizabethoyegoke25@gmail.com,9037066401,Female,10-Nov,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Project management and Executive virtual assistance
+46,Sharon,John,sharonamanda49@gmail.com,9059195307,Female,23-Sep,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Student and Customer service.
+47,Titilayo,Akanji,titilayoisacc@gmail.com,9033173999,Female,11-Dec,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Entrepreneur
+48,Zainab,Oreagba,thoeyeen.ore2407@gmail.com,9122512964,Female,24-Jul,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Entrepreneur
+49,Goodness,Nnabeze,,8176784262,Female,,Single,Member,,,Anthony,Member,Bethel,Member,,,,,
+50,Harris,Ekarika,harryberry822@gmail.com,7034491947,Male,2-Jun,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Business/ MC
+51,Kenny,Eyoh,eyohotoobong@gmail.com,9113103755,Male,20-Feb,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Editor/Music producer
+52,Uzochukwu,Ndefo,ndefouzo@gmail.com,8030651793,Male,31-Dec,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Logistics
+53,Oluwadarasimi,Kareem,kareemoluwadarasimi190@gmail.com,9052085162,Male,30-Jun,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Cyber Security
+54,Goodness,Purelight,hillyfancy123@gmail.com,7039407086,Female,31-Dec,Single,Member,,,Anthony,Member,Bethel,Member,,,,,Full-time ministry
+55,Joy,Idemudia,idemudiaehinomejoy2@gmail.com,8033245408,Female,25-Jul,Single,Member,,,Anthony,Member,Bethel,Member,,,,,A remote worker and an entrepreneur
+56,Goodnews,Godson,chrizgodson@gmail.com,9169448326,Male,11-Oct,Single,Member,,,Anthony,Member,Bethel,Member,,,,,
+57,Christianah,Ola,okechristianah15@gmail.com,9077590935,Female,20-Mar,Married,Member,,,Anthony,Member,Bethel,Member,,,,,Lawyer
+58,Oluebubechukwu,Nwajesus,ollyj125@gmail.com,7067992941,Female,28-Nov,Single,Member,,,Anthony,Member,Bethel,Member,,,,,I am a Creative

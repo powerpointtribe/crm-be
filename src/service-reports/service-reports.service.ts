@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery, Types } from 'mongoose';
@@ -30,6 +31,8 @@ import {
 
 @Injectable()
 export class ServiceReportsService {
+  private readonly logger = new Logger(ServiceReportsService.name);
+
   constructor(
     @InjectModel(ServiceReport.name)
     private serviceReportModel: Model<ServiceReportDocument>,
@@ -425,9 +428,25 @@ export class ServiceReportsService {
     return this.findAll(searchDto);
   }
 
-  async getAttendanceChartData(limit: number = 10): Promise<any[]> {
+  async getAttendanceChartData(
+    limit: number = 10,
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<any[]> {
+    // Build date filter
+    const dateFilter: any = { isActive: true };
+    if (dateFrom || dateTo) {
+      dateFilter.date = {};
+      if (dateFrom) {
+        dateFilter.date.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        dateFilter.date.$lte = new Date(dateTo);
+      }
+    }
+
     const reports = await this.serviceReportModel
-      .find({ isActive: true })
+      .find(dateFilter)
       .select('date serviceName totalAttendance')
       .sort({ date: -1 })
       .limit(limit)
