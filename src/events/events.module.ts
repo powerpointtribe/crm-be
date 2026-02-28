@@ -1,7 +1,10 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { BullModule } from '@nestjs/bull';
 import { EventsService } from './events.service';
 import { EventsController } from './events.controller';
+import { EventsAdminController } from './events-admin.controller';
+import { EventReminderScheduler } from './event-reminder.scheduler';
 import { Event, EventSchema } from './schemas/event.schema';
 import {
   EventRegistration,
@@ -15,6 +18,10 @@ import {
   SessionAttendance,
   SessionAttendanceSchema,
 } from './schemas/session-attendance.schema';
+import {
+  EventPartner,
+  EventPartnerSchema,
+} from './schemas/event-partner.schema';
 import { CommonModule } from '../common/common.module';
 import { RolesModule } from '../roles/roles.module';
 import { AuthModule } from '../auth/auth.module';
@@ -22,6 +29,9 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { MembersModule } from '../members/members.module';
 import { BranchesModule } from '../branches/branches.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { QueueName } from '../common/interfaces/queue-job.interface';
+import { EventEmailProcessor } from '../queue/processors/event-email.processor';
+import { LBS2026EventSeeder } from './seeders/lbs-2026-event.seeder';
 
 @Module({
   imports: [
@@ -30,7 +40,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
       { name: EventRegistration.name, schema: EventRegistrationSchema },
       { name: EventSession.name, schema: EventSessionSchema },
       { name: SessionAttendance.name, schema: SessionAttendanceSchema },
+      { name: EventPartner.name, schema: EventPartnerSchema },
     ]),
+    BullModule.registerQueue({
+      name: QueueName.EMAIL_NOTIFICATIONS,
+    }),
     CommonModule,
     RolesModule,
     forwardRef(() => AuthModule),
@@ -39,8 +53,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     forwardRef(() => BranchesModule),
     NotificationsModule,
   ],
-  controllers: [EventsController],
-  providers: [EventsService],
+  controllers: [EventsController, EventsAdminController],
+  providers: [EventsService, EventEmailProcessor, EventReminderScheduler, LBS2026EventSeeder],
   exports: [EventsService, MongooseModule],
 })
 export class EventsModule {}

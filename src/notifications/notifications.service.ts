@@ -950,4 +950,427 @@ export class NotificationsService {
       html,
     });
   }
+
+  // ========== LBS EVENT EMAIL TEMPLATES ==========
+
+  /**
+   * Send event registration confirmation with QR code
+   */
+  async sendEventRegistrationConfirmation(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    eventTitle: string;
+    eventDate: Date;
+    eventLocation?: string;
+    checkInCode: string;
+    customFieldResponses?: Map<string, string>;
+  }): Promise<void> {
+    const formattedDate = data.eventDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const formattedTime = data.eventDate.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    // Get track from custom field responses
+    const track = data.customFieldResponses?.get('track') || '';
+    const trackInfo = track ? `<p style="margin: 10px 0;">🎯 <strong>Track:</strong> ${track}</p>` : '';
+
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="margin: 0; font-size: 32px; font-weight: 700;">🎉 You're Registered!</h1>
+          <p style="margin: 15px 0 0 0; font-size: 18px; opacity: 0.95;">${data.eventTitle}</p>
+        </div>
+
+        <!-- Main Content -->
+        <div style="padding: 40px 30px; background: white; border: 1px solid #e0e0e0; border-top: none;">
+          <p style="font-size: 18px; margin-bottom: 25px; color: #333;">Hi ${data.firstName},</p>
+
+          <p style="font-size: 16px; color: #555;">
+            Thank you for registering for <strong>${data.eventTitle}</strong>! We're thrilled to have you join us for this transformative experience.
+          </p>
+
+          <!-- Event Details Card -->
+          <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #667eea;">
+            <h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">📅 Event Details</h2>
+            <p style="margin: 10px 0; color: #555;"><strong>📍 Date:</strong> ${formattedDate}</p>
+            <p style="margin: 10px 0; color: #555;"><strong>🕐 Time:</strong> ${formattedTime}</p>
+            ${data.eventLocation ? `<p style="margin: 10px 0; color: #555;"><strong>📌 Location:</strong> ${data.eventLocation}</p>` : ''}
+            ${trackInfo}
+          </div>
+
+          <!-- QR Check-In Code -->
+          <div style="background: #fff; padding: 25px; border-radius: 12px; margin: 30px 0; border: 2px solid #667eea; text-align: center;">
+            <h3 style="color: #667eea; margin: 0 0 15px 0;">🎫 Your Check-In Code</h3>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; display: inline-block;">
+              <p style="font-size: 28px; font-weight: 700; letter-spacing: 2px; margin: 0; color: #333; font-family: 'Courier New', monospace;">
+                ${data.checkInCode}
+              </p>
+            </div>
+            <p style="color: #666; margin: 15px 0 0 0; font-size: 14px;">
+              Please save this code or take a screenshot.<br/>
+              You'll need it for quick check-in at the event.
+            </p>
+          </div>
+
+          <!-- What's Next Section -->
+          <div style="background: #e8f5e9; padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #4caf50;">
+            <h3 style="color: #2e7d32; margin: 0 0 15px 0; font-size: 18px;">✨ What's Next?</h3>
+            <ul style="color: #555; padding-left: 20px; margin: 10px 0;">
+              <li style="margin: 10px 0;">Save your check-in code (screenshot or print this email)</li>
+              <li style="margin: 10px 0;">Mark your calendar - you don't want to miss this!</li>
+              <li style="margin: 10px 0;">Prepare questions you'd like to ask during sessions</li>
+              <li style="margin: 10px 0;">Arrive 15 minutes early for registration and networking</li>
+              <li style="margin: 10px 0;">Dress code: Business professional</li>
+            </ul>
+          </div>
+
+          <!-- Important Notes -->
+          <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 30px 0; border-left: 4px solid #ffc107;">
+            <p style="margin: 0; color: #856404; font-size: 14px;">
+              <strong>⚠️ Important:</strong> Please bring a valid ID for verification at the registration desk.
+              If you need to make any changes to your registration, please contact us at least 48 hours before the event.
+            </p>
+          </div>
+
+          <!-- CTA Section -->
+          <div style="text-align: center; margin: 40px 0 30px 0;">
+            <p style="font-size: 16px; color: #555; margin-bottom: 20px;">
+              We can't wait to see you there!
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="border-top: 2px solid #f0f0f0; padding-top: 25px; margin-top: 40px; text-align: center;">
+            <p style="margin: 0; color: #777; font-size: 14px;">
+              For questions or support, reply to this email or contact us at:<br/>
+              <a href="mailto:info@powerpointtribe.org" style="color: #667eea; text-decoration: none;">info@powerpointtribe.org</a>
+            </p>
+            <p style="margin: 15px 0 0 0; color: #999; font-size: 13px;">
+              © ${new Date().getFullYear()} PowerPoint Tribe. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.email,
+      subject: `✅ Registration Confirmed - ${data.eventTitle}`,
+      html,
+    });
+  }
+
+  /**
+   * Send partnership inquiry confirmation to partner
+   */
+  async sendPartnerInquiryConfirmation(data: {
+    email: string;
+    name: string;
+    company?: string;
+    eventTitle: string;
+  }): Promise<void> {
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="margin: 0; font-size: 32px; font-weight: 700;">🤝 Thank You for Your Interest!</h1>
+          <p style="margin: 15px 0 0 0; font-size: 18px; opacity: 0.95;">Partnership Inquiry Received</p>
+        </div>
+
+        <!-- Main Content -->
+        <div style="padding: 40px 30px; background: white; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+          <p style="font-size: 18px; margin-bottom: 25px; color: #333;">Dear ${data.name}${data.company ? ` (${data.company})` : ''},</p>
+
+          <p style="font-size: 16px; color: #555;">
+            Thank you for your interest in partnering with us for <strong>${data.eventTitle}</strong>!
+            We've received your partnership inquiry and we're excited about the possibility of working together.
+          </p>
+
+          <!-- Timeline Card -->
+          <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #11998e;">
+            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">⏱️ What Happens Next?</h3>
+            <ul style="color: #555; padding-left: 20px; margin: 10px 0; list-style: none;">
+              <li style="margin: 12px 0;">
+                <strong style="color: #11998e;">✓ Within 24-48 hours:</strong><br/>
+                <span style="color: #666; font-size: 14px;">A member of our partnerships team will review your inquiry</span>
+              </li>
+              <li style="margin: 12px 0;">
+                <strong style="color: #11998e;">✓ Next Steps:</strong><br/>
+                <span style="color: #666; font-size: 14px;">We'll reach out to discuss partnership opportunities and answer your questions</span>
+              </li>
+              <li style="margin: 12px 0;">
+                <strong style="color: #11998e;">✓ Partnership Package:</strong><br/>
+                <span style="color: #666; font-size: 14px;">You'll receive detailed information about available partnership tiers and benefits</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Benefits Preview -->
+          <div style="background: #e8f5e9; padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #4caf50;">
+            <h3 style="color: #2e7d32; margin: 0 0 15px 0; font-size: 18px;">🌟 Partnership Benefits Include</h3>
+            <ul style="color: #555; padding-left: 20px; margin: 10px 0;">
+              <li style="margin: 10px 0;">Brand visibility to thousands of professionals and entrepreneurs</li>
+              <li style="margin: 10px 0;">Networking opportunities with industry leaders</li>
+              <li style="margin: 10px 0;">Speaking and presentation slots (select packages)</li>
+              <li style="margin: 10px 0;">Booth space for product/service showcase</li>
+              <li style="margin: 10px 0;">Digital marketing across our platforms</li>
+              <li style="margin: 10px 0;">Exclusive partner recognition and branding</li>
+            </ul>
+          </div>
+
+          <!-- Contact Info -->
+          <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 30px 0;">
+            <p style="margin: 0; color: #856404; font-size: 14px;">
+              <strong>📞 Need to speak with us sooner?</strong><br/>
+              Feel free to reach out directly at <a href="mailto:partnerships@powerpointtribe.org" style="color: #11998e; text-decoration: none;">partnerships@powerpointtribe.org</a>
+            </p>
+          </div>
+
+          <p style="margin-top: 30px; font-size: 16px; color: #555;">
+            We're looking forward to exploring this partnership opportunity with you!
+          </p>
+
+          <!-- Footer -->
+          <div style="border-top: 2px solid #f0f0f0; padding-top: 25px; margin-top: 40px; text-align: center;">
+            <p style="margin: 0; color: #777;">
+              Warm regards,<br/>
+              <strong style="color: #11998e;">The Partnerships Team</strong><br/>
+              PowerPoint Tribe
+            </p>
+            <p style="margin: 15px 0 0 0; color: #999; font-size: 13px;">
+              © ${new Date().getFullYear()} PowerPoint Tribe. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.email,
+      subject: `Partnership Inquiry Received - ${data.eventTitle}`,
+      html,
+    });
+  }
+
+  /**
+   * Send partnership inquiry notification to admin team
+   */
+  async sendPartnerInquiryToAdmin(data: {
+    adminEmail: string;
+    partnerName: string;
+    partnerEmail: string;
+    partnerCompany?: string;
+    partnerPhone: string;
+    eventTitle: string;
+    interestDetails: string;
+    partnerId: string;
+  }): Promise<void> {
+    const viewUrl = `${this.frontendUrl}/events/partners?id=${data.partnerId}`;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0; font-size: 28px;">🔔 New Partnership Inquiry</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.95;">${data.eventTitle}</p>
+        </div>
+
+        <!-- Main Content -->
+        <div style="padding: 30px; background: white; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+          <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+            A new partnership inquiry has been submitted for <strong>${data.eventTitle}</strong>.
+          </p>
+
+          <!-- Partner Details -->
+          <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #f5576c;">
+            <h3 style="color: #333; margin: 0 0 15px 0;">Partner Information</h3>
+            <p style="margin: 10px 0; color: #555;"><strong>Name:</strong> ${data.partnerName}</p>
+            ${data.partnerCompany ? `<p style="margin: 10px 0; color: #555;"><strong>Company:</strong> ${data.partnerCompany}</p>` : ''}
+            <p style="margin: 10px 0; color: #555;"><strong>Email:</strong> <a href="mailto:${data.partnerEmail}" style="color: #f5576c; text-decoration: none;">${data.partnerEmail}</a></p>
+            <p style="margin: 10px 0; color: #555;"><strong>Phone:</strong> ${data.partnerPhone}</p>
+          </div>
+
+          <!-- Interest Details -->
+          <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="color: #856404; margin: 0 0 10px 0; font-size: 16px;">💡 Partnership Interest</h3>
+            <p style="margin: 0; color: #856404; font-size: 14px; white-space: pre-wrap;">${data.interestDetails}</p>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="text-align: center; margin: 35px 0;">
+            <a href="${viewUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+              View in Dashboard
+            </a>
+          </div>
+
+          <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <p style="margin: 0; color: #2e7d32; font-size: 14px;">
+              <strong>⚡ Quick Action Required:</strong> Please respond to this inquiry within 24-48 hours to maintain partner interest and professionalism.
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="border-top: 2px solid #f0f0f0; padding-top: 20px; margin-top: 30px;">
+            <p style="margin: 0; color: #777; font-size: 13px; text-align: center;">
+              This is an automated notification from the Church Management System
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.adminEmail,
+      subject: `🔔 New Partnership Inquiry - ${data.partnerName}${data.partnerCompany ? ` (${data.partnerCompany})` : ''}`,
+      html,
+    });
+  }
+
+  /**
+   * Send event reminder (T-7, T-3, T-1 days)
+   */
+  async sendEventReminder(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    eventTitle: string;
+    eventDate: Date;
+    eventLocation?: string;
+    checkInCode: string;
+    daysUntil: number;
+  }): Promise<void> {
+    const formattedDate = data.eventDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const formattedTime = data.eventDate.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    let reminderTitle = '';
+    let urgencyColor = '';
+    let urgencyMessage = '';
+
+    if (data.daysUntil === 1) {
+      reminderTitle = 'Tomorrow!';
+      urgencyColor = '#f5576c';
+      urgencyMessage = 'The event is just around the corner! Final preparations:';
+    } else if (data.daysUntil === 3) {
+      reminderTitle = '3 Days to Go!';
+      urgencyColor = '#ffc107';
+      urgencyMessage = 'The event is coming up soon. Here\'s what to remember:';
+    } else {
+      reminderTitle = `${data.daysUntil} Days Until Event`;
+      urgencyColor = '#667eea';
+      urgencyMessage = 'Mark your calendar and start preparing:';
+    }
+
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, ${urgencyColor} 0%, ${urgencyColor}dd 100%); color: white; padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="margin: 0; font-size: 36px; font-weight: 700;">⏰ ${reminderTitle}</h1>
+          <p style="margin: 15px 0 0 0; font-size: 20px; opacity: 0.95;">${data.eventTitle}</p>
+        </div>
+
+        <!-- Main Content -->
+        <div style="padding: 40px 30px; background: white; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+          <p style="font-size: 18px; margin-bottom: 25px; color: #333;">Hi ${data.firstName},</p>
+
+          <p style="font-size: 16px; color: #555;">
+            This is a friendly reminder that <strong>${data.eventTitle}</strong> is coming up in <strong>${data.daysUntil} day${data.daysUntil > 1 ? 's' : ''}</strong>!
+          </p>
+
+          <!-- Event Details -->
+          <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid ${urgencyColor};">
+            <h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">📅 Event Details</h2>
+            <p style="margin: 10px 0; color: #555;"><strong>📍 Date:</strong> ${formattedDate}</p>
+            <p style="margin: 10px 0; color: #555;"><strong>🕐 Time:</strong> ${formattedTime}</p>
+            ${data.eventLocation ? `<p style="margin: 10px 0; color: #555;"><strong>📌 Location:</strong> ${data.eventLocation}</p>` : ''}
+          </div>
+
+          <!-- Check-In Code Reminder -->
+          <div style="background: #fff; padding: 25px; border-radius: 12px; margin: 30px 0; border: 2px solid ${urgencyColor}; text-align: center;">
+            <h3 style="color: ${urgencyColor}; margin: 0 0 15px 0;">🎫 Your Check-In Code</h3>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; display: inline-block;">
+              <p style="font-size: 28px; font-weight: 700; letter-spacing: 2px; margin: 0; color: #333; font-family: 'Courier New', monospace;">
+                ${data.checkInCode}
+              </p>
+            </div>
+            <p style="color: #666; margin: 15px 0 0 0; font-size: 14px;">
+              Have this code ready for quick check-in at the event
+            </p>
+          </div>
+
+          <!-- Preparation Checklist -->
+          <div style="background: #e8f5e9; padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #4caf50;">
+            <h3 style="color: #2e7d32; margin: 0 0 15px 0; font-size: 18px;">✅ ${urgencyMessage}</h3>
+            <ul style="color: #555; padding-left: 20px; margin: 10px 0;">
+              ${data.daysUntil === 1 ? `
+                <li style="margin: 10px 0;">Locate your check-in code (above)</li>
+                <li style="margin: 10px 0;">Plan your route and parking</li>
+                <li style="margin: 10px 0;">Prepare your ID for verification</li>
+                <li style="margin: 10px 0;">Charge your devices (for networking)</li>
+                <li style="margin: 10px 0;">Wear business professional attire</li>
+              ` : data.daysUntil === 3 ? `
+                <li style="margin: 10px 0;">Review event schedule and plan sessions to attend</li>
+                <li style="margin: 10px 0;">Prepare business cards for networking</li>
+                <li style="margin: 10px 0;">Set calendar reminders</li>
+                <li style="margin: 10px 0;">Review speaker profiles and topics</li>
+              ` : `
+                <li style="margin: 10px 0;">Save the event date in your calendar</li>
+                <li style="margin: 10px 0;">Review pre-event materials (if provided)</li>
+                <li style="margin: 10px 0;">Prepare questions for Q&A sessions</li>
+                <li style="margin: 10px 0;">Connect with other attendees on social media</li>
+              `}
+            </ul>
+          </div>
+
+          ${data.daysUntil === 1 ? `
+            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 30px 0; border-left: 4px solid #ffc107;">
+              <p style="margin: 0; color: #856404; font-size: 14px;">
+                <strong>🚗 Arrival:</strong> Please arrive 15-20 minutes early for registration, check-in, and networking before the event starts.
+              </p>
+            </div>
+          ` : ''}
+
+          <p style="margin-top: 30px; font-size: 16px; color: #555; text-align: center;">
+            <strong>We're excited to see you ${data.daysUntil === 1 ? 'tomorrow' : 'soon'}!</strong>
+          </p>
+
+          <!-- Footer -->
+          <div style="border-top: 2px solid #f0f0f0; padding-top: 25px; margin-top: 40px; text-align: center;">
+            <p style="margin: 0; color: #777; font-size: 14px;">
+              Questions? Contact us at:<br/>
+              <a href="mailto:info@powerpointtribe.org" style="color: ${urgencyColor}; text-decoration: none;">info@powerpointtribe.org</a>
+            </p>
+            <p style="margin: 15px 0 0 0; color: #999; font-size: 13px;">
+              © ${new Date().getFullYear()} PowerPoint Tribe. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.email,
+      subject: `⏰ Reminder: ${data.eventTitle} - ${reminderTitle}`,
+      html,
+    });
+  }
 }

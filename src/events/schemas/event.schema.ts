@@ -322,8 +322,12 @@ export class Event {
   @Prop({ type: Types.ObjectId, ref: 'Member' })
   organizer?: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true })
+  @Prop({ type: Types.ObjectId, ref: 'Branch', required: false })
   branch: Types.ObjectId;
+
+  // Global Event Flag (available to all branches)
+  @Prop({ type: Boolean, default: false })
+  isGlobal: boolean;
 
   // Additional Details
   @Prop({ trim: true })

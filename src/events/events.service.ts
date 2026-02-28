@@ -24,6 +24,11 @@ import {
   SessionAttendanceDocument,
   SessionAttendanceStatus,
 } from './schemas/session-attendance.schema';
+import {
+  EventPartner,
+  EventPartnerDocument,
+  PartnerStatus,
+} from './schemas/event-partner.schema';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventSearchDto } from './dto/event-search.dto';
@@ -37,6 +42,13 @@ import {
   RegistrationSearchDto,
 } from './dto/create-registration.dto';
 import { PublicRegistrationDto } from './dto/public-registration.dto';
+import {
+  SubmitPartnerDto,
+  UpdatePartnerStatusDto,
+  QueryPartnersDto,
+  ContactPartnerDto,
+  BulkPartnerEmailDto,
+} from './dto/partner.dto';
 import {
   CreateSessionDto,
   UpdateSessionDto,
@@ -75,6 +87,9 @@ import {
   BranchFilterContext,
 } from '../common/services/branch-access.service';
 import { EmailProvider } from '../notifications/providers/email.provider';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
+import { QueueName, JobType } from '../common/interfaces/queue-job.interface';
 
 @Injectable()
 export class EventsService {
@@ -88,8 +103,12 @@ export class EventsService {
     private sessionModel: Model<EventSessionDocument>,
     @InjectModel(SessionAttendance.name)
     private sessionAttendanceModel: Model<SessionAttendanceDocument>,
+    @InjectModel(EventPartner.name)
+    private partnerModel: Model<EventPartnerDocument>,
     private branchAccessService: BranchAccessService,
     private emailProvider: EmailProvider,
+    @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
+    private emailQueue: Queue,
   ) {}
 
   // ========== EVENT CRUD OPERATIONS ==========
@@ -705,95 +724,26 @@ export class EventsService {
     // Update event counts
     await this.updateEventCounts(event._id.toString());
 
-    return savedReg;
-  }
-
-  async submitPartnership(
-    slug: string,
-    partnerDto: { name: string; company?: string; email: string; phone: string; interestDetails: string },
-  ): Promise<any> {
-    const event = await this.findBySlug(slug);
-
-    const partnershipData = {
-      eventTitle: event.title,
-      eventSlug: slug,
-      submittedAt: new Date(),
-      ...partnerDto,
-    };
-
-    this.logger.log('Partnership Inquiry Received:', partnershipData);
-
-    // Prepare email content
-    const emailHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-            .content { background: #f9f9f9; padding: 20px; border: 1px solid #e0e0e0; }
-            .field { margin-bottom: 15px; }
-            .label { font-weight: bold; color: #555; }
-            .value { margin-top: 5px; padding: 10px; background: white; border-radius: 4px; }
-            .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #777; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2 style="margin: 0;">🤝 New Partnership Inquiry</h2>
-              <p style="margin: 5px 0 0 0; opacity: 0.9;">for ${event.title}</p>
-            </div>
-            <div class="content">
-              <div class="field">
-                <div class="label">Name:</div>
-                <div class="value">${partnerDto.name}</div>
-              </div>
-              <div class="field">
-                <div class="label">Company:</div>
-                <div class="value">${partnerDto.company || 'Not provided'}</div>
-              </div>
-              <div class="field">
-                <div class="label">Email:</div>
-                <div class="value"><a href="mailto:${partnerDto.email}">${partnerDto.email}</a></div>
-              </div>
-              <div class="field">
-                <div class="label">Phone:</div>
-                <div class="value"><a href="tel:${partnerDto.phone}">${partnerDto.phone}</a></div>
-              </div>
-              <div class="field">
-                <div class="label">Partnership Interest:</div>
-                <div class="value">${partnerDto.interestDetails}</div>
-              </div>
-              <div class="footer">
-                <p>Submitted at: ${new Date().toLocaleString('en-US', {
-                  timeZone: 'Africa/Lagos',
-                  dateStyle: 'full',
-                  timeStyle: 'long'
-                })}</p>
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    try {
-      // Send email to lbs@powerpointtribe.org
-      await this.emailProvider.sendEmail({
-        to: 'lbs@powerpointtribe.org',
-        subject: `Partnership Inquiry: ${event.title} - ${partnerDto.name}`,
-        html: emailHtml,
+    // Queue confirmation email
+    if (dto.email) {
+      await this.emailQueue.add(JobType.EVENT_REGISTRATION_CONFIRMATION, {
+        registrationId: savedReg._id.toString(),
+        email: dto.email.toLowerCase(),
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        eventTitle: event.title,
+        eventDate: event.startDate,
+        eventLocation: event.location,
+        checkInCode: savedReg.checkInCode,
+        customFieldResponses: savedReg.customFieldResponses,
       });
 
-      this.logger.log(`Partnership inquiry email sent successfully to lbs@powerpointtribe.org`);
-    } catch (error) {
-      this.logger.error('Failed to send partnership inquiry email:', error);
-      // Don't throw error - we still want to acknowledge receipt even if email fails
+      this.logger.log(
+        `Registration confirmation email queued for ${dto.email}`
+      );
     }
 
-    return partnershipData;
+    return savedReg;
   }
 
   // ========== HELPER METHODS ==========
@@ -2670,5 +2620,669 @@ export class EventsService {
       atRiskParticipants,
       topPerformers,
     };
+  }
+
+  // ========== PARTNERSHIP MANAGEMENT ==========
+
+  /**
+   * Submit partnership inquiry from public form
+   */
+  async submitPartnership(
+    eventSlug: string,
+    submitPartnerDto: SubmitPartnerDto,
+  ): Promise<EventPartnerDocument> {
+    // Find event by registrationSlug
+    const event = await this.eventModel.findOne({ registrationSlug: eventSlug });
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    // Check if event accepts partnerships
+    if (event.status === EventStatus.CANCELLED || event.status === EventStatus.COMPLETED) {
+      throw new BadRequestException(
+        `Event is ${event.status.toLowerCase()}. Partnership inquiries are not accepted.`
+      );
+    }
+
+    // Check for duplicate email for this event
+    const existing = await this.partnerModel.findOne({
+      event: event._id,
+      email: submitPartnerDto.email.toLowerCase(),
+    });
+
+    if (existing) {
+      throw new ConflictException(
+        'A partnership inquiry with this email already exists for this event'
+      );
+    }
+
+    // Create partner record
+    const partner = new this.partnerModel({
+      event: event._id,
+      branch: event.branch,
+      name: submitPartnerDto.name,
+      company: submitPartnerDto.company,
+      email: submitPartnerDto.email.toLowerCase(),
+      phone: submitPartnerDto.phone,
+      interestDetails: submitPartnerDto.interestDetails,
+      status: PartnerStatus.PENDING,
+    });
+
+    await partner.save();
+
+    // Queue confirmation email to partner
+    await this.emailQueue.add('partner-inquiry-confirmation', {
+      partnerId: partner._id.toString(),
+      partnerEmail: partner.email,
+      partnerName: partner.name,
+      eventTitle: event.title,
+    });
+
+    // Queue notification email to admin
+    await this.emailQueue.add('partner-inquiry-notification', {
+      partnerId: partner._id.toString(),
+      partnerName: partner.name,
+      partnerEmail: partner.email,
+      partnerCompany: partner.company,
+      partnerPhone: partner.phone,
+      eventTitle: event.title,
+      interestDetails: partner.interestDetails,
+      adminEmail: event.contactEmail || 'lbs@powerpointtribe.org',
+    });
+
+    this.logger.log(
+      `Partnership inquiry submitted for event ${event.title} by ${partner.email}`
+    );
+
+    return partner;
+  }
+
+  /**
+   * Get partners with filtering and pagination
+   */
+  async getPartners(
+    eventId: string,
+    queryDto: QueryPartnersDto,
+  ): Promise<PaginatedResult<EventPartnerDocument>> {
+    // Verify event exists and user has access
+    const event = await this.findById(eventId);
+
+    // Build filter query
+    const filter: FilterQuery<EventPartnerDocument> = {
+      event: new Types.ObjectId(eventId),
+    };
+
+    // Apply filters
+    if (queryDto.status) {
+      filter.status = queryDto.status;
+    }
+
+    if (queryDto.assignedTo) {
+      filter.assignedTo = new Types.ObjectId(queryDto.assignedTo);
+    }
+
+    if (queryDto.search) {
+      const searchRegex = new RegExp(queryDto.search, 'i');
+      filter.$or = [
+        { name: searchRegex },
+        { email: searchRegex },
+        { company: searchRegex },
+      ];
+    }
+
+    if (queryDto.startDate || queryDto.endDate) {
+      filter.submittedAt = {};
+      if (queryDto.startDate) {
+        filter.submittedAt.$gte = new Date(queryDto.startDate);
+      }
+      if (queryDto.endDate) {
+        filter.submittedAt.$lte = new Date(queryDto.endDate);
+      }
+    }
+
+    // Pagination
+    const page = queryDto.page || 1;
+    const limit = queryDto.limit || 20;
+    const skip = (page - 1) * limit;
+
+    // Execute query
+    const [partners, total] = await Promise.all([
+      this.partnerModel
+        .find(filter)
+        .sort({ submittedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('assignedTo', 'firstName lastName email')
+        .exec(),
+      this.partnerModel.countDocuments(filter),
+    ]);
+
+    return createPaginatedResult(partners, total, page, limit);
+  }
+
+  /**
+   * Update partner status
+   */
+  async updatePartnerStatus(
+    eventId: string,
+    partnerId: string,
+    updateDto: UpdatePartnerStatusDto,
+  ): Promise<EventPartnerDocument> {
+    // Verify event exists and user has access
+    await this.findById(eventId);
+
+    // Find partner
+    const partner = await this.partnerModel.findOne({
+      _id: partnerId,
+      event: new Types.ObjectId(eventId),
+    });
+
+    if (!partner) {
+      throw new NotFoundException('Partner not found');
+    }
+
+    // Update status
+    partner.status = updateDto.status;
+
+    // Update notes if provided
+    if (updateDto.notes !== undefined) {
+      partner.notes = updateDto.notes;
+    }
+
+    // Update assigned member if provided
+    if (updateDto.assignedTo) {
+      partner.assignedTo = new Types.ObjectId(updateDto.assignedTo);
+    }
+
+    // Update status-specific timestamps
+    if (updateDto.status === PartnerStatus.CONTACTED && !partner.contactedAt) {
+      partner.contactedAt = new Date();
+    } else if (updateDto.status === PartnerStatus.CONFIRMED) {
+      partner.confirmedAt = new Date();
+    } else if (updateDto.status === PartnerStatus.DECLINED) {
+      partner.declinedAt = new Date();
+    }
+
+    await partner.save();
+
+    this.logger.log(
+      `Partner ${partnerId} status updated to ${updateDto.status} for event ${eventId}`
+    );
+
+    return partner;
+  }
+
+  /**
+   * Contact a partner via email
+   */
+  async contactPartner(
+    eventId: string,
+    partnerId: string,
+    contactDto: ContactPartnerDto,
+  ): Promise<void> {
+    // Verify event exists and user has access
+    const event = await this.findById(eventId);
+
+    // Find partner
+    const partner = await this.partnerModel.findOne({
+      _id: partnerId,
+      event: new Types.ObjectId(eventId),
+    });
+
+    if (!partner) {
+      throw new NotFoundException('Partner not found');
+    }
+
+    // Send email via email provider
+    await this.emailProvider.sendEmail({
+      to: partner.email,
+      subject: contactDto.subject,
+      html: contactDto.message,
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@powerpointtribe.org',
+    });
+
+    // Update partner status if requested
+    if (contactDto.updateStatus) {
+      partner.status = contactDto.updateStatus;
+      if (contactDto.updateStatus === PartnerStatus.CONTACTED && !partner.contactedAt) {
+        partner.contactedAt = new Date();
+      }
+      await partner.save();
+    } else if (partner.status === PartnerStatus.PENDING) {
+      // Auto-update to contacted if still pending
+      partner.status = PartnerStatus.CONTACTED;
+      partner.contactedAt = new Date();
+      await partner.save();
+    }
+
+    this.logger.log(
+      `Email sent to partner ${partner.email} for event ${event.title}`
+    );
+  }
+
+  /**
+   * Send bulk email to partners
+   */
+  async sendBulkEmailToPartners(
+    eventId: string,
+    bulkEmailDto: BulkPartnerEmailDto,
+  ): Promise<{ jobId: string; recipientCount: number }> {
+    // Verify event exists and user has access
+    const event = await this.findById(eventId);
+
+    // Build filter for partners
+    const filter: FilterQuery<EventPartnerDocument> = {
+      event: new Types.ObjectId(eventId),
+    };
+
+    // If specific partner IDs provided, use those
+    if (bulkEmailDto.partnerIds && bulkEmailDto.partnerIds.length > 0) {
+      filter._id = { $in: bulkEmailDto.partnerIds.map(id => new Types.ObjectId(id)) };
+    }
+    // Otherwise filter by status
+    else if (bulkEmailDto.statuses && bulkEmailDto.statuses.length > 0) {
+      filter.status = { $in: bulkEmailDto.statuses };
+    }
+
+    // Get all matching partners
+    const partners = await this.partnerModel.find(filter).select('_id email name company');
+
+    if (partners.length === 0) {
+      throw new BadRequestException('No partners match the specified criteria');
+    }
+
+    // Queue bulk email job
+    const job = await this.emailQueue.add('bulk-partner-email', {
+      eventId: event._id.toString(),
+      eventTitle: event.title,
+      subject: bulkEmailDto.subject,
+      message: bulkEmailDto.message,
+      partners: partners.map(p => ({
+        id: p._id.toString(),
+        email: p.email,
+        name: p.name,
+        company: p.company,
+      })),
+      scheduledFor: bulkEmailDto.scheduledFor,
+    }, {
+      delay: bulkEmailDto.scheduledFor
+        ? new Date(bulkEmailDto.scheduledFor).getTime() - Date.now()
+        : 0,
+    });
+
+    this.logger.log(
+      `Bulk email queued for ${partners.length} partners for event ${event.title}`
+    );
+
+    return {
+      jobId: job.id.toString(),
+      recipientCount: partners.length,
+    };
+  }
+
+  /**
+   * Send bulk email to registrants
+   */
+  async sendBulkEmailToRegistrants(
+    eventId: string,
+    bulkEmailDto: {
+      subject: string;
+      message: string;
+      statuses?: RegistrationStatus[];
+      registrationIds?: string[];
+      scheduledFor?: string;
+    },
+  ): Promise<{ jobId: string; recipientCount: number }> {
+    // Verify event exists and user has access
+    const event = await this.findById(eventId);
+
+    // Build filter for registrations
+    const filter: FilterQuery<EventRegistrationDocument> = {
+      event: new Types.ObjectId(eventId),
+    };
+
+    // If specific registration IDs provided, use those
+    if (bulkEmailDto.registrationIds && bulkEmailDto.registrationIds.length > 0) {
+      filter._id = { $in: bulkEmailDto.registrationIds.map(id => new Types.ObjectId(id)) };
+    }
+    // Otherwise filter by status
+    else if (bulkEmailDto.statuses && bulkEmailDto.statuses.length > 0) {
+      filter.status = { $in: bulkEmailDto.statuses };
+    }
+
+    // Get all matching registrations
+    const registrations = await this.registrationModel
+      .find(filter)
+      .select('_id attendeeInfo customFieldResponses checkInCode');
+
+    if (registrations.length === 0) {
+      throw new BadRequestException('No registrations match the specified criteria');
+    }
+
+    // Queue bulk email job
+    const job = await this.emailQueue.add('bulk-registration-email', {
+      eventId: event._id.toString(),
+      eventTitle: event.title,
+      subject: bulkEmailDto.subject,
+      message: bulkEmailDto.message,
+      registrations: registrations.map(r => ({
+        id: r._id.toString(),
+        email: r.attendeeInfo.email,
+        firstName: r.attendeeInfo.firstName,
+        lastName: r.attendeeInfo.lastName,
+        checkInCode: r.checkInCode,
+        customFieldResponses: r.customFieldResponses,
+      })),
+      scheduledFor: bulkEmailDto.scheduledFor,
+    }, {
+      delay: bulkEmailDto.scheduledFor
+        ? new Date(bulkEmailDto.scheduledFor).getTime() - Date.now()
+        : 0,
+    });
+
+    this.logger.log(
+      `Bulk email queued for ${registrations.length} registrations for event ${event.title}`
+    );
+
+    return {
+      jobId: job.id.toString(),
+      recipientCount: registrations.length,
+    };
+  }
+
+  /**
+   * Export registrations in specified format (CSV, Excel, PDF)
+   */
+  async exportRegistrations(
+    eventId: string,
+    filters?: any,
+    format: 'csv' | 'xlsx' | 'pdf' = 'xlsx',
+  ): Promise<any> {
+    const { ExportUtil } = await import('./utils/export.util');
+
+    // Verify event exists
+    const event = await this.findById(eventId);
+
+    // Build query with filters
+    const query: any = { event: new Types.ObjectId(eventId) };
+
+    if (filters?.status) {
+      query.status = filters.status;
+    }
+
+    if (filters?.search) {
+      query.$or = [
+        { 'attendeeInfo.firstName': { $regex: filters.search, $options: 'i' } },
+        { 'attendeeInfo.lastName': { $regex: filters.search, $options: 'i' } },
+        { 'attendeeInfo.email': { $regex: filters.search, $options: 'i' } },
+        { 'attendeeInfo.phone': { $regex: filters.search, $options: 'i' } },
+      ];
+    }
+
+    // Get filtered registrations
+    const registrations = await this.registrationModel
+      .find(query)
+      .populate('member', 'firstName lastName email phone')
+      .sort({ registeredAt: -1 })
+      .exec();
+
+    // Get custom field definitions from event
+    const customFields = event.registrationSettings?.customFields || [];
+
+    // Define columns
+    const columns = [
+      { header: 'Registration ID', key: 'registrationId', width: 25 },
+      { header: 'First Name', key: 'firstName', width: 15 },
+      { header: 'Last Name', key: 'lastName', width: 15 },
+      { header: 'Email', key: 'email', width: 25 },
+      { header: 'Phone', key: 'phone', width: 15 },
+      { header: 'Gender', key: 'gender', width: 10 },
+      { header: 'Attendee Type', key: 'attendeeType', width: 15 },
+      { header: 'Status', key: 'status', width: 12 },
+      { header: 'Check-in Code', key: 'checkInCode', width: 15 },
+      { header: 'Registered At', key: 'registeredAt', width: 18 },
+      { header: 'Confirmed At', key: 'confirmedAt', width: 18 },
+      { header: 'Checked In At', key: 'checkedInAt', width: 18 },
+    ];
+
+    // Add custom field columns
+    customFields.forEach(field => {
+      columns.push({
+        header: field.label,
+        key: field.id,
+        width: 20,
+      });
+    });
+
+    columns.push({ header: 'Notes', key: 'notes', width: 30 });
+
+    // Transform data
+    const data = registrations.map(reg => {
+      const baseData: any = {
+        registrationId: reg._id.toString(),
+        firstName: reg.attendeeInfo.firstName,
+        lastName: reg.attendeeInfo.lastName,
+        email: reg.attendeeInfo.email || '',
+        phone: reg.attendeeInfo.phone || '',
+        gender: reg.attendeeInfo.gender || '',
+        attendeeType: reg.attendeeType,
+        status: reg.status,
+        checkInCode: reg.checkInCode || '',
+        registeredAt: reg.registeredAt,
+        confirmedAt: reg.confirmedAt || '',
+        checkedInAt: reg.checkedInAt || '',
+        notes: reg.notes || '',
+      };
+
+      // Add custom field responses
+      if (reg.customFieldResponses) {
+        reg.customFieldResponses.forEach((value, key) => {
+          baseData[key] = value;
+        });
+      }
+
+      return baseData;
+    });
+
+    // Generate export based on format
+    if (format === 'csv') {
+      return ExportUtil.generateCSV(data, columns);
+    } else if (format === 'xlsx') {
+      return ExportUtil.generateExcel(data, columns, `${event.title} - Registrations`);
+    } else if (format === 'pdf') {
+      return ExportUtil.generatePDF(data, columns, `${event.title} - Registrations`);
+    }
+  }
+
+  /**
+   * Get partner analytics
+   */
+  async getPartnerAnalytics(
+    eventId: string,
+  ): Promise<any> {
+    // Verify event exists and user has access
+    const event = await this.findById(eventId);
+
+    // Get all partners for the event
+    const partners = await this.partnerModel.find({
+      event: new Types.ObjectId(eventId),
+    });
+
+    // Calculate statistics
+    const total = partners.length;
+    const statusBreakdown = {
+      pending: partners.filter(p => p.status === PartnerStatus.PENDING).length,
+      contacted: partners.filter(p => p.status === PartnerStatus.CONTACTED).length,
+      inDiscussion: partners.filter(p => p.status === PartnerStatus.IN_DISCUSSION).length,
+      confirmed: partners.filter(p => p.status === PartnerStatus.CONFIRMED).length,
+      declined: partners.filter(p => p.status === PartnerStatus.DECLINED).length,
+    };
+
+    const conversionRate = total > 0
+      ? Math.round((statusBreakdown.confirmed / total) * 100)
+      : 0;
+
+    // Timeline data (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentInquiries = partners.filter(
+      p => p.submittedAt >= thirtyDaysAgo
+    );
+
+    return {
+      eventId: event._id.toString(),
+      eventTitle: event.title,
+      totalInquiries: total,
+      statusBreakdown,
+      conversionRate,
+      recentInquiries: recentInquiries.length,
+      avgResponseTime: null, // Can be calculated if needed
+      topCompanies: this.getTopCompanies(partners),
+    };
+  }
+
+  /**
+   * Helper: Get top companies from partners
+   */
+  private getTopCompanies(partners: EventPartnerDocument[]): Array<{ company: string; count: number }> {
+    const companyMap = new Map<string, number>();
+
+    partners.forEach(p => {
+      if (p.company) {
+        const count = companyMap.get(p.company) || 0;
+        companyMap.set(p.company, count + 1);
+      }
+    });
+
+    return Array.from(companyMap.entries())
+      .map(([company, count]) => ({ company, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }
+
+  /**
+   * Export partners in specified format (CSV, Excel, PDF)
+   */
+  async exportPartners(
+    eventId: string,
+    filters?: any,
+    format: 'csv' | 'xlsx' | 'pdf' = 'xlsx',
+  ): Promise<any> {
+    const { ExportUtil } = await import('./utils/export.util');
+
+    // Verify event exists
+    const event = await this.findById(eventId);
+
+    // Build query with filters
+    const query: any = { event: new Types.ObjectId(eventId) };
+
+    if (filters?.status) {
+      query.status = filters.status;
+    }
+
+    if (filters?.search) {
+      query.$or = [
+        { name: { $regex: filters.search, $options: 'i' } },
+        { company: { $regex: filters.search, $options: 'i' } },
+        { email: { $regex: filters.search, $options: 'i' } },
+      ];
+    }
+
+    // Get filtered partners
+    const partners = await this.partnerModel
+      .find(query)
+      .populate('assignedTo', 'firstName lastName email')
+      .sort({ submittedAt: -1 })
+      .exec();
+
+    // Define columns
+    const columns = [
+      { header: 'Partner ID', key: 'partnerId', width: 25 },
+      { header: 'Name', key: 'name', width: 20 },
+      { header: 'Company', key: 'company', width: 25 },
+      { header: 'Email', key: 'email', width: 25 },
+      { header: 'Phone', key: 'phone', width: 15 },
+      { header: 'Interest Details', key: 'interestDetails', width: 40 },
+      { header: 'Status', key: 'status', width: 15 },
+      { header: 'Submitted At', key: 'submittedAt', width: 18 },
+      { header: 'Contacted At', key: 'contactedAt', width: 18 },
+      { header: 'Confirmed At', key: 'confirmedAt', width: 18 },
+      { header: 'Declined At', key: 'declinedAt', width: 18 },
+      { header: 'Assigned To', key: 'assignedTo', width: 20 },
+      { header: 'Notes', key: 'notes', width: 30 },
+    ];
+
+    // Transform data
+    const data = partners.map(partner => {
+      const assignedToName = partner.assignedTo
+        ? typeof partner.assignedTo === 'object'
+          ? `${partner.assignedTo.firstName} ${partner.assignedTo.lastName}`
+          : ''
+        : '';
+
+      return {
+        partnerId: partner._id.toString(),
+        name: partner.name,
+        company: partner.company || '',
+        email: partner.email,
+        phone: partner.phone,
+        interestDetails: partner.interestDetails,
+        status: partner.status,
+        submittedAt: partner.submittedAt,
+        contactedAt: partner.contactedAt || '',
+        confirmedAt: partner.confirmedAt || '',
+        declinedAt: partner.declinedAt || '',
+        assignedTo: assignedToName,
+        notes: partner.notes || '',
+      };
+    });
+
+    // Generate export based on format
+    if (format === 'csv') {
+      return ExportUtil.generateCSV(data, columns);
+    } else if (format === 'xlsx') {
+      return ExportUtil.generateExcel(data, columns, `${event.title} - Partners`);
+    } else if (format === 'pdf') {
+      return ExportUtil.generatePDF(data, columns, `${event.title} - Partners`);
+    }
+  }
+
+  /**
+   * Find upcoming events for reminders (used by scheduler)
+   */
+  async findUpcomingEvents(daysArray: number[]): Promise<EventDocument[]> {
+    const events: EventDocument[] = [];
+
+    for (const days of daysArray) {
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + days);
+      targetDate.setHours(0, 0, 0, 0);
+
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      const upcomingEvents = await this.eventModel.find({
+        startDate: {
+          $gte: targetDate,
+          $lt: nextDay,
+        },
+        status: EventStatus.PUBLISHED,
+      });
+
+      events.push(...upcomingEvents);
+    }
+
+    return events;
+  }
+
+  /**
+   * Get confirmed registrations for event (used by reminder scheduler)
+   */
+  async getConfirmedRegistrations(eventId: Types.ObjectId): Promise<EventRegistrationDocument[]> {
+    return this.registrationModel.find({
+      event: eventId,
+      status: RegistrationStatus.CONFIRMED,
+    });
   }
 }

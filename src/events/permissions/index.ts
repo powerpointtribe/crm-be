@@ -18,8 +18,16 @@ export enum EventsPermission {
   VIEW_REGISTRATIONS = 'events:view-registrations',
   CREATE_REGISTRATION = 'events:create-registration',
   UPDATE_REGISTRATION = 'events:update-registration',
+  MANAGE_REGISTRATIONS = 'events:manage-registrations',
   CHECK_IN = 'events:check-in',
   EXPORT_REGISTRATIONS = 'events:export',
+
+  // Partnership management
+  VIEW_PARTNERS = 'events:view-partners',
+  MANAGE_PARTNERS = 'events:manage-partners',
+
+  // Email management
+  SEND_EMAILS = 'events:send-emails',
 }
 
 /**
@@ -80,5 +88,25 @@ export const EventsPermissionMetadata = {
     path: '/events/:id/registrations/export',
     method: 'GET',
     description: 'Export event registrations',
+  },
+  [EventsPermission.MANAGE_REGISTRATIONS]: {
+    path: '/events/:id/admin/registrations',
+    method: 'PATCH',
+    description: 'Manage event registrations (admin)',
+  },
+  [EventsPermission.VIEW_PARTNERS]: {
+    path: '/events/:id/admin/partners',
+    method: 'GET',
+    description: 'View partnership inquiries',
+  },
+  [EventsPermission.MANAGE_PARTNERS]: {
+    path: '/events/:id/admin/partners',
+    method: 'PATCH',
+    description: 'Manage partnership inquiries and communications',
+  },
+  [EventsPermission.SEND_EMAILS]: {
+    path: '/events/:id/admin/registrations/email/bulk',
+    method: 'POST',
+    description: 'Send bulk emails to registrants or partners',
   },
 };

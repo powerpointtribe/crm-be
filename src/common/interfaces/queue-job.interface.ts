@@ -52,6 +52,14 @@ export enum JobType {
   ENTRY_IMPORT_PROCESS = 'entry-import-process',
   ENTRY_IMPORT_ITEM_PROCESS = 'entry-import-item-process',
 
+  // Event email jobs
+  EVENT_REGISTRATION_CONFIRMATION = 'event-registration-confirmation',
+  PARTNER_INQUIRY_CONFIRMATION = 'partner-inquiry-confirmation',
+  PARTNER_INQUIRY_NOTIFICATION = 'partner-inquiry-notification',
+  EVENT_REMINDER = 'event-reminder',
+  BULK_REGISTRATION_EMAIL = 'bulk-registration-email',
+  BULK_PARTNER_EMAIL = 'bulk-partner-email',
+
   // Activity log jobs
   LOG_GROUP_MEMBER_ADDITION = 'log-group-member-addition',
   LOG_GROUP_MEMBER_REMOVAL = 'log-group-member-removal',
@@ -228,4 +236,62 @@ export interface EntryImportItemJobData {
   entryImportId: string;
   entryImportItemId: string;
   branchId?: string;
+}
+
+// Event email job data interfaces
+export interface EventRegistrationConfirmationJobData {
+  registrationId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  eventTitle: string;
+  eventDate: Date;
+  eventLocation?: string;
+  checkInCode: string;
+  customFieldResponses?: Map<string, string>;
+}
+
+export interface PartnerInquiryJobData {
+  partnerId: string;
+  partnerEmail: string;
+  partnerName: string;
+  partnerCompany?: string;
+  partnerPhone?: string;
+  eventTitle: string;
+  interestDetails?: string;
+  adminEmail?: string; // For admin notifications
+}
+
+export interface EventReminderJobData {
+  registrationId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  eventTitle: string;
+  eventDate: Date;
+  eventLocation?: string;
+  checkInCode: string;
+  daysUntil: number;
+}
+
+export interface BulkEventEmailJobData {
+  eventId: string;
+  eventTitle: string;
+  subject: string;
+  message: string;
+  registrations?: Array<{
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    checkInCode?: string;
+    customFieldResponses?: any;
+  }>;
+  partners?: Array<{
+    id: string;
+    email: string;
+    name: string;
+    company?: string;
+  }>;
+  scheduledFor?: string;
 }

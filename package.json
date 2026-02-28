@@ -16,6 +16,8 @@
     "seed:admin": "npx ts-node src/scripts/init-super-admin.ts",
     "seed:data": "npx ts-node src/scripts/seed-data.ts",
     "seed:all": "npm run seed:admin && npm run seed:data",
+    "seed:lbs-2026": "npx ts-node src/events/seeders/seed-lbs-2026.ts",
+    "seed:lbs-2026:remove": "npx ts-node src/events/seeders/seed-lbs-2026.ts remove",
     "fix:invalid-districts": "npx ts-node src/scripts/fix-invalid-districts.ts",
     "migrate:member-statuses": "npx ts-node src/scripts/migrate-member-statuses.ts",
     "migrate:roles-to-custom": "npx ts-node src/scripts/migrate-roles-to-custom.ts",
