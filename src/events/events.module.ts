@@ -31,7 +31,6 @@ import { BranchesModule } from '../branches/branches.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { QueueName } from '../common/interfaces/queue-job.interface';
 import { EventEmailProcessor } from '../queue/processors/event-email.processor';
-import { LBS2026EventSeeder } from './seeders/lbs-2026-event.seeder';
 
 @Module({
   imports: [
@@ -54,7 +53,7 @@ import { LBS2026EventSeeder } from './seeders/lbs-2026-event.seeder';
     NotificationsModule,
   ],
   controllers: [EventsController, EventsAdminController],
-  providers: [EventsService, EventEmailProcessor, EventReminderScheduler, LBS2026EventSeeder],
+  providers: [EventsService, EventEmailProcessor, EventReminderScheduler],
   exports: [EventsService, MongooseModule],
 })
 export class EventsModule {}

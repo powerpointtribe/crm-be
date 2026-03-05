@@ -3215,10 +3215,9 @@ export class EventsService {
 
     // Transform data
     const data = partners.map(partner => {
-      const assignedToName = partner.assignedTo
-        ? typeof partner.assignedTo === 'object'
-          ? `${partner.assignedTo.firstName} ${partner.assignedTo.lastName}`
-          : ''
+      const assignedMember = partner.assignedTo as any;
+      const assignedToName = assignedMember && typeof assignedMember === 'object' && assignedMember.firstName
+        ? `${assignedMember.firstName} ${assignedMember.lastName}`
         : '';
 
       return {

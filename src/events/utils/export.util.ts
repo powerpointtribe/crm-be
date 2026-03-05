@@ -1,7 +1,5 @@
 import { StreamableFile, BadRequestException } from '@nestjs/common';
 import { Readable } from 'stream';
-import * as ExcelJS from 'exceljs';
-import * as PDFDocument from 'pdfkit';
 
 export interface ExportColumn {
   header: string;
@@ -18,26 +16,21 @@ export class ExportUtil {
       throw new BadRequestException('No data to export');
     }
 
-    // Create CSV headers
     const headers = columns.map(col => col.header);
     const csvRows = [headers.join(',')];
 
-    // Add data rows
     data.forEach(item => {
       const values = columns.map(col => {
-        let value = item[col.key] || '';
+        let value = item[col.key] ?? '';
 
-        // Handle dates
         if (value instanceof Date) {
           value = value.toISOString().split('T')[0];
         }
 
-        // Handle objects/arrays
         if (typeof value === 'object' && value !== null) {
           value = JSON.stringify(value);
         }
 
-        // Escape commas and quotes
         value = String(value);
         if (value.includes(',') || value.includes('"') || value.includes('\n')) {
           value = `"${value.replace(/"/g, '""')}"`;
@@ -59,7 +52,7 @@ export class ExportUtil {
   }
 
   /**
-   * Generate Excel export
+   * Generate Excel export using exceljs (dynamically imported)
    */
   static async generateExcel(
     data: any[],
@@ -68,6 +61,16 @@ export class ExportUtil {
   ): Promise<StreamableFile> {
     if (data.length === 0) {
       throw new BadRequestException('No data to export');
+    }
+
+    let ExcelJS: any;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      ExcelJS = require('exceljs');
+    } catch {
+      throw new BadRequestException(
+        'Excel export is not available. Please install the exceljs package: npm install exceljs',
+      );
     }
 
     try {
@@ -82,32 +85,28 @@ export class ExportUtil {
       }));
 
       // Style header row
-      worksheet.getRow(1).font = { bold: true, size: 12 };
-      worksheet.getRow(1).fill = {
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FF4472C4' },
       };
-      worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
       // Add data rows
       data.forEach(item => {
-        const rowData = {};
+        const rowData: Record<string, any> = {};
         columns.forEach(col => {
           let value = item[col.key];
 
-          // Handle dates
           if (value instanceof Date) {
             value = value.toISOString().split('T')[0];
-          }
-
-          // Handle objects/arrays
-          if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+          } else if (typeof value === 'object' && value !== null) {
             value = JSON.stringify(value);
           }
 
-          rowData[col.key] = value || '';
+          rowData[col.key] = value ?? '';
         });
 
         worksheet.addRow(rowData);
@@ -115,7 +114,7 @@ export class ExportUtil {
 
       // Auto-fit columns
       worksheet.columns.forEach(column => {
-        let maxLength = column.header.length;
+        let maxLength = String(column.header || '').length;
         column.eachCell({ includeEmpty: true }, cell => {
           const cellLength = cell.value ? cell.value.toString().length : 0;
           if (cellLength > maxLength) {
@@ -126,7 +125,7 @@ export class ExportUtil {
       });
 
       // Add borders
-      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      worksheet.eachRow({ includeEmpty: false }, row => {
         row.eachCell({ includeEmpty: true }, cell => {
           cell.border = {
             top: { style: 'thin' },
@@ -137,21 +136,21 @@ export class ExportUtil {
         });
       });
 
-      // Generate buffer
       const buffer = await workbook.xlsx.writeBuffer();
-      const stream = Readable.from(buffer);
+      const stream = Readable.from(Buffer.from(buffer));
 
       return new StreamableFile(stream, {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         disposition: `attachment; filename="export-${Date.now()}.xlsx"`,
       });
     } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       throw new BadRequestException(`Excel export failed: ${error.message}`);
     }
   }
 
   /**
-   * Generate PDF export
+   * Generate PDF export using pdfkit (dynamically imported)
    */
   static async generatePDF(
     data: any[],
@@ -162,65 +161,97 @@ export class ExportUtil {
       throw new BadRequestException('No data to export');
     }
 
+    let PDFDocument: any;
     try {
-      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      PDFDocument = require('pdfkit');
+    } catch {
+      throw new BadRequestException(
+        'PDF export is not available. Please install the pdfkit package: npm install pdfkit',
+      );
+    }
+
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'A4', layout: 'landscape' });
       const chunks: Buffer[] = [];
 
-      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
 
       // Title
       doc
         .fontSize(18)
         .font('Helvetica-Bold')
         .text(title, { align: 'center' })
-        .moveDown();
+        .moveDown(0.5);
 
-      // Add export date
+      // Export date and record count
       doc
         .fontSize(10)
         .font('Helvetica')
-        .text(`Generated on: ${new Date().toLocaleDateString()}`, { align: 'right' })
+        .text(
+          `Generated on: ${new Date().toLocaleDateString()} | Total records: ${data.length}`,
+          { align: 'right' },
+        )
         .moveDown();
 
-      // Calculate column widths
-      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const columnWidth = pageWidth / Math.min(columns.length, 5); // Max 5 columns per page
+      // Use up to 6 columns for landscape PDF
+      const maxCols = Math.min(columns.length, 6);
+      const visibleColumns = columns.slice(0, maxCols);
+      const pageWidth =
+        doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const colWidth = pageWidth / maxCols;
 
-      // Table header
-      doc.fontSize(10).font('Helvetica-Bold');
-      let x = doc.page.margins.left;
-      const headerY = doc.y;
+      // Draw table header
+      const drawHeader = () => {
+        const headerY = doc.y;
+        doc
+          .rect(
+            doc.page.margins.left,
+            headerY - 2,
+            pageWidth,
+            20,
+          )
+          .fill('#4472C4');
 
-      columns.slice(0, 5).forEach(col => {
-        doc.text(col.header, x, headerY, {
-          width: columnWidth,
-          align: 'left',
+        let x = doc.page.margins.left;
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff');
+        visibleColumns.forEach(col => {
+          doc.text(col.header, x + 3, headerY + 2, {
+            width: colWidth - 6,
+            align: 'left',
+            lineBreak: false,
+          });
+          x += colWidth;
         });
-        x += columnWidth;
-      });
 
-      doc.moveDown();
-      doc
-        .moveTo(doc.page.margins.left, doc.y)
-        .lineTo(doc.page.width - doc.page.margins.right, doc.y)
-        .stroke();
-      doc.moveDown(0.5);
+        doc.fillColor('#000000');
+        doc.y = headerY + 22;
+      };
+
+      drawHeader();
 
       // Table rows
-      doc.fontSize(9).font('Helvetica');
-
       data.forEach((item, index) => {
-        // Check if we need a new page
-        if (doc.y > doc.page.height - 100) {
+        if (doc.y > doc.page.height - 80) {
           doc.addPage();
-          doc.y = doc.page.margins.top;
+          drawHeader();
         }
 
         const rowY = doc.y;
-        x = doc.page.margins.left;
 
-        columns.slice(0, 5).forEach(col => {
-          let value = item[col.key] || '';
+        // Alternate row background
+        if (index % 2 === 0) {
+          doc
+            .rect(doc.page.margins.left, rowY - 2, pageWidth, 18)
+            .fill('#F2F2F2');
+          doc.fillColor('#000000');
+        }
+
+        let x = doc.page.margins.left;
+        doc.fontSize(8).font('Helvetica');
+
+        visibleColumns.forEach(col => {
+          let value = item[col.key] ?? '';
 
           if (value instanceof Date) {
             value = value.toISOString().split('T')[0];
@@ -228,38 +259,31 @@ export class ExportUtil {
             value = JSON.stringify(value);
           }
 
-          doc.text(String(value).substring(0, 50), x, rowY, {
-            width: columnWidth - 5,
+          doc.text(String(value).substring(0, 40), x + 3, rowY + 1, {
+            width: colWidth - 6,
             align: 'left',
+            lineBreak: false,
           });
-          x += columnWidth;
+          x += colWidth;
         });
 
-        doc.moveDown(0.5);
-
-        // Add separator line every 5 rows
-        if ((index + 1) % 5 === 0) {
-          doc
-            .moveTo(doc.page.margins.left, doc.y)
-            .lineTo(doc.page.width - doc.page.margins.right, doc.y)
-            .stroke();
-          doc.moveDown(0.5);
-        }
+        doc.y = rowY + 18;
       });
 
       // Footer
       doc
         .fontSize(8)
+        .font('Helvetica')
+        .fillColor('#888888')
         .text(
           `Total records: ${data.length}`,
           doc.page.margins.left,
-          doc.page.height - 50,
-          { align: 'center' }
+          doc.page.height - 40,
+          { align: 'center', width: pageWidth },
         );
 
       doc.end();
 
-      // Wait for PDF generation to complete
       const buffer = await new Promise<Buffer>((resolve) => {
         doc.on('end', () => resolve(Buffer.concat(chunks)));
       });
@@ -271,6 +295,7 @@ export class ExportUtil {
         disposition: `attachment; filename="export-${Date.now()}.pdf"`,
       });
     } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       throw new BadRequestException(`PDF export failed: ${error.message}`);
     }
   }
