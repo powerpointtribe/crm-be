@@ -105,8 +105,8 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port, '0.0.0.0');
 
-  logger.log(`🚀 Church Management System API is running on port ${port}`);
-  logger.log(`🌍 Environment: ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
+  logger.warn(`🚀 Church Management System API is running on port ${port}`);
+  logger.warn(`🌍 Environment: ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
 
   if (!isProduction) {
     logger.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
