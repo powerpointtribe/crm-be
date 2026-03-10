@@ -4,6 +4,10 @@ import {
   IsDateString,
   IsMongoId,
   IsString,
+  IsBoolean,
+  IsNumber,
+  Min,
+  Max,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SearchDto } from '../../common/dto/search.dto';
@@ -73,4 +77,22 @@ export class MemberSearchDto extends SearchDto {
   @ApiPropertyOptional({ description: 'Filter by age range - maximum age' })
   @IsOptional()
   maxAge?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filter members that have a district assigned',
+  })
+  @IsOptional()
+  @IsBoolean()
+  hasDistrict?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Filter members with birthdays in this month (1-12)',
+    minimum: 1,
+    maximum: 12,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(12)
+  birthdayMonth?: number;
 }

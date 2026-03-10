@@ -514,6 +514,8 @@ export class MembersService {
       minAge,
       maxAge,
       branchId,
+      hasDistrict,
+      birthdayMonth,
     } = searchDto;
 
     const skip = (page - 1) * limit;
@@ -567,6 +569,20 @@ export class MembersService {
       Object.assign(filterQuery, dateQuery);
     }
 
+    // Has district filter (members assigned to any district)
+    if (hasDistrict === true) {
+      filterQuery.district = { $exists: true, $ne: null };
+    } else if (hasDistrict === false) {
+      filterQuery.district = { $in: [null, undefined] };
+    }
+
+    // Birthday month filter
+    if (birthdayMonth !== undefined) {
+      filterQuery.$expr = {
+        $eq: [{ $month: '$dateOfBirth' }, birthdayMonth],
+      };
+    }
+
     // Age range filter
     if (minAge !== undefined || maxAge !== undefined) {
       const today = new Date();
@@ -602,7 +618,7 @@ export class MembersService {
     const [members, total] = await Promise.all([
       this.memberModel
         .find(filterQuery)
-        .select('_id firstName lastName email phone membershipStatus dateJoined branch district unit isActive')
+        .select('_id firstName lastName email phone membershipStatus dateJoined dateOfBirth branch district unit isActive')
         .populate({
           path: 'branch',
           select: '_id name',
