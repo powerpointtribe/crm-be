@@ -33,6 +33,7 @@ import { BulkOperationUtil } from '../common/utils/bulk-operation.util';
 import { BulkOperationType } from '../common/interfaces/bulk-operation.interface';
 import { MemberCSVMappingUtil } from './utils/member-csv-mapping.util';
 import { MembershipStatus } from '../common/enums/member-status.enum';
+import { AccountType } from '../common/enums/account-type.enum';
 import {
   BranchAccessService,
   BranchFilterContext,
@@ -519,7 +520,10 @@ export class MembersService {
     } = searchDto;
 
     const skip = (page - 1) * limit;
-    let filterQuery: FilterQuery<MemberDocument> = { isActive: true };
+    let filterQuery: FilterQuery<MemberDocument> = {
+      isActive: true,
+      accountType: { $ne: AccountType.OPERATIONAL },
+    };
 
     // Apply branch filtering based on user permissions
     if (branchFilterContext) {
@@ -1089,7 +1093,7 @@ export class MembersService {
     dateTo?: string,
   ): Promise<any> {
     // Build base filter with branch filtering
-    let baseFilter: any = { isActive: true };
+    let baseFilter: any = { isActive: true, accountType: { $ne: AccountType.OPERATIONAL } };
 
     if (branchFilterContext) {
       const branchFilter = this.branchAccessService.getBranchFilter(branchFilterContext);
@@ -1258,13 +1262,13 @@ export class MembersService {
 
   async getDistrictMembers(districtId: string): Promise<MemberDocument[]> {
     return this.memberModel
-      .find({ district: districtId, isActive: true })
+      .find({ district: districtId, isActive: true, accountType: { $ne: AccountType.OPERATIONAL } })
       .sort({ firstName: 1, lastName: 1 });
   }
 
   async getUnitMembers(unitId: string): Promise<MemberDocument[]> {
     return this.memberModel
-      .find({ unit: unitId, isActive: true })
+      .find({ unit: unitId, isActive: true, accountType: { $ne: AccountType.OPERATIONAL } })
       .sort({ firstName: 1, lastName: 1 });
   }
 
@@ -1279,6 +1283,7 @@ export class MembersService {
       .find({
         dateJoined: { $gte: startOfMonth },
         isActive: true,
+        accountType: { $ne: AccountType.OPERATIONAL },
       })
       .populate('district', 'name')
       .populate('unit', 'name')
@@ -1309,6 +1314,7 @@ export class MembersService {
             $lte: nextWeek,
           },
           isActive: true,
+          accountType: { $ne: AccountType.OPERATIONAL },
         },
       },
       {
@@ -1339,6 +1345,7 @@ export class MembersService {
         $lte: endOfDay,
       },
       isActive: true,
+      accountType: { $ne: AccountType.OPERATIONAL },
     };
 
     if (branchId) {
@@ -1493,6 +1500,7 @@ export class MembersService {
           { phone: { $regex: searchRegex } },
         ],
         isActive: true,
+        accountType: { $ne: AccountType.OPERATIONAL },
       })
       .populate('district', 'name')
       .populate('unit', 'name')

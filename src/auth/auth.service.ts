@@ -22,6 +22,7 @@ import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { CreateMemberDto } from '../members/dto/create-member.dto';
 import { MembershipStatus } from '../common/enums/member-status.enum';
 import { UserRole } from '../common/enums/user-roles.enums';
+import { AccountType } from '../common/enums/account-type.enum';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { UserInvitation, UserInvitationDocument, InvitationStatus } from '../user-invitations/schemas/user-invitation.schema';
@@ -162,6 +163,7 @@ export class AuthService {
         role: roleInfo,
         permissions,
         accessibleModules,
+        accountType: (member as any).accountType || AccountType.MEMBER,
       },
     };
   }
@@ -349,6 +351,7 @@ export class AuthService {
       permissions,
       accessibleModules,
       isLeader,
+      accountType: (member as any).accountType || AccountType.MEMBER,
     };
   }
 

@@ -3,6 +3,7 @@ import { Document, Types } from 'mongoose';
 import { MembershipStatus } from '../../common/enums/member-status.enum';
 import { UserRole } from '../../common/enums/user-roles.enums';
 import { UnitType } from '../../common/enums/dashboard-modules.enums';
+import { AccountType } from '../../common/enums/account-type.enum';
 
 export type MemberDocument = Member & Document & { _id: Types.ObjectId };
 
@@ -24,16 +25,15 @@ export class Member {
   @Prop({ required: true })
   password: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ trim: true })
   phone: string;
 
-  @Prop({ type: Date, required: true })
+  @Prop({ type: Date })
   dateOfBirth: Date;
 
   @Prop({
     type: String,
     enum: ['male', 'female'],
-    required: true,
   })
   gender: string;
 
@@ -48,6 +48,13 @@ export class Member {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({
+    type: String,
+    enum: Object.values(AccountType),
+    default: AccountType.MEMBER,
+  })
+  accountType: AccountType;
 
   @Prop({ type: Date })
   lastLogin?: Date;
@@ -341,3 +348,4 @@ MemberSchema.index({ unitType: 1 });
 MemberSchema.index({ assignedDistricts: 1 }); // For assistant pastor district assignments
 MemberSchema.index({ lastLogin: -1 });
 MemberSchema.index({ isActive: 1 });
+MemberSchema.index({ accountType: 1 });

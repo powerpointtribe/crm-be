@@ -155,6 +155,7 @@ export interface EmailNotificationJobData {
   metadata?: {
     invitedById?: string;
     notes?: string;
+    accountType?: string;
   };
 }
 

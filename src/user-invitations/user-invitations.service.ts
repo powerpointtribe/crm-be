@@ -13,6 +13,7 @@ import {
   InvitationStatus,
 } from './schemas/user-invitation.schema';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { CreateOperationalInvitationDto } from './dto/create-operational-invitation.dto';
 import { RevokeInvitationDto } from './dto/revoke-invitation.dto';
 import { UpdateInvitationRoleDto } from './dto/update-invitation-role.dto';
 import { InvitationQueryDto } from './dto/invitation-query.dto';
@@ -20,6 +21,7 @@ import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { Role, RoleDocument } from '../roles/schemas/role.schema';
 import { Branch, BranchDocument } from '../branches/schemas/branch.schema';
 import { QueueService } from '../queue/queue.service';
+import { AccountType } from '../common/enums/account-type.enum';
 
 @Injectable()
 export class UserInvitationsService {
@@ -170,6 +172,107 @@ export class UserInvitationsService {
     return invitation.populate(['member', 'role', 'branch', 'invitedBy']);
   }
 
+  /**
+   * Create an operational user and send invitation in one step.
+   * Creates a minimal Member record (accountType: 'operational') and an invitation.
+   */
+  async createOperationalUser(
+    dto: CreateOperationalInvitationDto,
+    invitedById: string,
+  ): Promise<UserInvitation> {
+    // 1. Check email uniqueness
+    const existingMember = await this.memberModel.findOne({
+      email: dto.email.toLowerCase().trim(),
+    });
+    if (existingMember) {
+      throw new ConflictException('A user with this email already exists');
+    }
+
+    // 2. Validate role exists and is active
+    if (!Types.ObjectId.isValid(dto.roleId)) {
+      throw new BadRequestException('Invalid role ID');
+    }
+    const role = await this.roleModel.findById(dto.roleId);
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+    if (!role.isActive) {
+      throw new BadRequestException('Cannot assign inactive role');
+    }
+
+    // 3. Validate branch exists and is active
+    if (!Types.ObjectId.isValid(dto.branchId)) {
+      throw new BadRequestException('Invalid branch ID');
+    }
+    const branch = await this.branchModel.findById(dto.branchId);
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+    if (!branch.isActive) {
+      throw new BadRequestException('Cannot assign to inactive branch');
+    }
+
+    // 4. Generate temporary password
+    const temporaryPassword = this.generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+    // 5. Create minimal Member record with accountType: 'operational'
+    const memberDoc = await this.memberModel.create({
+      firstName: dto.firstName.trim(),
+      lastName: dto.lastName.trim(),
+      email: dto.email.toLowerCase().trim(),
+      password: hashedPassword,
+      accountType: AccountType.OPERATIONAL,
+      isActive: true,
+      role: new Types.ObjectId(dto.roleId),
+      branch: new Types.ObjectId(dto.branchId),
+      assignedDistricts: (dto.assignedDistricts || []).map(
+        (id) => new Types.ObjectId(id),
+      ),
+    });
+
+    // 6. Create invitation with 7-day expiration
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const invitation = new this.invitationModel({
+      member: memberDoc._id,
+      role: new Types.ObjectId(dto.roleId),
+      branch: new Types.ObjectId(dto.branchId),
+      assignedDistricts: (dto.assignedDistricts || []).map(
+        (id) => new Types.ObjectId(id),
+      ),
+      temporaryPassword: hashedPassword,
+      status: InvitationStatus.PENDING,
+      invitedBy: new Types.ObjectId(invitedById),
+      expiresAt,
+      notes: dto.notes,
+    });
+
+    await invitation.save();
+
+    // 7. Queue invitation email
+    try {
+      await this.queueService.addUserInvitationEmailJob({
+        type: 'user_invitation',
+        invitationId: invitation._id.toString(),
+        memberEmail: memberDoc.email,
+        memberFirstName: memberDoc.firstName,
+        memberLastName: memberDoc.lastName,
+        roleDisplayName: role.displayName || role.name,
+        temporaryPassword,
+        metadata: {
+          invitedById,
+          accountType: AccountType.OPERATIONAL,
+          notes: dto.notes,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to queue operational invitation email:', error);
+    }
+
+    return invitation.populate(['member', 'role', 'branch', 'invitedBy']);
+  }
 
   /**
    * Find all invitations with filters and pagination
@@ -481,7 +584,7 @@ export class UserInvitationsService {
       this.memberModel
         .find(query)
         .populate('role', 'name displayName')
-        .select('firstName lastName email phone isActive role lastLogin')
+        .select('firstName lastName email phone isActive role lastLogin accountType')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)

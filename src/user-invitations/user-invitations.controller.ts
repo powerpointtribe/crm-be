@@ -22,6 +22,7 @@ import {
 } from '@nestjs/swagger';
 import { UserInvitationsService } from './user-invitations.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { CreateOperationalInvitationDto } from './dto/create-operational-invitation.dto';
 import { RevokeInvitationDto } from './dto/revoke-invitation.dto';
 import { UpdateInvitationRoleDto } from './dto/update-invitation-role.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
@@ -89,6 +90,32 @@ export class UserInvitationsController {
       success: true,
       message: 'Statistics retrieved successfully',
       data: stats,
+    };
+  }
+
+  @Post('operational')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('users:invite')
+  @ApiOperation({ summary: 'Create an operational user and send invitation' })
+  @ApiResponse({
+    status: 201,
+    description: 'Operational user created and invitation sent',
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 409, description: 'Email already exists' })
+  async createOperationalUser(
+    @Body() dto: CreateOperationalInvitationDto,
+    @Request() req,
+  ) {
+    const invitation = await this.invitationsService.createOperationalUser(
+      dto,
+      req.user.id,
+    );
+
+    return {
+      success: true,
+      message: 'Operational user created and invitation sent successfully',
+      data: invitation,
     };
   }
 
