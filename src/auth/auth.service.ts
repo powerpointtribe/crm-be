@@ -113,6 +113,11 @@ export class AuthService {
       requirePasswordChange = true;
     }
 
+    // Check persistent mustChangePassword flag (survives across logins)
+    if (member.mustChangePassword) {
+      requirePasswordChange = true;
+    }
+
     // Update last login
     await this.membersService.updateLastLogin(member._id.toString());
 
@@ -532,8 +537,9 @@ export class AuthService {
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update password
+    // Update password and clear mustChangePassword flag
     member.password = hashedPassword;
+    member.mustChangePassword = false;
     await member.save();
 
     return {

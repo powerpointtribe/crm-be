@@ -66,6 +66,9 @@ export class Member {
   @Prop({ type: Date })
   resetPasswordOtpExpires?: Date;
 
+  @Prop({ type: Boolean, default: false })
+  mustChangePassword: boolean;
+
   // CHURCH MEMBERSHIP STATUS (hierarchical status: MEMBER, DC, LXL, DIRECTOR, PASTOR, SENIOR_PASTOR)
   // This is different from EngagementStatus used in First Timers module
   @Prop({

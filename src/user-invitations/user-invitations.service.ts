@@ -123,12 +123,14 @@ export class UserInvitationsService {
 
     // Set the member's password using findByIdAndUpdate to avoid full document validation
     // Also set branch if not already set (for legacy members)
+    // Set mustChangePassword to force password change on first login
     await this.memberModel.findByIdAndUpdate(
       createInvitationDto.memberId,
       {
         $set: {
           password: hashedPassword,
           isActive: true,
+          mustChangePassword: true,
           ...(member.branch ? {} : { branch: createInvitationDto.branchId }),
         },
       },
@@ -224,6 +226,7 @@ export class UserInvitationsService {
       password: hashedPassword,
       accountType: AccountType.OPERATIONAL,
       isActive: true,
+      mustChangePassword: true,
       role: new Types.ObjectId(dto.roleId),
       branch: new Types.ObjectId(dto.branchId),
       assignedDistricts: (dto.assignedDistricts || []).map(
@@ -408,6 +411,7 @@ export class UserInvitationsService {
         $set: {
           password: hashedPassword,
           isActive: true,
+          mustChangePassword: true,
         },
       },
       { runValidators: false },
