@@ -156,12 +156,6 @@ export class PublicDisburseDto {
   @Length(64, 64, { message: 'Token must be exactly 64 characters' })
   token: string;
 
-  @ApiProperty({ description: 'Disbursement reference (e.g., transaction ID)' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
-  disbursementReference: string;
-
   @ApiPropertyOptional({ description: 'Additional notes about disbursement' })
   @IsOptional()
   @IsString()

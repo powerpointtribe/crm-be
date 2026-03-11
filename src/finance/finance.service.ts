@@ -107,8 +107,8 @@ export class FinanceService {
       throw new BadRequestException('User must be assigned to a branch to create requisitions');
     }
 
-    // Generate reference number for non-draft requisitions
-    const referenceNumber = dto.isDraft ? undefined : await this.generateReferenceNumber();
+    // Always generate reference number (serves as unique ticket ID throughout lifecycle)
+    const referenceNumber = await this.generateReferenceNumber();
 
     const requisition = new this.requisitionModel({
       ...dto,
@@ -516,7 +516,7 @@ export class FinanceService {
     requisition.status = RequisitionStatus.DISBURSED;
     requisition.disbursedAt = new Date();
     requisition.disbursedBy = user._id;
-    requisition.disbursementReference = dto.disbursementReference;
+    requisition.disbursementReference = requisition.referenceNumber;
     requisition.disbursementNotes = dto.notes;
     requisition.updatedBy = user._id;
     requisition.updatedAt = new Date();
@@ -849,7 +849,6 @@ export class FinanceService {
    */
   async disburseWithToken(
     token: string,
-    disbursementReference: string,
     notes?: string,
   ): Promise<Requisition> {
     const validation = await this.actionTokenService.validateToken(token);
@@ -887,7 +886,7 @@ export class FinanceService {
     // Update requisition
     requisition.status = RequisitionStatus.DISBURSED;
     requisition.disbursedAt = new Date();
-    requisition.disbursementReference = disbursementReference;
+    requisition.disbursementReference = requisition.referenceNumber;
     requisition.disbursementNotes = notes;
     requisition.updatedAt = new Date();
 

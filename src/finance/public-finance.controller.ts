@@ -140,7 +140,6 @@ export class PublicFinanceController {
   async disburseWithToken(@Body() dto: PublicDisburseDto) {
     const result = await this.financeService.disburseWithToken(
       dto.token,
-      dto.disbursementReference,
       dto.notes,
     );
     return ResponseUtil.success(result, 'Requisition disbursed successfully');
