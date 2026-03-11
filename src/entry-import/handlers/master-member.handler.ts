@@ -78,14 +78,14 @@ export class MasterMemberHandler implements EntityHandler {
     }
 
     // Date of Birth (required) - parse and default to 1990-01-01 if missing
-    if (rawData['Date Of Birth'] || rawData['Date of Birth'] || rawData['dateOfBirth'] || rawData['DOB']) {
-      let dobValue = rawData['Date Of Birth'] || rawData['Date of Birth'] || rawData['dateOfBirth'] || rawData['DOB'];
+    if (rawData['Date Of Birth'] || rawData['Date of Birth'] || rawData['dateOfBirth'] || rawData['DOB'] || rawData['Birthday'] || rawData['birthday']) {
+      let dobValue = rawData['Date Of Birth'] || rawData['Date of Birth'] || rawData['dateOfBirth'] || rawData['DOB'] || rawData['Birthday'] || rawData['birthday'];
 
-      // Check if date is in format like "31-Aug" or "20-May" (missing year)
+      // Check if date is in format like "31-Aug", "3-April" (missing year)
       if (typeof dobValue === 'string') {
         dobValue = dobValue.trim();
-        // Pattern: day-month without year (e.g., "31-Aug", "20-May")
-        const dayMonthPattern = /^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/i;
+        // Pattern: day-month without year (e.g., "31-Aug", "3-April", "20-May")
+        const dayMonthPattern = /^(\d{1,2})-(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)$/i;
         if (dayMonthPattern.test(dobValue)) {
           // Add default year 1990
           dobValue = `${dobValue}-1990`;
@@ -106,10 +106,24 @@ export class MasterMemberHandler implements EntityHandler {
       }
     }
 
-    // Member Status
+    // Member Status (processed first as baseline)
     if (rawData['Member Status'] || rawData['memberStatus'] || rawData['Status']) {
       const status = (rawData['Member Status'] || rawData['memberStatus'] || rawData['Status'] || '').toLowerCase().trim();
-      mappedData.membershipStatus = this.mapMembershipStatus(status);
+      if (status) {
+        mappedData.membershipStatus = this.mapMembershipStatus(status);
+      }
+    }
+
+    // Role Category (overrides Member Status - directors, pastors are all still LXL)
+    if (rawData['Role Category'] || rawData['roleCategory'] || rawData['role category']) {
+      const roleCategory = (rawData['Role Category'] || rawData['roleCategory'] || rawData['role category'] || '').toLowerCase().trim();
+      if (roleCategory === 'leader' || roleCategory === 'lxl') {
+        mappedData.membershipStatus = MembershipStatus.LXL;
+      } else if (roleCategory === 'worker' || roleCategory === 'dc') {
+        mappedData.membershipStatus = MembershipStatus.DC;
+      } else if (roleCategory === 'member') {
+        mappedData.membershipStatus = MembershipStatus.MEMBER;
+      }
     }
 
     // Address fields - Try structured fields first, fallback to Address column
@@ -168,10 +182,12 @@ export class MasterMemberHandler implements EntityHandler {
       mappedData.districtName = (rawData['District'] || rawData['district']).trim();
     }
 
-    // District Role (District Champ = assistant helper in the district)
-    if (rawData['District Role'] || rawData['districtRole']) {
-      const role = (rawData['District Role'] || rawData['districtRole'] || '').toLowerCase().trim();
-      if (role === 'district champ' || role === 'champ' || role === 'district champion') {
+    // District Role (Pastor = district leader, District Champ = assistant helper)
+    if (rawData['District Role'] || rawData['districtRole'] || rawData['district role']) {
+      const role = (rawData['District Role'] || rawData['districtRole'] || rawData['district role'] || '').toLowerCase().trim();
+      if (role === 'pastor' || role === 'district pastor') {
+        mappedData.districtRole = 'pastor';
+      } else if (role === 'district champ' || role === 'champ' || role === 'district champion') {
         mappedData.districtRole = 'district_champ';
       }
     }
@@ -184,8 +200,8 @@ export class MasterMemberHandler implements EntityHandler {
     }
 
     // Ministry Role
-    if (rawData['Ministry Role'] || rawData['ministryRole']) {
-      const role = (rawData['Ministry Role'] || rawData['ministryRole'] || '').toLowerCase().trim();
+    if (rawData['Ministry Role'] || rawData['ministryRole'] || rawData['ministry role']) {
+      const role = (rawData['Ministry Role'] || rawData['ministryRole'] || rawData['ministry role'] || '').toLowerCase().trim();
       if (role === 'ministry director' || role === 'director' || role === 'hod') {
         mappedData.ministryRole = 'director';
       } else if (role === 'dga' || role === 'asst. hod' || role === 'assistant hod' || role === 'assist. hod') {
@@ -199,8 +215,8 @@ export class MasterMemberHandler implements EntityHandler {
     }
 
     // Unit Role
-    if (rawData['Unit Role'] || rawData['unitRole']) {
-      const role = (rawData['Unit Role'] || rawData['unitRole'] || '').toLowerCase().trim();
+    if (rawData['Unit Role'] || rawData['unitRole'] || rawData['unit role']) {
+      const role = (rawData['Unit Role'] || rawData['unitRole'] || rawData['unit role'] || '').toLowerCase().trim();
       if (role === 'unit head' || role === 'head' || role === 'hod') {
         mappedData.unitRole = 'head';
       } else if (role === 'assistant head' || role === 'assistant' || role === 'asst. hod' || role === 'assist. hod' || role === 'assistant hod') {
@@ -295,7 +311,9 @@ export class MasterMemberHandler implements EntityHandler {
       'leader': MembershipStatus.LXL,
       'minister': MembershipStatus.LXL,
       'director': MembershipStatus.DIRECTOR,
-      'Pastor': MembershipStatus.PASTOR,
+      'pastor': MembershipStatus.PASTOR,
+      'associate pastor': MembershipStatus.PASTOR,
+      'campus pastor': MembershipStatus.PASTOR,
       'senior pastor': MembershipStatus.SENIOR_PASTOR,
     };
     return mapping[value] || MembershipStatus.MEMBER;
@@ -475,6 +493,18 @@ export class MasterMemberHandler implements EntityHandler {
           });
         }
 
+        // District Role = "pastor" also sets as district leader
+        if (mappedData.districtRole === 'pastor') {
+          await this.groupModel.findByIdAndUpdate(district._id, {
+            districtPastor: memberId,
+          });
+          leadershipAssignments.push(`District Pastor of ${district.name}`);
+
+          await this.memberModel.findByIdAndUpdate(memberId, {
+            $addToSet: { assignedDistricts: district._id },
+          });
+        }
+
         // District Champs are assistants (tracked as regular members for now)
         if (mappedData.districtRole === 'district_champ') {
           leadershipAssignments.push(`District Champ of ${district.name}`);
@@ -529,23 +559,34 @@ export class MasterMemberHandler implements EntityHandler {
   }
 
   /**
-   * Find or create a group by name and type
+   * Find or create a group by name and type.
+   * Group names are unique per branch (enforced by DB index on {name, branch, isActive}).
+   * Handles race conditions and cross-type collisions gracefully.
    */
   private async findOrCreateGroup(
     name: string,
     type: GroupType,
     branchId: Types.ObjectId,
   ): Promise<GroupDocument> {
-    // Try to find existing group (case-insensitive)
+    // First check if ANY active group with this name exists in the branch
+    // (DB index enforces uniqueness on name+branch+isActive, regardless of type)
     let group = await this.groupModel.findOne({
       name: { $regex: new RegExp(`^${this.escapeRegex(name)}$`, 'i') },
-      type,
       branch: branchId,
       isActive: true,
     });
 
-    if (!group) {
-      // Create new group
+    if (group) {
+      if (group.type !== type) {
+        this.logger.warn(
+          `Group "${name}" already exists as ${group.type}, reusing for ${type} assignment`,
+        );
+      }
+      return group;
+    }
+
+    // Create new group, handling potential race conditions
+    try {
       group = new this.groupModel({
         name,
         type,
@@ -558,41 +599,72 @@ export class MasterMemberHandler implements EntityHandler {
       });
       await group.save();
       this.logger.debug(`Created ${type}: ${name}`);
+    } catch (error) {
+      // Handle duplicate key error (race condition: another job created it first)
+      if (error.code === 11000) {
+        this.logger.debug(`Group "${name}" was created by another process, reusing`);
+        group = await this.groupModel.findOne({
+          name: { $regex: new RegExp(`^${this.escapeRegex(name)}$`, 'i') },
+          branch: branchId,
+          isActive: true,
+        });
+        if (!group) {
+          throw new Error(`Group "${name}" duplicate key error but could not find existing group`);
+        }
+      } else {
+        throw error;
+      }
     }
 
     return group;
   }
 
   /**
-   * Find or create a unit and link it to a ministry
+   * Find or create a unit and link it to a ministry.
+   * Handles duplicate name collisions and race conditions.
    */
   private async findOrCreateUnit(
     name: string,
     branchId: Types.ObjectId,
     ministryId: Types.ObjectId,
   ): Promise<GroupDocument> {
-    // Try to find existing unit
+    // Check if ANY active group with this name exists in the branch
     let unit = await this.groupModel.findOne({
       name: { $regex: new RegExp(`^${this.escapeRegex(name)}$`, 'i') },
-      type: GroupType.UNIT,
       branch: branchId,
       isActive: true,
     });
 
     if (!unit) {
-      // Create new unit
-      unit = new this.groupModel({
-        name,
-        type: GroupType.UNIT,
-        branch: branchId,
-        members: [],
-        linkedUnits: [],
-        goals: [],
-        currentMemberCount: 0,
-        isActive: true,
-      });
-      await unit.save();
-      this.logger.debug(`Created unit: ${name}`);
+      // Create new unit, handling potential race conditions
+      try {
+        unit = new this.groupModel({
+          name,
+          type: GroupType.UNIT,
+          branch: branchId,
+          members: [],
+          linkedUnits: [],
+          goals: [],
+          currentMemberCount: 0,
+          isActive: true,
+        });
+        await unit.save();
+        this.logger.debug(`Created unit: ${name}`);
+      } catch (error) {
+        if (error.code === 11000) {
+          this.logger.debug(`Unit "${name}" was created by another process, reusing`);
+          unit = await this.groupModel.findOne({
+            name: { $regex: new RegExp(`^${this.escapeRegex(name)}$`, 'i') },
+            branch: branchId,
+            isActive: true,
+          });
+          if (!unit) {
+            throw new Error(`Unit "${name}" duplicate key error but could not find existing group`);
+          }
+        } else {
+          throw error;
+        }
+      }
     }
 
     // Ensure unit is linked to the ministry
@@ -646,6 +718,7 @@ export class MasterMemberHandler implements EntityHandler {
       'Date Of Birth',
       'Marital Status',
       'Member Status',
+      'Role Category',
       'Address (Optional - use this OR Street/City/State)',
       'Street (Optional)',
       'City (Optional)',
@@ -674,6 +747,7 @@ export class MasterMemberHandler implements EntityHandler {
       '1985-03-15',
       'Married',
       'DC',
+      'Leader', // Role Category: Leader = LXL status
       '', // Address (leave empty if using Street/City/State)
       '12 Victoria Island', // Street
       'Lagos', // City
@@ -683,11 +757,11 @@ export class MasterMemberHandler implements EntityHandler {
       'Main Campus',
       'Associate Pastor',
       'Lekki District',
-      '',
+      'Pastor', // District Role: Pastor = district leader
       'Media Ministry',
       'Ministry Director',
       'Sound Unit',
-      'Unit Head',
+      'Unit Head', // Unit Role: HOD = unit leader
       'Software Engineer',
     ];
   }

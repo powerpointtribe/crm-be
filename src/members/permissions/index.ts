@@ -10,6 +10,7 @@ export enum MembersPermission {
 
   // READ operations
   VIEW_MEMBERS = 'members:view',
+  VIEW_ALL_MEMBERS = 'members:view-all',
   VIEW_MEMBER_DETAILS = 'members:view-details',
   VIEW_MEMBER_STATS = 'members:view-stats',
   VIEW_OWN_PROFILE = 'members:view-own-profile',
@@ -49,7 +50,12 @@ export const MembersPermissionMetadata = {
   [MembersPermission.VIEW_MEMBERS]: {
     path: '/members',
     method: 'GET',
-    description: 'View all members',
+    description: 'View members (scoped to own groups)',
+  },
+  [MembersPermission.VIEW_ALL_MEMBERS]: {
+    path: '/members',
+    method: 'GET',
+    description: 'View all members across all units, ministries, and branches',
   },
   [MembersPermission.VIEW_MEMBER_DETAILS]: {
     path: '/members/:id',

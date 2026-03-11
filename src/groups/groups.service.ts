@@ -234,7 +234,7 @@ export class GroupsService {
     // Use aggregation with $lookup for reliable cross-collection joins
     const results = await this.groupModel.aggregate([
       { $match: { _id: new Types.ObjectId(id) } },
-      // Lookup members - handle both ObjectId and string IDs
+      // Lookup members
       {
         $lookup: {
           from: 'members',
@@ -242,18 +242,7 @@ export class GroupsService {
           pipeline: [
             {
               $match: {
-                $expr: {
-                  $in: [
-                    '$_id',
-                    {
-                      $map: {
-                        input: '$$memberIds',
-                        as: 'mid',
-                        in: { $toObjectId: '$$mid' },
-                      },
-                    },
-                  ],
-                },
+                $expr: { $in: ['$_id', { $ifNull: ['$$memberIds', []] }] },
               },
             },
             // Lookup the unit for each member
@@ -286,17 +275,15 @@ export class GroupsService {
           as: 'members',
         },
       },
-      // Lookup districtPastor - handle both ObjectId and string
+      // Lookup districtPastor
       {
         $lookup: {
           from: 'members',
-          let: { pastorId: '$districtPastor' },
+          let: { refId: '$districtPastor' },
           pipeline: [
             {
               $match: {
-                $expr: {
-                  $eq: ['$_id', { $toObjectId: '$$pastorId' }],
-                },
+                $expr: { $eq: ['$_id', '$$refId'] },
               },
             },
             {
@@ -318,17 +305,15 @@ export class GroupsService {
           districtPastor: { $arrayElemAt: ['$districtPastorData', 0] },
         },
       },
-      // Lookup unitHead - handle both ObjectId and string
+      // Lookup unitHead
       {
         $lookup: {
           from: 'members',
-          let: { headId: '$unitHead' },
+          let: { refId: '$unitHead' },
           pipeline: [
             {
               $match: {
-                $expr: {
-                  $eq: ['$_id', { $toObjectId: '$$headId' }],
-                },
+                $expr: { $eq: ['$_id', '$$refId'] },
               },
             },
             {
@@ -350,17 +335,15 @@ export class GroupsService {
           unitHead: { $arrayElemAt: ['$unitHeadData', 0] },
         },
       },
-      // Lookup assistantUnitHead - handle both ObjectId and string
+      // Lookup assistantUnitHead
       {
         $lookup: {
           from: 'members',
-          let: { assistantId: '$assistantUnitHead' },
+          let: { refId: '$assistantUnitHead' },
           pipeline: [
             {
               $match: {
-                $expr: {
-                  $eq: ['$_id', { $toObjectId: '$$assistantId' }],
-                },
+                $expr: { $eq: ['$_id', '$$refId'] },
               },
             },
             {
@@ -382,17 +365,15 @@ export class GroupsService {
           assistantUnitHead: { $arrayElemAt: ['$assistantUnitHeadData', 0] },
         },
       },
-      // Lookup ministryDirector - handle both ObjectId and string
+      // Lookup ministryDirector
       {
         $lookup: {
           from: 'members',
-          let: { directorId: '$ministryDirector' },
+          let: { refId: '$ministryDirector' },
           pipeline: [
             {
               $match: {
-                $expr: {
-                  $eq: ['$_id', { $toObjectId: '$$directorId' }],
-                },
+                $expr: { $eq: ['$_id', '$$refId'] },
               },
             },
             {
@@ -678,22 +659,54 @@ export class GroupsService {
       throw new NotFoundException('Group not found');
     }
 
+    // Check if member is actually in the group before removing
+    const memberObjectId = new Types.ObjectId(memberId);
+    const isMember = group.members.some(
+      (m) => m.toString() === memberId,
+    );
+
+    if (!isMember) {
+      throw new BadRequestException('Member is not in this group');
+    }
+
     const updatedGroup = await this.groupModel
       .findByIdAndUpdate(
         groupId,
         {
-          $pull: { members: memberId },
+          $pull: { members: memberObjectId },
           $inc: { currentMemberCount: -1 },
         },
         { new: true },
       )
       .populate('members', 'firstName lastName email phone');
 
-    // If this is a unit, clear the member's unit reference
+    // Clear the member's group reference based on group type
     if (group.type === GroupType.UNIT) {
       await this.memberModel.findByIdAndUpdate(memberId, {
         $unset: { unit: 1 },
       });
+    } else if (group.type === GroupType.DISTRICT) {
+      await this.memberModel.findByIdAndUpdate(memberId, {
+        $unset: { district: 1 },
+      });
+    }
+
+    // Clear leadership references if the removed member was a leader
+    const leaderUnset: Record<string, 1> = {};
+    if (group.districtPastor?.toString() === memberId) {
+      leaderUnset.districtPastor = 1;
+    }
+    if (group.unitHead?.toString() === memberId) {
+      leaderUnset.unitHead = 1;
+    }
+    if (group.assistantUnitHead?.toString() === memberId) {
+      leaderUnset.assistantUnitHead = 1;
+    }
+    if (group.ministryDirector?.toString() === memberId) {
+      leaderUnset.ministryDirector = 1;
+    }
+    if (Object.keys(leaderUnset).length > 0) {
+      await this.groupModel.findByIdAndUpdate(groupId, { $unset: leaderUnset });
     }
 
     // Log activity as side effect (async, non-blocking)

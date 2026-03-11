@@ -494,9 +494,78 @@ export class MembersService {
     return mergedMember;
   }
 
+  /**
+   * Build a leadership scope filter for the requesting user.
+   * If the user leads groups, only members in those groups are visible.
+   * If the user has no leadership but has district/unit, show those members.
+   * Otherwise, only show self.
+   */
+  async buildLeadershipScopeFilter(
+    userId: Types.ObjectId,
+    userDistrict?: Types.ObjectId,
+    userUnit?: Types.ObjectId,
+  ): Promise<FilterQuery<MemberDocument>> {
+    // Find groups where this user is a leader
+    const leadGroups = await this.groupModel
+      .find({
+        $or: [
+          { districtPastor: userId },
+          { unitHead: userId },
+          { assistantUnitHead: userId },
+          { ministryDirector: userId },
+        ],
+        isActive: true,
+      })
+      .select('_id type')
+      .lean();
+
+    if (leadGroups.length > 0) {
+      const districtIds = leadGroups
+        .filter((g) => g.type === GroupType.DISTRICT)
+        .map((g) => g._id);
+      const unitIds = leadGroups
+        .filter((g) => g.type === GroupType.UNIT)
+        .map((g) => g._id);
+      const ministryIds = leadGroups
+        .filter(
+          (g) => g.type === GroupType.MINISTRY || g.type === GroupType.COMMITTEE,
+        )
+        .map((g) => g._id);
+
+      const conditions: FilterQuery<MemberDocument>[] = [
+        { _id: userId }, // Always include self
+      ];
+      if (districtIds.length > 0) {
+        conditions.push({ district: { $in: districtIds } });
+      }
+      if (unitIds.length > 0) {
+        conditions.push({ unit: { $in: unitIds } });
+      }
+      if (ministryIds.length > 0) {
+        conditions.push({ additionalGroups: { $in: ministryIds } });
+      }
+      return { $or: conditions };
+    }
+
+    // Not a leader - show members in their own district/unit
+    const conditions: FilterQuery<MemberDocument>[] = [{ _id: userId }];
+    if (userDistrict) {
+      conditions.push({ district: userDistrict });
+    }
+    if (userUnit) {
+      conditions.push({ unit: userUnit });
+    }
+    if (conditions.length === 1) {
+      // No district or unit - only self
+      return { _id: userId };
+    }
+    return { $or: conditions };
+  }
+
   async findAll(
     searchDto: MemberSearchDto,
     branchFilterContext?: BranchFilterContext,
+    leadershipScopeFilter?: FilterQuery<MemberDocument>,
   ): Promise<PaginatedResult<MemberDocument>> {
     const {
       page = 1,
@@ -537,6 +606,16 @@ export class MembersService {
         effectiveContext,
         'branch',
       );
+    }
+
+    // Apply leadership scope filtering (leaders see only their group members)
+    if (leadershipScopeFilter) {
+      // Merge with existing $and or create one
+      if (filterQuery.$and) {
+        (filterQuery.$and as any[]).push(leadershipScopeFilter);
+      } else {
+        filterQuery = { $and: [filterQuery, leadershipScopeFilter] };
+      }
     }
 
     // Text search

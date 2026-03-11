@@ -117,14 +117,16 @@ export class MembersController {
 
       // Build branch filter context based on user's permissions
       let branchFilterContext: BranchFilterContext | undefined;
+      let userPermissions: string[] = [];
 
       if (currentMember.role) {
-        const userPermissions = await this.userPermissionsService.getUserPermissions(
+        const permResult = await this.userPermissionsService.getUserPermissions(
           currentMember.role._id || currentMember.role,
         );
+        userPermissions = permResult.permissions;
 
         branchFilterContext = {
-          userPermissions: userPermissions.permissions,
+          userPermissions,
           userBranchId: currentMember.branch?._id || currentMember.branch,
           selectedBranchId: query.branchId, // From query param
         };
@@ -136,8 +138,28 @@ export class MembersController {
         };
       }
 
-      // Get members with branch filtering applied
-      const data = await this.membersService.findAll(query, branchFilterContext);
+      // Build leadership scope filter for non-admin users
+      // Bypass scoping if: system role, has members:view-all, or has branches:view-all
+      const isSystemRole = currentMember.role?.isSystemRole === true;
+      const canViewAllMembers = userPermissions.includes(MembersPermission.VIEW_ALL_MEMBERS);
+      const hasBranchViewAll = userPermissions.includes('branches:view-all');
+
+      let leadershipScopeFilter: any = undefined;
+      if (!isSystemRole && !canViewAllMembers && !hasBranchViewAll) {
+        leadershipScopeFilter =
+          await this.membersService.buildLeadershipScopeFilter(
+            currentMember._id,
+            currentMember.district?._id || currentMember.district,
+            currentMember.unit?._id || currentMember.unit,
+          );
+      }
+
+      // Get members with branch + leadership scope filtering applied
+      const data = await this.membersService.findAll(
+        query,
+        branchFilterContext,
+        leadershipScopeFilter,
+      );
 
       return data;
     } catch (error) {

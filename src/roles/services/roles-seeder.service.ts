@@ -74,6 +74,7 @@ export class RolesSeederService {
       '-export',
       ':view-',
       ':preview', // preview is read-only
+      ':download', // download is read-only
     ];
     return viewPatterns.some((pattern) => permissionName.includes(pattern));
   }
