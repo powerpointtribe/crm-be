@@ -153,7 +153,7 @@ export class AuthController {
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
     const result = await this.authService.changePassword(
-      user.sub,
+      user._id.toString(),
       changePasswordDto,
     );
     return ResponseUtil.success(result, result.message);
