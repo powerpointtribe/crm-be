@@ -207,4 +207,28 @@ export class EmailNotificationProcessor {
       'disbursement confirmation to finance team',
     );
   }
+
+  @Process(JobType.FINANCE_NOTIFY_REQUESTOR_SUBMISSION)
+  async handleFinanceNotifyRequestorSubmission(job: Job<FinanceEmailJobData>) {
+    return this.processFinanceEmail(
+      job,
+      'submission confirmation to requestor',
+    );
+  }
+
+  @Process(JobType.FINANCE_NOTIFY_APPROVER_DISBURSEMENT)
+  async handleFinanceNotifyApproverDisbursement(job: Job<FinanceEmailJobData>) {
+    return this.processFinanceEmail(
+      job,
+      'disbursement notification to approver',
+    );
+  }
+
+  @Process(JobType.FINANCE_NOTIFY_DISBURSER_COMPLETION)
+  async handleFinanceNotifyDisburserCompletion(job: Job<FinanceEmailJobData>) {
+    return this.processFinanceEmail(
+      job,
+      'disbursement completion confirmation to disburser',
+    );
+  }
 }

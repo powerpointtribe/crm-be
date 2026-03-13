@@ -126,6 +126,7 @@ export class FinanceService {
     // If not a draft, send notification to approvers
     if (!dto.isDraft) {
       await this.notifyApprovers(savedRequisition, user);
+      await this.notifyRequestorOfSubmission(savedRequisition, user);
     }
 
     return this.findOne(savedRequisition._id.toString());
@@ -407,6 +408,7 @@ export class FinanceService {
 
     // Notify approvers
     await this.notifyApprovers(requisition, user);
+    await this.notifyRequestorOfSubmission(requisition, user);
 
     return this.findOne(id);
   }
@@ -442,9 +444,6 @@ export class FinanceService {
     requisition.updatedAt = new Date();
 
     await requisition.save();
-
-    // Notify requestor of approval
-    await this.notifyRequestorOfApproval(requisition, user);
 
     // Notify disbursers
     await this.notifyDisbursers(requisition, user);
@@ -525,6 +524,12 @@ export class FinanceService {
 
     // Notify requestor of disbursement
     await this.notifyRequestorOfDisbursement(requisition, user);
+
+    // Notify approver that disbursement is complete
+    await this.notifyApproverOfDisbursement(requisition, user);
+
+    // Confirm disbursement to the disburser
+    await this.notifyDisburserOfCompletion(requisition, user);
 
     return this.findOne(id);
   }
@@ -717,10 +722,11 @@ export class FinanceService {
       // Regular fields
       referenceNumber,
       unit: dto.unit ? new Types.ObjectId(dto.unit) : undefined,
+      customUnit: dto.customUnit || undefined,
       expenseCategory: new Types.ObjectId(dto.expenseCategory),
       eventDescription: dto.eventDescription,
       dateNeeded: new Date(dto.dateNeeded),
-      lastRequestDate: dto.lastRequestDate ? new Date(dto.lastRequestDate) : undefined,
+      lastRequest: dto.lastRequest || undefined,
       costBreakdown: dto.costBreakdown,
       creditAccount: dto.creditAccount,
       documentUrls: dto.documentUrls || [],
@@ -738,8 +744,8 @@ export class FinanceService {
     // Notify approvers with action tokens
     await this.notifyApproversWithTokens(savedRequisition);
 
-    // Notify disbursers (info only, no action yet)
-    await this.notifyDisbursersInfoOnly(savedRequisition);
+    // Confirm submission to submitter
+    await this.notifyPublicSubmitterOfSubmission(savedRequisition);
 
     return this.findOne(savedRequisition._id.toString());
   }
@@ -895,6 +901,12 @@ export class FinanceService {
     // Notify submitter of disbursement
     await this.notifyPublicSubmitterOfDisbursement(requisition, actionToken.recipientEmail);
 
+    // Notify approver that disbursement is complete
+    await this.notifyApproverOfDisbursementPublic(requisition);
+
+    // Confirm disbursement to the disburser
+    await this.notifyDisburserOfCompletionPublic(requisition, actionToken.recipientEmail);
+
     return this.findOne(requisition._id.toString());
   }
 
@@ -937,6 +949,28 @@ export class FinanceService {
       description: branch.description,
       address: branch.address,
     };
+  }
+
+  /**
+   * Get groups/units for a branch (public, no auth required)
+   */
+  async getPublicGroups(branchSlug: string): Promise<any[]> {
+    const branch = await this.branchModel.findOne({
+      slug: branchSlug.toLowerCase(),
+      isActive: true,
+    });
+    if (!branch) return [];
+
+    const groups = await this.groupModel
+      .find({ branch: branch._id, isActive: true, type: 'unit' })
+      .select('_id name')
+      .sort({ name: 1 })
+      .exec();
+
+    return groups.map((g) => ({
+      _id: g._id,
+      name: g.name,
+    }));
   }
 
   /**
@@ -1989,7 +2023,7 @@ export class FinanceService {
                 { label: 'Name', value: `${requestor.firstName} ${requestor.lastName}` },
                 { label: 'Date Needed', value: new Date(requisition.dateNeeded).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) },
                 { label: 'Discussed with P.Dams', value: this.getDiscussionBadge(requisition.discussedWithPDams) },
-                ...(requisition.lastRequestDate ? [{ label: 'Last Similar Request', value: new Date(requisition.lastRequestDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }] : []),
+                ...(requisition.lastRequest ? [{ label: 'Last Similar Request', value: requisition.lastRequest }] : []),
               ])}
 
               <!-- Purpose -->
@@ -2511,7 +2545,7 @@ export class FinanceService {
                 { label: 'Email', value: requisition.isPublicSubmission ? requisition.submitterEmail || 'N/A' : (requisition.requestor as any)?.email || 'N/A' },
                 { label: 'Date Needed', value: new Date(requisition.dateNeeded).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) },
                 { label: 'Discussed with P.Dams', value: this.getDiscussionBadge(requisition.discussedWithPDams) },
-                ...(requisition.lastRequestDate ? [{ label: 'Last Similar Request', value: new Date(requisition.lastRequestDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }] : []),
+                ...(requisition.lastRequest ? [{ label: 'Last Similar Request', value: requisition.lastRequest }] : []),
               ])}
 
               <!-- Purpose -->
@@ -3093,6 +3127,342 @@ export class FinanceService {
                   <span style="font-size: 13px; color: #111827; font-weight: 500;">${new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                 </div>
               </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="padding: 16px 24px; background: #f9fafb; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">Thank you for using the Finance Module</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Notify requestor of successful submission
+   * Non-blocking: queues email for async delivery
+   */
+  private async notifyRequestorOfSubmission(
+    requisition: RequisitionDocument,
+    requestor: MemberDocument,
+  ): Promise<void> {
+    try {
+      if (!requestor?.email) return;
+
+      const html = this.generateSubmissionConfirmationEmail(requisition);
+      const subject = `Requisition Submitted - ${requisition.referenceNumber}`;
+
+      this.queueService.queueRequestorSubmissionNotification(
+        requisition._id.toString(),
+        html,
+        subject,
+        [{ email: requestor.email, name: `${requestor.firstName || ''} ${requestor.lastName || ''}`.trim() }],
+      );
+    } catch (error) {
+      console.error('Failed to queue submission confirmation to requestor:', error);
+    }
+  }
+
+  /**
+   * Notify public submitter of successful submission
+   */
+  private async notifyPublicSubmitterOfSubmission(
+    requisition: RequisitionDocument,
+  ): Promise<void> {
+    try {
+      const email = requisition.submitterEmail;
+      if (!email) return;
+
+      const html = this.generateSubmissionConfirmationEmail(requisition);
+      const subject = `Requisition Submitted - ${requisition.referenceNumber}`;
+
+      this.queueService.queueRequestorSubmissionNotification(
+        requisition._id.toString(),
+        html,
+        subject,
+        [{ email, name: requisition.submitterName || '' }],
+      );
+    } catch (error) {
+      console.error('Failed to queue submission confirmation to public submitter:', error);
+    }
+  }
+
+  /**
+   * Notify the approver when disbursement is completed
+   */
+  private async notifyApproverOfDisbursement(
+    requisition: RequisitionDocument,
+    disburser: MemberDocument,
+  ): Promise<void> {
+    try {
+      if (!requisition.approvedBy) return;
+      const approver = await this.memberModel
+        .findById(requisition.approvedBy)
+        .select('firstName lastName email');
+      if (!approver?.email) return;
+
+      const html = this.generateApproverDisbursementNotificationEmail(requisition, disburser);
+      const subject = `Requisition Disbursed - ${requisition.totalAmount.toLocaleString()} NGN`;
+
+      this.queueService.queueApproverDisbursementNotification(
+        requisition._id.toString(),
+        html,
+        subject,
+        [{ email: approver.email, name: `${approver.firstName || ''} ${approver.lastName || ''}`.trim() }],
+      );
+    } catch (error) {
+      console.error('Failed to queue disbursement notification to approver:', error);
+    }
+  }
+
+  /**
+   * Notify the approver when disbursement is completed (public flow)
+   * Finds the approver via used action token
+   */
+  private async notifyApproverOfDisbursementPublic(
+    requisition: RequisitionDocument,
+  ): Promise<void> {
+    try {
+      const approveToken = await this.actionTokenService.findUsedApprovalToken(
+        requisition._id,
+      );
+      if (!approveToken?.recipientEmail) return;
+
+      const html = this.generateApproverDisbursementNotificationEmail(requisition, null);
+      const subject = `Requisition Disbursed - ${requisition.totalAmount.toLocaleString()} NGN`;
+
+      this.queueService.queueApproverDisbursementNotification(
+        requisition._id.toString(),
+        html,
+        subject,
+        [{ email: approveToken.recipientEmail }],
+      );
+    } catch (error) {
+      console.error('Failed to queue disbursement notification to approver (public):', error);
+    }
+  }
+
+  /**
+   * Notify the disburser that disbursement is completed (confirmation)
+   */
+  private async notifyDisburserOfCompletion(
+    requisition: RequisitionDocument,
+    disburser: MemberDocument,
+  ): Promise<void> {
+    try {
+      if (!disburser?.email) return;
+
+      const html = this.generateDisburserCompletionEmail(requisition);
+      const subject = `Disbursement Completed - ${requisition.totalAmount.toLocaleString()} NGN`;
+
+      this.queueService.queueDisburserCompletionNotification(
+        requisition._id.toString(),
+        html,
+        subject,
+        [{ email: disburser.email, name: `${disburser.firstName || ''} ${disburser.lastName || ''}`.trim() }],
+      );
+    } catch (error) {
+      console.error('Failed to queue disbursement completion to disburser:', error);
+    }
+  }
+
+  /**
+   * Notify the disburser that disbursement is completed (public flow)
+   */
+  private async notifyDisburserOfCompletionPublic(
+    requisition: RequisitionDocument,
+    disburserEmail: string,
+  ): Promise<void> {
+    try {
+      if (!disburserEmail) return;
+
+      const html = this.generateDisburserCompletionEmail(requisition);
+      const subject = `Disbursement Completed - ${requisition.totalAmount.toLocaleString()} NGN`;
+
+      this.queueService.queueDisburserCompletionNotification(
+        requisition._id.toString(),
+        html,
+        subject,
+        [{ email: disburserEmail }],
+      );
+    } catch (error) {
+      console.error('Failed to queue disbursement completion to disburser (public):', error);
+    }
+  }
+
+  /**
+   * Generate submission confirmation email for requestor
+   */
+  private generateSubmissionConfirmationEmail(requisition: RequisitionDocument): string {
+    const expenseCategory = (requisition as any).expenseCategory?.name || 'N/A';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Requisition Submitted</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f0f2f5;">
+        <div style="max-width: 640px; margin: 0 auto; padding: 40px 20px;">
+          <div style="background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            <!-- Header -->
+            <div style="padding: 32px 32px 24px; text-align: center;">
+              <div style="width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                <span style="font-size: 28px;">&#128203;</span>
+              </div>
+              <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0 0 8px;">Requisition Submitted</h1>
+              <p style="font-size: 15px; color: #6b7280; margin: 0;">Your requisition has been submitted for approval</p>
+            </div>
+
+            <!-- Content -->
+            <div style="padding: 0 32px 32px;">
+              ${this.generateWorkflowTracker(1)}
+
+              <!-- Amount Display -->
+              <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px; border: 1px solid #e2e8f0;">
+                <p style="font-size: 13px; color: #6b7280; margin: 0 0 4px;">Total Amount</p>
+                <p style="font-size: 32px; font-weight: 800; color: #1f2937; margin: 0;">&#8358;${requisition.totalAmount.toLocaleString()}</p>
+              </div>
+
+              ${this.generateInfoCard('&#128203;', 'Requisition Details', [
+                { label: 'Reference', value: requisition.referenceNumber || 'N/A' },
+                { label: 'Category', value: expenseCategory },
+                { label: 'Description', value: requisition.eventDescription.substring(0, 100) },
+                { label: 'Date Needed', value: new Date(requisition.dateNeeded).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) },
+              ])}
+
+              <!-- What's Next -->
+              <div style="background: #eff6ff; border-radius: 12px; padding: 16px; margin-top: 20px;">
+                <p style="font-size: 14px; font-weight: 600; color: #1e40af; margin: 0 0 8px;">What happens next?</p>
+                <p style="font-size: 13px; color: #3b82f6; margin: 0;">Your requisition is now awaiting approval. You will be notified once it has been reviewed.</p>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="padding: 16px 24px; background: #f9fafb; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">Thank you for using the Finance Module</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Generate email notifying the approver that disbursement is complete
+   */
+  private generateApproverDisbursementNotificationEmail(
+    requisition: RequisitionDocument,
+    disburser: MemberDocument | null,
+  ): string {
+    const expenseCategory = (requisition as any).expenseCategory?.name || 'N/A';
+    const disburserName = disburser
+      ? `${disburser.firstName || ''} ${disburser.lastName || ''}`.trim()
+      : 'Finance Team';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Requisition Disbursed</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f0f2f5;">
+        <div style="max-width: 640px; margin: 0 auto; padding: 40px 20px;">
+          <div style="background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            <!-- Header -->
+            <div style="padding: 32px 32px 24px; text-align: center;">
+              <div style="width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                <span style="font-size: 28px;">&#10003;</span>
+              </div>
+              <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0 0 8px;">Requisition Disbursed</h1>
+              <p style="font-size: 15px; color: #6b7280; margin: 0;">A requisition you approved has been disbursed</p>
+            </div>
+
+            <!-- Content -->
+            <div style="padding: 0 32px 32px;">
+              ${this.generateWorkflowTracker(3)}
+
+              <!-- Amount Display -->
+              <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px; border: 1px solid #bbf7d0;">
+                <p style="font-size: 13px; color: #16a34a; margin: 0 0 4px;">Amount Disbursed</p>
+                <p style="font-size: 32px; font-weight: 800; color: #15803d; margin: 0;">&#8358;${requisition.totalAmount.toLocaleString()}</p>
+              </div>
+
+              ${this.generateInfoCard('&#128203;', 'Requisition Details', [
+                { label: 'Reference', value: requisition.referenceNumber || 'N/A' },
+                { label: 'Category', value: expenseCategory },
+                { label: 'Description', value: requisition.eventDescription.substring(0, 100) },
+                { label: 'Disbursed By', value: disburserName },
+                { label: 'Disbursed At', value: requisition.disbursedAt ? new Date(requisition.disbursedAt).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A' },
+              ])}
+            </div>
+
+            <!-- Footer -->
+            <div style="padding: 16px 24px; background: #f9fafb; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">Thank you for using the Finance Module</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Generate email confirming disbursement completion to the disburser
+   */
+  private generateDisburserCompletionEmail(requisition: RequisitionDocument): string {
+    const expenseCategory = (requisition as any).expenseCategory?.name || 'N/A';
+    const bankAccount = requisition.creditAccount;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Disbursement Completed</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f0f2f5;">
+        <div style="max-width: 640px; margin: 0 auto; padding: 40px 20px;">
+          <div style="background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            <!-- Header -->
+            <div style="padding: 32px 32px 24px; text-align: center;">
+              <div style="width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                <span style="font-size: 28px;">&#10003;</span>
+              </div>
+              <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0 0 8px;">Disbursement Completed</h1>
+              <p style="font-size: 15px; color: #6b7280; margin: 0;">This is your confirmation record</p>
+            </div>
+
+            <!-- Content -->
+            <div style="padding: 0 32px 32px;">
+              ${this.generateWorkflowTracker(3)}
+
+              <!-- Amount Display -->
+              <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px; border: 1px solid #bbf7d0;">
+                <p style="font-size: 13px; color: #16a34a; margin: 0 0 4px;">Amount Disbursed</p>
+                <p style="font-size: 32px; font-weight: 800; color: #15803d; margin: 0;">&#8358;${requisition.totalAmount.toLocaleString()}</p>
+              </div>
+
+              ${this.generateInfoCard('&#128203;', 'Requisition Details', [
+                { label: 'Reference', value: requisition.referenceNumber || 'N/A' },
+                { label: 'Category', value: expenseCategory },
+                { label: 'Description', value: requisition.eventDescription.substring(0, 100) },
+              ])}
+
+              ${bankAccount ? this.generateInfoCard('&#127974;', 'Payment Details', [
+                { label: 'Bank', value: bankAccount.bankName || 'N/A' },
+                { label: 'Account Name', value: bankAccount.accountName || 'N/A' },
+                { label: 'Account Number', value: bankAccount.accountNumber || 'N/A' },
+              ]) : ''}
             </div>
 
             <!-- Footer -->

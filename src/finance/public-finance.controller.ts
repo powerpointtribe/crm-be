@@ -183,4 +183,17 @@ export class PublicFinanceController {
     const branch = await this.financeService.getPublicBranchBySlug(slug);
     return ResponseUtil.success(branch, 'Branch retrieved successfully');
   }
+
+  /**
+   * Get groups/units for a branch (public)
+   */
+  @Public()
+  @Get('groups/:branchSlug')
+  @ApiOperation({ summary: 'Get groups/units for a branch (no auth required)' })
+  @ApiParam({ name: 'branchSlug', description: 'Branch slug' })
+  @ApiResponse({ status: 200, description: 'Groups retrieved' })
+  async getPublicGroups(@Param('branchSlug') branchSlug: string) {
+    const groups = await this.financeService.getPublicGroups(branchSlug);
+    return ResponseUtil.success(groups, 'Groups retrieved successfully');
+  }
 }

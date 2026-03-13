@@ -219,4 +219,15 @@ export class ActionTokenService {
       expiresAt: { $gt: new Date() },
     });
   }
+
+  /**
+   * Find the used approval token for a requisition
+   */
+  async findUsedApprovalToken(requisitionId: Types.ObjectId): Promise<ActionTokenDocument | null> {
+    return this.actionTokenModel.findOne({
+      requisitionId,
+      actionType: ActionTokenType.APPROVE,
+      isUsed: true,
+    });
+  }
 }

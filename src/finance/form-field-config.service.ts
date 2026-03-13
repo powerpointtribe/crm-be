@@ -302,10 +302,10 @@ export class FormFieldConfigService {
       },
       {
         formType: 'requisition',
-        fieldKey: 'lastRequestDate',
+        fieldKey: 'lastRequest',
         label: 'Last Request of This Nature',
-        helpText: 'Optional - When was this last requested?',
-        fieldType: FormFieldType.DATE,
+        helpText: 'Optional - e.g., About 3 months ago',
+        fieldType: FormFieldType.TEXT,
         validation: { required: false },
         isSystemField: false,
         sortOrder: 4,

@@ -271,13 +271,6 @@ export class RolesService {
       throw new NotFoundException(`Role with ID '${roleId}' not found`);
     }
 
-    // Prevent modification of system roles
-    if (role.isSystemRole) {
-      throw new ForbiddenException(
-        'System role permissions cannot be modified',
-      );
-    }
-
     // Validate all permissions exist
     await this.validatePermissions(assignPermissionsDto.permissionIds);
 
@@ -316,13 +309,6 @@ export class RolesService {
 
     if (!role) {
       throw new NotFoundException(`Role with ID '${roleId}' not found`);
-    }
-
-    // Prevent modification of system roles
-    if (role.isSystemRole) {
-      throw new ForbiddenException(
-        'System role permissions cannot be modified',
-      );
     }
 
     // Validate all permissions exist
@@ -369,13 +355,6 @@ export class RolesService {
 
     if (!role) {
       throw new NotFoundException(`Role with ID '${roleId}' not found`);
-    }
-
-    // Prevent modification of system roles
-    if (role.isSystemRole) {
-      throw new ForbiddenException(
-        'System role permissions cannot be modified',
-      );
     }
 
     // Remove specified permissions

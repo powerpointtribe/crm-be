@@ -76,6 +76,9 @@ export class Requisition {
   @Prop({ type: Types.ObjectId, ref: 'Group', index: true })
   unit?: Types.ObjectId;
 
+  @Prop({ type: String, trim: true, maxlength: 200 })
+  customUnit?: string;
+
   @Prop({ type: Types.ObjectId, ref: 'ExpenseCategory', required: true, index: true })
   expenseCategory: Types.ObjectId;
 
@@ -86,8 +89,8 @@ export class Requisition {
   @Prop({ required: true, type: Date })
   dateNeeded: Date;
 
-  @Prop({ type: Date })
-  lastRequestDate?: Date;
+  @Prop({ type: String, trim: true })
+  lastRequest?: string;
 
   // Financial details
   @Prop({ required: true, min: 0 })

@@ -63,6 +63,12 @@ export class CreateRequisitionDto {
   @IsMongoId()
   unit?: string;
 
+  @ApiPropertyOptional({ description: 'Custom unit name if "Others" is selected' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customUnit?: string;
+
   @ApiProperty({ description: 'Expense category ID' })
   @IsMongoId()
   @IsNotEmpty()
@@ -79,10 +85,11 @@ export class CreateRequisitionDto {
   @IsNotEmpty()
   dateNeeded: string;
 
-  @ApiPropertyOptional({ description: 'Date of last similar request' })
+  @ApiPropertyOptional({ description: 'When a similar request was last made' })
   @IsOptional()
-  @IsDateString()
-  lastRequestDate?: string;
+  @IsString()
+  @MaxLength(200)
+  lastRequest?: string;
 
   @ApiProperty({
     description: 'Breakdown of costs',

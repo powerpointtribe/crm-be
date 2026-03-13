@@ -47,6 +47,9 @@ export enum JobType {
   FINANCE_NOTIFY_DISBURSERS = 'finance-notify-disbursers',
   FINANCE_NOTIFY_REQUESTOR_DISBURSEMENT = 'finance-notify-requestor-disbursement',
   FINANCE_NOTIFY_DISBURSE_CONFIRMATION = 'finance-notify-disburse-confirmation',
+  FINANCE_NOTIFY_REQUESTOR_SUBMISSION = 'finance-notify-requestor-submission',
+  FINANCE_NOTIFY_APPROVER_DISBURSEMENT = 'finance-notify-approver-disbursement',
+  FINANCE_NOTIFY_DISBURSER_COMPLETION = 'finance-notify-disburser-completion',
 
   // Entry Import jobs
   ENTRY_IMPORT_PROCESS = 'entry-import-process',

@@ -49,11 +49,17 @@ export class PublicCreateRequisitionDto {
   @Matches(/^[a-z0-9-]+$/, { message: 'Branch slug must be lowercase alphanumeric with hyphens' })
   branchSlug: string;
 
-  // Same fields as CreateRequisitionDto
+  // Unit selection - either a group ID or custom text
   @ApiPropertyOptional({ description: 'Unit/Group ID for the requisition' })
   @IsOptional()
   @IsMongoId()
   unit?: string;
+
+  @ApiPropertyOptional({ description: 'Custom unit name if "Others" is selected' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customUnit?: string;
 
   @ApiProperty({ description: 'Expense category ID' })
   @IsMongoId()
@@ -71,10 +77,11 @@ export class PublicCreateRequisitionDto {
   @IsNotEmpty()
   dateNeeded: string;
 
-  @ApiPropertyOptional({ description: 'Date of last similar request' })
+  @ApiPropertyOptional({ description: 'When a similar request was last made' })
   @IsOptional()
-  @IsDateString()
-  lastRequestDate?: string;
+  @IsString()
+  @MaxLength(200)
+  lastRequest?: string;
 
   @ApiProperty({
     description: 'Breakdown of costs',

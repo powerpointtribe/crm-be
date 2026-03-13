@@ -204,13 +204,13 @@ export class MembersController {
   @Get('my-profile')
   @RequirePermission(MembersPermission.VIEW_OWN_PROFILE)
   async getMyProfile(@Request() req) {
-    return this.membersService.findById(req.user.sub);
+    return this.membersService.findById(req.user._id.toString());
   }
 
   @Get('my-preferences')
   @RequirePermission(MembersPermission.VIEW_OWN_PROFILE)
   async getMyPreferences(@Request() req) {
-    const member = await this.membersService.findById(req.user.sub);
+    const member = await this.membersService.findById(req.user._id.toString());
     return member?.preferences || {
       theme: 'system',
       language: 'en',
@@ -231,7 +231,7 @@ export class MembersController {
   @Patch('my-preferences')
   @RequirePermission(MembersPermission.VIEW_OWN_PROFILE)
   async updateMyPreferences(@Request() req, @Body() preferences: any) {
-    return this.membersService.updatePreferences(req.user.sub, preferences);
+    return this.membersService.updatePreferences(req.user._id.toString(), preferences);
   }
 
   @Get('my-district')

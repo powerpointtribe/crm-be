@@ -364,6 +364,63 @@ export class QueueService {
   }
 
   /**
+   * Queue submission confirmation to requestor (non-blocking)
+   */
+  async queueRequestorSubmissionNotification(
+    requisitionId: string,
+    emailHtml: string,
+    emailSubject: string,
+    recipients: Array<{ email: string; name?: string }>,
+  ): Promise<void> {
+    await this.addFinanceEmailJob({
+      jobType: JobType.FINANCE_NOTIFY_REQUESTOR_SUBMISSION,
+      requisitionId,
+      emailHtml,
+      emailSubject,
+      recipients,
+      metadata: { actionType: 'notification' },
+    });
+  }
+
+  /**
+   * Queue disbursement notification to approver (non-blocking)
+   */
+  async queueApproverDisbursementNotification(
+    requisitionId: string,
+    emailHtml: string,
+    emailSubject: string,
+    recipients: Array<{ email: string; name?: string }>,
+  ): Promise<void> {
+    await this.addFinanceEmailJob({
+      jobType: JobType.FINANCE_NOTIFY_APPROVER_DISBURSEMENT,
+      requisitionId,
+      emailHtml,
+      emailSubject,
+      recipients,
+      metadata: { actionType: 'disbursement' },
+    });
+  }
+
+  /**
+   * Queue disbursement completion confirmation to disburser (non-blocking)
+   */
+  async queueDisburserCompletionNotification(
+    requisitionId: string,
+    emailHtml: string,
+    emailSubject: string,
+    recipients: Array<{ email: string; name?: string }>,
+  ): Promise<void> {
+    await this.addFinanceEmailJob({
+      jobType: JobType.FINANCE_NOTIFY_DISBURSER_COMPLETION,
+      requisitionId,
+      emailHtml,
+      emailSubject,
+      recipients,
+      metadata: { actionType: 'disbursement' },
+    });
+  }
+
+  /**
    * Schedule a follow-up reminder to be sent at a specific date/time
    * @param data - The reminder data including first timer and assigned person info
    * @param scheduledDate - The date/time when the reminder should be sent
