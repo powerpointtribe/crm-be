@@ -528,9 +528,6 @@ export class FinanceService {
     // Notify approver that disbursement is complete
     await this.notifyApproverOfDisbursement(requisition, user);
 
-    // Confirm disbursement to the disburser
-    await this.notifyDisburserOfCompletion(requisition, user);
-
     return this.findOne(id);
   }
 
@@ -903,9 +900,6 @@ export class FinanceService {
 
     // Notify approver that disbursement is complete
     await this.notifyApproverOfDisbursementPublic(requisition);
-
-    // Confirm disbursement to the disburser
-    await this.notifyDisburserOfCompletionPublic(requisition, actionToken.recipientEmail);
 
     return this.findOne(requisition._id.toString());
   }
@@ -3338,7 +3332,7 @@ export class FinanceService {
               <!-- What's Next -->
               <div style="background: #eff6ff; border-radius: 12px; padding: 16px; margin-top: 20px;">
                 <p style="font-size: 14px; font-weight: 600; color: #1e40af; margin: 0 0 8px;">What happens next?</p>
-                <p style="font-size: 13px; color: #3b82f6; margin: 0;">Your requisition is now awaiting approval. You will be notified once it has been reviewed.</p>
+                <p style="font-size: 13px; color: #3b82f6; margin: 0;">Your requisition is now awaiting approval. You will be notified once it has been reviewed and disbursed.</p>
               </div>
             </div>
 
