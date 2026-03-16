@@ -45,6 +45,14 @@ export class MemberSearchDto extends SearchDto {
   @IsEnum(['single', 'married', 'divorced', 'widowed'])
   maritalStatus?: string;
 
+  @ApiPropertyOptional({
+    description: 'Filter by leadership role in groups',
+    enum: ['unit_head', 'district_pastor', 'ministry_director'],
+  })
+  @IsOptional()
+  @IsString()
+  leadershipRole?: string;
+
   @ApiPropertyOptional({ description: 'Filter by district ID' })
   @IsOptional()
   @IsMongoId()

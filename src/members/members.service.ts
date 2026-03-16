@@ -574,6 +574,7 @@ export class MembersService {
       sortBy = 'createdAt',
       sortOrder = 'desc',
       membershipStatus,
+      leadershipRole,
       gender,
       maritalStatus,
       districtId,
@@ -634,6 +635,38 @@ export class MembersService {
     if (membershipStatus) filterQuery.membershipStatus = membershipStatus;
     if (gender) filterQuery.gender = gender;
     if (maritalStatus) filterQuery.maritalStatus = maritalStatus;
+
+    // Leadership role filter - find members who hold leadership positions in groups
+    if (leadershipRole) {
+      const roleFieldMap: Record<string, string> = {
+        unit_head: 'unitHead',
+        district_pastor: 'districtPastor',
+        ministry_director: 'ministryDirector',
+      };
+      const roleFields = leadershipRole === 'unit_head'
+        ? ['unitHead', 'assistantUnitHead']
+        : [roleFieldMap[leadershipRole]];
+
+      if (roleFields.length > 0 && roleFields[0]) {
+        const orConditions = roleFields.map((field) => ({
+          [field]: { $exists: true, $ne: null },
+        }));
+        const leaderGroups = await this.groupModel
+          .find({ isActive: true, $or: orConditions })
+          .select(roleFields.join(' '))
+          .exec();
+
+        const memberIds = new Set<string>();
+        for (const group of leaderGroups) {
+          for (const field of roleFields) {
+            const val = (group as any)[field];
+            if (val) memberIds.add(val.toString());
+          }
+        }
+
+        filterQuery._id = { $in: Array.from(memberIds).map((id) => new Types.ObjectId(id)) };
+      }
+    }
 
     // Church structure filters
     if (districtId) filterQuery.district = districtId;
