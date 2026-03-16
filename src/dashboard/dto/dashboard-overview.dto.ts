@@ -15,6 +15,9 @@ export class DashboardStatsDto {
 
   @ApiProperty({ description: 'Total number of groups/units' })
   totalGroups: number;
+
+  @ApiProperty({ description: 'Total number of events' })
+  totalEvents?: number;
 }
 
 export class RecentActivityDto {
@@ -34,6 +37,13 @@ export class RecentActivityDto {
 
   @ApiProperty({ description: 'Recent group formations' })
   recentGroups: {
+    count: number;
+    percentage: number;
+    trend: 'up' | 'down' | 'stable';
+  };
+
+  @ApiProperty({ description: 'Recent events created' })
+  recentEvents?: {
     count: number;
     percentage: number;
     trend: 'up' | 'down' | 'stable';

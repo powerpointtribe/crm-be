@@ -120,7 +120,10 @@ EventRegistrationSchema.index({ checkInCode: 1 });
 EventRegistrationSchema.index({ 'attendeeInfo.email': 1 });
 EventRegistrationSchema.index({ 'attendeeInfo.phone': 1 });
 EventRegistrationSchema.index({ event: 1, status: 1 });
-EventRegistrationSchema.index({ event: 1, member: 1 }, { unique: true, sparse: true });
+EventRegistrationSchema.index(
+  { event: 1, member: 1 },
+  { unique: true, partialFilterExpression: { member: { $type: 'objectId' } } },
+);
 EventRegistrationSchema.index({ registeredAt: -1 });
 
 // Pre-save hook to generate check-in code if not present

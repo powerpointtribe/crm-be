@@ -24,6 +24,7 @@ import {
   FirstTimerDocument,
 } from '../first-timers/schemas/first-timer.schema';
 import { Group, GroupDocument } from '../groups/schemas/group.schema';
+import { Event, EventDocument } from '../events/schemas/event.schema';
 // import { QueueService } from '../queue/queue.service';
 
 @Injectable()
@@ -33,6 +34,7 @@ export class DashboardService {
     @InjectModel(FirstTimer.name)
     private firstTimerModel: Model<FirstTimerDocument>,
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
+    @InjectModel(Event.name) private eventModel: Model<EventDocument>,
     // private queueService: QueueService,
   ) {}
 
@@ -137,25 +139,29 @@ export class DashboardService {
     const hasMembers = accessibleModules.includes(ModuleIdentifier.MEMBERS);
     const hasFirstTimers = accessibleModules.includes(ModuleIdentifier.FIRST_TIMERS);
     const hasGroups = accessibleModules.includes(ModuleIdentifier.GROUPS);
+    const hasEvents = accessibleModules.includes(ModuleIdentifier.EVENTS);
 
     const [
       totalMembers,
       activeMembers,
       totalFirstTimers,
       totalGroups,
+      totalEvents,
     ] = await Promise.all([
       hasMembers ? this.memberModel.countDocuments() : Promise.resolve(0),
       hasMembers ? this.memberModel.countDocuments({ isActive: true }) : Promise.resolve(0),
       hasFirstTimers ? this.firstTimerModel.countDocuments() : Promise.resolve(0),
       hasGroups ? this.groupModel.countDocuments() : Promise.resolve(0),
+      hasEvents ? this.eventModel.countDocuments() : Promise.resolve(0),
     ]);
 
     return {
       totalMembers,
       activeMembers,
       totalFirstTimers,
-      totalUsers: totalMembers, // Same as totalMembers for scoped view
+      totalUsers: totalMembers,
       totalGroups,
+      totalEvents,
     };
   }
 
@@ -175,13 +181,14 @@ export class DashboardService {
     const hasMembers = accessibleModules.includes(ModuleIdentifier.MEMBERS);
     const hasFirstTimers = accessibleModules.includes(ModuleIdentifier.FIRST_TIMERS);
     const hasGroups = accessibleModules.includes(ModuleIdentifier.GROUPS);
+    const hasEvents = accessibleModules.includes(ModuleIdentifier.EVENTS);
 
     const periodDuration = endDate.getTime() - startDate.getTime();
     const prevEndDate = new Date(startDate.getTime());
     const prevStartDate = new Date(startDate.getTime() - periodDuration);
 
     // Get current period data (only for accessible modules)
-    const [recentMembersCount, recentFirstTimersCount, recentGroupsCount] =
+    const [recentMembersCount, recentFirstTimersCount, recentGroupsCount, recentEventsCount] =
       await Promise.all([
         hasMembers
           ? this.memberModel.countDocuments({ createdAt: { $gte: startDate, $lte: endDate } })
@@ -192,10 +199,13 @@ export class DashboardService {
         hasGroups
           ? this.groupModel.countDocuments({ createdAt: { $gte: startDate, $lte: endDate } })
           : Promise.resolve(0),
+        hasEvents
+          ? this.eventModel.countDocuments({ createdAt: { $gte: startDate, $lte: endDate } })
+          : Promise.resolve(0),
       ]);
 
     // Get previous period data for comparison
-    const [prevMembersCount, prevFirstTimersCount, prevGroupsCount] =
+    const [prevMembersCount, prevFirstTimersCount, prevGroupsCount, prevEventsCount] =
       await Promise.all([
         hasMembers
           ? this.memberModel.countDocuments({ createdAt: { $gte: prevStartDate, $lt: prevEndDate } })
@@ -205,6 +215,9 @@ export class DashboardService {
           : Promise.resolve(0),
         hasGroups
           ? this.groupModel.countDocuments({ createdAt: { $gte: prevStartDate, $lt: prevEndDate } })
+          : Promise.resolve(0),
+        hasEvents
+          ? this.eventModel.countDocuments({ createdAt: { $gte: prevStartDate, $lt: prevEndDate } })
           : Promise.resolve(0),
       ]);
 
@@ -223,6 +236,11 @@ export class DashboardService {
         count: recentGroupsCount,
         percentage: this.calculatePercentageChange(recentGroupsCount, prevGroupsCount),
         trend: this.getTrend(recentGroupsCount, prevGroupsCount),
+      },
+      recentEvents: {
+        count: recentEventsCount,
+        percentage: this.calculatePercentageChange(recentEventsCount, prevEventsCount),
+        trend: this.getTrend(recentEventsCount, prevEventsCount),
       },
     };
   }
@@ -263,12 +281,14 @@ export class DashboardService {
       totalFirstTimers,
       totalUsers,
       totalGroups,
+      totalEvents,
     ] = await Promise.all([
       this.memberModel.countDocuments(),
       this.memberModel.countDocuments({ isActive: true }),
       this.firstTimerModel.countDocuments(),
       this.memberModel.countDocuments(),
       this.groupModel.countDocuments(),
+      this.eventModel.countDocuments(),
     ]);
 
     return {
@@ -277,6 +297,7 @@ export class DashboardService {
       totalFirstTimers,
       totalUsers,
       totalGroups,
+      totalEvents,
     };
   }
 
@@ -288,17 +309,18 @@ export class DashboardService {
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
     // Get current month data
-    const [recentMembersCount, recentFirstTimersCount, recentGroupsCount] =
+    const [recentMembersCount, recentFirstTimersCount, recentGroupsCount, recentEventsCount] =
       await Promise.all([
         this.memberModel.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
         this.firstTimerModel.countDocuments({
           createdAt: { $gte: thirtyDaysAgo },
         }),
         this.groupModel.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+        this.eventModel.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
       ]);
 
     // Get previous month data for comparison
-    const [prevMembersCount, prevFirstTimersCount, prevGroupsCount] =
+    const [prevMembersCount, prevFirstTimersCount, prevGroupsCount, prevEventsCount] =
       await Promise.all([
         this.memberModel.countDocuments({
           createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
@@ -307,6 +329,9 @@ export class DashboardService {
           createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
         }),
         this.groupModel.countDocuments({
+          createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
+        }),
+        this.eventModel.countDocuments({
           createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
         }),
       ]);
@@ -335,6 +360,14 @@ export class DashboardService {
           prevGroupsCount,
         ),
         trend: this.getTrend(recentGroupsCount, prevGroupsCount),
+      },
+      recentEvents: {
+        count: recentEventsCount,
+        percentage: this.calculatePercentageChange(
+          recentEventsCount,
+          prevEventsCount,
+        ),
+        trend: this.getTrend(recentEventsCount, prevEventsCount),
       },
     };
   }
@@ -351,7 +384,7 @@ export class DashboardService {
     const prevStartDate = new Date(startDate.getTime() - periodDuration);
 
     // Get current period data
-    const [recentMembersCount, recentFirstTimersCount, recentGroupsCount] =
+    const [recentMembersCount, recentFirstTimersCount, recentGroupsCount, recentEventsCount] =
       await Promise.all([
         this.memberModel.countDocuments({
           createdAt: { $gte: startDate, $lte: endDate },
@@ -360,12 +393,15 @@ export class DashboardService {
           createdAt: { $gte: startDate, $lte: endDate },
         }),
         this.groupModel.countDocuments({
+          createdAt: { $gte: startDate, $lte: endDate },
+        }),
+        this.eventModel.countDocuments({
           createdAt: { $gte: startDate, $lte: endDate },
         }),
       ]);
 
     // Get previous period data for comparison (same duration, previous cycle)
-    const [prevMembersCount, prevFirstTimersCount, prevGroupsCount] =
+    const [prevMembersCount, prevFirstTimersCount, prevGroupsCount, prevEventsCount] =
       await Promise.all([
         this.memberModel.countDocuments({
           createdAt: { $gte: prevStartDate, $lt: prevEndDate },
@@ -374,6 +410,9 @@ export class DashboardService {
           createdAt: { $gte: prevStartDate, $lt: prevEndDate },
         }),
         this.groupModel.countDocuments({
+          createdAt: { $gte: prevStartDate, $lt: prevEndDate },
+        }),
+        this.eventModel.countDocuments({
           createdAt: { $gte: prevStartDate, $lt: prevEndDate },
         }),
       ]);
@@ -402,6 +441,14 @@ export class DashboardService {
           prevGroupsCount,
         ),
         trend: this.getTrend(recentGroupsCount, prevGroupsCount),
+      },
+      recentEvents: {
+        count: recentEventsCount,
+        percentage: this.calculatePercentageChange(
+          recentEventsCount,
+          prevEventsCount,
+        ),
+        trend: this.getTrend(recentEventsCount, prevEventsCount),
       },
     };
   }

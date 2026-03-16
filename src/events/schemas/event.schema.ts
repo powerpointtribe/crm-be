@@ -122,6 +122,8 @@ export interface RegistrationSettings {
   successMessage?: SuccessMessage;
   termsAndConditions?: TermsAndConditions;
   formStatus?: 'draft' | 'live';
+  integrationMode?: 'embedded' | 'api';
+  apiKey?: string;
 }
 
 // Committee member type definition
@@ -287,6 +289,12 @@ export class Event {
         linkUrl: { type: String },
       },
       formStatus: { type: String, enum: ['draft', 'live'], default: 'draft' },
+      integrationMode: {
+        type: String,
+        enum: ['embedded', 'api'],
+        default: 'embedded',
+      },
+      apiKey: { type: String },
     },
     default: {
       isOpen: true,
@@ -297,6 +305,7 @@ export class Event {
       formSections: [],
       qrCodeEnabled: false,
       formStatus: 'draft',
+      integrationMode: 'embedded',
     },
   })
   registrationSettings: RegistrationSettings;

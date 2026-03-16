@@ -375,6 +375,22 @@ class RegistrationSettingsDto {
   @IsOptional()
   @IsEnum(['draft', 'live'])
   formStatus?: string;
+
+  @ApiPropertyOptional({
+    description: 'Integration mode: embedded form or API',
+    enum: ['embedded', 'api'],
+    default: 'embedded',
+  })
+  @IsOptional()
+  @IsEnum(['embedded', 'api'])
+  integrationMode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Auto-generated API key for API integration mode',
+  })
+  @IsOptional()
+  @IsString()
+  apiKey?: string;
 }
 
 class CommitteeMemberDto {

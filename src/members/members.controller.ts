@@ -204,7 +204,24 @@ export class MembersController {
   @Get('my-profile')
   @RequirePermission(MembersPermission.VIEW_OWN_PROFILE)
   async getMyProfile(@Request() req) {
-    return this.membersService.findById(req.user._id.toString());
+    const member = await this.membersService.findById(req.user._id.toString());
+    if (!member) {
+      throw new NotFoundException('Member profile not found');
+    }
+
+    // Resolve permissions like the login flow does
+    const memberObj = member.toObject ? member.toObject() : member;
+    const roleId = memberObj.role?._id || memberObj.role;
+    let permissions: string[] = [];
+    if (roleId) {
+      const permResult = await this.userPermissionsService.getUserPermissions(roleId);
+      permissions = permResult.permissions;
+    }
+
+    return {
+      ...memberObj,
+      permissions,
+    };
   }
 
   @Get('my-preferences')

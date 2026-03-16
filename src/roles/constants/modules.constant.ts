@@ -15,6 +15,7 @@ export enum ModuleIdentifier {
   DASHBOARD = 'dashboard',
   AUDIT_LOGS = 'audit-logs',
   BRANCHES = 'branches',
+  EVENTS = 'events',
 }
 
 /**
@@ -33,6 +34,7 @@ export const MODULE_DISPLAY_NAMES: Record<string, string> = {
   [ModuleIdentifier.DASHBOARD]: 'Dashboard',
   [ModuleIdentifier.AUDIT_LOGS]: 'Audit Logs',
   [ModuleIdentifier.BRANCHES]: 'Branches',
+  [ModuleIdentifier.EVENTS]: 'Events',
 };
 
 /**
@@ -44,6 +46,7 @@ export const MODULE_DASHBOARD_STATS: Record<string, string[]> = {
   [ModuleIdentifier.FIRST_TIMERS]: ['totalFirstTimers', 'recentFirstTimers'],
   [ModuleIdentifier.GROUPS]: ['totalGroups', 'recentGroups'],
   [ModuleIdentifier.SERVICE_REPORTS]: ['serviceReports', 'totalAttendance'],
+  [ModuleIdentifier.EVENTS]: ['totalEvents', 'recentEvents'],
 };
 
 /**

@@ -8,6 +8,7 @@ import {
   FirstTimerSchema,
 } from '../first-timers/schemas/first-timer.schema';
 import { Group, GroupSchema } from '../groups/schemas/group.schema';
+import { Event, EventSchema } from '../events/schemas/event.schema';
 import { RolesModule } from '../roles/roles.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { RolesModule } from '../roles/roles.module';
       { name: Member.name, schema: MemberSchema },
       { name: FirstTimer.name, schema: FirstTimerSchema },
       { name: Group.name, schema: GroupSchema },
+      { name: Event.name, schema: EventSchema },
     ]),
     RolesModule, // Import RolesModule to make PermissionGuard available
   ],

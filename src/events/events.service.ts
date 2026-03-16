@@ -5,6 +5,7 @@ import {
   ConflictException,
   Logger,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery } from 'mongoose';
 import { Event, EventDocument, EventStatus, EventType } from './schemas/event.schema';
@@ -135,6 +136,18 @@ export class EventsService {
         // Append random string to make unique
         registrationSlug = `${registrationSlug}-${Date.now().toString(36)}`;
       }
+    }
+
+    // Generate API key if integration mode is 'api'
+    if (createEventDto.registrationSettings?.integrationMode === 'api') {
+      createEventDto.registrationSettings.apiKey = `evt_${randomBytes(24).toString('hex')}`;
+    }
+    // Always strip client-provided apiKey when not in api mode
+    if (
+      createEventDto.registrationSettings?.apiKey &&
+      createEventDto.registrationSettings?.integrationMode !== 'api'
+    ) {
+      delete createEventDto.registrationSettings.apiKey;
     }
 
     // Transform committee members
@@ -321,6 +334,22 @@ export class EventsService {
       }));
     }
 
+    // Generate API key if switching to 'api' integration mode
+    if (updateEventDto.registrationSettings?.integrationMode === 'api') {
+      if (!event.registrationSettings?.apiKey) {
+        const regSettings = updateEventDto.registrationSettings || ({} as any);
+        regSettings.apiKey = `evt_${randomBytes(24).toString('hex')}`;
+        updateEventDto.registrationSettings = regSettings;
+      }
+    }
+    // Strip client-provided apiKey when not in api mode
+    if (
+      updateEventDto.registrationSettings?.apiKey &&
+      updateEventDto.registrationSettings?.integrationMode !== 'api'
+    ) {
+      delete updateEventDto.registrationSettings.apiKey;
+    }
+
     // Transform ObjectId fields
     if (updateEventDto.organizer) {
       (updateEventDto as any).organizer = new Types.ObjectId(
@@ -333,6 +362,20 @@ export class EventsService {
 
     Object.assign(event, updateEventDto);
     return event.save();
+  }
+
+  async regenerateApiKey(eventId: string): Promise<{ apiKey: string }> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new NotFoundException(`Event with ID ${eventId} not found`);
+    }
+    if (event.registrationSettings?.integrationMode !== 'api') {
+      throw new BadRequestException('Event is not in API integration mode');
+    }
+    const apiKey = `evt_${randomBytes(24).toString('hex')}`;
+    event.registrationSettings.apiKey = apiKey;
+    await event.save();
+    return { apiKey };
   }
 
   async remove(id: string): Promise<void> {
@@ -724,9 +767,9 @@ export class EventsService {
     // Update event counts
     await this.updateEventCounts(event._id.toString());
 
-    // Queue confirmation email
+    // Queue confirmation email (fire-and-forget)
     if (dto.email) {
-      await this.emailQueue.add(JobType.EVENT_REGISTRATION_CONFIRMATION, {
+      this.emailQueue.add(JobType.EVENT_REGISTRATION_CONFIRMATION, {
         registrationId: savedReg._id.toString(),
         email: dto.email.toLowerCase(),
         firstName: dto.firstName,
@@ -736,11 +779,9 @@ export class EventsService {
         eventLocation: event.location,
         checkInCode: savedReg.checkInCode,
         customFieldResponses: savedReg.customFieldResponses,
+      }).catch((err) => {
+        this.logger.error(`Failed to queue registration email for ${dto.email}: ${err.message}`);
       });
-
-      this.logger.log(
-        `Registration confirmation email queued for ${dto.email}`
-      );
     }
 
     return savedReg;
@@ -2670,24 +2711,26 @@ export class EventsService {
 
     await partner.save();
 
-    // Queue confirmation email to partner
-    await this.emailQueue.add('partner-inquiry-confirmation', {
-      partnerId: partner._id.toString(),
-      partnerEmail: partner.email,
-      partnerName: partner.name,
-      eventTitle: event.title,
-    });
-
-    // Queue notification email to admin
-    await this.emailQueue.add('partner-inquiry-notification', {
-      partnerId: partner._id.toString(),
-      partnerName: partner.name,
-      partnerEmail: partner.email,
-      partnerCompany: partner.company,
-      partnerPhone: partner.phone,
-      eventTitle: event.title,
-      interestDetails: partner.interestDetails,
-      adminEmail: event.contactEmail || 'lbs@powerpointtribe.org',
+    // Queue partner emails (fire-and-forget)
+    Promise.all([
+      this.emailQueue.add('partner-inquiry-confirmation', {
+        partnerId: partner._id.toString(),
+        partnerEmail: partner.email,
+        partnerName: partner.name,
+        eventTitle: event.title,
+      }),
+      this.emailQueue.add('partner-inquiry-notification', {
+        partnerId: partner._id.toString(),
+        partnerName: partner.name,
+        partnerEmail: partner.email,
+        partnerCompany: partner.company,
+        partnerPhone: partner.phone,
+        eventTitle: event.title,
+        interestDetails: partner.interestDetails,
+        adminEmail: event.contactEmail || 'lbs@powerpointtribe.org',
+      }),
+    ]).catch((err) => {
+      this.logger.error(`Failed to queue partner emails for ${partner.email}: ${err.message}`);
     });
 
     this.logger.log(

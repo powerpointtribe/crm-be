@@ -11,6 +11,8 @@ import {
   Query,
   UseInterceptors,
   BadRequestException,
+  Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../roles/guards/permission.guard';
@@ -45,6 +47,11 @@ import {
   RecordAssessmentResultDto,
   SessionSearchDto,
 } from './dto/session.dto';
+import {
+  UpdatePartnerStatusDto,
+  QueryPartnersDto,
+  ContactPartnerDto,
+} from './dto/partner.dto';
 import {
   EventAnalyticsQueryDto,
   TrendAnalyticsQueryDto,
@@ -113,10 +120,26 @@ export class EventsController {
 
   // ========== PUBLIC ENDPOINTS (No Auth) - MUST BE BEFORE :id ROUTES ==========
 
+  // Helper to validate API key for events in API integration mode
+  private async validateApiKey(slug: string, apiKey?: string) {
+    const event = await this.eventsService.findBySlug(slug);
+    if (event.registrationSettings?.integrationMode === 'api') {
+      if (!apiKey || apiKey !== event.registrationSettings.apiKey) {
+        throw new UnauthorizedException(
+          'Invalid or missing API key. Include the x-api-key header for API-integrated events.',
+        );
+      }
+    }
+    return event;
+  }
+
   @Get('public/:slug')
   @Public()
-  async getPublicEvent(@Param('slug') slug: string) {
-    const event = await this.eventsService.findBySlug(slug);
+  async getPublicEvent(
+    @Param('slug') slug: string,
+    @Headers('x-api-key') apiKey?: string,
+  ) {
+    const event = await this.validateApiKey(slug, apiKey);
 
     // Return limited public information
     return {
@@ -139,6 +162,14 @@ export class EventsController {
         maxAttendees: event.registrationSettings?.maxAttendees,
         deadline: event.registrationSettings?.deadline,
         customFields: event.registrationSettings?.customFields,
+        formLayout: event.registrationSettings?.formLayout,
+        formSections: event.registrationSettings?.formSections,
+        formHeader: event.registrationSettings?.formHeader,
+        successMessage: event.registrationSettings?.successMessage,
+        termsAndConditions: event.registrationSettings?.termsAndConditions,
+        qrCodeEnabled: event.registrationSettings?.qrCodeEnabled,
+        formStatus: event.registrationSettings?.formStatus,
+        integrationMode: event.registrationSettings?.integrationMode || 'embedded',
       },
       registrationCount: event.registrationCount,
       branch: event.branch,
@@ -150,7 +181,10 @@ export class EventsController {
   async publicRegister(
     @Param('slug') slug: string,
     @Body() dto: PublicRegistrationDto,
+    @Headers('x-api-key') apiKey?: string,
   ) {
+    await this.validateApiKey(slug, apiKey);
+
     const registration = await this.eventsService.publicRegister(slug, dto);
 
     // Return limited information
@@ -174,7 +208,10 @@ export class EventsController {
   async submitPartnership(
     @Param('slug') slug: string,
     @Body() partnerDto: { name: string; company?: string; email: string; phone: string; interestDetails: string },
+    @Headers('x-api-key') apiKey?: string,
   ) {
+    await this.validateApiKey(slug, apiKey);
+
     const result = await this.eventsService.submitPartnership(slug, partnerDto);
 
     return {
@@ -341,6 +378,12 @@ export class EventsController {
   async remove(@Param('id') id: string) {
     await this.eventsService.remove(id);
     return { message: 'Event deleted successfully' };
+  }
+
+  @Post(':id/regenerate-api-key')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async regenerateApiKey(@Param('id') id: string) {
+    return this.eventsService.regenerateApiKey(id);
   }
 
   // ========== COMMITTEE MANAGEMENT ENDPOINTS ==========
@@ -557,5 +600,36 @@ export class EventsController {
     @Query() query: ParticipantAccountabilityQueryDto,
   ) {
     return this.eventsService.getTrainingAccountabilityReport(id, query);
+  }
+
+  // ========== PARTNER MANAGEMENT ENDPOINTS ==========
+
+  @Get(':id/partners')
+  @RequirePermission(EventsPermission.VIEW_EVENTS)
+  async getPartners(
+    @Param('id') id: string,
+    @Query() query: QueryPartnersDto,
+  ) {
+    return this.eventsService.getPartners(id, query);
+  }
+
+  @Patch(':id/partners/:partnerId/status')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async updatePartnerStatus(
+    @Param('id') id: string,
+    @Param('partnerId') partnerId: string,
+    @Body() updateDto: UpdatePartnerStatusDto,
+  ) {
+    return this.eventsService.updatePartnerStatus(id, partnerId, updateDto);
+  }
+
+  @Post(':id/partners/:partnerId/contact')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async contactPartner(
+    @Param('id') id: string,
+    @Param('partnerId') partnerId: string,
+    @Body() contactDto: ContactPartnerDto,
+  ) {
+    return this.eventsService.contactPartner(id, partnerId, contactDto);
   }
 }
