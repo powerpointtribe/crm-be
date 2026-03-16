@@ -36,6 +36,7 @@ import {
 import {
   CreateRegistrationDto,
   UpdateRegistrationStatusDto,
+  UpdateRegistrationDetailsDto,
   RegistrationSearchDto,
 } from './dto/create-registration.dto';
 import { PublicRegistrationDto } from './dto/public-registration.dto';
@@ -49,6 +50,7 @@ import {
 } from './dto/session.dto';
 import {
   UpdatePartnerStatusDto,
+  UpdatePartnerDetailsDto,
   QueryPartnersDto,
   ContactPartnerDto,
 } from './dto/partner.dto';
@@ -476,6 +478,25 @@ export class EventsController {
     return this.eventsService.updateRegistrationStatus(id, regId, dto);
   }
 
+  @Patch(':id/registrations/:regId/details')
+  @RequirePermission(EventsPermission.UPDATE_REGISTRATION)
+  async updateRegistrationDetails(
+    @Param('id') id: string,
+    @Param('regId') regId: string,
+    @Body() dto: UpdateRegistrationDetailsDto,
+  ) {
+    return this.eventsService.updateRegistrationDetails(id, regId, dto);
+  }
+
+  @Delete(':id/registrations/:regId')
+  @RequirePermission(EventsPermission.UPDATE_REGISTRATION)
+  async deleteRegistration(
+    @Param('id') id: string,
+    @Param('regId') regId: string,
+  ) {
+    return this.eventsService.deleteRegistration(id, regId);
+  }
+
   @Patch(':id/registrations/:regId/check-in')
   @RequirePermission(EventsPermission.CHECK_IN)
   @AuditLog({
@@ -631,5 +652,24 @@ export class EventsController {
     @Body() contactDto: ContactPartnerDto,
   ) {
     return this.eventsService.contactPartner(id, partnerId, contactDto);
+  }
+
+  @Patch(':id/partners/:partnerId/details')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async updatePartnerDetails(
+    @Param('id') id: string,
+    @Param('partnerId') partnerId: string,
+    @Body() dto: UpdatePartnerDetailsDto,
+  ) {
+    return this.eventsService.updatePartnerDetails(id, partnerId, dto);
+  }
+
+  @Delete(':id/partners/:partnerId')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async deletePartner(
+    @Param('id') id: string,
+    @Param('partnerId') partnerId: string,
+  ) {
+    return this.eventsService.deletePartner(id, partnerId);
   }
 }

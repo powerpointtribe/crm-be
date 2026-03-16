@@ -77,6 +77,52 @@ export class UpdatePartnerStatusDto {
   assignedTo?: string;
 }
 
+// DTO for updating partner details (admin only)
+export class UpdatePartnerDetailsDto {
+  @ApiPropertyOptional({ description: 'Partner name', example: 'John Doe' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: 'Company name',
+    example: 'Tech Corp Ltd',
+  })
+  @IsOptional()
+  @IsString()
+  company?: string;
+
+  @ApiPropertyOptional({
+    description: 'Email address',
+    example: 'john.doe@example.com',
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({
+    description: 'Phone number',
+    example: '+2348012345678',
+  })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional({
+    description: 'Details about partnership interest',
+  })
+  @IsOptional()
+  @IsString()
+  interestDetails?: string;
+
+  @ApiPropertyOptional({
+    description: 'Notes about the partner',
+  })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
 // DTO for querying/filtering partners (admin only)
 export class QueryPartnersDto {
   @ApiPropertyOptional({

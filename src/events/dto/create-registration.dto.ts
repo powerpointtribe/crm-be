@@ -107,6 +107,54 @@ export class UpdateRegistrationStatusDto {
   notes?: string;
 }
 
+export class UpdateRegistrationDetailsDto {
+  @ApiPropertyOptional({ description: 'First name', example: 'John' })
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiPropertyOptional({ description: 'Last name', example: 'Doe' })
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Email address',
+    example: 'john.doe@example.com',
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({
+    description: 'Phone number',
+    example: '+2348012345678',
+  })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional({
+    description: 'Gender',
+    enum: ['male', 'female'],
+  })
+  @IsOptional()
+  @IsEnum(['male', 'female'])
+  gender?: string;
+
+  @ApiPropertyOptional({ description: 'Notes' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Custom field responses (key-value pairs)',
+  })
+  @IsOptional()
+  @IsObject()
+  customFieldResponses?: Record<string, string>;
+}
+
 export class RegistrationSearchDto {
   @ApiPropertyOptional({ description: 'Page number', default: 1 })
   @IsOptional()

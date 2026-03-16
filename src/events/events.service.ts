@@ -40,12 +40,14 @@ import {
 import {
   CreateRegistrationDto,
   UpdateRegistrationStatusDto,
+  UpdateRegistrationDetailsDto,
   RegistrationSearchDto,
 } from './dto/create-registration.dto';
 import { PublicRegistrationDto } from './dto/public-registration.dto';
 import {
   SubmitPartnerDto,
   UpdatePartnerStatusDto,
+  UpdatePartnerDetailsDto,
   QueryPartnersDto,
   ContactPartnerDto,
   BulkPartnerEmailDto,
@@ -624,6 +626,51 @@ export class EventsService {
     await this.updateEventCounts(eventId);
 
     return savedReg;
+  }
+
+  async updateRegistrationDetails(
+    eventId: string,
+    registrationId: string,
+    dto: UpdateRegistrationDetailsDto,
+  ): Promise<EventRegistrationDocument> {
+    const registration = await this.registrationModel.findOne({
+      _id: registrationId,
+      event: new Types.ObjectId(eventId),
+    });
+
+    if (!registration) {
+      throw new NotFoundException('Registration not found');
+    }
+
+    if (dto.firstName) registration.attendeeInfo.firstName = dto.firstName;
+    if (dto.lastName) registration.attendeeInfo.lastName = dto.lastName;
+    if (dto.email !== undefined) registration.attendeeInfo.email = dto.email;
+    if (dto.phone !== undefined) registration.attendeeInfo.phone = dto.phone;
+    if (dto.gender !== undefined) registration.attendeeInfo.gender = dto.gender;
+    if (dto.notes !== undefined) registration.notes = dto.notes;
+    if (dto.customFieldResponses !== undefined) {
+      registration.customFieldResponses = dto.customFieldResponses as any;
+    }
+
+    return registration.save();
+  }
+
+  async deleteRegistration(
+    eventId: string,
+    registrationId: string,
+  ): Promise<{ deleted: boolean }> {
+    const result = await this.registrationModel.findOneAndDelete({
+      _id: registrationId,
+      event: new Types.ObjectId(eventId),
+    });
+
+    if (!result) {
+      throw new NotFoundException('Registration not found');
+    }
+
+    await this.updateEventCounts(eventId);
+
+    return { deleted: true };
   }
 
   async checkInAttendee(
@@ -2853,6 +2900,46 @@ export class EventsService {
     );
 
     return partner;
+  }
+
+  async updatePartnerDetails(
+    eventId: string,
+    partnerId: string,
+    dto: UpdatePartnerDetailsDto,
+  ): Promise<EventPartnerDocument> {
+    const partner = await this.partnerModel.findOne({
+      _id: partnerId,
+      event: new Types.ObjectId(eventId),
+    });
+
+    if (!partner) {
+      throw new NotFoundException('Partner not found');
+    }
+
+    if (dto.name !== undefined) partner.name = dto.name;
+    if (dto.company !== undefined) partner.company = dto.company;
+    if (dto.email !== undefined) partner.email = dto.email;
+    if (dto.phone !== undefined) partner.phone = dto.phone;
+    if (dto.interestDetails !== undefined) partner.interestDetails = dto.interestDetails;
+    if (dto.notes !== undefined) partner.notes = dto.notes;
+
+    return partner.save();
+  }
+
+  async deletePartner(
+    eventId: string,
+    partnerId: string,
+  ): Promise<{ deleted: boolean }> {
+    const result = await this.partnerModel.findOneAndDelete({
+      _id: partnerId,
+      event: new Types.ObjectId(eventId),
+    });
+
+    if (!result) {
+      throw new NotFoundException('Partner not found');
+    }
+
+    return { deleted: true };
   }
 
   /**
