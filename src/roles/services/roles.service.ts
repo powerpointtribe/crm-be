@@ -178,9 +178,9 @@ export class RolesService {
       throw new NotFoundException(`Role with ID '${id}' not found`);
     }
 
-    // Prevent modification of system roles
-    if (role.isSystemRole) {
-      throw new ForbiddenException('System roles cannot be modified');
+    // Prevent renaming system roles (but allow permission/module updates by super admin)
+    if (role.isSystemRole && updateRoleDto.name && updateRoleDto.name !== role.name) {
+      throw new ForbiddenException('System role names cannot be changed');
     }
 
     // Check if new name conflicts with existing
