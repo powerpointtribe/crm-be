@@ -119,37 +119,67 @@ export class MembersController {
     try {
       const { user: currentMember } = req;
 
-      // Build branch filter context based on user's permissions
-      let branchFilterContext: BranchFilterContext | undefined;
+      // Build merged permissions from primary + additional roles
       let userPermissions: string[] = [];
 
       if (currentMember.role) {
-        const permResult = await this.userPermissionsService.getUserPermissions(
-          currentMember.role._id || currentMember.role,
-        );
+        const permResult =
+          await this.userPermissionsService.getUserPermissions(
+            currentMember.role._id || currentMember.role,
+          );
         userPermissions = permResult.permissions;
-
-        branchFilterContext = {
-          userPermissions,
-          userBranchId: currentMember.branch?._id || currentMember.branch,
-          selectedBranchId: query.branchId, // From query param
-        };
-      } else {
-        // No role - filter by user's branch only
-        branchFilterContext = {
-          userPermissions: [],
-          userBranchId: currentMember.branch?._id || currentMember.branch,
-        };
       }
 
-      // Build leadership scope filter for non-admin users
-      // Bypass scoping if: system role, has members:view-all, or has branches:view-all
+      // Merge additional role permissions
+      if (currentMember.additionalRoles?.length > 0) {
+        for (const addRole of currentMember.additionalRoles) {
+          try {
+            const addRoleId = addRole._id || addRole;
+            const addPerms =
+              await this.userPermissionsService.getUserPermissions(addRoleId);
+            userPermissions.push(...addPerms.permissions);
+          } catch {
+            // Skip inactive/deleted roles
+          }
+        }
+        userPermissions = [...new Set(userPermissions)];
+      }
+
+      // Build branch filter context
+      const branchFilterContext: BranchFilterContext = {
+        userPermissions,
+        userBranchId: currentMember.branch?._id || currentMember.branch,
+        selectedBranchId: query.branchId,
+      };
+
+      // Determine if user should bypass leadership scope filtering
+      // Bypass = see all members (subject to branch filter only)
       const isSystemRole = currentMember.role?.isSystemRole === true;
-      const canViewAllMembers = userPermissions.includes(MembersPermission.VIEW_ALL_MEMBERS);
+      const canViewAllMembers = userPermissions.includes(
+        MembersPermission.VIEW_ALL_MEMBERS,
+      );
       const hasBranchViewAll = userPermissions.includes('branches:view-all');
+      const isSeniorPastor =
+        currentMember.membershipStatus === 'SENIOR_PASTOR';
+      const isCampusPastor =
+        currentMember.membershipStatus === 'CAMPUS_PASTOR';
 
       let leadershipScopeFilter: any = undefined;
-      if (!isSystemRole && !canViewAllMembers && !hasBranchViewAll) {
+
+      if (
+        isSystemRole ||
+        canViewAllMembers ||
+        hasBranchViewAll ||
+        isSeniorPastor
+      ) {
+        // Full bypass — see everybody (branch filter still applies via branchFilterContext)
+        leadershipScopeFilter = undefined;
+      } else if (isCampusPastor) {
+        // Campus Pastor sees all members in their branch — no leadership scope needed
+        // Branch filtering is already handled by branchFilterContext
+        leadershipScopeFilter = undefined;
+      } else {
+        // Scoped by leadership: unit head → unit, district pastor → district, etc.
         leadershipScopeFilter =
           await this.membersService.buildLeadershipScopeFilter(
             currentMember._id,
@@ -158,7 +188,6 @@ export class MembersController {
           );
       }
 
-      // Get members with branch + leadership scope filtering applied
       const data = await this.membersService.findAll(
         query,
         branchFilterContext,

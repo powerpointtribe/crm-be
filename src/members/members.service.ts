@@ -512,13 +512,15 @@ export class MembersService {
     userUnit?: Types.ObjectId,
   ): Promise<FilterQuery<MemberDocument>> {
     // Find groups where this user is a leader
+    // Compare against both ObjectId and String because bulk import may store as either
+    const userIdStr = userId.toString();
     const leadGroups = await this.groupModel
       .find({
         $or: [
-          { districtPastor: userId },
-          { unitHead: userId },
-          { assistantUnitHead: userId },
-          { ministryDirector: userId },
+          { districtPastor: { $in: [userId, userIdStr] } },
+          { unitHead: { $in: [userId, userIdStr] } },
+          { assistantUnitHead: { $in: [userId, userIdStr] } },
+          { ministryDirector: { $in: [userId, userIdStr] } },
         ],
         isActive: true,
       })
@@ -553,19 +555,8 @@ export class MembersService {
       return { $or: conditions };
     }
 
-    // Not a leader - show members in their own district/unit
-    const conditions: FilterQuery<MemberDocument>[] = [{ _id: userId }];
-    if (userDistrict) {
-      conditions.push({ district: userDistrict });
-    }
-    if (userUnit) {
-      conditions.push({ unit: userUnit });
-    }
-    if (conditions.length === 1) {
-      // No district or unit - only self
-      return { _id: userId };
-    }
-    return { $or: conditions };
+    // Not a leader of any group - only show self
+    return { _id: userId };
   }
 
   async findAll(

@@ -16,6 +16,15 @@ export enum ModuleIdentifier {
   AUDIT_LOGS = 'audit-logs',
   BRANCHES = 'branches',
   EVENTS = 'events',
+  FINANCE = 'finance',
+  LIBRARY = 'library',
+  BULK_EMAIL = 'bulk-email',
+  BULK_OPERATIONS = 'bulk-operations',
+  ACTIVITY_TRACKER = 'activity-tracker',
+  ROLES = 'roles',
+  USER_MANAGEMENT = 'users',
+  QUEUE = 'queue',
+  NOTIFICATIONS = 'notifications',
 }
 
 /**
@@ -35,6 +44,15 @@ export const MODULE_DISPLAY_NAMES: Record<string, string> = {
   [ModuleIdentifier.AUDIT_LOGS]: 'Audit Logs',
   [ModuleIdentifier.BRANCHES]: 'Branches',
   [ModuleIdentifier.EVENTS]: 'Events',
+  [ModuleIdentifier.FINANCE]: 'Finance',
+  [ModuleIdentifier.LIBRARY]: 'Library',
+  [ModuleIdentifier.BULK_EMAIL]: 'Bulk Email',
+  [ModuleIdentifier.BULK_OPERATIONS]: 'Bulk Operations',
+  [ModuleIdentifier.ACTIVITY_TRACKER]: 'Activity Tracker',
+  [ModuleIdentifier.ROLES]: 'Roles & Permissions',
+  [ModuleIdentifier.USER_MANAGEMENT]: 'User Management',
+  [ModuleIdentifier.QUEUE]: 'Queue Management',
+  [ModuleIdentifier.NOTIFICATIONS]: 'Notifications',
 };
 
 /**
