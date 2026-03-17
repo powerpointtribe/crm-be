@@ -86,10 +86,14 @@ export class Member {
   })
   systemRoles: UserRole[];
 
-  // NEW ROLE-BASED ACCESS CONTROL
-  // Single role assignment - each user has ONE role (optional for members without platform access)
+  // ROLE-BASED ACCESS CONTROL
+  // Primary role assignment
   @Prop({ type: Types.ObjectId, ref: 'Role', required: false, default: null })
   role: Types.ObjectId | null;
+
+  // Additional roles — permissions are merged with primary role
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Role' }], default: [] })
+  additionalRoles: Types.ObjectId[];
 
   // ADDRESS INFORMATION
   @Prop({

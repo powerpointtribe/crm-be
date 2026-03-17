@@ -138,7 +138,25 @@ export class AuthService {
       accessibleModules =
         this.accessControlService.getAccessibleModules(member) as any;
       // Convert module names to basic view permissions for backward compatibility
-      permissions = accessibleModules.map(module => `${module}:view`);
+      permissions = accessibleModules.map((module) => `${module}:view`);
+    }
+
+    // Merge permissions from additional roles
+    if (member.additionalRoles?.length > 0) {
+      for (const addRole of member.additionalRoles) {
+        try {
+          const addRoleId = (addRole as any)._id || addRole;
+          const addPerms = await this.userPermissionsService.getUserPermissions(addRoleId);
+          permissions.push(...addPerms.permissions);
+          // Merge accessible modules from additional roles
+          const addModules = Object.keys(addPerms.permissionsGrouped);
+          accessibleModules.push(...addModules);
+        } catch {
+          // Skip inactive/deleted roles
+        }
+      }
+      permissions = [...new Set(permissions)];
+      accessibleModules = [...new Set(accessibleModules)];
     }
 
     // Create JWT payload - minimal for smaller token size
@@ -261,7 +279,24 @@ export class AuthService {
       accessibleModules =
         this.accessControlService.getAccessibleModules(member) as any;
       // Convert module names to basic view permissions for backward compatibility
-      permissions = accessibleModules.map(module => `${module}:view`);
+      permissions = accessibleModules.map((module) => `${module}:view`);
+    }
+
+    // Merge permissions from additional roles
+    if (member.additionalRoles?.length > 0) {
+      for (const addRole of member.additionalRoles) {
+        try {
+          const addPerms =
+            await this.userPermissionsService.getUserPermissions(addRole);
+          permissions.push(...addPerms.permissions);
+          const addModules = Object.keys(addPerms.permissionsGrouped);
+          accessibleModules.push(...addModules);
+        } catch {
+          // Skip inactive/deleted roles
+        }
+      }
+      permissions = [...new Set(permissions)];
+      accessibleModules = [...new Set(accessibleModules)];
     }
 
     return {
@@ -337,7 +372,24 @@ export class AuthService {
     } else {
       accessibleModules =
         this.accessControlService.getAccessibleModules(member) as any;
-      permissions = accessibleModules.map(module => `${module}:view`);
+      permissions = accessibleModules.map((module) => `${module}:view`);
+    }
+
+    // Merge permissions from additional roles
+    if (member.additionalRoles?.length > 0) {
+      for (const addRole of member.additionalRoles) {
+        try {
+          const addPerms =
+            await this.userPermissionsService.getUserPermissions(addRole);
+          permissions.push(...addPerms.permissions);
+          const addModules = Object.keys(addPerms.permissionsGrouped);
+          accessibleModules.push(...addModules);
+        } catch {
+          // Skip inactive/deleted roles
+        }
+      }
+      permissions = [...new Set(permissions)];
+      accessibleModules = [...new Set(accessibleModules)];
     }
 
     // Determine if member is a leader based on membershipStatus

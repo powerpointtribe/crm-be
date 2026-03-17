@@ -50,16 +50,30 @@ export class PermissionGuard implements CanActivate {
       throw new ForbiddenException('User has no role assigned');
     }
 
-    // Get all user's permissions from their role
+    // Get all user's permissions from their primary role
     // user.role can be either an ObjectId or a populated role object
     const roleId = user.role._id || user.role;
-    const rolePermissions = await this.getUserPermissions(roleId);
+    const primaryPermissions = await this.getUserPermissions(roleId);
+
+    // Get permissions from additional roles
+    const additionalPermissions: string[] = [];
+    if (user.additionalRoles?.length > 0) {
+      for (const addRole of user.additionalRoles) {
+        try {
+          const addRoleId = addRole._id || addRole;
+          const perms = await this.getUserPermissions(addRoleId);
+          additionalPermissions.push(...perms);
+        } catch {
+          // Skip inactive or missing additional roles
+        }
+      }
+    }
 
     // Get membership-based permissions (auto-granted based on membershipStatus)
     const membershipPermissions = getPermissionsForMembershipStatus(user.membershipStatus);
 
-    // Combine role permissions and membership-based permissions
-    const userPermissions = [...new Set([...rolePermissions, ...membershipPermissions])];
+    // Combine all permissions (primary + additional roles + membership)
+    const userPermissions = [...new Set([...primaryPermissions, ...additionalPermissions, ...membershipPermissions])];
 
     // Check single permission
     if (requiredPermission) {

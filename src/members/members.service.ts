@@ -57,8 +57,14 @@ export class MembersService {
   ) {}
 
   async create(createMemberDto: CreateMemberDto, initiatedByUserId?: string): Promise<MemberDocument> {
-    // District assignment is now optional
-    // Members can be created without district assignment and assigned later
+    // Auto-generate password if not provided
+    if (!createMemberDto.password) {
+      createMemberDto.password = generateDefaultPassword();
+    }
+
+    // Hash the password
+    const bcrypt = await import('bcryptjs');
+    createMemberDto.password = await bcrypt.hash(createMemberDto.password, 10);
 
     // Check for exact duplicate (all four fields must match)
     await this.checkForExactDuplicate(
@@ -781,6 +787,7 @@ export class MembersService {
     return this.memberModel
       .findById(id)
       .populate('role')
+      .populate('additionalRoles')
       .populate('branch', '_id name')
       .populate('district', '_id name type description meetingSchedule branch')
       .populate('unit', '_id name type description branch')
@@ -849,9 +856,56 @@ export class MembersService {
     return this.memberModel
       .findOne({ email: email.toLowerCase(), isActive: true })
       .populate('role')
+      .populate('additionalRoles')
       .populate('district', 'name type')
       .populate('unit', 'name type')
       .exec();
+  }
+
+  async addRole(memberId: string, roleId: string): Promise<MemberDocument> {
+    const member = await this.memberModel.findById(memberId);
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    const roleObjectId = new Types.ObjectId(roleId);
+
+    // Don't add if it's the primary role
+    if (member.role && member.role.toString() === roleId) {
+      throw new BadRequestException('This is already the primary role');
+    }
+
+    // Don't add duplicates
+    if (member.additionalRoles?.some((r) => r.toString() === roleId)) {
+      throw new BadRequestException('Role already assigned');
+    }
+
+    member.additionalRoles = [...(member.additionalRoles || []), roleObjectId];
+    await member.save();
+
+    const updated = await this.findById(memberId);
+    if (!updated) {
+      throw new NotFoundException('Member not found after update');
+    }
+    return updated;
+  }
+
+  async removeRole(memberId: string, roleId: string): Promise<MemberDocument> {
+    const member = await this.memberModel.findById(memberId);
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    member.additionalRoles = (member.additionalRoles || []).filter(
+      (r) => r.toString() !== roleId,
+    );
+    await member.save();
+
+    const updated = await this.findById(memberId);
+    if (!updated) {
+      throw new NotFoundException('Member not found after update');
+    }
+    return updated;
   }
 
   async update(

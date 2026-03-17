@@ -53,6 +53,10 @@ export class MembersController {
   })
   async create(@Body() createMemberDto: CreateMemberDto, @Request() req) {
     const initiatedByUserId = req.user?._id?.toString();
+    // Auto-assign branch from logged-in user if not provided
+    if (!createMemberDto.branch && req.user?.branch) {
+      createMemberDto.branch = req.user.branch.toString();
+    }
     return this.membersService.create(createMemberDto, initiatedByUserId);
   }
 
@@ -214,8 +218,24 @@ export class MembersController {
     const roleId = memberObj.role?._id || memberObj.role;
     let permissions: string[] = [];
     if (roleId) {
-      const permResult = await this.userPermissionsService.getUserPermissions(roleId);
+      const permResult =
+        await this.userPermissionsService.getUserPermissions(roleId);
       permissions = permResult.permissions;
+    }
+
+    // Merge permissions from additional roles
+    if (memberObj.additionalRoles?.length > 0) {
+      for (const addRole of memberObj.additionalRoles) {
+        try {
+          const addRoleId = addRole._id || addRole;
+          const addPerms =
+            await this.userPermissionsService.getUserPermissions(addRoleId);
+          permissions.push(...addPerms.permissions);
+        } catch {
+          // Skip inactive/deleted roles
+        }
+      }
+      permissions = [...new Set(permissions)];
     }
 
     return {
@@ -322,6 +342,24 @@ export class MembersController {
     @Body() assignRoleDto: AssignRoleDto,
   ) {
     return this.membersService.assignRole(id, assignRoleDto.roleId);
+  }
+
+  @Post(':id/roles')
+  @RequirePermission(MembersPermission.UPDATE_MEMBER_ROLES)
+  async addRole(
+    @Param('id') id: string,
+    @Body() body: { roleId: string },
+  ) {
+    return this.membersService.addRole(id, body.roleId);
+  }
+
+  @Delete(':id/roles/:roleId')
+  @RequirePermission(MembersPermission.UPDATE_MEMBER_ROLES)
+  async removeRole(
+    @Param('id') id: string,
+    @Param('roleId') roleId: string,
+  ) {
+    return this.membersService.removeRole(id, roleId);
   }
 
   @Patch(':id/assign-unit')

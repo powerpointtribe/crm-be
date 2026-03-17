@@ -9,6 +9,8 @@ import {
   Query,
   UseGuards,
   UseInterceptors,
+  Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RolesService } from './services/roles.service';
@@ -33,6 +35,26 @@ export class RolesController {
     private readonly rolesService: RolesService,
     private readonly modulePermissionsService: ModulePermissionsService,
   ) {}
+
+  /**
+   * Ensure only super admin users can modify system role permissions
+   */
+  private async ensureSuperAdminForSystemRole(
+    roleId: string,
+    req: any,
+  ): Promise<void> {
+    const targetRole = await this.rolesService.findById(roleId);
+    if (targetRole?.isSystemRole) {
+      const userRole = req.user?.role;
+      const userLevel =
+        typeof userRole === 'object' ? userRole?.level : undefined;
+      if (!userLevel || userLevel < 100) {
+        throw new ForbiddenException(
+          'Only super admin users can update permissions of system roles',
+        );
+      }
+    }
+  }
 
   @Post()
   @RequirePermission(RolesModulePermission.CREATE_ROLE)
@@ -95,34 +117,48 @@ export class RolesController {
     severity: 'high',
     getEntityId: (result, request) => request.params.id,
   })
-  update(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateRoleDto: UpdateRoleDto,
+    @Request() req,
+  ) {
+    // If updating permissions or modules on a system role, require super admin
+    if (updateRoleDto.permissions || updateRoleDto.modules) {
+      await this.ensureSuperAdminForSystemRole(id, req);
+    }
     return this.rolesService.update(id, updateRoleDto);
   }
 
   @Post(':id/permissions/assign')
   @RequirePermission(RolesModulePermission.ASSIGN_PERMISSIONS_TO_ROLE)
-  assignPermissions(
+  async assignPermissions(
     @Param('id') id: string,
     @Body() assignPermissionsDto: AssignPermissionsDto,
+    @Request() req,
   ) {
+    await this.ensureSuperAdminForSystemRole(id, req);
     return this.rolesService.assignPermissions(id, assignPermissionsDto);
   }
 
   @Post(':id/permissions/add')
   @RequirePermission(RolesModulePermission.ASSIGN_PERMISSIONS_TO_ROLE)
-  addPermissions(
+  async addPermissions(
     @Param('id') id: string,
     @Body() assignPermissionsDto: AssignPermissionsDto,
+    @Request() req,
   ) {
+    await this.ensureSuperAdminForSystemRole(id, req);
     return this.rolesService.addPermissions(id, assignPermissionsDto);
   }
 
   @Post(':id/permissions/remove')
   @RequirePermission(RolesModulePermission.ASSIGN_PERMISSIONS_TO_ROLE)
-  removePermissions(
+  async removePermissions(
     @Param('id') id: string,
     @Body() body: { permissionIds: string[] },
+    @Request() req,
   ) {
+    await this.ensureSuperAdminForSystemRole(id, req);
     return this.rolesService.removePermissions(id, body.permissionIds);
   }
 

@@ -588,7 +588,8 @@ export class UserInvitationsService {
       this.memberModel
         .find(query)
         .populate('role', 'name displayName')
-        .select('firstName lastName email phone isActive role lastLogin accountType')
+        .populate('additionalRoles', 'name displayName')
+        .select('firstName lastName email phone isActive role additionalRoles lastLogin accountType')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)

@@ -98,10 +98,10 @@ export class CreateMemberDto {
   @IsNotEmpty()
   email: string;
 
-  @ApiProperty({ description: 'Password', example: '123456abcd' })
+  @ApiPropertyOptional({ description: 'Password (auto-generated if not provided)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  password: string;
+  password?: string;
 
   @ApiProperty({ description: 'Phone number', example: '+234801234567' })
   @IsString()
@@ -143,12 +143,12 @@ export class CreateMemberDto {
   address: AddressDto;
 
   // CHURCH STRUCTURE - Branch, District and Unit Assignments
-  @ApiProperty({
-    description: 'Branch/Campus ID (required - every member must belong to a branch)',
+  @ApiPropertyOptional({
+    description: 'Branch/Campus ID (auto-assigned from logged-in user if not provided)',
   })
-  @IsNotEmpty({ message: 'Branch is required - every member must belong to a branch/campus' })
+  @IsOptional()
   @IsMongoId()
-  branch: string;
+  branch?: string;
 
   @ApiPropertyOptional({
     description:
