@@ -55,7 +55,7 @@ export class MembersController {
     const initiatedByUserId = req.user?._id?.toString();
     // Auto-assign branch from logged-in user if not provided
     if (!createMemberDto.branch && req.user?.branch) {
-      createMemberDto.branch = req.user.branch.toString();
+      createMemberDto.branch = (req.user.branch._id || req.user.branch).toString();
     }
     return this.membersService.create(createMemberDto, initiatedByUserId);
   }

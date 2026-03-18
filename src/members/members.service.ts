@@ -132,6 +132,7 @@ export class MembersService {
       email: createMemberDto.email.toLowerCase(),
       dateOfBirth,
       membershipStatus,
+      isActive: true,
       dateJoined: createMemberDto.dateJoined
         ? new Date(createMemberDto.dateJoined)
         : new Date(),
