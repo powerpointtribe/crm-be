@@ -10,7 +10,10 @@ export class NotificationsService {
     private emailProvider: EmailProvider,
     private configService: ConfigService,
   ) {
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:5173');
+    this.frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:5173',
+    );
   }
 
   async sendWelcomeEmail(memberData: {
@@ -966,8 +969,10 @@ export class NotificationsService {
     checkInCode: string;
     customFieldResponses?: Map<string, string> | Record<string, string>;
   }): Promise<void> {
-    // Ensure eventDate is a Date object (may be a string after JSON serialization via queue)
-    const eventDate = data.eventDate instanceof Date ? data.eventDate : new Date(data.eventDate);
+    const eventDate =
+      data.eventDate instanceof Date
+        ? data.eventDate
+        : new Date(data.eventDate);
 
     const formattedDate = eventDate.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -982,94 +987,107 @@ export class NotificationsService {
       hour12: true,
     });
 
-    // Get track from custom field responses (may be a Map or plain object after serialization)
     const cfr = data.customFieldResponses;
-    const track = cfr instanceof Map ? (cfr.get('track') || '') : (cfr as any)?.track || '';
-    const trackInfo = track ? `<p style="margin: 10px 0;">🎯 <strong>Track:</strong> ${track}</p>` : '';
+    const track =
+      cfr instanceof Map ? cfr.get('track') || '' : (cfr as any)?.track || '';
+    const locationStr =
+      typeof data.eventLocation === 'string'
+        ? data.eventLocation
+        : data.eventLocation?.name || '';
+
+    // Split 4-digit code into individual digits for styled display
+    const codeDigits = data.checkInCode
+      .split('')
+      .map(
+        (d) =>
+          `<td style="width:52px;height:64px;background:#0D7770;color:#ffffff;font-family:'Courier New',monospace;font-size:28px;font-weight:700;text-align:center;border-radius:10px;letter-spacing:0;">${d}</td>`,
+      )
+      .join('<td style="width:8px;"></td>');
 
     const html = `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6;">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="margin: 0; font-size: 32px; font-weight: 700;">🎉 You're Registered!</h1>
-          <p style="margin: 15px 0 0 0; font-size: 18px; opacity: 0.95;">${data.eventTitle}</p>
+        <div style="background:#0D7770;padding:48px 32px 40px;text-align:center;">
+          <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:50%;width:64px;height:64px;line-height:64px;font-size:28px;margin-bottom:16px;">&#10003;</div>
+          <h1 style="margin:0;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">You're In!</h1>
+          <p style="margin:8px 0 0;font-size:15px;color:rgba(255,255,255,0.85);font-weight:400;">${data.eventTitle}</p>
         </div>
 
-        <!-- Main Content -->
-        <div style="padding: 40px 30px; background: white; border: 1px solid #e0e0e0; border-top: none;">
-          <p style="font-size: 18px; margin-bottom: 25px; color: #333;">Hi ${data.firstName},</p>
+        <!-- Body -->
+        <div style="padding:36px 32px;">
+          <p style="font-size:16px;color:#1a1a1a;margin:0 0 20px;font-weight:500;">Hi ${data.firstName},</p>
+          <p style="font-size:14px;color:#555;margin:0 0 28px;line-height:1.65;">Your registration for <strong style="color:#1a1a1a;">${data.eventTitle}</strong> is confirmed. Here's everything you need.</p>
 
-          <p style="font-size: 16px; color: #555;">
-            Thank you for registering for <strong>${data.eventTitle}</strong>! We're thrilled to have you join us for this transformative experience.
-          </p>
-
-          <!-- Event Details Card -->
-          <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #667eea;">
-            <h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">📅 Event Details</h2>
-            <p style="margin: 10px 0; color: #555;"><strong>📍 Date:</strong> ${formattedDate}</p>
-            <p style="margin: 10px 0; color: #555;"><strong>🕐 Time:</strong> ${formattedTime}</p>
-            ${(() => { const loc = typeof data.eventLocation === 'string' ? data.eventLocation : data.eventLocation?.name || ''; return loc ? `<p style="margin: 10px 0; color: #555;"><strong>📌 Location:</strong> ${loc}</p>` : ''; })()}
-            ${trackInfo}
+          <!-- Check-In Code -->
+          <div style="background:#f8fafa;border:1px solid #e8eded;border-radius:12px;padding:28px 20px;text-align:center;margin:0 0 28px;">
+            <p style="margin:0 0 4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#0D7770;">Your Check-In Code</p>
+            <table style="margin:16px auto 12px;border-spacing:0;" cellpadding="0" cellspacing="0"><tr>${codeDigits}</tr></table>
+            <p style="margin:0;font-size:12px;color:#888;">Show this code at the door for instant check-in</p>
           </div>
 
-          <!-- QR Check-In Code -->
-          <div style="background: #fff; padding: 25px; border-radius: 12px; margin: 30px 0; border: 2px solid #667eea; text-align: center;">
-            <h3 style="color: #667eea; margin: 0 0 15px 0;">🎫 Your Check-In Code</h3>
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; display: inline-block;">
-              <p style="font-size: 28px; font-weight: 700; letter-spacing: 2px; margin: 0; color: #333; font-family: 'Courier New', monospace;">
-                ${data.checkInCode}
-              </p>
+          <!-- Event Details -->
+          <div style="border-radius:12px;overflow:hidden;margin:0 0 28px;border:1px solid #eee;">
+            <div style="background:#fafafa;padding:16px 20px;border-bottom:1px solid #eee;">
+              <p style="margin:0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#888;">Event Details</p>
             </div>
-            <p style="color: #666; margin: 15px 0 0 0; font-size: 14px;">
-              Please save this code or take a screenshot.<br/>
-              You'll need it for quick check-in at the event.
-            </p>
+            <div style="padding:16px 20px;">
+              <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:8px 0;vertical-align:top;width:24px;color:#0D7770;font-size:14px;">&#128197;</td>
+                  <td style="padding:8px 0;font-size:14px;color:#333;">${formattedDate}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;vertical-align:top;width:24px;color:#0D7770;font-size:14px;">&#128336;</td>
+                  <td style="padding:8px 0;font-size:14px;color:#333;">${formattedTime}</td>
+                </tr>
+                ${
+                  locationStr
+                    ? `<tr>
+                  <td style="padding:8px 0;vertical-align:top;width:24px;color:#0D7770;font-size:14px;">&#128205;</td>
+                  <td style="padding:8px 0;font-size:14px;color:#333;">${locationStr}</td>
+                </tr>`
+                    : ''
+                }
+                ${
+                  track
+                    ? `<tr>
+                  <td style="padding:8px 0;vertical-align:top;width:24px;color:#0D7770;font-size:14px;">&#127919;</td>
+                  <td style="padding:8px 0;font-size:14px;color:#333;">${track}</td>
+                </tr>`
+                    : ''
+                }
+              </table>
+            </div>
           </div>
 
-          <!-- What's Next Section -->
-          <div style="background: #e8f5e9; padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #4caf50;">
-            <h3 style="color: #2e7d32; margin: 0 0 15px 0; font-size: 18px;">✨ What's Next?</h3>
-            <ul style="color: #555; padding-left: 20px; margin: 10px 0;">
-              <li style="margin: 10px 0;">Save your check-in code (screenshot or print this email)</li>
-              <li style="margin: 10px 0;">Mark your calendar - you don't want to miss this!</li>
-              <li style="margin: 10px 0;">Prepare questions you'd like to ask during sessions</li>
-              <li style="margin: 10px 0;">Arrive 15 minutes early for registration and networking</li>
-              <li style="margin: 10px 0;">Dress code: Business professional</li>
-            </ul>
+          <!-- Preparation -->
+          <div style="margin:0 0 28px;">
+            <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#1a1a1a;">Before the event:</p>
+            <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
+              <tr><td style="padding:6px 0;font-size:13px;color:#555;">&#9679;&nbsp; Screenshot this email or save your check-in code</td></tr>
+              <tr><td style="padding:6px 0;font-size:13px;color:#555;">&#9679;&nbsp; Arrive 15 minutes early for networking</td></tr>
+              <tr><td style="padding:6px 0;font-size:13px;color:#555;">&#9679;&nbsp; Bring a valid ID for verification</td></tr>
+              <tr><td style="padding:6px 0;font-size:13px;color:#555;">&#9679;&nbsp; Dress code: Business professional</td></tr>
+            </table>
           </div>
 
-          <!-- Important Notes -->
-          <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 30px 0; border-left: 4px solid #ffc107;">
-            <p style="margin: 0; color: #856404; font-size: 14px;">
-              <strong>⚠️ Important:</strong> Please bring a valid ID for verification at the registration desk.
-              If you need to make any changes to your registration, please contact us at least 48 hours before the event.
-            </p>
+          <!-- CTA -->
+          <div style="text-align:center;margin:32px 0 0;">
+            <p style="margin:0;font-size:14px;color:#555;">See you there!</p>
           </div>
+        </div>
 
-          <!-- CTA Section -->
-          <div style="text-align: center; margin: 40px 0 30px 0;">
-            <p style="font-size: 16px; color: #555; margin-bottom: 20px;">
-              We can't wait to see you there!
-            </p>
-          </div>
-
-          <!-- Footer -->
-          <div style="border-top: 2px solid #f0f0f0; padding-top: 25px; margin-top: 40px; text-align: center;">
-            <p style="margin: 0; color: #777; font-size: 14px;">
-              For questions or support, reply to this email or contact us at:<br/>
-              <a href="mailto:info@powerpointtribe.org" style="color: #667eea; text-decoration: none;">info@powerpointtribe.org</a>
-            </p>
-            <p style="margin: 15px 0 0 0; color: #999; font-size: 13px;">
-              © ${new Date().getFullYear()} PowerPoint Tribe. All rights reserved.
-            </p>
-          </div>
+        <!-- Footer -->
+        <div style="padding:24px 32px;border-top:1px solid #f0f0f0;text-align:center;">
+          <p style="margin:0 0 4px;font-size:12px;color:#aaa;">Questions? <a href="mailto:info@powerpointtribe.org" style="color:#0D7770;text-decoration:none;">info@powerpointtribe.org</a></p>
+          <p style="margin:0;font-size:11px;color:#ccc;">&copy; ${new Date().getFullYear()} PowerPoint Tribe</p>
         </div>
       </div>
     `;
 
     await this.emailProvider.sendEmail({
       to: data.email,
-      subject: `✅ Registration Confirmed - ${data.eventTitle}`,
+      subject: `You're registered - ${data.eventTitle}`,
       html,
     });
   }
@@ -1084,77 +1102,88 @@ export class NotificationsService {
     eventTitle: string;
   }): Promise<void> {
     const html = `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6;">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="margin: 0; font-size: 32px; font-weight: 700;">🤝 Thank You for Your Interest!</h1>
-          <p style="margin: 15px 0 0 0; font-size: 18px; opacity: 0.95;">Partnership Inquiry Received</p>
+        <div style="background:#1E40AF;padding:48px 32px 40px;text-align:center;">
+          <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:50%;width:64px;height:64px;line-height:64px;font-size:28px;margin-bottom:16px;">&#129309;</div>
+          <h1 style="margin:0;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">Inquiry Received</h1>
+          <p style="margin:8px 0 0;font-size:15px;color:rgba(255,255,255,0.85);">${data.eventTitle} Partnership</p>
         </div>
 
-        <!-- Main Content -->
-        <div style="padding: 40px 30px; background: white; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
-          <p style="font-size: 18px; margin-bottom: 25px; color: #333;">Dear ${data.name}${data.company ? ` (${data.company})` : ''},</p>
+        <!-- Body -->
+        <div style="padding:36px 32px;">
+          <p style="font-size:16px;color:#1a1a1a;margin:0 0 20px;font-weight:500;">Hi ${data.name},</p>
+          <p style="font-size:14px;color:#555;margin:0 0 28px;line-height:1.65;">Thank you for your interest in partnering with us for <strong style="color:#1a1a1a;">${data.eventTitle}</strong>. We've received your inquiry${data.company ? ` on behalf of <strong style="color:#1a1a1a;">${data.company}</strong>` : ''} and are excited to explore this with you.</p>
 
-          <p style="font-size: 16px; color: #555;">
-            Thank you for your interest in partnering with us for <strong>${data.eventTitle}</strong>!
-            We've received your partnership inquiry and we're excited about the possibility of working together.
-          </p>
+          <!-- Timeline -->
+          <div style="margin:0 0 28px;">
+            <p style="margin:0 0 16px;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#888;">What happens next</p>
 
-          <!-- Timeline Card -->
-          <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #11998e;">
-            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">⏱️ What Happens Next?</h3>
-            <ul style="color: #555; padding-left: 20px; margin: 10px 0; list-style: none;">
-              <li style="margin: 12px 0;">
-                <strong style="color: #11998e;">✓ Within 24-48 hours:</strong><br/>
-                <span style="color: #666; font-size: 14px;">A member of our partnerships team will review your inquiry</span>
-              </li>
-              <li style="margin: 12px 0;">
-                <strong style="color: #11998e;">✓ Next Steps:</strong><br/>
-                <span style="color: #666; font-size: 14px;">We'll reach out to discuss partnership opportunities and answer your questions</span>
-              </li>
-              <li style="margin: 12px 0;">
-                <strong style="color: #11998e;">✓ Partnership Package:</strong><br/>
-                <span style="color: #666; font-size: 14px;">You'll receive detailed information about available partnership tiers and benefits</span>
-              </li>
-            </ul>
+            <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="width:40px;vertical-align:top;padding:0 0 20px;">
+                  <div style="width:32px;height:32px;background:#1E40AF;border-radius:50%;text-align:center;line-height:32px;color:#fff;font-size:13px;font-weight:700;">1</div>
+                </td>
+                <td style="padding:0 0 20px;vertical-align:top;">
+                  <p style="margin:0 0 2px;font-size:14px;font-weight:600;color:#1a1a1a;">Review</p>
+                  <p style="margin:0;font-size:13px;color:#777;line-height:1.5;">Our partnerships team will review your inquiry within 24&ndash;48 hours.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="width:40px;vertical-align:top;padding:0 0 20px;">
+                  <div style="width:32px;height:32px;background:#1E40AF;border-radius:50%;text-align:center;line-height:32px;color:#fff;font-size:13px;font-weight:700;">2</div>
+                </td>
+                <td style="padding:0 0 20px;vertical-align:top;">
+                  <p style="margin:0 0 2px;font-size:14px;font-weight:600;color:#1a1a1a;">Discussion</p>
+                  <p style="margin:0;font-size:13px;color:#777;line-height:1.5;">We'll reach out to discuss opportunities and answer your questions.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="width:40px;vertical-align:top;padding:0;">
+                  <div style="width:32px;height:32px;background:#1E40AF;border-radius:50%;text-align:center;line-height:32px;color:#fff;font-size:13px;font-weight:700;">3</div>
+                </td>
+                <td style="padding:0;vertical-align:top;">
+                  <p style="margin:0 0 2px;font-size:14px;font-weight:600;color:#1a1a1a;">Partnership Package</p>
+                  <p style="margin:0;font-size:13px;color:#777;line-height:1.5;">You'll receive details on available tiers, benefits, and pricing.</p>
+                </td>
+              </tr>
+            </table>
           </div>
 
-          <!-- Benefits Preview -->
-          <div style="background: #e8f5e9; padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #4caf50;">
-            <h3 style="color: #2e7d32; margin: 0 0 15px 0; font-size: 18px;">🌟 Partnership Benefits Include</h3>
-            <ul style="color: #555; padding-left: 20px; margin: 10px 0;">
-              <li style="margin: 10px 0;">Brand visibility to thousands of professionals and entrepreneurs</li>
-              <li style="margin: 10px 0;">Networking opportunities with industry leaders</li>
-              <li style="margin: 10px 0;">Speaking and presentation slots (select packages)</li>
-              <li style="margin: 10px 0;">Booth space for product/service showcase</li>
-              <li style="margin: 10px 0;">Digital marketing across our platforms</li>
-              <li style="margin: 10px 0;">Exclusive partner recognition and branding</li>
-            </ul>
+          <!-- Benefits -->
+          <div style="background:#f8f9fb;border:1px solid #eee;border-radius:12px;padding:24px;margin:0 0 28px;">
+            <p style="margin:0 0 14px;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#888;">Partner benefits include</p>
+            <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="padding:5px 0;font-size:13px;color:#555;">&#10003;&nbsp; Brand visibility to hundreds of professionals</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;font-size:13px;color:#555;">&#10003;&nbsp; Networking with industry leaders</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;font-size:13px;color:#555;">&#10003;&nbsp; Speaking and presentation opportunities</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;font-size:13px;color:#555;">&#10003;&nbsp; Booth space for product showcase</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;font-size:13px;color:#555;">&#10003;&nbsp; Digital marketing across our platforms</td>
+              </tr>
+            </table>
           </div>
 
-          <!-- Contact Info -->
-          <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 30px 0;">
-            <p style="margin: 0; color: #856404; font-size: 14px;">
-              <strong>📞 Need to speak with us sooner?</strong><br/>
-              Feel free to reach out directly at <a href="mailto:partnerships@powerpointtribe.org" style="color: #11998e; text-decoration: none;">partnerships@powerpointtribe.org</a>
-            </p>
+          <!-- Contact -->
+          <div style="background:#f0f4ff;border:1px solid #dde4f0;border-radius:10px;padding:16px 20px;margin:0 0 28px;">
+            <p style="margin:0;font-size:13px;color:#555;">Need to speak with us sooner? Reach out at <a href="mailto:partnerships@powerpointtribe.org" style="color:#1E40AF;text-decoration:none;font-weight:600;">partnerships@powerpointtribe.org</a></p>
           </div>
 
-          <p style="margin-top: 30px; font-size: 16px; color: #555;">
-            We're looking forward to exploring this partnership opportunity with you!
-          </p>
+          <p style="margin:0;font-size:14px;color:#555;">We look forward to working together.</p>
+        </div>
 
-          <!-- Footer -->
-          <div style="border-top: 2px solid #f0f0f0; padding-top: 25px; margin-top: 40px; text-align: center;">
-            <p style="margin: 0; color: #777;">
-              Warm regards,<br/>
-              <strong style="color: #11998e;">The Partnerships Team</strong><br/>
-              PowerPoint Tribe
-            </p>
-            <p style="margin: 15px 0 0 0; color: #999; font-size: 13px;">
-              © ${new Date().getFullYear()} PowerPoint Tribe. All rights reserved.
-            </p>
-          </div>
+        <!-- Footer -->
+        <div style="padding:24px 32px;border-top:1px solid #f0f0f0;text-align:center;">
+          <p style="margin:0 0 2px;font-size:12px;color:#999;">The Partnerships Team &middot; PowerPoint Tribe</p>
+          <p style="margin:0;font-size:11px;color:#ccc;">&copy; ${new Date().getFullYear()} PowerPoint Tribe</p>
         </div>
       </div>
     `;
@@ -1182,60 +1211,84 @@ export class NotificationsService {
     const viewUrl = `${this.frontendUrl}/events/partners?id=${data.partnerId}`;
 
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6;">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 28px;">🔔 New Partnership Inquiry</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.95;">${data.eventTitle}</p>
+        <div style="background:#B91C1C;padding:40px 32px 36px;text-align:center;">
+          <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:50%;width:56px;height:56px;line-height:56px;font-size:24px;margin-bottom:14px;">&#128276;</div>
+          <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">New Partnership Inquiry</h1>
+          <p style="margin:6px 0 0;font-size:14px;color:rgba(255,255,255,0.85);">${data.eventTitle}</p>
         </div>
 
-        <!-- Main Content -->
-        <div style="padding: 30px; background: white; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
-          <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
-            A new partnership inquiry has been submitted for <strong>${data.eventTitle}</strong>.
-          </p>
-
-          <!-- Partner Details -->
-          <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #f5576c;">
-            <h3 style="color: #333; margin: 0 0 15px 0;">Partner Information</h3>
-            <p style="margin: 10px 0; color: #555;"><strong>Name:</strong> ${data.partnerName}</p>
-            ${data.partnerCompany ? `<p style="margin: 10px 0; color: #555;"><strong>Company:</strong> ${data.partnerCompany}</p>` : ''}
-            <p style="margin: 10px 0; color: #555;"><strong>Email:</strong> <a href="mailto:${data.partnerEmail}" style="color: #f5576c; text-decoration: none;">${data.partnerEmail}</a></p>
-            <p style="margin: 10px 0; color: #555;"><strong>Phone:</strong> ${data.partnerPhone}</p>
+        <!-- Body -->
+        <div style="padding:32px;">
+          <!-- Partner Info Card -->
+          <div style="border:1px solid #eee;border-radius:12px;overflow:hidden;margin:0 0 24px;">
+            <div style="background:#fafafa;padding:14px 20px;border-bottom:1px solid #eee;">
+              <p style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#888;">Partner Information</p>
+            </div>
+            <div style="padding:16px 20px;">
+              <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:7px 0;font-size:12px;color:#999;width:80px;vertical-align:top;">Name</td>
+                  <td style="padding:7px 0;font-size:14px;color:#1a1a1a;font-weight:500;">${data.partnerName}</td>
+                </tr>
+                ${
+                  data.partnerCompany
+                    ? `<tr>
+                  <td style="padding:7px 0;font-size:12px;color:#999;vertical-align:top;">Company</td>
+                  <td style="padding:7px 0;font-size:14px;color:#1a1a1a;font-weight:500;">${data.partnerCompany}</td>
+                </tr>`
+                    : ''
+                }
+                <tr>
+                  <td style="padding:7px 0;font-size:12px;color:#999;vertical-align:top;">Email</td>
+                  <td style="padding:7px 0;font-size:14px;"><a href="mailto:${data.partnerEmail}" style="color:#1E40AF;text-decoration:none;">${data.partnerEmail}</a></td>
+                </tr>
+                ${
+                  data.partnerPhone
+                    ? `<tr>
+                  <td style="padding:7px 0;font-size:12px;color:#999;vertical-align:top;">Phone</td>
+                  <td style="padding:7px 0;font-size:14px;color:#1a1a1a;">${data.partnerPhone}</td>
+                </tr>`
+                    : ''
+                }
+              </table>
+            </div>
           </div>
 
           <!-- Interest Details -->
-          <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 25px 0;">
-            <h3 style="color: #856404; margin: 0 0 10px 0; font-size: 16px;">💡 Partnership Interest</h3>
-            <p style="margin: 0; color: #856404; font-size: 14px; white-space: pre-wrap;">${data.interestDetails}</p>
+          ${
+            data.interestDetails
+              ? `
+          <div style="background:#fffbf0;border:1px solid #f0e6cc;border-radius:10px;padding:16px 20px;margin:0 0 24px;">
+            <p style="margin:0 0 6px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#b08d3a;">Interest Details</p>
+            <p style="margin:0;font-size:13px;color:#666;line-height:1.6;white-space:pre-wrap;">${data.interestDetails}</p>
+          </div>
+          `
+              : ''
+          }
+
+          <!-- CTA -->
+          <div style="text-align:center;margin:28px 0;">
+            <a href="${viewUrl}" style="display:inline-block;background:#1E40AF;color:#ffffff;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">View in Dashboard</a>
           </div>
 
-          <!-- Action Buttons -->
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${viewUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
-              View in Dashboard
-            </a>
+          <!-- Action notice -->
+          <div style="background:#f0faf0;border:1px solid #d4edda;border-radius:10px;padding:14px 20px;">
+            <p style="margin:0;font-size:13px;color:#2e7d32;">Respond within 24&ndash;48 hours to maintain partner interest.</p>
           </div>
+        </div>
 
-          <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 25px 0;">
-            <p style="margin: 0; color: #2e7d32; font-size: 14px;">
-              <strong>⚡ Quick Action Required:</strong> Please respond to this inquiry within 24-48 hours to maintain partner interest and professionalism.
-            </p>
-          </div>
-
-          <!-- Footer -->
-          <div style="border-top: 2px solid #f0f0f0; padding-top: 20px; margin-top: 30px;">
-            <p style="margin: 0; color: #777; font-size: 13px; text-align: center;">
-              This is an automated notification from the Church Management System
-            </p>
-          </div>
+        <!-- Footer -->
+        <div style="padding:20px 32px;border-top:1px solid #f0f0f0;text-align:center;">
+          <p style="margin:0;font-size:11px;color:#ccc;">Automated notification &middot; Church Management System</p>
         </div>
       </div>
     `;
 
     await this.emailProvider.sendEmail({
       to: data.adminEmail,
-      subject: `🔔 New Partnership Inquiry - ${data.partnerName}${data.partnerCompany ? ` (${data.partnerCompany})` : ''}`,
+      subject: `New Partnership Inquiry - ${data.partnerName}${data.partnerCompany ? ` (${data.partnerCompany})` : ''}`,
       html,
     });
   }
@@ -1267,113 +1320,139 @@ export class NotificationsService {
     });
 
     let reminderTitle = '';
-    let urgencyColor = '';
-    let urgencyMessage = '';
+    let headerColor = '';
+    let headerSubtext = '';
 
     if (data.daysUntil === 1) {
-      reminderTitle = 'Tomorrow!';
-      urgencyColor = '#f5576c';
-      urgencyMessage = 'The event is just around the corner! Final preparations:';
+      reminderTitle = 'Tomorrow';
+      headerColor = '#B91C1C';
+      headerSubtext = 'Final check before the big day';
     } else if (data.daysUntil === 3) {
-      reminderTitle = '3 Days to Go!';
-      urgencyColor = '#ffc107';
-      urgencyMessage = 'The event is coming up soon. Here\'s what to remember:';
+      reminderTitle = '3 Days Left';
+      headerColor = '#0D7770';
+      headerSubtext = 'Time to start preparing';
     } else {
-      reminderTitle = `${data.daysUntil} Days Until Event`;
-      urgencyColor = '#667eea';
-      urgencyMessage = 'Mark your calendar and start preparing:';
+      reminderTitle = `${data.daysUntil} Days Left`;
+      headerColor = '#1E40AF';
+      headerSubtext = 'Mark your calendar';
     }
 
+    // Build checklist items based on urgency
+    const checklistItems =
+      data.daysUntil === 1
+        ? [
+            'Have your check-in code ready (see below)',
+            'Plan your route and parking',
+            'Bring a valid ID for verification',
+            'Charge your devices for networking',
+            'Dress code: Business professional',
+          ]
+        : data.daysUntil === 3
+          ? [
+              'Review the event schedule',
+              'Prepare business cards for networking',
+              'Set a calendar reminder',
+              'Review speaker profiles and topics',
+            ]
+          : [
+              'Save the event date in your calendar',
+              'Review pre-event materials (if provided)',
+              'Prepare questions for Q&A sessions',
+              'Connect with other attendees on social media',
+            ];
+
+    const checklistHtml = checklistItems
+      .map(
+        (item) =>
+          `<tr><td style="padding:5px 0;font-size:13px;color:#555;">&#9679;&nbsp; ${item}</td></tr>`,
+      )
+      .join('');
+
+    // Build 4-digit code display
+    const codeDigits = data.checkInCode
+      .split('')
+      .map(
+        (d) =>
+          `<td style="width:48px;height:60px;background:${headerColor};color:#ffffff;font-family:'Courier New',monospace;font-size:26px;font-weight:700;text-align:center;border-radius:10px;">${d}</td>`,
+      )
+      .join('<td style="width:6px;"></td>');
+
     const html = `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; line-height: 1.6;">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, ${urgencyColor} 0%, ${urgencyColor}dd 100%); color: white; padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="margin: 0; font-size: 36px; font-weight: 700;">⏰ ${reminderTitle}</h1>
-          <p style="margin: 15px 0 0 0; font-size: 20px; opacity: 0.95;">${data.eventTitle}</p>
+        <div style="background:${headerColor};padding:48px 32px 40px;text-align:center;">
+          <p style="margin:0 0 8px;font-size:48px;font-weight:700;color:#ffffff;letter-spacing:-1px;">${reminderTitle}</p>
+          <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.8);">${headerSubtext}</p>
         </div>
 
-        <!-- Main Content -->
-        <div style="padding: 40px 30px; background: white; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
-          <p style="font-size: 18px; margin-bottom: 25px; color: #333;">Hi ${data.firstName},</p>
-
-          <p style="font-size: 16px; color: #555;">
-            This is a friendly reminder that <strong>${data.eventTitle}</strong> is coming up in <strong>${data.daysUntil} day${data.daysUntil > 1 ? 's' : ''}</strong>!
-          </p>
+        <!-- Body -->
+        <div style="padding:36px 32px;">
+          <p style="font-size:16px;color:#1a1a1a;margin:0 0 8px;font-weight:500;">Hi ${data.firstName},</p>
+          <p style="font-size:14px;color:#555;margin:0 0 28px;line-height:1.65;"><strong style="color:#1a1a1a;">${data.eventTitle}</strong> is ${data.daysUntil === 1 ? 'tomorrow' : `in ${data.daysUntil} days`}. Here's a quick refresher.</p>
 
           <!-- Event Details -->
-          <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid ${urgencyColor};">
-            <h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">📅 Event Details</h2>
-            <p style="margin: 10px 0; color: #555;"><strong>📍 Date:</strong> ${formattedDate}</p>
-            <p style="margin: 10px 0; color: #555;"><strong>🕐 Time:</strong> ${formattedTime}</p>
-            ${data.eventLocation ? `<p style="margin: 10px 0; color: #555;"><strong>📌 Location:</strong> ${data.eventLocation}</p>` : ''}
-          </div>
-
-          <!-- Check-In Code Reminder -->
-          <div style="background: #fff; padding: 25px; border-radius: 12px; margin: 30px 0; border: 2px solid ${urgencyColor}; text-align: center;">
-            <h3 style="color: ${urgencyColor}; margin: 0 0 15px 0;">🎫 Your Check-In Code</h3>
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; display: inline-block;">
-              <p style="font-size: 28px; font-weight: 700; letter-spacing: 2px; margin: 0; color: #333; font-family: 'Courier New', monospace;">
-                ${data.checkInCode}
-              </p>
+          <div style="border:1px solid #eee;border-radius:12px;overflow:hidden;margin:0 0 24px;">
+            <div style="background:#fafafa;padding:14px 20px;border-bottom:1px solid #eee;">
+              <p style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#888;">Event Details</p>
             </div>
-            <p style="color: #666; margin: 15px 0 0 0; font-size: 14px;">
-              Have this code ready for quick check-in at the event
-            </p>
-          </div>
-
-          <!-- Preparation Checklist -->
-          <div style="background: #e8f5e9; padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #4caf50;">
-            <h3 style="color: #2e7d32; margin: 0 0 15px 0; font-size: 18px;">✅ ${urgencyMessage}</h3>
-            <ul style="color: #555; padding-left: 20px; margin: 10px 0;">
-              ${data.daysUntil === 1 ? `
-                <li style="margin: 10px 0;">Locate your check-in code (above)</li>
-                <li style="margin: 10px 0;">Plan your route and parking</li>
-                <li style="margin: 10px 0;">Prepare your ID for verification</li>
-                <li style="margin: 10px 0;">Charge your devices (for networking)</li>
-                <li style="margin: 10px 0;">Wear business professional attire</li>
-              ` : data.daysUntil === 3 ? `
-                <li style="margin: 10px 0;">Review event schedule and plan sessions to attend</li>
-                <li style="margin: 10px 0;">Prepare business cards for networking</li>
-                <li style="margin: 10px 0;">Set calendar reminders</li>
-                <li style="margin: 10px 0;">Review speaker profiles and topics</li>
-              ` : `
-                <li style="margin: 10px 0;">Save the event date in your calendar</li>
-                <li style="margin: 10px 0;">Review pre-event materials (if provided)</li>
-                <li style="margin: 10px 0;">Prepare questions for Q&A sessions</li>
-                <li style="margin: 10px 0;">Connect with other attendees on social media</li>
-              `}
-            </ul>
-          </div>
-
-          ${data.daysUntil === 1 ? `
-            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 30px 0; border-left: 4px solid #ffc107;">
-              <p style="margin: 0; color: #856404; font-size: 14px;">
-                <strong>🚗 Arrival:</strong> Please arrive 15-20 minutes early for registration, check-in, and networking before the event starts.
-              </p>
+            <div style="padding:16px 20px;">
+              <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:7px 0;font-size:14px;color:#333;">&#128197;&nbsp; ${formattedDate}</td>
+                </tr>
+                <tr>
+                  <td style="padding:7px 0;font-size:14px;color:#333;">&#128336;&nbsp; ${formattedTime}</td>
+                </tr>
+                ${
+                  data.eventLocation
+                    ? `<tr><td style="padding:7px 0;font-size:14px;color:#333;">&#128205;&nbsp; ${data.eventLocation}</td></tr>`
+                    : ''
+                }
+              </table>
             </div>
-          ` : ''}
-
-          <p style="margin-top: 30px; font-size: 16px; color: #555; text-align: center;">
-            <strong>We're excited to see you ${data.daysUntil === 1 ? 'tomorrow' : 'soon'}!</strong>
-          </p>
-
-          <!-- Footer -->
-          <div style="border-top: 2px solid #f0f0f0; padding-top: 25px; margin-top: 40px; text-align: center;">
-            <p style="margin: 0; color: #777; font-size: 14px;">
-              Questions? Contact us at:<br/>
-              <a href="mailto:info@powerpointtribe.org" style="color: ${urgencyColor}; text-decoration: none;">info@powerpointtribe.org</a>
-            </p>
-            <p style="margin: 15px 0 0 0; color: #999; font-size: 13px;">
-              © ${new Date().getFullYear()} PowerPoint Tribe. All rights reserved.
-            </p>
           </div>
+
+          <!-- Check-In Code -->
+          <div style="background:#f8fafa;border:1px solid #e8eded;border-radius:12px;padding:24px 20px;text-align:center;margin:0 0 24px;">
+            <p style="margin:0 0 4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:${headerColor};">Your Check-In Code</p>
+            <table style="margin:14px auto 10px;border-spacing:0;" cellpadding="0" cellspacing="0"><tr>${codeDigits}</tr></table>
+            <p style="margin:0;font-size:12px;color:#888;">Show this at the door for instant check-in</p>
+          </div>
+
+          <!-- Checklist -->
+          <div style="margin:0 0 24px;">
+            <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#1a1a1a;">Preparation checklist:</p>
+            <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
+              ${checklistHtml}
+            </table>
+          </div>
+
+          ${
+            data.daysUntil === 1
+              ? `
+          <div style="background:#fff8f0;border:1px solid #f0e0cc;border-radius:10px;padding:14px 20px;margin:0 0 24px;">
+            <p style="margin:0;font-size:13px;color:#8a6d3b;">Arrive 15&ndash;20 minutes early for registration and networking.</p>
+          </div>
+          `
+              : ''
+          }
+
+          <div style="text-align:center;margin:28px 0 0;">
+            <p style="margin:0;font-size:14px;color:#555;">See you ${data.daysUntil === 1 ? 'tomorrow' : 'soon'}!</p>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding:24px 32px;border-top:1px solid #f0f0f0;text-align:center;">
+          <p style="margin:0 0 4px;font-size:12px;color:#aaa;">Questions? <a href="mailto:info@powerpointtribe.org" style="color:${headerColor};text-decoration:none;">info@powerpointtribe.org</a></p>
+          <p style="margin:0;font-size:11px;color:#ccc;">&copy; ${new Date().getFullYear()} PowerPoint Tribe</p>
         </div>
       </div>
     `;
 
     await this.emailProvider.sendEmail({
       to: data.email,
-      subject: `⏰ Reminder: ${data.eventTitle} - ${reminderTitle}`,
+      subject: `${data.eventTitle} - ${reminderTitle}`,
       html,
     });
   }

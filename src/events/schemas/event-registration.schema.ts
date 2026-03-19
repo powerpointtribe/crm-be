@@ -129,10 +129,9 @@ EventRegistrationSchema.index({ registeredAt: -1 });
 // Pre-save hook to generate check-in code if not present
 EventRegistrationSchema.pre('save', function (next) {
   if (!this.checkInCode) {
-    // Generate a unique check-in code
-    const timestamp = Date.now().toString(36);
-    const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
-    this.checkInCode = `${timestamp}-${randomPart}`;
+    // Generate a 4-digit numeric check-in code
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    this.checkInCode = code;
   }
   next();
 });
