@@ -743,28 +743,16 @@ export class EventsService {
       throw new BadRequestException('Registration deadline has passed');
     }
 
-    // Check for duplicate by email or phone
-    if (dto.email || dto.phone) {
-      const duplicateFilter: any = {
+    // Check for duplicate by email only
+    if (dto.email) {
+      const existing = await this.registrationModel.findOne({
         event: event._id,
-        $or: [],
-      };
-      if (dto.email) {
-        duplicateFilter.$or.push({
-          'attendeeInfo.email': dto.email.toLowerCase(),
-        });
-      }
-      if (dto.phone) {
-        duplicateFilter.$or.push({ 'attendeeInfo.phone': dto.phone });
-      }
-
-      if (duplicateFilter.$or.length > 0) {
-        const existing = await this.registrationModel.findOne(duplicateFilter);
-        if (existing) {
-          throw new ConflictException(
-            'You are already registered for this event',
-          );
-        }
+        'attendeeInfo.email': dto.email.toLowerCase(),
+      });
+      if (existing) {
+        throw new ConflictException(
+          `The email "${dto.email}" is already registered for this event`,
+        );
       }
     }
 
