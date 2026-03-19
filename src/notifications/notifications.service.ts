@@ -961,26 +961,30 @@ export class NotificationsService {
     firstName: string;
     lastName: string;
     eventTitle: string;
-    eventDate: Date;
-    eventLocation?: string;
+    eventDate: Date | string;
+    eventLocation?: any;
     checkInCode: string;
-    customFieldResponses?: Map<string, string>;
+    customFieldResponses?: Map<string, string> | Record<string, string>;
   }): Promise<void> {
-    const formattedDate = data.eventDate.toLocaleDateString('en-US', {
+    // Ensure eventDate is a Date object (may be a string after JSON serialization via queue)
+    const eventDate = data.eventDate instanceof Date ? data.eventDate : new Date(data.eventDate);
+
+    const formattedDate = eventDate.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
 
-    const formattedTime = data.eventDate.toLocaleTimeString('en-US', {
+    const formattedTime = eventDate.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
     });
 
-    // Get track from custom field responses
-    const track = data.customFieldResponses?.get('track') || '';
+    // Get track from custom field responses (may be a Map or plain object after serialization)
+    const cfr = data.customFieldResponses;
+    const track = cfr instanceof Map ? (cfr.get('track') || '') : (cfr as any)?.track || '';
     const trackInfo = track ? `<p style="margin: 10px 0;">🎯 <strong>Track:</strong> ${track}</p>` : '';
 
     const html = `
@@ -1004,7 +1008,7 @@ export class NotificationsService {
             <h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">📅 Event Details</h2>
             <p style="margin: 10px 0; color: #555;"><strong>📍 Date:</strong> ${formattedDate}</p>
             <p style="margin: 10px 0; color: #555;"><strong>🕐 Time:</strong> ${formattedTime}</p>
-            ${data.eventLocation ? `<p style="margin: 10px 0; color: #555;"><strong>📌 Location:</strong> ${data.eventLocation}</p>` : ''}
+            ${(() => { const loc = typeof data.eventLocation === 'string' ? data.eventLocation : data.eventLocation?.name || ''; return loc ? `<p style="margin: 10px 0; color: #555;"><strong>📌 Location:</strong> ${loc}</p>` : ''; })()}
             ${trackInfo}
           </div>
 

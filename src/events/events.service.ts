@@ -811,7 +811,7 @@ export class EventsService {
         lastName: dto.lastName,
         eventTitle: event.title,
         eventDate: event.startDate,
-        eventLocation: event.location,
+        eventLocation: event.location?.name || '',
         checkInCode: savedReg.checkInCode,
         customFieldResponses: savedReg.customFieldResponses,
       }).catch((err) => {
