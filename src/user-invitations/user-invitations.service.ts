@@ -609,6 +609,64 @@ export class UserInvitationsService {
   }
 
   /**
+   * Get all deactivated users (members who had platform access but were deactivated)
+   */
+  async getDeactivatedUsers(options?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<{
+    data: MemberDocument[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    const { page = 1, limit = 10, search = '' } = options || {};
+
+    const query: any = {
+      isActive: false,
+      accountType: { $ne: null },
+    };
+
+    if (search) {
+      query.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.memberModel
+        .find(query)
+        .populate('role', 'name displayName')
+        .select(
+          'firstName lastName email phone isActive role lastLogin accountType updatedAt',
+        )
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.memberModel.countDocuments(query),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
    * Update user role (for active users)
    */
   async updateUserRole(memberId: string, roleId: string): Promise<MemberDocument> {

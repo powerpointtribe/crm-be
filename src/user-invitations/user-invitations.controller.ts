@@ -241,6 +241,36 @@ export class UserInvitationsController {
     };
   }
 
+  @Get('users/deactivated')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('users:view')
+  @ApiOperation({ summary: 'Get all deactivated users' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Deactivated users retrieved successfully',
+  })
+  async getDeactivatedUsers(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
+  ) {
+    const result = await this.invitationsService.getDeactivatedUsers({
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 10,
+      search,
+    });
+
+    return {
+      success: true,
+      message: 'Deactivated users retrieved successfully',
+      data: result.data,
+      pagination: result.pagination,
+    };
+  }
+
   @Patch('users/:memberId/role')
   @UseGuards(PermissionGuard)
   @RequirePermission('users:manage')
