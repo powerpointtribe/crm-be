@@ -234,17 +234,53 @@ export class GroupsService {
     // Use aggregation with $lookup for reliable cross-collection joins
     const results = await this.groupModel.aggregate([
       { $match: { _id: new Types.ObjectId(id) } },
-      // Lookup members
+      // Convert stored IDs to ObjectIds (handles string/ObjectId mismatch)
+      {
+        $addFields: {
+          members: {
+            $map: {
+              input: { $ifNull: ['$members', []] },
+              as: 'mid',
+              in: { $toObjectId: '$$mid' },
+            },
+          },
+          districtPastor: {
+            $cond: {
+              if: { $ifNull: ['$districtPastor', false] },
+              then: { $toObjectId: '$districtPastor' },
+              else: null,
+            },
+          },
+          unitHead: {
+            $cond: {
+              if: { $ifNull: ['$unitHead', false] },
+              then: { $toObjectId: '$unitHead' },
+              else: null,
+            },
+          },
+          assistantUnitHead: {
+            $cond: {
+              if: { $ifNull: ['$assistantUnitHead', false] },
+              then: { $toObjectId: '$assistantUnitHead' },
+              else: null,
+            },
+          },
+          ministryDirector: {
+            $cond: {
+              if: { $ifNull: ['$ministryDirector', false] },
+              then: { $toObjectId: '$ministryDirector' },
+              else: null,
+            },
+          },
+        },
+      },
+      // Lookup members (localField/foreignField handles type coercion)
       {
         $lookup: {
           from: 'members',
-          let: { memberIds: '$members' },
+          localField: 'members',
+          foreignField: '_id',
           pipeline: [
-            {
-              $match: {
-                $expr: { $in: ['$_id', { $ifNull: ['$$memberIds', []] }] },
-              },
-            },
             // Lookup the unit for each member
             {
               $lookup: {
@@ -273,6 +309,12 @@ export class GroupsService {
             },
           ],
           as: 'members',
+        },
+      },
+      // Reconcile currentMemberCount with actual members
+      {
+        $addFields: {
+          currentMemberCount: { $size: '$members' },
         },
       },
       // Lookup districtPastor
