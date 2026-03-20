@@ -628,7 +628,7 @@ export class UserInvitationsService {
 
     const query: any = {
       isActive: false,
-      accountType: { $ne: null },
+      role: { $ne: null },
     };
 
     if (search) {
