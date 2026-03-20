@@ -20,6 +20,18 @@ export enum AttendeeType {
   VISITOR = 'visitor',
 }
 
+// Registration track
+export enum RegistrationTrack {
+  PROFESSIONAL = 'Professional',
+  ENTREPRENEUR = 'Entrepreneur',
+}
+
+// Check-in code prefix
+export enum CheckInCodePrefix {
+  PROFESSIONAL = 'PRO',
+  ENTREPRENEUR = 'ENT',
+}
+
 // Attendee information type
 export interface AttendeeInfo {
   firstName: string;
@@ -126,12 +138,23 @@ EventRegistrationSchema.index(
 );
 EventRegistrationSchema.index({ registeredAt: -1 });
 
-// Pre-save hook to generate check-in code if not present
-EventRegistrationSchema.pre('save', function (next) {
+// Pre-save hook to generate sequential check-in code (PRO-XXX / ENT-XXX)
+EventRegistrationSchema.pre('save', async function (next) {
   if (!this.checkInCode) {
-    // Generate a 4-digit numeric check-in code
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    this.checkInCode = code;
+    const track = this.customFieldResponses?.get('track');
+    const prefix =
+      track === RegistrationTrack.ENTREPRENEUR
+        ? CheckInCodePrefix.ENTREPRENEUR
+        : CheckInCodePrefix.PROFESSIONAL;
+
+    // Count existing registrations with this prefix for the same event
+    const Model = this.constructor as any;
+    const count = await Model.countDocuments({
+      event: this.event,
+      checkInCode: new RegExp(`^${prefix}-\\d+$`),
+    });
+
+    this.checkInCode = `${prefix}-${String(count + 1).padStart(3, '0')}`;
   }
   next();
 });
