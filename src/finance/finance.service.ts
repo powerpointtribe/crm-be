@@ -1615,8 +1615,8 @@ export class FinanceService {
   private generateInfoRow(label: string, value: string, isLast: boolean = false, valueStyle: string = ''): string {
     return `
       <tr>
-        <td style="padding: 12px 0; border-bottom: ${isLast ? 'none' : '1px solid #e2e8f0'}; font-size: 14px; color: #6b7280; width: 40%;">${label}</td>
-        <td style="padding: 12px 0; border-bottom: ${isLast ? 'none' : '1px solid #e2e8f0'}; font-size: 14px; font-weight: 500; color: #1f2937; text-align: right; ${valueStyle}">${value}</td>
+        <td style="padding: 12px 8px 12px 0; border-bottom: ${isLast ? 'none' : '1px solid #e2e8f0'}; font-size: 14px; color: #6b7280; width: 40%; vertical-align: top;">${label}</td>
+        <td style="padding: 12px 0 12px 8px; border-bottom: ${isLast ? 'none' : '1px solid #e2e8f0'}; font-size: 14px; font-weight: 500; color: #1f2937; text-align: right; ${valueStyle}">${value}</td>
       </tr>
     `;
   }
@@ -3028,20 +3028,22 @@ export class FinanceService {
 
               <!-- Details -->
               <div style="background: #f9fafb; border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 ${requisition.referenceNumber ? `
-                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-                  <span style="font-size: 13px; color: #6b7280;">Reference</span>
-                  <span style="font-size: 13px; color: #111827; font-weight: 500; font-family: monospace;">${requisition.referenceNumber}</span>
-                </div>
+                  <tr>
+                    <td style="padding: 8px 8px 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 13px; color: #6b7280; width: 40%;">Reference</td>
+                    <td style="padding: 8px 0 8px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; color: #111827; font-weight: 500; font-family: monospace; text-align: right;">${requisition.referenceNumber}</td>
+                  </tr>
                 ` : ''}
-                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-                  <span style="font-size: 13px; color: #6b7280;">Purpose</span>
-                  <span style="font-size: 13px; color: #111827; font-weight: 500;">${requisition.eventDescription.length > 30 ? requisition.eventDescription.substring(0, 30) + '...' : requisition.eventDescription}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 0;">
-                  <span style="font-size: 13px; color: #6b7280;">Date Needed</span>
-                  <span style="font-size: 13px; color: #111827; font-weight: 500;">${new Date(requisition.dateNeeded).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                </div>
+                  <tr>
+                    <td style="padding: 8px 8px 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 13px; color: #6b7280; width: 40%;">Purpose</td>
+                    <td style="padding: 8px 0 8px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; color: #111827; font-weight: 500; text-align: right;">${requisition.eventDescription.length > 30 ? requisition.eventDescription.substring(0, 30) + '...' : requisition.eventDescription}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 8px 8px 0; font-size: 13px; color: #6b7280; width: 40%;">Date Needed</td>
+                    <td style="padding: 8px 0 8px 8px; font-size: 13px; color: #111827; font-weight: 500; text-align: right;">${new Date(requisition.dateNeeded).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                  </tr>
+                </table>
               </div>
 
               <!-- CTA -->
@@ -3115,20 +3117,22 @@ export class FinanceService {
 
               <!-- Details -->
               <div style="background: #f9fafb; border-radius: 12px; padding: 16px;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 ${requisition.referenceNumber ? `
-                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-                  <span style="font-size: 13px; color: #6b7280;">Reference</span>
-                  <span style="font-size: 13px; color: #111827; font-weight: 500; font-family: monospace;">${requisition.referenceNumber}</span>
-                </div>
+                  <tr>
+                    <td style="padding: 8px 8px 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 13px; color: #6b7280; width: 40%;">Reference</td>
+                    <td style="padding: 8px 0 8px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; color: #111827; font-weight: 500; font-family: monospace; text-align: right;">${requisition.referenceNumber}</td>
+                  </tr>
                 ` : ''}
-                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-                  <span style="font-size: 13px; color: #6b7280;">Purpose</span>
-                  <span style="font-size: 13px; color: #111827; font-weight: 500;">${requisition.eventDescription.length > 25 ? requisition.eventDescription.substring(0, 25) + '...' : requisition.eventDescription}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 8px 0;">
-                  <span style="font-size: 13px; color: #6b7280;">Date</span>
-                  <span style="font-size: 13px; color: #111827; font-weight: 500;">${new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                </div>
+                  <tr>
+                    <td style="padding: 8px 8px 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 13px; color: #6b7280; width: 40%;">Purpose</td>
+                    <td style="padding: 8px 0 8px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; color: #111827; font-weight: 500; text-align: right;">${requisition.eventDescription.length > 25 ? requisition.eventDescription.substring(0, 25) + '...' : requisition.eventDescription}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 8px 8px 0; font-size: 13px; color: #6b7280; width: 40%;">Date</td>
+                    <td style="padding: 8px 0 8px 8px; font-size: 13px; color: #111827; font-weight: 500; text-align: right;">${new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                  </tr>
+                </table>
               </div>
             </div>
 
