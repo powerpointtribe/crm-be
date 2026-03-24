@@ -344,9 +344,9 @@ export class FirstTimersService {
 
     // Add the follow-up record
     const followUp: any = {
-      date: new Date(),
+      date: followUpDto.date ? new Date(followUpDto.date) : new Date(),
       method: followUpDto.method,
-      notes: followUpDto.notes,
+      notes: followUpDto.notes || 'N/A',
       outcome: followUpDto.outcome,
       contactedBy: followUpDto.contactedBy,
       nextFollowUpDate: followUpDto?.nextFollowUpDate

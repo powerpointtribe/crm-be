@@ -1450,14 +1450,25 @@ export class FirstTimersController {
 
     // Send notification to users with the RECEIVE_READY_FOR_INTEGRATION_NOTIFICATION permission
     try {
-      await this.queueService.addJob('ready-for-integration-notification', {
-        firstTimerId: id,
-        firstTimerName: `${firstTimer.firstName} ${firstTimer.lastName}`,
-        markedBy: `${user.firstName} ${user.lastName}`,
-        markedAt: new Date().toISOString(),
-      });
+      const branchId = user.branch?._id?.toString() || user.branch?.toString();
+      const recipients = await this.userPermissionsService.getMembersWithPermission(
+        FirstTimersPermission.RECEIVE_READY_FOR_INTEGRATION_NOTIFICATION,
+        branchId,
+      );
+      const recipientList = recipients
+        .filter((r) => r.email)
+        .map((r) => ({ email: r.email, name: `${r.firstName || ''} ${r.lastName || ''}`.trim() }));
+
+      if (recipientList.length > 0) {
+        await this.queueService.addJob('ready-for-integration-notification', {
+          firstTimerId: id,
+          firstTimerName: `${firstTimer.firstName} ${firstTimer.lastName}`,
+          markedBy: `${user.firstName} ${user.lastName}`,
+          markedAt: new Date().toISOString(),
+          recipients: recipientList,
+        });
+      }
     } catch (error) {
-      // Log error but don't fail the main operation
       console.error('Failed to queue ready for integration notification:', error);
     }
 

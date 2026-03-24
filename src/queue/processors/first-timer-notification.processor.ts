@@ -387,6 +387,7 @@ export class FirstTimerNotificationProcessor {
       firstTimerName: string;
       markedBy: string;
       markedAt: string;
+      recipients: Array<{ email: string; name: string }>;
     }>,
   ) {
     this.logger.log(
@@ -394,18 +395,32 @@ export class FirstTimerNotificationProcessor {
     );
 
     try {
-      const { firstTimerId, firstTimerName, markedBy, markedAt } = job.data;
+      const { firstTimerId, firstTimerName, markedBy, markedAt, recipients } = job.data;
 
-      this.logger.log(
-        `First-timer "${firstTimerName}" (${firstTimerId}) marked as ready for integration by ${markedBy} at ${markedAt}`,
-      );
+      if (!recipients?.length) {
+        this.logger.warn(`No recipients for ready-for-integration notification (job ${job.id})`);
+        return { success: true, sent: 0 };
+      }
 
-      return {
-        success: true,
-        firstTimerId,
-        firstTimerName,
-        message: 'Ready for integration notification processed',
-      };
+      let sent = 0;
+      for (const recipient of recipients) {
+        try {
+          await this.notificationsService.sendReadyForIntegrationNotification({
+            recipientEmail: recipient.email,
+            recipientName: recipient.name,
+            firstTimerName,
+            markedBy,
+            markedAt,
+            firstTimerId,
+          });
+          sent++;
+        } catch (err) {
+          this.logger.error(`Failed to send to ${recipient.email}: ${err.message}`);
+        }
+      }
+
+      this.logger.log(`Sent ready-for-integration notification to ${sent}/${recipients.length} recipients`);
+      return { success: true, sent, total: recipients.length };
     } catch (error) {
       this.logger.error(
         `Failed to process ready-for-integration notification: ${error.message}`,

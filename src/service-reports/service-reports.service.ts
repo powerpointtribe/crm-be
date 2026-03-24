@@ -43,6 +43,7 @@ export class ServiceReportsService {
   async create(
     createServiceReportDto: CreateServiceReportDto,
     reportedBy: string,
+    branchId: string,
   ): Promise<ServiceReportDocument> {
     // Validate date is not in the future
     const reportDate = new Date(createServiceReportDto.date);
@@ -77,8 +78,9 @@ export class ServiceReportsService {
       );
     }
 
-    // Check if a report already exists for this date and service
+    // Check if a report already exists for this date and service within the same branch
     const existingReport = await this.serviceReportModel.findOne({
+      branch: new Types.ObjectId(branchId),
       date: new Date(createServiceReportDto.date),
       serviceName: createServiceReportDto.serviceName,
       isActive: true,
@@ -94,6 +96,7 @@ export class ServiceReportsService {
       ...createServiceReportDto,
       date: new Date(createServiceReportDto.date),
       reportedBy: new Types.ObjectId(reportedBy),
+      branch: new Types.ObjectId(branchId),
       serviceTags: createServiceReportDto.serviceTags || [],
     });
 

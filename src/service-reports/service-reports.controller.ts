@@ -64,6 +64,7 @@ export class ServiceReportsController {
     const report = await this.serviceReportsService.create(
       createServiceReportDto,
       user._id,
+      user.branch?._id || user.branch,
     );
     return ResponseUtil.success(report, 'Service report created successfully');
   }

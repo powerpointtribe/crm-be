@@ -1456,4 +1456,53 @@ export class NotificationsService {
       html,
     });
   }
+
+  async sendReadyForIntegrationNotification(data: {
+    recipientEmail: string;
+    recipientName: string;
+    firstTimerName: string;
+    markedBy: string;
+    markedAt: string;
+    firstTimerId: string;
+  }): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 20px;">
+        <div style="background: #ffffff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="width: 56px; height: 56px; background: #ecfdf5; border-radius: 50%; margin: 0 auto 16px; display: table-cell; vertical-align: middle; text-align: center; font-size: 28px;">&#128100;</div>
+            <h1 style="font-size: 20px; font-weight: 700; color: #111827; margin: 0 0 8px;">Ready for Integration</h1>
+            <p style="font-size: 14px; color: #6b7280; margin: 0;">A first-timer has been marked ready to become a member</p>
+          </div>
+
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #065f46; text-transform: uppercase; letter-spacing: 0.5px;">First-Timer</p>
+            <p style="margin: 0; font-size: 18px; font-weight: 700; color: #111827;">${data.firstTimerName}</p>
+          </div>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 24px;">
+            <tr>
+              <td style="padding: 8px 8px 8px 0; font-size: 13px; color: #6b7280; width: 40%;">Marked By</td>
+              <td style="padding: 8px 0 8px 8px; font-size: 13px; color: #111827; font-weight: 500; text-align: right;">${data.markedBy}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 8px 8px 0; font-size: 13px; color: #6b7280; width: 40%;">Date</td>
+              <td style="padding: 8px 0 8px 8px; font-size: 13px; color: #111827; font-weight: 500; text-align: right;">${new Date(data.markedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+            </tr>
+          </table>
+
+          <div style="text-align: center;">
+            <a href="${this.frontendUrl}/first-timers/${data.firstTimerId}" style="display: inline-block; padding: 12px 28px; background: #10b981; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 8px;">View First-Timer Profile</a>
+          </div>
+
+          <p style="font-size: 12px; color: #9ca3af; text-align: center; margin-top: 24px;">You are receiving this because you have the integration notification permission.</p>
+        </div>
+      </div>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.recipientEmail,
+      subject: `${data.firstTimerName} is Ready for Integration`,
+      html,
+    });
+  }
 }
