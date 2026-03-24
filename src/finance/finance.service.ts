@@ -1670,7 +1670,8 @@ export class FinanceService {
   /**
    * Generate email-compatible workflow/progress tracker
    */
-  private generateWorkflowTracker(currentStep: 1 | 2 | 3 | 4): string {
+  private generateWorkflowTracker(currentStep: 1 | 2 | 3 | 4 | 5): string {
+    // Step 5 means all steps are completed (used for disbursement emails)
     const getStepStyle = (stepNum: number) => {
       if (stepNum < currentStep) {
         return { bg: '#10b981', color: '#ffffff', text: '✓', labelColor: '#10b981' };
@@ -2407,7 +2408,7 @@ export class FinanceService {
 
             <div class="content">
               <!-- Workflow Tracker - All Complete -->
-              ${this.generateWorkflowTracker(4)}
+              ${this.generateWorkflowTracker(5)}
 
               ${requisition.referenceNumber ? `
               <!-- Reference Number Badge -->
@@ -3394,7 +3395,7 @@ export class FinanceService {
 
             <!-- Content -->
             <div style="padding: 0 32px 32px;">
-              ${this.generateWorkflowTracker(3)}
+              ${this.generateWorkflowTracker(5)}
 
               <!-- Amount Display -->
               <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px; border: 1px solid #bbf7d0;">
@@ -3451,7 +3452,7 @@ export class FinanceService {
 
             <!-- Content -->
             <div style="padding: 0 32px 32px;">
-              ${this.generateWorkflowTracker(3)}
+              ${this.generateWorkflowTracker(5)}
 
               <!-- Amount Display -->
               <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px; border: 1px solid #bbf7d0;">
