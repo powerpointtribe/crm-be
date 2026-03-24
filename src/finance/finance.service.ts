@@ -1134,7 +1134,10 @@ export class FinanceService {
     approver: MemberDocument,
   ): Promise<void> {
     try {
-      const requestor = requisition.requestor as any;
+      if (!requisition.requestor) return;
+      const requestor = await this.memberModel
+        .findById(requisition.requestor)
+        .select('firstName lastName email');
       if (!requestor?.email) return;
 
       const html = this.generateApprovalEmail(requisition, approver);
@@ -1198,7 +1201,10 @@ export class FinanceService {
     rejector: MemberDocument,
   ): Promise<void> {
     try {
-      const requestor = requisition.requestor as any;
+      if (!requisition.requestor) return;
+      const requestor = await this.memberModel
+        .findById(requisition.requestor)
+        .select('firstName lastName email');
       if (!requestor?.email) return;
 
       const html = this.generateRejectionEmail(requisition, rejector);
@@ -1225,7 +1231,10 @@ export class FinanceService {
     disburser: MemberDocument,
   ): Promise<void> {
     try {
-      const requestor = requisition.requestor as any;
+      if (!requisition.requestor) return;
+      const requestor = await this.memberModel
+        .findById(requisition.requestor)
+        .select('firstName lastName email');
       if (!requestor?.email) return;
 
       const html = this.generateDisbursementConfirmationEmail(requisition, disburser);
