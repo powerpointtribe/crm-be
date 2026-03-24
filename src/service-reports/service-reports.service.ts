@@ -232,7 +232,7 @@ export class ServiceReportsService {
       ? report.reportedBy._id.toString()
       : report.reportedBy.toString();
 
-    if (reportedByIdString !== userId) {
+    if (reportedByIdString !== userId.toString()) {
       throw new ForbiddenException(
         'You can only update reports that you created',
       );
@@ -298,7 +298,7 @@ export class ServiceReportsService {
       ? report.reportedBy._id.toString()
       : report.reportedBy.toString();
 
-    if (reportedByIdString !== userId) {
+    if (reportedByIdString !== userId.toString()) {
       throw new ForbiddenException(
         'You can only delete reports that you created',
       );
