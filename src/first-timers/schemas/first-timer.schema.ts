@@ -185,6 +185,8 @@ export class FirstTimer {
         nextFollowUpDate: Date,
         // Visit number for in_visit method (2nd, 3rd, 4th visit)
         visitNumber: { type: Number, min: 2, max: 4 },
+        // Date the record was entered into the system (auto-set to now)
+        dateEntered: { type: Date, default: Date.now },
       },
     },
   ])
@@ -196,6 +198,7 @@ export class FirstTimer {
     contactedBy: Types.ObjectId;
     nextFollowUpDate?: Date;
     visitNumber?: number;
+    dateEntered?: Date;
   }>;
 
   // Total church visits count (starts at 1 for first visit)

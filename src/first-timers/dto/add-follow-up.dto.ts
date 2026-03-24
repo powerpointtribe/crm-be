@@ -14,12 +14,20 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AddFollowUpDto {
   @ApiPropertyOptional({
-    description: 'Date of the follow-up (defaults to today if not provided)',
+    description: 'Date the follow-up was made (date reached out)',
     example: '2026-03-24',
   })
   @IsOptional()
   @IsDateString()
   date?: string;
+
+  @ApiPropertyOptional({
+    description: 'Date the record was entered into the system (defaults to now)',
+    example: '2026-03-24',
+  })
+  @IsOptional()
+  @IsDateString()
+  dateEntered?: string;
 
   @ApiProperty({
     description: 'Follow-up method',
