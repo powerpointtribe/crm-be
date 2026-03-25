@@ -499,7 +499,7 @@ export class FirstTimersService {
 
   async update(
     id: string,
-    data: Partial<FirstTimer>,
+    data: Record<string, any>,
   ): Promise<FirstTimerDocument> {
     const firstTimer = await this.firstTimerModel.findByIdAndUpdate(
       id,
@@ -509,7 +509,7 @@ export class FirstTimersService {
           lastStatusChange: new Date(),
         },
       },
-      { new: true },
+      { new: true, runValidators: true },
     );
 
     if (!firstTimer) {

@@ -39,6 +39,7 @@ import { BulkUploadResultDto } from './dto/bulk-upload-first-timer.dto';
 import { CreateCallReportDto } from './dto/create-call-report.dto';
 import { UpdateIntegrationStageDto } from './dto/update-integration-stage.dto';
 import { IntegrateFirstTimerDto } from './dto/integrate-first-timer.dto';
+import { UpdateFirstTimerDto } from './dto/update-first-timer.dto';
 import { CSVParserUtil } from '../common/utils/csv-parser.util';
 import { QueueService } from '../queue/queue.service';
 import { JobType } from '../common/interfaces/queue-job.interface';
@@ -747,7 +748,7 @@ export class FirstTimersController {
   })
   async update(
     @Param('id') id: string,
-    @Body() updateFirstTimerDto: Partial<FirstTimer>,
+    @Body() updateFirstTimerDto: UpdateFirstTimerDto,
     @CurrentUser() user: any,
   ) {
     const firstTimer = await this.firstTimersService.update(
