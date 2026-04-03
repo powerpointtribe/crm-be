@@ -445,8 +445,8 @@ export class FinanceService {
 
     await requisition.save();
 
-    // Notify disbursers
-    await this.notifyDisbursers(requisition, user);
+    // Notify disbursers with one-click action tokens
+    await this.notifyDisbursersWithTokens(requisition);
 
     return this.findOne(id);
   }
@@ -1178,7 +1178,7 @@ export class FinanceService {
       if (recipients.length === 0) return;
 
       const html = this.generateDisbursementRequestEmail(requisition, approver);
-      const subject = `Requisition Ready for Disbursement - ${requisition.totalAmount.toLocaleString()} NGN`;
+      const subject = `Requisition ${requisition.referenceNumber || ''} Approved - Action Required`;
 
       // Queue email for async delivery (non-blocking)
       this.queueService.queueDisburserNotification(
@@ -1366,7 +1366,7 @@ export class FinanceService {
 
       if (disbursers.length === 0) return;
 
-      const subject = `Requisition Approved - Ready for Disbursement - ${requisition.totalAmount.toLocaleString()} NGN`;
+      const subject = `Requisition ${requisition.referenceNumber || ''} Approved - Action Required`;
 
       // Create tokens and queue emails for each disburser (non-blocking email send)
       for (const disburser of disbursers) {
@@ -2279,7 +2279,7 @@ export class FinanceService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Requisition Ready for Disbursement</title>
+        <title>Requisition Approved - Action Required</title>
         <style>${this.getEmailStyles()}</style>
       </head>
       <body>
@@ -2289,8 +2289,8 @@ export class FinanceService {
               <div class="header-icon" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);">
                 <span>&#128179;</span>
               </div>
-              <h1>Ready for Disbursement</h1>
-              <p>An approved requisition is awaiting fund release</p>
+              <h1>Requisition Approved</h1>
+              <p>An approved requisition requires your attention</p>
             </div>
 
             <div class="content">
@@ -2310,13 +2310,13 @@ export class FinanceService {
                 <span class="alert-icon">&#9888;&#65039;</span>
                 <div class="alert-content">
                   <h4 style="color: #92400e;">Action Required</h4>
-                  <p>This requisition has been approved and needs disbursement processing.</p>
+                  <p>This requisition has been approved and is ready for the next step.</p>
                 </div>
               </div>
 
               <!-- Amount Display -->
               <div class="amount-display">
-                <div class="amount-label">Amount to Disburse</div>
+                <div class="amount-label">Approved Amount</div>
                 <div class="amount-value">
                   <span class="amount-currency">NGN</span> ${requisition.totalAmount.toLocaleString()}
                 </div>
@@ -2368,12 +2368,12 @@ export class FinanceService {
 
               <!-- CTA Button -->
               <a href="${loginUrl}" style="display: block; padding: 14px 32px; border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff;">
-                Process Disbursement
+                Process Request
               </a>
             </div>
 
             <div style="padding: 24px 32px; background: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0;">
-              <p style="font-size: 13px; color: #9ca3af; margin: 0;">Please verify account details before processing payment</p>
+              <p style="font-size: 13px; color: #9ca3af; margin: 0;">Please verify account details before processing</p>
             </div>
           </div>
         </div>
@@ -2782,7 +2782,7 @@ export class FinanceService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Requisition Approved - Ready for Disbursement</title>
+        <title>Requisition Approved - Action Required</title>
         <style>${this.getEmailStyles()}</style>
       </head>
       <body>
@@ -2792,8 +2792,8 @@ export class FinanceService {
               <div class="header-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
                 <span style="color: white;">&#128179;</span>
               </div>
-              <h1 style="color: #065f46;">Ready for Disbursement</h1>
-              <p style="color: #047857;">This requisition has been approved and is ready for payment</p>
+              <h1 style="color: #065f46;">Requisition Approved</h1>
+              <p style="color: #047857;">This requisition has been approved and requires your attention</p>
             </div>
 
             <div class="content">
@@ -2813,13 +2813,13 @@ export class FinanceService {
                 <span class="alert-icon">⚡</span>
                 <div class="alert-content">
                   <h4 style="color: #92400e;">Action Required</h4>
-                  <p>Please process the payment and mark as disbursed using the button below.</p>
+                  <p>Please review and process this approved requisition using the button below.</p>
                 </div>
               </div>
 
               <!-- Amount Display -->
               <div class="amount-display" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #10b981;">
-                <div class="amount-label">Amount to Disburse</div>
+                <div class="amount-label">Approved Amount</div>
                 <div class="amount-value" style="color: #166534;">
                   <span class="amount-currency">NGN</span> ${requisition.totalAmount.toLocaleString()}
                 </div>
@@ -2871,7 +2871,7 @@ export class FinanceService {
 
               <!-- CTA Button -->
               <a href="${disburseUrl}" style="display: block; padding: 18px 32px; border-radius: 10px; font-size: 16px; font-weight: 600; text-decoration: none; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.4);">
-                ✓ Mark as Disbursed
+                ✓ Confirm &amp; Process
               </a>
 
               <p style="text-align: center; color: #9ca3af; font-size: 12px; margin-top: 16px;">
@@ -2880,7 +2880,7 @@ export class FinanceService {
             </div>
 
             <div class="footer">
-              <p>Please verify account details before processing payment</p>
+              <p>Please verify account details before processing</p>
             </div>
           </div>
         </div>
