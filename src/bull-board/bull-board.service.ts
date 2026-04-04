@@ -18,6 +18,14 @@ export class BullBoardService implements OnModuleInit {
     private firstTimerNotificationQueue: Queue,
     @InjectQueue(QueueName.FIRST_TIMER_AUTOMATION)
     private firstTimerAutomationQueue: Queue,
+    @InjectQueue(QueueName.AUDIT_LOGS)
+    private auditLogsQueue: Queue,
+    @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
+    private emailNotificationsQueue: Queue,
+    @InjectQueue(QueueName.ACTIVITY_LOGS)
+    private activityLogsQueue: Queue,
+    @InjectQueue(QueueName.ENTRY_IMPORT)
+    private entryImportQueue: Queue,
     private configService: ConfigService,
   ) {
     this.serverAdapter = new ExpressAdapter();
@@ -30,6 +38,10 @@ export class BullBoardService implements OnModuleInit {
         new BullAdapter(this.bulkOperationQueue),
         new BullAdapter(this.firstTimerNotificationQueue),
         new BullAdapter(this.firstTimerAutomationQueue),
+        new BullAdapter(this.auditLogsQueue),
+        new BullAdapter(this.emailNotificationsQueue),
+        new BullAdapter(this.activityLogsQueue),
+        new BullAdapter(this.entryImportQueue),
       ],
       serverAdapter: this.serverAdapter,
     });
