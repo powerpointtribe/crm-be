@@ -123,9 +123,9 @@ export class FinanceService {
 
     const savedRequisition = await requisition.save();
 
-    // If not a draft, send notification to approvers
+    // If not a draft, send notification to approvers with approve/reject action tokens
     if (!dto.isDraft) {
-      await this.notifyApprovers(savedRequisition, user);
+      await this.notifyApproversWithTokens(savedRequisition);
       await this.notifyRequestorOfSubmission(savedRequisition, user);
     }
 
@@ -406,8 +406,8 @@ export class FinanceService {
 
     await requisition.save();
 
-    // Notify approvers
-    await this.notifyApprovers(requisition, user);
+    // Notify approvers with approve/reject action tokens
+    await this.notifyApproversWithTokens(requisition);
     await this.notifyRequestorOfSubmission(requisition, user);
 
     return this.findOne(id);
