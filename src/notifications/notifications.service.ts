@@ -1066,8 +1066,7 @@ export class NotificationsService {
             <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
               <tr><td style="padding:6px 0;font-size:13px;color:#555;">&#9679;&nbsp; Screenshot this email or save your check-in code</td></tr>
               <tr><td style="padding:6px 0;font-size:13px;color:#555;">&#9679;&nbsp; Arrive 15 minutes early for networking</td></tr>
-              <tr><td style="padding:6px 0;font-size:13px;color:#555;">&#9679;&nbsp; Bring a valid ID for verification</td></tr>
-              <tr><td style="padding:6px 0;font-size:13px;color:#555;">&#9679;&nbsp; Dress code: Business professional</td></tr>
+              <tr><td style="padding:6px 0;font-size:13px;color:#555;">&#9679;&nbsp; Enjoy free breakfast and connect with fellow attendees</td></tr>
             </table>
           </div>
 
@@ -1343,9 +1342,8 @@ export class NotificationsService {
         ? [
             'Have your check-in code ready (see below)',
             'Plan your route and parking',
-            'Bring a valid ID for verification',
             'Charge your devices for networking',
-            'Dress code: Business professional',
+            'Enjoy free breakfast and connect with fellow attendees',
           ]
         : data.daysUntil === 3
           ? [

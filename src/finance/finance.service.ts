@@ -2386,13 +2386,29 @@ export class FinanceService {
     requisition: RequisitionDocument,
     disburser: MemberDocument,
   ): string {
+    const loginUrl = `${this.frontendUrl}/finance/requisitions`;
+    const expenseCategory = (requisition as any).expenseCategory?.name || 'N/A';
+
+    const costBreakdownHtml = requisition.costBreakdown
+      .map(
+        (item) => `
+        <tr>
+          <td style="font-size: 14px; padding: 12px 8px; border-bottom: 1px solid #f1f5f9; color: #374151;">${item.item}</td>
+          <td style="font-size: 14px; padding: 12px 8px; border-bottom: 1px solid #f1f5f9; color: #374151; text-align: center;">${item.quantity}</td>
+          <td style="font-size: 14px; padding: 12px 8px; border-bottom: 1px solid #f1f5f9; color: #374151; text-align: right;">${item.unitCost.toLocaleString()}</td>
+          <td style="font-size: 14px; padding: 12px 8px; border-bottom: 1px solid #f1f5f9; color: #374151; text-align: right; font-weight: 500;">${item.total.toLocaleString()}</td>
+        </tr>
+      `,
+      )
+      .join('');
+
     return `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Funds Disbursed</title>
+        <title>Requisition Completed</title>
         <style>${this.getEmailStyles()}</style>
       </head>
       <body>
@@ -2400,10 +2416,10 @@ export class FinanceService {
           <div class="email-container">
             <div class="header" style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);">
               <div class="header-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                <span style="color: white;">&#128181;</span>
+                <span style="color: white;">&#10003;</span>
               </div>
-              <h1 style="color: #065f46;">Funds Disbursed!</h1>
-              <p style="color: #047857;">Your requisition has been completed</p>
+              <h1 style="color: #065f46;">Requisition Completed</h1>
+              <p style="color: #047857;">Your requisition has been processed successfully</p>
             </div>
 
             <div class="content">
@@ -2422,14 +2438,14 @@ export class FinanceService {
               <div class="alert-box alert-success">
                 <span class="alert-icon">&#127881;</span>
                 <div class="alert-content">
-                  <h4 style="color: #065f46;">Payment Successful</h4>
-                  <p>The funds have been transferred to the specified account.</p>
+                  <h4 style="color: #065f46;">Successfully Processed</h4>
+                  <p>Your requisition has been completed and the account has been credited.</p>
                 </div>
               </div>
 
               <!-- Amount Display -->
               <div class="amount-display" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-color: #bbf7d0;">
-                <div class="amount-label">Amount Disbursed</div>
+                <div class="amount-label">Amount Processed</div>
                 <div class="amount-value" style="color: #166534;">
                   <span class="amount-currency">NGN</span> ${requisition.totalAmount.toLocaleString()}
                 </div>
@@ -2438,12 +2454,45 @@ export class FinanceService {
               <!-- Transaction Details -->
               ${this.generateInfoCard('&#128203;', 'Transaction Details', [
                 { label: 'Reference', value: requisition.referenceNumber || 'N/A' },
-                { label: 'Disbursed To', value: requisition.creditAccount.accountName },
-                { label: 'Bank', value: requisition.creditAccount.bankName },
-                { label: 'Account Number', value: requisition.creditAccount.accountNumber, valueStyle: 'font-family: monospace;' },
+                { label: 'Category', value: expenseCategory },
+                { label: 'Description', value: requisition.eventDescription.substring(0, 100) },
                 { label: 'Processed By', value: `${disburser.firstName} ${disburser.lastName}` },
                 { label: 'Date', value: new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) },
               ], 'background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #bbf7d0;')}
+
+              <!-- Cost Breakdown -->
+              <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+                  <tr>
+                    <td style="font-size: 16px;">&#128203;</td>
+                    <td style="font-size: 14px; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; padding-left: 10px;">Item Details</td>
+                  </tr>
+                </table>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <thead>
+                    <tr>
+                      <th style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; padding: 12px 8px; text-align: left; border-bottom: 2px solid #e2e8f0;">Item</th>
+                      <th style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; padding: 12px 8px; text-align: center; border-bottom: 2px solid #e2e8f0;">Qty</th>
+                      <th style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; padding: 12px 8px; text-align: right; border-bottom: 2px solid #e2e8f0;">Unit Cost</th>
+                      <th style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; padding: 12px 8px; text-align: right; border-bottom: 2px solid #e2e8f0;">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${costBreakdownHtml}
+                    <tr>
+                      <td colspan="3" style="padding: 16px 8px 8px; text-align: right; font-weight: 600; color: #0f172a; border-top: 2px solid #e2e8f0;">Total Amount</td>
+                      <td style="padding: 16px 8px 8px; text-align: right; font-weight: 600; color: #0f172a; border-top: 2px solid #e2e8f0;">NGN ${requisition.totalAmount.toLocaleString()}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Bank Details -->
+              ${this.generateInfoCard('&#127974;', 'Account Details', [
+                { label: 'Bank', value: requisition.creditAccount.bankName, valueStyle: 'font-weight: 600;' },
+                { label: 'Account Name', value: requisition.creditAccount.accountName, valueStyle: 'font-weight: 600;' },
+                { label: 'Account Number', value: requisition.creditAccount.accountNumber, valueStyle: 'font-family: monospace; font-size: 16px; letter-spacing: 2px; font-weight: 600; color: #1d4ed8;' },
+              ])}
 
               ${requisition.disbursementNotes ? `
               <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
@@ -2457,11 +2506,12 @@ export class FinanceService {
               </div>
               ` : ''}
 
-              <!-- Original Request -->
-              ${this.generateInfoCard('&#128196;', 'Original Request', [
-                { label: 'Purpose', value: `${requisition.eventDescription.substring(0, 50)}${requisition.eventDescription.length > 50 ? '...' : ''}` },
-                { label: 'Status', value: '<span style="background: #d1fae5; color: #065f46; padding: 4px 10px; border-radius: 12px; font-size: 12px;">✓ Completed</span>' },
-              ])}
+              <div class="divider"></div>
+
+              <!-- Dashboard Link -->
+              <a href="${loginUrl}" style="display: block; padding: 14px 32px; border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff;">
+                View on Dashboard
+              </a>
             </div>
 
             <div style="padding: 24px 32px; background: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0;">
@@ -3305,6 +3355,20 @@ export class FinanceService {
    */
   private generateSubmissionConfirmationEmail(requisition: RequisitionDocument): string {
     const expenseCategory = (requisition as any).expenseCategory?.name || 'N/A';
+    const loginUrl = `${this.frontendUrl}/finance/requisitions`;
+
+    const costBreakdownHtml = requisition.costBreakdown
+      .map(
+        (item) => `
+        <tr>
+          <td style="font-size: 14px; padding: 12px 8px; border-bottom: 1px solid #f1f5f9; color: #374151;">${item.item}</td>
+          <td style="font-size: 14px; padding: 12px 8px; border-bottom: 1px solid #f1f5f9; color: #374151; text-align: center;">${item.quantity}</td>
+          <td style="font-size: 14px; padding: 12px 8px; border-bottom: 1px solid #f1f5f9; color: #374151; text-align: right;">${item.unitCost.toLocaleString()}</td>
+          <td style="font-size: 14px; padding: 12px 8px; border-bottom: 1px solid #f1f5f9; color: #374151; text-align: right; font-weight: 500;">${item.total.toLocaleString()}</td>
+        </tr>
+      `,
+      )
+      .join('');
 
     return `
       <!DOCTYPE html>
@@ -3313,45 +3377,98 @@ export class FinanceService {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Requisition Submitted</title>
+        <style>${this.getEmailStyles()}</style>
       </head>
-      <body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f0f2f5;">
-        <div style="max-width: 640px; margin: 0 auto; padding: 40px 20px;">
-          <div style="background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <body>
+        <div class="email-wrapper">
+          <div class="email-container">
             <!-- Header -->
-            <div style="padding: 32px 32px 24px; text-align: center;">
-              <div style="width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
-                <span style="font-size: 28px;">&#128203;</span>
+            <div class="header">
+              <div class="header-icon" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
+                <span style="color: white;">&#128203;</span>
               </div>
-              <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0 0 8px;">Requisition Submitted</h1>
-              <p style="font-size: 15px; color: #6b7280; margin: 0;">Your requisition has been submitted for approval</p>
+              <h1>Requisition Submitted</h1>
+              <p>Your requisition has been submitted for approval</p>
             </div>
 
             <!-- Content -->
-            <div style="padding: 0 32px 32px;">
+            <div class="content">
               ${this.generateWorkflowTracker(1)}
 
+              ${requisition.referenceNumber ? `
+              <!-- Reference Number Badge -->
+              <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: center; border: 1px solid #bfdbfe;">
+                <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #3b82f6; margin-bottom: 4px;">Reference Number</div>
+                <div style="font-size: 20px; font-weight: 700; color: #1e40af; font-family: monospace; letter-spacing: 2px;">${requisition.referenceNumber}</div>
+              </div>
+              ` : ''}
+
               <!-- Amount Display -->
-              <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px; border: 1px solid #e2e8f0;">
-                <p style="font-size: 13px; color: #6b7280; margin: 0 0 4px;">Total Amount</p>
-                <p style="font-size: 32px; font-weight: 800; color: #1f2937; margin: 0;">&#8358;${requisition.totalAmount.toLocaleString()}</p>
+              <div class="amount-display">
+                <div class="amount-label">Total Amount</div>
+                <div class="amount-value">
+                  <span class="amount-currency">NGN</span> ${requisition.totalAmount.toLocaleString()}
+                </div>
               </div>
 
+              <!-- Requisition Details -->
               ${this.generateInfoCard('&#128203;', 'Requisition Details', [
                 { label: 'Reference', value: requisition.referenceNumber || 'N/A' },
                 { label: 'Category', value: expenseCategory },
                 { label: 'Description', value: requisition.eventDescription.substring(0, 100) },
                 { label: 'Date Needed', value: new Date(requisition.dateNeeded).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) },
+                { label: 'Submitted At', value: new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) },
+              ])}
+
+              <!-- Cost Breakdown -->
+              <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+                  <tr>
+                    <td style="font-size: 16px;">&#128203;</td>
+                    <td style="font-size: 14px; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; padding-left: 10px;">Item Details</td>
+                  </tr>
+                </table>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <thead>
+                    <tr>
+                      <th style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; padding: 12px 8px; text-align: left; border-bottom: 2px solid #e2e8f0;">Item</th>
+                      <th style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; padding: 12px 8px; text-align: center; border-bottom: 2px solid #e2e8f0;">Qty</th>
+                      <th style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; padding: 12px 8px; text-align: right; border-bottom: 2px solid #e2e8f0;">Unit Cost</th>
+                      <th style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; padding: 12px 8px; text-align: right; border-bottom: 2px solid #e2e8f0;">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${costBreakdownHtml}
+                    <tr>
+                      <td colspan="3" style="padding: 16px 8px 8px; text-align: right; font-weight: 600; color: #0f172a; border-top: 2px solid #e2e8f0;">Total Amount</td>
+                      <td style="padding: 16px 8px 8px; text-align: right; font-weight: 600; color: #0f172a; border-top: 2px solid #e2e8f0;">NGN ${requisition.totalAmount.toLocaleString()}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Bank Details -->
+              ${this.generateInfoCard('&#127974;', 'Account Details', [
+                { label: 'Bank', value: requisition.creditAccount.bankName, valueStyle: 'font-weight: 600;' },
+                { label: 'Account Name', value: requisition.creditAccount.accountName, valueStyle: 'font-weight: 600;' },
+                { label: 'Account Number', value: requisition.creditAccount.accountNumber, valueStyle: 'font-family: monospace; font-size: 16px; letter-spacing: 2px; font-weight: 600; color: #1d4ed8;' },
               ])}
 
               <!-- What's Next -->
-              <div style="background: #eff6ff; border-radius: 12px; padding: 16px; margin-top: 20px;">
+              <div style="background: #eff6ff; border-radius: 12px; padding: 16px; margin-top: 20px; margin-bottom: 24px;">
                 <p style="font-size: 14px; font-weight: 600; color: #1e40af; margin: 0 0 8px;">What happens next?</p>
-                <p style="font-size: 13px; color: #3b82f6; margin: 0;">Your requisition is now awaiting approval. You will be notified once it has been reviewed and disbursed.</p>
+                <p style="font-size: 13px; color: #3b82f6; margin: 0;">Your requisition is now awaiting approval. You will be notified once it has been reviewed.</p>
               </div>
+
+              <div class="divider"></div>
+
+              <!-- Dashboard Link -->
+              <a href="${loginUrl}" style="display: block; padding: 14px 32px; border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none; text-align: center; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #ffffff;">
+                View on Dashboard
+              </a>
             </div>
 
-            <!-- Footer -->
-            <div style="padding: 16px 24px; background: #f9fafb; text-align: center;">
+            <div style="padding: 16px 24px; background: #f9fafb; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="margin: 0; font-size: 12px; color: #9ca3af;">Thank you for using the Finance Module</p>
             </div>
           </div>
