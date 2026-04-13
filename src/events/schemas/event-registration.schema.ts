@@ -92,8 +92,12 @@ export class EventRegistration {
   customFieldResponses: Map<string, string>;
 
   // Check-in Code (for QR code check-in)
-  @Prop({ unique: true, sparse: true, trim: true })
+  @Prop({ sparse: true, trim: true })
   checkInCode?: string;
+
+  // Legacy check-in code (preserved from old PRO-/ENT- format)
+  @Prop({ trim: true })
+  legacyCheckInCode?: string;
 
   // Important Dates
   @Prop({ type: Date, default: Date.now })
@@ -128,7 +132,7 @@ EventRegistrationSchema.index({ event: 1 });
 EventRegistrationSchema.index({ branch: 1 });
 EventRegistrationSchema.index({ member: 1 });
 EventRegistrationSchema.index({ status: 1 });
-EventRegistrationSchema.index({ checkInCode: 1 });
+EventRegistrationSchema.index({ event: 1, checkInCode: 1 }, { unique: true });
 EventRegistrationSchema.index({ 'attendeeInfo.email': 1 });
 EventRegistrationSchema.index({ 'attendeeInfo.phone': 1 });
 EventRegistrationSchema.index({ event: 1, status: 1 });
@@ -138,23 +142,27 @@ EventRegistrationSchema.index(
 );
 EventRegistrationSchema.index({ registeredAt: -1 });
 
-// Pre-save hook to generate sequential check-in code (PRO-XXX / ENT-XXX)
+// Pre-save hook to generate sequential check-in code (LBS-XXX)
 EventRegistrationSchema.pre('save', async function (next) {
   if (!this.checkInCode) {
-    const track = this.customFieldResponses?.get('track');
-    const prefix =
-      track === RegistrationTrack.ENTREPRENEUR
-        ? CheckInCodePrefix.ENTREPRENEUR
-        : CheckInCodePrefix.PROFESSIONAL;
-
-    // Count existing registrations with this prefix for the same event
     const Model = this.constructor as any;
-    const count = await Model.countDocuments({
-      event: this.event,
-      checkInCode: new RegExp(`^${prefix}-\\d+$`),
-    });
 
-    this.checkInCode = `${prefix}-${String(count + 1).padStart(3, '0')}`;
+    // Find the highest existing LBS- code number for this event
+    const lastReg = await Model.findOne({
+      event: this.event,
+      checkInCode: new RegExp(`^LBS-\\d+$`),
+    })
+      .sort({ checkInCode: -1 })
+      .select('checkInCode')
+      .lean();
+
+    let nextNum = 1;
+    if (lastReg?.checkInCode) {
+      const match = lastReg.checkInCode.match(/(\d+)$/);
+      if (match) nextNum = parseInt(match[1], 10) + 1;
+    }
+
+    this.checkInCode = `LBS-${String(nextNum).padStart(3, '0')}`;
   }
   next();
 });
