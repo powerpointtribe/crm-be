@@ -204,15 +204,13 @@ export class RolesService {
     // Handle module-based permission updates
     let finalPermissionIds: string[] | undefined = updateRoleDto.permissions;
 
-    if (updateRoleDto.modules !== undefined) {
-      // Validate modules if provided
-      if (updateRoleDto.modules.length > 0) {
-        const validation = this.modulePermissionsService.validateModules(updateRoleDto.modules);
-        if (!validation.valid) {
-          throw new BadRequestException(
-            `Invalid modules: ${validation.invalidModules.join(', ')}`,
-          );
-        }
+    if (updateRoleDto.modules !== undefined && updateRoleDto.modules.length > 0) {
+      // Validate modules
+      const validation = this.modulePermissionsService.validateModules(updateRoleDto.modules);
+      if (!validation.valid) {
+        throw new BadRequestException(
+          `Invalid modules: ${validation.invalidModules.join(', ')}`,
+        );
       }
 
       // Get view permission IDs for the new modules
@@ -236,10 +234,15 @@ export class RolesService {
       await this.validatePermissions(finalPermissionIds);
     }
 
-    // Build update object
+    // Build update object — exclude permissions and modules if not explicitly changing them
     const updateData: any = { ...updateRoleDto };
-    if (finalPermissionIds !== undefined) {
+    delete updateData.modules; // modules is a derived field, not stored directly
+
+    if (finalPermissionIds !== undefined && finalPermissionIds.length > 0) {
       updateData.permissions = finalPermissionIds.map((id) => new Types.ObjectId(id));
+    } else if (!updateRoleDto.permissions) {
+      // Don't touch permissions if none were explicitly provided
+      delete updateData.permissions;
     }
 
     const updatedRole = await this.roleModel
