@@ -1,0 +1,91 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches:
+      - master   # change to your staging branch name (e.g. staging)
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --passWithNoTests
+
+      - name: Build NestJS
+        run: npm run build
+
+      - name: Create deployment artifact
+        run: |
+          tar -czf deploy.tar.gz \
+            dist \
+            package.json \
+            package-lock.json \
+            ecosystem.config.js
+
+      - name: Copy artifact to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "deploy.tar.gz"
+          target: "/tmp/"
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: GITHUB_SHA
+          script: |
+            set -e
+            APP_DIR=/var/www/app-staging
+            RELEASE_DIR=$APP_DIR/releases/${GITHUB_SHA}
+            CURRENT=$APP_DIR/current
+
+            mkdir -p "$RELEASE_DIR"
+            tar -xzf /tmp/deploy.tar.gz -C "$RELEASE_DIR"
+            rm /tmp/deploy.tar.gz
+
+            # Link environment file (managed manually on the server)
+            ln -sf $APP_DIR/shared/.env "$RELEASE_DIR/.env"
+
+            # Install production dependencies
+            cd "$RELEASE_DIR"
+            npm ci --omit=dev
+
+            # Atomic switch
+            ln -sfn "$RELEASE_DIR" "$CURRENT"
+
+            # Reload (or start) the staging app via PM2
+            cd "$CURRENT"
+            pm2 reload ecosystem.config.js --only app-staging --update-env || \
+              pm2 start ecosystem.config.js --only app-staging
+            pm2 save
+
+            # Keep only the 5 most recent releases
+            cd $APP_DIR/releases
+            ls -1tr | head -n -5 | xargs -r rm -rf
+        env:
+          GITHUB_SHA: ${{ github.sha }}
