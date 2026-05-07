@@ -16,6 +16,9 @@ export type WorkerTraineeDocument = WorkerTrainee &
   collection: 'worker_trainees',
 })
 export class WorkerTrainee {
+  @Prop({ type: Types.ObjectId, ref: 'Branch', index: true })
+  branch?: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'Member', required: true })
   member: Types.ObjectId;
 

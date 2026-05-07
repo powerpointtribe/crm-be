@@ -72,6 +72,34 @@ export class FirstTimersController {
     private readonly userPermissionsService: UserPermissionsService,
   ) {}
 
+  /**
+   * Get the effective branch ID for filtering.
+   * Returns undefined if user can view all branches (no filtering needed).
+   * Returns the user's branch ID if they are branch-scoped.
+   */
+  private async getUserBranchId(user: any): Promise<string | undefined> {
+    const roleId = user.role?._id || user.role;
+    const result = await this.userPermissionsService.getUserPermissions(roleId);
+    const allPermissions = [...result.permissions];
+
+    // Also check additional roles
+    if (user.additionalRoles && Array.isArray(user.additionalRoles)) {
+      for (const addRole of user.additionalRoles) {
+        const addRoleId = addRole._id || addRole;
+        try {
+          const addResult = await this.userPermissionsService.getUserPermissions(addRoleId);
+          allPermissions.push(...addResult.permissions);
+        } catch {}
+      }
+    }
+
+    if (allPermissions.includes('branches:view-all')) {
+      return undefined; // Can see all branches
+    }
+    const branchId = user.branch?._id || user.branch;
+    return branchId?.toString();
+  }
+
   @Get('public/form-config')
   @Public()
   @ApiTags('Public API')
@@ -411,8 +439,9 @@ export class FirstTimersController {
     status: 200,
     description: 'First-timer stats retrieved successfully',
   })
-  async getFirstTimerStats() {
-    const stats = await this.firstTimersService.getFirstTimerStats();
+  async getFirstTimerStats(@CurrentUser() user: any) {
+    const branchId = await this.getUserBranchId(user);
+    const stats = await this.firstTimersService.getFirstTimerStats(branchId);
     return ResponseUtil.success(
       stats,
       'First-timer stats retrieved successfully',
@@ -431,8 +460,10 @@ export class FirstTimersController {
   async getReportStatistics(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
+    @CurrentUser() user: any,
   ) {
-    const stats = await this.firstTimersService.getReportStatistics(startDate, endDate);
+    const branchId = await this.getUserBranchId(user);
+    const stats = await this.firstTimersService.getReportStatistics(startDate, endDate, branchId);
     return ResponseUtil.success(
       stats,
       'Report statistics retrieved successfully',
@@ -556,11 +587,14 @@ export class FirstTimersController {
   async getGlobalCallReportsAnalytics(
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
+    @CurrentUser() user?: any,
   ) {
+    const branchId = user ? await this.getUserBranchId(user) : undefined;
     const analytics =
       await this.callReportsService.getGlobalCallReportsAnalytics({
         fromDate: fromDate ? new Date(fromDate) : undefined,
         toDate: toDate ? new Date(toDate) : undefined,
+        branchId,
       });
     return ResponseUtil.success(
       analytics,
@@ -578,11 +612,14 @@ export class FirstTimersController {
   async getTeamPerformanceAnalytics(
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
+    @CurrentUser() user?: any,
   ) {
+    const branchId = user ? await this.getUserBranchId(user) : undefined;
     const analytics =
       await this.callReportsService.getTeamPerformanceAnalytics({
         fromDate: fromDate ? new Date(fromDate) : undefined,
         toDate: toDate ? new Date(toDate) : undefined,
+        branchId,
       });
     return ResponseUtil.success(
       analytics,
@@ -672,8 +709,9 @@ export class FirstTimersController {
     status: 200,
     description: 'Archive statistics retrieved successfully',
   })
-  async getArchiveStats() {
-    const stats = await this.firstTimersService.getArchiveStats();
+  async getArchiveStats(@CurrentUser() user: any) {
+    const branchId = await this.getUserBranchId(user);
+    const stats = await this.firstTimersService.getArchiveStats(branchId);
     return ResponseUtil.success(stats, 'Archive statistics retrieved successfully');
   }
 
@@ -705,8 +743,9 @@ export class FirstTimersController {
     status: 200,
     description: 'Ready for integration count retrieved successfully',
   })
-  async getReadyForIntegrationCount() {
-    const count = await this.firstTimersService.getReadyForIntegrationCount();
+  async getReadyForIntegrationCount(@CurrentUser() user: any) {
+    const branchId = await this.getUserBranchId(user);
+    const count = await this.firstTimersService.getReadyForIntegrationCount(branchId);
     return ResponseUtil.success({ count }, 'Ready for integration count retrieved successfully');
   }
 

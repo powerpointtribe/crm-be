@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, FilterQuery } from 'mongoose';
+import { Model, FilterQuery, Types } from 'mongoose';
 import { Cohort, CohortDocument } from './schemas/cohort.schema';
 import { CreateCohortDto } from './dto/create-cohort.dto';
 import { CohortQueryDto } from './dto/cohort-query.dto';
@@ -282,8 +282,9 @@ export class CohortService {
     );
   }
 
-  async getCohortStatistics(cohortId?: string) {
+  async getCohortStatistics(cohortId?: string, branchId?: string) {
     const matchStage: any = { isActive: true };
+    if (branchId) matchStage.branch = new Types.ObjectId(branchId);
     if (cohortId) matchStage._id = cohortId;
 
     const pipeline: any[] = [

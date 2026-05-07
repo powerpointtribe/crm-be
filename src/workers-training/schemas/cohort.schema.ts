@@ -13,6 +13,9 @@ export type CohortDocument = Cohort & Document & { _id: Types.ObjectId };
   collection: 'cohorts',
 })
 export class Cohort {
+  @Prop({ type: Types.ObjectId, ref: 'Branch', index: true })
+  branch?: Types.ObjectId;
+
   @Prop({ required: true, trim: true })
   name: string;
 

@@ -18,6 +18,9 @@ export type MemberActivityDocument = MemberActivity &
   collection: 'member_activities',
 })
 export class MemberActivity {
+  @Prop({ type: Types.ObjectId, ref: 'Branch', index: true })
+  branch?: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'Member', required: true })
   member: Types.ObjectId;
 

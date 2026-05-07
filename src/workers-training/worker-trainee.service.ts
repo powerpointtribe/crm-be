@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, FilterQuery } from 'mongoose';
+import { Model, FilterQuery, Types } from 'mongoose';
 import {
   WorkerTrainee,
   WorkerTraineeDocument,
@@ -430,8 +430,9 @@ export class WorkerTraineeService {
     ).length;
   }
 
-  async getTraineeStatistics(cohortId?: string) {
+  async getTraineeStatistics(cohortId?: string, branchId?: string) {
     const matchStage: any = {};
+    if (branchId) matchStage.branch = new Types.ObjectId(branchId);
     if (cohortId) matchStage.cohort = cohortId;
 
     const pipeline: any[] = [

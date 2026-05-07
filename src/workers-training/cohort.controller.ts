@@ -21,6 +21,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../roles/guards/permission.guard';
 import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
 import { CohortService } from './cohort.service';
 import { CreateCohortDto } from './dto/create-cohort.dto';
 import { CohortQueryDto } from './dto/cohort-query.dto';
@@ -32,7 +33,26 @@ import { WorkersTrainingPermission } from './permissions';
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @ApiBearerAuth()
 export class CohortController {
-  constructor(private readonly cohortService: CohortService) {}
+  constructor(
+    private readonly cohortService: CohortService,
+    private readonly userPermissionsService: UserPermissionsService,
+  ) {}
+
+  private async getUserBranchId(user: any): Promise<string | undefined> {
+    const roleId = user.role?._id || user.role;
+    const result = await this.userPermissionsService.getUserPermissions(roleId);
+    const allPermissions = [...result.permissions];
+    if (user.additionalRoles?.length > 0) {
+      for (const addRole of user.additionalRoles) {
+        try {
+          const addResult = await this.userPermissionsService.getUserPermissions(addRole._id || addRole);
+          allPermissions.push(...addResult.permissions);
+        } catch {}
+      }
+    }
+    if (allPermissions.includes('branches:view-all')) return undefined;
+    return (user.branch?._id || user.branch)?.toString();
+  }
 
   @Post()
   @RequirePermission(WorkersTrainingPermission.CREATE_COHORT)
@@ -76,8 +96,9 @@ export class CohortController {
     status: HttpStatus.OK,
     description: 'Statistics retrieved successfully',
   })
-  async getStatistics() {
-    return this.cohortService.getCohortStatistics();
+  async getStatistics(@Request() req) {
+    const branchId = await this.getUserBranchId(req.user);
+    return this.cohortService.getCohortStatistics(undefined, branchId);
   }
 
   @Get('facilitator/:facilitatorId')

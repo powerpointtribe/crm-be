@@ -170,11 +170,28 @@ export class ServiceReportsController {
     @Query('limit') limit?: number,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @CurrentUser() user?: any,
   ) {
+    // Resolve branch filtering based on user permissions
+    let branchId: string | undefined;
+
+    if (user?.role) {
+      const userPermissions = await this.userPermissionsService.getUserPermissions(
+        user.role._id || user.role,
+      );
+      const hasViewAll = userPermissions.permissions.includes('branches:view-all');
+      if (!hasViewAll) {
+        branchId = user.branch?._id || user.branch;
+      }
+    } else if (user) {
+      branchId = user.branch?._id || user.branch;
+    }
+
     const chartData = await this.serviceReportsService.getAttendanceChartData(
       limit || 10,
       dateFrom,
       dateTo,
+      branchId,
     );
     return ResponseUtil.success(
       chartData,

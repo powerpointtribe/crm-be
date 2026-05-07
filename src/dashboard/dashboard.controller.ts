@@ -21,14 +21,45 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
 import { RoleUtils } from '../common/utils/role.utils';
 import { RequestWithUserUnit } from '../common/middleware/user-unit.middleware';
-// import { DashboardDocs } from '../../docs/api/dashboard.docs';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(
+    private readonly dashboardService: DashboardService,
+    private readonly userPermissionsService: UserPermissionsService,
+  ) {}
+
+  /**
+   * Get the effective branch ID for filtering.
+   * Returns undefined if user can view all branches (no filtering needed).
+   * Returns the user's branch ID if they are branch-scoped.
+   */
+  private async getUserBranchId(user: any): Promise<string | undefined> {
+    const roleId = user.role?._id || user.role;
+    const result = await this.userPermissionsService.getUserPermissions(roleId);
+    const allPermissions = [...result.permissions];
+
+    // Also check additional roles
+    if (user.additionalRoles?.length > 0) {
+      for (const addRole of user.additionalRoles) {
+        const addRoleId = addRole._id || addRole;
+        try {
+          const addResult = await this.userPermissionsService.getUserPermissions(addRoleId);
+          allPermissions.push(...addResult.permissions);
+        } catch {}
+      }
+    }
+
+    if (allPermissions.includes('branches:view-all')) {
+      return undefined; // Can see all branches
+    }
+    const branchId = user.branch?._id || user.branch;
+    return branchId?.toString();
+  }
 
   @Get('modules')
   @RequirePermission(DashboardPermission.VIEW_MODULES)
@@ -86,6 +117,8 @@ export class DashboardController {
     const highestRole = RoleUtils.getHighestRole(user);
     const isAdmin = user.systemRoles?.includes('admin') || user.roles?.includes('admin');
 
+    const branchId = await this.getUserBranchId(user);
+
     if (useScoped) {
       // Get accessible modules from user permissions or calculate them
       const accessibleModules = user.accessibleModules ||
@@ -98,6 +131,7 @@ export class DashboardController {
         isAdmin,
         startDate,
         endDate,
+        branchId,
       );
 
       return ResponseUtil.success(
@@ -106,12 +140,13 @@ export class DashboardController {
       );
     }
 
-    // Default: return full overview (existing behavior)
+    // Default: return full overview (branch-filtered if user is branch-scoped)
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
       user.roles,
       startDate,
       endDate,
+      branchId,
     );
 
     return ResponseUtil.success(
@@ -240,9 +275,13 @@ export class DashboardController {
     description: 'Tasks retrieved successfully',
   })
   async getPendingTasks(@CurrentUser() user: any) {
+    const branchId = await this.getUserBranchId(user);
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
       user.roles,
+      undefined,
+      undefined,
+      branchId,
     );
 
     return ResponseUtil.success(
@@ -259,9 +298,13 @@ export class DashboardController {
     description: 'Quick stats retrieved successfully',
   })
   async getQuickStats(@CurrentUser() user: any) {
+    const branchId = await this.getUserBranchId(user);
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
       user.roles,
+      undefined,
+      undefined,
+      branchId,
     );
 
     return ResponseUtil.success(

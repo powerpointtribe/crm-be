@@ -22,6 +22,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../roles/guards/permission.guard';
 import { RequirePermission } from '../roles/decorators/require-permission.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
 import { WorkerTraineeService } from './worker-trainee.service';
 import { CreateWorkerTraineeDto } from './dto/create-worker-trainee.dto';
 import { TraineeQueryDto } from './dto/trainee-query.dto';
@@ -37,7 +38,26 @@ import { WorkersTrainingPermission } from './permissions';
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @ApiBearerAuth()
 export class WorkerTraineeController {
-  constructor(private readonly workerTraineeService: WorkerTraineeService) {}
+  constructor(
+    private readonly workerTraineeService: WorkerTraineeService,
+    private readonly userPermissionsService: UserPermissionsService,
+  ) {}
+
+  private async getUserBranchId(user: any): Promise<string | undefined> {
+    const roleId = user.role?._id || user.role;
+    const result = await this.userPermissionsService.getUserPermissions(roleId);
+    const allPermissions = [...result.permissions];
+    if (user.additionalRoles?.length > 0) {
+      for (const addRole of user.additionalRoles) {
+        try {
+          const addResult = await this.userPermissionsService.getUserPermissions(addRole._id || addRole);
+          allPermissions.push(...addResult.permissions);
+        } catch {}
+      }
+    }
+    if (allPermissions.includes('branches:view-all')) return undefined;
+    return (user.branch?._id || user.branch)?.toString();
+  }
 
   @Post('enroll')
   @RequirePermission(WorkersTrainingPermission.CREATE_TRAINEE)
@@ -98,8 +118,12 @@ export class WorkerTraineeController {
     description: 'Statistics retrieved successfully',
   })
   @ApiQuery({ name: 'cohortId', required: false, type: String })
-  async getStatistics(@Query('cohortId') cohortId?: string) {
-    return this.workerTraineeService.getTraineeStatistics(cohortId);
+  async getStatistics(
+    @Query('cohortId') cohortId?: string,
+    @Request() req?,
+  ) {
+    const branchId = await this.getUserBranchId(req.user);
+    return this.workerTraineeService.getTraineeStatistics(cohortId, branchId);
   }
 
   @Get('cohort/:cohortId')

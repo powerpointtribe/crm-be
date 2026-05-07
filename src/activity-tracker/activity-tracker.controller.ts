@@ -20,6 +20,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../roles/guards/permission.guard';
 import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
 import { ActivityTrackerService } from './activity-tracker.service';
 import { MemberLifecycleService } from './member-lifecycle.service';
 import { ActivityTrackerPermission } from './permissions';
@@ -37,7 +38,24 @@ export class ActivityTrackerController {
   constructor(
     private readonly activityService: ActivityTrackerService,
     private readonly lifecycleService: MemberLifecycleService,
+    private readonly userPermissionsService: UserPermissionsService,
   ) {}
+
+  private async getUserBranchId(user: any): Promise<string | undefined> {
+    const roleId = user.role?._id || user.role;
+    const result = await this.userPermissionsService.getUserPermissions(roleId);
+    const allPermissions = [...result.permissions];
+    if (user.additionalRoles?.length > 0) {
+      for (const addRole of user.additionalRoles) {
+        try {
+          const addResult = await this.userPermissionsService.getUserPermissions(addRole._id || addRole);
+          allPermissions.push(...addResult.permissions);
+        } catch {}
+      }
+    }
+    if (allPermissions.includes('branches:view-all')) return undefined;
+    return (user.branch?._id || user.branch)?.toString();
+  }
 
   @Get('activities')
   @RequirePermission(ActivityTrackerPermission.VIEW_ACTIVITIES)
@@ -64,8 +82,12 @@ export class ActivityTrackerController {
     description: 'Statistics retrieved successfully',
   })
   @ApiQuery({ name: 'memberId', required: false, type: String })
-  async getStatistics(@Query('memberId') memberId?: string) {
-    return this.activityService.getActivityStatistics(memberId);
+  async getStatistics(
+    @Query('memberId') memberId?: string,
+    @Request() req?,
+  ) {
+    const branchId = await this.getUserBranchId(req.user);
+    return this.activityService.getActivityStatistics(memberId, branchId);
   }
 
   @Get('follow-ups/upcoming')

@@ -435,6 +435,7 @@ export class ServiceReportsService {
     limit: number = 10,
     dateFrom?: string,
     dateTo?: string,
+    branchId?: string,
   ): Promise<any[]> {
     // Build date filter
     const dateFilter: any = { isActive: true };
@@ -446,6 +447,11 @@ export class ServiceReportsService {
       if (dateTo) {
         dateFilter.date.$lte = new Date(dateTo);
       }
+    }
+
+    // Apply branch filter if provided
+    if (branchId) {
+      dateFilter.branch = new Types.ObjectId(branchId);
     }
 
     const reports = await this.serviceReportModel

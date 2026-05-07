@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, FilterQuery } from 'mongoose';
+import { Model, FilterQuery, Types } from 'mongoose';
 import {
   MemberActivity,
   MemberActivityDocument,
@@ -133,7 +133,7 @@ export class ActivityTrackerService {
       .exec();
   }
 
-  async getActivityStatistics(memberId?: string): Promise<{
+  async getActivityStatistics(memberId?: string, branchId?: string): Promise<{
     totalActivities: number;
     recentActivities: number;
     activityTypeBreakdown: Record<string, number>;
@@ -141,6 +141,9 @@ export class ActivityTrackerService {
     priorityBreakdown: Record<string, number>;
   }> {
     const matchStage: any = { isVisible: true };
+    if (branchId) {
+      matchStage.branch = new Types.ObjectId(branchId);
+    }
     if (memberId) {
       matchStage.member = memberId;
     }

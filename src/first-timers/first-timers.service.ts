@@ -800,7 +800,13 @@ export class FirstTimersService {
   }
 
   // Analytics and Reports
-  async getFirstTimerStats(): Promise<any> {
+  async getFirstTimerStats(branchId?: string): Promise<any> {
+    // Build branch filter
+    const branchFilter: any = {};
+    if (branchId) {
+      branchFilter.branch = new Types.ObjectId(branchId);
+    }
+
     const [
       statusStats,
       conversionStats,
@@ -813,13 +819,13 @@ export class FirstTimersService {
     ] = await Promise.all([
       // Status distribution (exclude archived)
       this.firstTimerModel.aggregate([
-        { $match: { isActive: true, isArchived: { $ne: true } } },
+        { $match: { isActive: true, isArchived: { $ne: true }, ...branchFilter } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
 
       // Conversion analytics (exclude archived) - for active count
       this.firstTimerModel.aggregate([
-        { $match: { isActive: true, isArchived: { $ne: true } } },
+        { $match: { isActive: true, isArchived: { $ne: true }, ...branchFilter } },
         {
           $group: {
             _id: null,
@@ -832,7 +838,7 @@ export class FirstTimersService {
 
       // Total count including archived (for "Total Visitors" display)
       this.firstTimerModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: { isActive: true, ...branchFilter } },
         {
           $group: {
             _id: null,
@@ -844,7 +850,7 @@ export class FirstTimersService {
 
       // Traffic sources (exclude archived)
       this.firstTimerModel.aggregate([
-        { $match: { isActive: true, isArchived: { $ne: true } } },
+        { $match: { isActive: true, isArchived: { $ne: true }, ...branchFilter } },
         { $group: { _id: '$howDidYouHear', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
@@ -855,6 +861,7 @@ export class FirstTimersService {
           $match: {
             isActive: true,
             isArchived: { $ne: true },
+            ...branchFilter,
             dateOfVisit: {
               $gte: new Date(Date.now() - 8 * 7 * 24 * 60 * 60 * 1000),
             },
@@ -874,7 +881,7 @@ export class FirstTimersService {
 
       // Assignment stats (exclude archived)
       this.firstTimerModel.aggregate([
-        { $match: { isActive: true, isArchived: { $ne: true } } },
+        { $match: { isActive: true, isArchived: { $ne: true }, ...branchFilter } },
         {
           $group: {
             _id: '$assignedTo',
@@ -897,12 +904,14 @@ export class FirstTimersService {
         isActive: true,
         isArchived: { $ne: true },
         readyForIntegration: true,
+        ...branchFilter,
       }),
 
       // Closed count (converted to member or marked inactive)
       this.firstTimerModel.countDocuments({
         isActive: true,
         status: EngagementStatus.CLOSED,
+        ...branchFilter,
       }),
     ]);
 
@@ -1779,7 +1788,7 @@ export class FirstTimersService {
   /**
    * Get archive statistics
    */
-  async getArchiveStats(): Promise<{
+  async getArchiveStats(branchId?: string): Promise<{
     totalArchived: number;
     archivedThisMonth: number;
     exemptCount: number;
@@ -1789,15 +1798,24 @@ export class FirstTimersService {
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
+    const branchFilter: any = {};
+    if (branchId) {
+      branchFilter.branch = new Types.ObjectId(branchId);
+    }
+
     const [totalArchived, archivedThisMonth, exemptCount, eligibleForArchive] = await Promise.all([
-      this.firstTimerModel.countDocuments({ isArchived: true, isActive: true }),
+      this.firstTimerModel.countDocuments({ isArchived: true, isActive: true, ...branchFilter }),
       this.firstTimerModel.countDocuments({
         isArchived: true,
         isActive: true,
         archivedAt: { $gte: startOfMonth },
+        ...branchFilter,
       }),
-      this.firstTimerModel.countDocuments({ exemptFromAutoArchive: true, isActive: true }),
-      this.findAutoArchiveEligible().then((docs) => docs.length),
+      this.firstTimerModel.countDocuments({ exemptFromAutoArchive: true, isActive: true, ...branchFilter }),
+      this.findAutoArchiveEligible().then((docs) => {
+        if (!branchId) return docs.length;
+        return docs.filter((d) => d.branch?.toString() === branchId).length;
+      }),
     ]);
 
     return { totalArchived, archivedThisMonth, exemptCount, eligibleForArchive };
@@ -2039,12 +2057,18 @@ export class FirstTimersService {
   /**
    * Get count of first timers ready for integration
    */
-  async getReadyForIntegrationCount(): Promise<number> {
-    return this.firstTimerModel.countDocuments({
+  async getReadyForIntegrationCount(branchId?: string): Promise<number> {
+    const filter: any = {
       isActive: true,
       isArchived: { $ne: true },
       readyForIntegration: true,
-    });
+    };
+
+    if (branchId) {
+      filter.branch = new Types.ObjectId(branchId);
+    }
+
+    return this.firstTimerModel.countDocuments(filter);
   }
 
   /**
@@ -2306,16 +2330,20 @@ export class FirstTimersService {
    * Get comprehensive report statistics for first timers
    * Includes traffic sources, join us choices, and 2nd/3rd timer retention rates
    */
-  async getReportStatistics(startDate: string, endDate: string): Promise<any> {
+  async getReportStatistics(startDate: string, endDate: string, branchId?: string): Promise<any> {
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    const dateFilter = {
+    const dateFilter: any = {
       isActive: true,
       dateOfVisit: { $gte: start, $lte: end },
     };
+
+    if (branchId) {
+      dateFilter.branch = new Types.ObjectId(branchId);
+    }
 
     // Get all first timers in the date range
     const firstTimers = await this.firstTimerModel.find(dateFilter).exec();

@@ -18,6 +18,7 @@ import { RequirePermission } from '../roles/decorators/require-permission.decora
 import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
 import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
 import { LibraryBookService } from './library-book.service';
 import { CreateBookDto, UpdateBookDto } from './dto/create-book.dto';
 import { BookQueryDto } from './dto/library-query.dto';
@@ -27,7 +28,26 @@ import { LibraryPermission } from './permissions';
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @UseInterceptors(AuditLogInterceptor)
 export class LibraryBookController {
-  constructor(private readonly libraryBookService: LibraryBookService) {}
+  constructor(
+    private readonly libraryBookService: LibraryBookService,
+    private readonly userPermissionsService: UserPermissionsService,
+  ) {}
+
+  private async getUserBranchId(user: any): Promise<string | undefined> {
+    const roleId = user.role?._id || user.role;
+    const result = await this.userPermissionsService.getUserPermissions(roleId);
+    const allPermissions = [...result.permissions];
+    if (user.additionalRoles?.length > 0) {
+      for (const addRole of user.additionalRoles) {
+        try {
+          const addResult = await this.userPermissionsService.getUserPermissions(addRole._id || addRole);
+          allPermissions.push(...addResult.permissions);
+        } catch {}
+      }
+    }
+    if (allPermissions.includes('branches:view-all')) return undefined;
+    return (user.branch?._id || user.branch)?.toString();
+  }
 
   @Post()
   @RequirePermission(LibraryPermission.CREATE_BOOK)
@@ -51,9 +71,9 @@ export class LibraryBookController {
 
   @Get('stats')
   @RequirePermission(LibraryPermission.VIEW_STATS)
-  async getStats(@Query('branchId') branchId: string, @Request() req) {
-    const effectiveBranchId = branchId || req.user?.branch?._id || req.user?.branch;
-    return this.libraryBookService.getBookStats(effectiveBranchId?.toString());
+  async getStats(@Request() req) {
+    const branchId = await this.getUserBranchId(req.user);
+    return this.libraryBookService.getBookStats(branchId);
   }
 
   @Get(':id')

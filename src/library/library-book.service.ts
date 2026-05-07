@@ -239,8 +239,14 @@ export class LibraryBookService {
     });
   }
 
-  async getBookStats(branchId: string) {
-    const branchObjectId = new Types.ObjectId(branchId);
+  async getBookStats(branchId?: string) {
+    const bookFilter: any = {};
+    const borrowingFilter: any = {};
+    if (branchId) {
+      const branchObjectId = new Types.ObjectId(branchId);
+      bookFilter.branch = branchObjectId;
+      borrowingFilter.branch = branchObjectId;
+    }
 
     const [
       totalBooks,
@@ -250,25 +256,25 @@ export class LibraryBookService {
       overdueCount,
       categoryBreakdown,
     ] = await Promise.all([
-      this.bookModel.countDocuments({ branch: branchObjectId }),
+      this.bookModel.countDocuments(bookFilter),
       this.bookModel.aggregate([
-        { $match: { branch: branchObjectId } },
+        { $match: bookFilter },
         { $group: { _id: null, total: { $sum: '$totalQuantity' } } },
       ]),
       this.bookModel.aggregate([
-        { $match: { branch: branchObjectId } },
+        { $match: bookFilter },
         { $group: { _id: null, total: { $sum: '$availableQuantity' } } },
       ]),
       this.borrowingModel.countDocuments({
-        branch: branchObjectId,
+        ...borrowingFilter,
         status: { $in: [BorrowingStatus.BORROWED, BorrowingStatus.OVERDUE] },
       }),
       this.borrowingModel.countDocuments({
-        branch: branchObjectId,
+        ...borrowingFilter,
         status: BorrowingStatus.OVERDUE,
       }),
       this.bookModel.aggregate([
-        { $match: { branch: branchObjectId } },
+        { $match: bookFilter },
         { $group: { _id: '$category', count: { $sum: 1 } } },
         {
           $lookup: {

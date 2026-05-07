@@ -374,6 +374,7 @@ export class CallReportsService {
   async getGlobalCallReportsAnalytics(params?: {
     fromDate?: Date;
     toDate?: Date;
+    branchId?: string;
   }): Promise<{
     totalReports: number;
     totalFirstTimers: number;
@@ -408,6 +409,18 @@ export class CallReportsService {
         endOfDay.setHours(23, 59, 59, 999);
         dateFilter.callDate.$lte = endOfDay;
       }
+    }
+
+    // Build branch filter for first-timer queries
+    const firstTimerBranchFilter: any = {};
+    if (params?.branchId) {
+      const branchObjectId = new Types.ObjectId(params.branchId);
+      // Get first-timer IDs belonging to this branch for call report filtering
+      const branchFirstTimerIds = await this.firstTimerModel.distinct('_id', {
+        branch: branchObjectId,
+      });
+      dateFilter.firstTimerId = { $in: branchFirstTimerIds };
+      firstTimerBranchFilter.branch = branchObjectId;
     }
 
     const [totalReports, statusData, methodData, firstTimerCount, monthlyData] =
@@ -492,6 +505,7 @@ export class CallReportsService {
     const firstTimersWithAllReports = await this.firstTimerModel.countDocuments(
       {
         callReportsCount: 4,
+        ...firstTimerBranchFilter,
       },
     );
     const completionRate =
@@ -506,6 +520,7 @@ export class CallReportsService {
       lastStatusChange: { $lt: twoWeeksAgo },
       isActive: true,
       stage: { $ne: 'closed' },
+      ...firstTimerBranchFilter,
     });
 
     // Count pending follow-ups: first timers created more than 48 hours ago with no follow-up records
@@ -518,6 +533,7 @@ export class CallReportsService {
       isActive: true,
       isArchived: false,
       status: { $nin: ['CLOSED'] },
+      ...firstTimerBranchFilter,
     });
 
     // Count follow-ups done today
@@ -588,6 +604,7 @@ export class CallReportsService {
   async getTeamPerformanceAnalytics(params?: {
     fromDate?: Date;
     toDate?: Date;
+    branchId?: string;
   }): Promise<
     Array<{
       member: {
@@ -623,6 +640,18 @@ export class CallReportsService {
         endOfDay.setHours(23, 59, 59, 999);
         dateFilter.callDate.$lte = endOfDay;
       }
+    }
+
+    // Build branch filter for first-timer queries
+    const firstTimerBranchFilter: any = {};
+    if (params?.branchId) {
+      const branchObjectId = new Types.ObjectId(params.branchId);
+      // Get first-timer IDs belonging to this branch for call report filtering
+      const branchFirstTimerIds = await this.firstTimerModel.distinct('_id', {
+        branch: branchObjectId,
+      });
+      dateFilter.firstTimerId = { $in: branchFirstTimerIds };
+      firstTimerBranchFilter.branch = branchObjectId;
     }
 
     const pipeline: any[] = [];
@@ -733,6 +762,7 @@ export class CallReportsService {
         lastStatusChange: { $lt: twoWeeksAgo },
         isActive: true,
         stage: { $ne: 'closed' },
+        ...firstTimerBranchFilter,
       });
 
       // Count pending follow-ups for this team member
@@ -742,6 +772,7 @@ export class CallReportsService {
         isActive: true,
         isArchived: false,
         status: { $nin: ['CLOSED'] },
+        ...firstTimerBranchFilter,
       });
 
       // Count total first timers assigned to this member
@@ -749,6 +780,7 @@ export class CallReportsService {
         assignedTo: stat._id,
         isActive: true,
         isArchived: false,
+        ...firstTimerBranchFilter,
       });
 
       // Expected contacts = total assigned (each first timer should be contacted)
