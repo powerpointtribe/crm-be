@@ -125,7 +125,9 @@ export class ServiceReportsService {
     } = searchDto;
 
     const skip = (page - 1) * limit;
-    let filterQuery: FilterQuery<ServiceReportDocument> = { isActive: true };
+    let filterQuery: FilterQuery<ServiceReportDocument> = searchDto.includeInactive
+      ? {}
+      : { isActive: true };
 
     // Apply branch filtering based on user permissions
     if (branchFilterContext) {

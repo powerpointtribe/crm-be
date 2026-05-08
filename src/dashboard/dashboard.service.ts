@@ -720,15 +720,16 @@ export class DashboardService {
   // Growth Analytics Methods
   async getGrowthAnalytics(
     period: 'week' | 'month' | 'quarter' | 'year' = 'month',
+    branchId?: string,
   ): Promise<GrowthAnalyticsDto> {
     const { startDate, endDate, previousStartDate } =
       this.getDateRanges(period);
 
     const [currentPeriodData, previousPeriodData, monthlyData] =
       await Promise.all([
-        this.getPeriodCounts(startDate, endDate),
-        this.getPeriodCounts(previousStartDate, startDate),
-        this.getDetailedMonthlyGrowth(period),
+        this.getPeriodCounts(startDate, endDate, branchId),
+        this.getPeriodCounts(previousStartDate, startDate, branchId),
+        this.getDetailedMonthlyGrowth(period, branchId),
       ]);
 
     return {
@@ -757,11 +758,12 @@ export class DashboardService {
   async getRecentActivityAnalytics(
     limit: number = 50,
     days: number = 7,
+    branchId?: string,
   ): Promise<RecentActivityAnalyticsDto> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const activities = await this.buildRecentActivities(startDate, limit);
+    const activities = await this.buildRecentActivities(startDate, limit, branchId);
     const summary = this.calculateActivitySummary(activities);
     const trends = await this.calculateActivityTrends();
     const mostActiveUsers = await this.getMostActiveUsers(startDate, 5);
@@ -776,7 +778,8 @@ export class DashboardService {
     };
   }
 
-  async getDemographicsAnalytics(): Promise<DemographicsDto> {
+  async getDemographicsAnalytics(branchId?: string): Promise<DemographicsDto> {
+    const bf = this.branchFilter(branchId);
     const [
       ageDistribution,
       genderDistribution,
@@ -784,11 +787,11 @@ export class DashboardService {
       geographic,
       totalMembers,
     ] = await Promise.all([
-      this.getAgeDistribution(),
-      this.getGenderDistribution(),
-      this.getMaritalStatusDistribution(),
-      this.getGeographicDistribution(),
-      this.memberModel.countDocuments(),
+      this.getAgeDistribution(branchId),
+      this.getGenderDistribution(branchId),
+      this.getMaritalStatusDistribution(branchId),
+      this.getGeographicDistribution(branchId),
+      this.memberModel.countDocuments({ ...bf }),
     ]);
 
     return {
@@ -828,19 +831,20 @@ export class DashboardService {
     return { startDate, endDate, previousStartDate };
   }
 
-  private async getPeriodCounts(startDate: Date, endDate: Date) {
+  private async getPeriodCounts(startDate: Date, endDate: Date, branchId?: string) {
+    const bf = this.branchFilter(branchId);
     const [members, firstTimers, groups, users] = await Promise.all([
       this.memberModel.countDocuments({
-        createdAt: { $gte: startDate, $lt: endDate },
+        createdAt: { $gte: startDate, $lt: endDate }, ...bf,
       }),
       this.firstTimerModel.countDocuments({
-        createdAt: { $gte: startDate, $lt: endDate },
+        createdAt: { $gte: startDate, $lt: endDate }, ...bf,
       }),
       this.groupModel.countDocuments({
-        createdAt: { $gte: startDate, $lt: endDate },
+        createdAt: { $gte: startDate, $lt: endDate }, ...bf,
       }),
       this.memberModel.countDocuments({
-        createdAt: { $gte: startDate, $lt: endDate },
+        createdAt: { $gte: startDate, $lt: endDate }, ...bf,
       }),
     ]);
 
@@ -862,13 +866,15 @@ export class DashboardService {
 
   private async getDetailedMonthlyGrowth(
     period: string,
+    branchId?: string,
   ): Promise<MonthlyGrowthDto[]> {
     const months = period === 'year' ? 12 : period === 'quarter' ? 3 : 6;
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
+    const bf = this.branchFilter(branchId);
 
     const aggregationPipeline = [
-      { $match: { createdAt: { $gte: startDate } } },
+      { $match: { createdAt: { $gte: startDate }, ...bf } },
       {
         $group: {
           _id: {
@@ -948,12 +954,14 @@ export class DashboardService {
   private async buildRecentActivities(
     startDate: Date,
     limit: number,
+    branchId?: string,
   ): Promise<ActivityItemDto[]> {
+    const bf = this.branchFilter(branchId);
     const activities: ActivityItemDto[] = [];
 
     // Get recent members
     const recentMembers = await this.memberModel
-      .find({ createdAt: { $gte: startDate } })
+      .find({ createdAt: { $gte: startDate }, ...bf })
       .sort({ createdAt: -1 })
       .limit(Math.floor(limit / 4))
       .select('firstName lastName createdAt');
@@ -974,7 +982,7 @@ export class DashboardService {
 
     // Get recent first-timers
     const recentFirstTimers = await this.firstTimerModel
-      .find({ createdAt: { $gte: startDate } })
+      .find({ createdAt: { $gte: startDate }, ...bf })
       .sort({ createdAt: -1 })
       .limit(Math.floor(limit / 4))
       .select('firstName lastName createdAt');
@@ -995,7 +1003,7 @@ export class DashboardService {
 
     // Get recent groups
     const recentGroups = await this.groupModel
-      .find({ createdAt: { $gte: startDate } })
+      .find({ createdAt: { $gte: startDate }, ...bf })
       .sort({ createdAt: -1 })
       .limit(Math.floor(limit / 4))
       .select('name type createdAt');
@@ -1016,7 +1024,7 @@ export class DashboardService {
 
     // Get recent users
     const recentUsers = await this.memberModel
-      .find({ createdAt: { $gte: startDate } })
+      .find({ createdAt: { $gte: startDate }, ...bf })
       .sort({ createdAt: -1 })
       .limit(Math.floor(limit / 4))
       .select('firstName lastName role createdAt');
@@ -1121,11 +1129,13 @@ export class DashboardService {
     }));
   }
 
-  private async getMaritalStatusDistribution() {
+  private async getMaritalStatusDistribution(branchId?: string) {
+    const bf = this.branchFilter(branchId);
     const maritalStats = await this.memberModel.aggregate([
       {
         $match: {
           maritalStatus: { $exists: true, $ne: null },
+          ...bf,
         },
       },
       {
@@ -1139,6 +1149,7 @@ export class DashboardService {
 
     const totalMembers = await this.memberModel.countDocuments({
       maritalStatus: { $exists: true, $ne: null },
+      ...bf,
     });
 
     return maritalStats.map((stat) => ({
@@ -1149,11 +1160,13 @@ export class DashboardService {
     }));
   }
 
-  private async getGeographicDistribution() {
+  private async getGeographicDistribution(branchId?: string) {
+    const bf = this.branchFilter(branchId);
     const stateStats = await this.memberModel.aggregate([
       {
         $match: {
           'address.state': { $exists: true, $ne: null },
+          ...bf,
         },
       },
       {
@@ -1170,6 +1183,7 @@ export class DashboardService {
       {
         $match: {
           'address.city': { $exists: true, $ne: null },
+          ...bf,
         },
       },
       {

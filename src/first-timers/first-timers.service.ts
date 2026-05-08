@@ -2440,8 +2440,8 @@ export class FirstTimersService {
     // 2nd Timer Retention (based on follow-ups with visitNumber = 2)
     const secondTimerData = await this.calculateRetentionByVisitNumber(firstTimers, 2);
 
-    // 3rd Timer Retention (based on follow-ups with visitNumber = 3)
-    const thirdTimerData = await this.calculateRetentionByVisitNumber(firstTimers, 3);
+    // 3rd Timer Retention — use 2nd timers actual count as the expected base
+    const thirdTimerData = await this.calculateRetentionByVisitNumber(firstTimers, 3, secondTimerData.actualCount);
 
     return {
       totalFirstTimers,
@@ -2479,6 +2479,7 @@ export class FirstTimersService {
   private async calculateRetentionByVisitNumber(
     firstTimers: FirstTimerDocument[],
     visitNumber: number,
+    overrideExpectedCount?: number,
   ): Promise<{
     byService: Array<{ service: string; Yes: number; null: number }>;
     expectedCount: number;
@@ -2488,8 +2489,12 @@ export class FirstTimersService {
     // Group by date of visit
     const serviceMap = new Map<string, { Yes: number; null: number }>();
 
-    // Expected count = those who said "Yes" to joining
-    const expectedCount = firstTimers.filter((ft) => ft.interestedInJoining === 'yes').length;
+    // Expected count: use override (e.g. 2nd timers count for 3rd visit calc) or default to Yes+Maybe
+    const expectedCount = overrideExpectedCount !== undefined
+      ? overrideExpectedCount
+      : firstTimers.filter(
+          (ft) => ft.interestedInJoining === 'yes' || ft.interestedInJoining === 'maybe'
+        ).length;
 
     let actualCount = 0;
 

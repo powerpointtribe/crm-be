@@ -112,12 +112,18 @@ export class DashboardController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('scoped') scoped?: string,
+    @Query('branchId') selectedBranchId?: string,
   ) {
     const useScoped = scoped === 'true';
     const highestRole = RoleUtils.getHighestRole(user);
     const isAdmin = user.systemRoles?.includes('admin') || user.roles?.includes('admin');
 
-    const branchId = await this.getUserBranchId(user);
+    // If user selected a branch AND has view-all permission, use selected branch
+    // Otherwise fall back to user's own branch scope
+    const userBranchId = await this.getUserBranchId(user);
+    const branchId = userBranchId === undefined && selectedBranchId
+      ? selectedBranchId  // Admin selected a specific branch
+      : userBranchId;     // Non-admin: use their own branch
 
     if (useScoped) {
       // Get accessible modules from user permissions or calculate them
@@ -297,8 +303,14 @@ export class DashboardController {
     status: 200,
     description: 'Quick stats retrieved successfully',
   })
-  async getQuickStats(@CurrentUser() user: any) {
-    const branchId = await this.getUserBranchId(user);
+  async getQuickStats(
+    @CurrentUser() user: any,
+    @Query('branchId') selectedBranchId?: string,
+  ) {
+    const userBranchId = await this.getUserBranchId(user);
+    const branchId = userBranchId === undefined && selectedBranchId
+      ? selectedBranchId
+      : userBranchId;
     const overview = await this.dashboardService.getDashboardOverview(
       user.sub,
       user.roles,
@@ -339,8 +351,13 @@ export class DashboardController {
   async getGrowthAnalytics(
     @CurrentUser() user: any,
     @Query('period') period: 'week' | 'month' | 'quarter' | 'year' = 'month',
+    @Query('branchId') selectedBranchId?: string,
   ) {
-    const analytics = await this.dashboardService.getGrowthAnalytics(period);
+    const userBranchId = await this.getUserBranchId(user);
+    const branchId = userBranchId === undefined && selectedBranchId
+      ? selectedBranchId
+      : userBranchId;
+    const analytics = await this.dashboardService.getGrowthAnalytics(period, branchId);
 
     return ResponseUtil.success(
       analytics,
@@ -376,10 +393,16 @@ export class DashboardController {
     @CurrentUser() user: any,
     @Query('limit') limit: number = 50,
     @Query('days') days: number = 7,
+    @Query('branchId') selectedBranchId?: string,
   ) {
+    const userBranchId = await this.getUserBranchId(user);
+    const branchId = userBranchId === undefined && selectedBranchId
+      ? selectedBranchId
+      : userBranchId;
     const analytics = await this.dashboardService.getRecentActivityAnalytics(
       limit,
       days,
+      branchId,
     );
 
     return ResponseUtil.success(
@@ -400,8 +423,15 @@ export class DashboardController {
     description: 'Demographics analytics retrieved successfully',
     type: DemographicsDto,
   })
-  async getDemographics(@CurrentUser() user: any) {
-    const demographics = await this.dashboardService.getDemographicsAnalytics();
+  async getDemographics(
+    @CurrentUser() user: any,
+    @Query('branchId') selectedBranchId?: string,
+  ) {
+    const userBranchId = await this.getUserBranchId(user);
+    const branchId = userBranchId === undefined && selectedBranchId
+      ? selectedBranchId
+      : userBranchId;
+    const demographics = await this.dashboardService.getDemographicsAnalytics(branchId);
 
     return ResponseUtil.success(
       demographics,

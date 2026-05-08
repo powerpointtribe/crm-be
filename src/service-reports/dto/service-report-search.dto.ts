@@ -5,6 +5,7 @@ import {
   IsMongoId,
   IsString,
   IsNumber,
+  IsBoolean,
   Min,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -84,4 +85,12 @@ export class ServiceReportSearchDto extends SearchDto {
   @IsNumber()
   @Min(0)
   minFirstTimers?: number;
+
+  @ApiPropertyOptional({
+    description: 'Include inactive/deleted reports',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  includeInactive?: boolean;
 }
