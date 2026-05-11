@@ -5,6 +5,7 @@ import {
   IsArray,
   IsEnum,
   IsNumber,
+  IsMongoId,
   Min,
   IsOptional,
   MaxLength,
@@ -103,4 +104,11 @@ export class CreateServiceReportDto {
   @IsString()
   @MaxLength(1000)
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Branch ID (for users with global view-all permission)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  branchId?: string;
 }

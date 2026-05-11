@@ -200,6 +200,7 @@ export class ServiceReportsService {
       this.serviceReportModel
         .find(filterQuery)
         .populate('reportedBy', 'firstName lastName email')
+        .populate('branch', 'name')
         .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
         .skip(skip)
         .limit(limit),

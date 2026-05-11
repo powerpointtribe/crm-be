@@ -61,10 +61,22 @@ export class ServiceReportsController {
     @Body() createServiceReportDto: CreateServiceReportDto,
     @CurrentUser() user: any,
   ) {
+    // Use DTO branchId if provided and user has view-all permission, otherwise user's own branch
+    const userBranchId = (user.branch?._id || user.branch)?.toString();
+    let effectiveBranchId = userBranchId;
+
+    if (createServiceReportDto.branchId) {
+      const roleId = user.role?._id || user.role;
+      const permsResult = await this.userPermissionsService.getUserPermissions(roleId);
+      if (permsResult.permissions.includes('branches:view-all')) {
+        effectiveBranchId = createServiceReportDto.branchId;
+      }
+    }
+
     const report = await this.serviceReportsService.create(
       createServiceReportDto,
       user._id,
-      user.branch?._id || user.branch,
+      effectiveBranchId,
     );
     return ResponseUtil.success(report, 'Service report created successfully');
   }
