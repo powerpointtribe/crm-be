@@ -71,15 +71,18 @@ export class MembersService {
       createMemberDto.firstName,
       createMemberDto.lastName,
       createMemberDto.email,
-      createMemberDto.phone,
+      createMemberDto.phone || '',
     );
 
     // Validate and convert dateOfBirth
-    const dateOfBirth = new Date(createMemberDto.dateOfBirth);
-    if (isNaN(dateOfBirth.getTime())) {
-      throw new BadRequestException(
-        'Invalid date format for dateOfBirth. Use YYYY-MM-DD format.',
-      );
+    let dateOfBirth: Date | undefined;
+    if (createMemberDto.dateOfBirth) {
+      dateOfBirth = new Date(createMemberDto.dateOfBirth);
+      if (isNaN(dateOfBirth.getTime())) {
+        throw new BadRequestException(
+          'Invalid date format for dateOfBirth. Use YYYY-MM-DD format.',
+        );
+      }
     }
 
     // Validate district exists and is of type 'district'

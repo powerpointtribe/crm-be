@@ -103,22 +103,22 @@ export class CreateMemberDto {
   @IsString()
   password?: string;
 
-  @ApiProperty({ description: 'Phone number', example: '+234801234567' })
+  @ApiPropertyOptional({ description: 'Phone number', example: '+234801234567' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @Matches(/^(\+234|0)[789][01]\d{8}$/, {
     message:
       'Phone number must be a valid Nigerian number (e.g., +2348012345678 or 08012345678)',
   })
-  phone: string;
+  phone?: string;
 
-  @ApiProperty({ description: 'Date of birth', example: '1990-01-01' })
+  @ApiPropertyOptional({ description: 'Date of birth', example: '1990-01-01' })
+  @IsOptional()
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'dateOfBirth must be in YYYY-MM-DD format',
   })
-  @IsNotEmpty()
-  dateOfBirth: string;
+  dateOfBirth?: string;
 
   @ApiProperty({ description: 'Gender', enum: ['male', 'female'] })
   @IsEnum(['male', 'female'])
