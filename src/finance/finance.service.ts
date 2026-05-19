@@ -995,10 +995,10 @@ export class FinanceService {
       };
     }
 
-    // Find member by email in the branch
+    // Find member by email in the branch (handle both ObjectId and string branch refs)
     const member = await this.memberModel.findOne({
       email: email.toLowerCase(),
-      branch: branch._id,
+      branch: { $in: [(branch as any)._id, (branch as any)._id.toString()] },
       isActive: true,
     });
 
