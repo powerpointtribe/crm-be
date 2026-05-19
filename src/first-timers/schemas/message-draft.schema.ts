@@ -45,6 +45,18 @@ export class MessageDraft {
   @Prop({ type: String })
   failureReason?: string;
 
+  @Prop({ type: Number, enum: [1, 2, 3], default: 1 })
+  templateId: number;
+
+  @Prop({ type: String, default: 'A Message from The PowerPoint Tribe' })
+  subject: string;
+
+  @Prop({ type: String, enum: ['by_date', 'individual'], default: 'by_date' })
+  recipientMode: string;
+
+  @Prop({ type: [Types.ObjectId], ref: 'FirstTimer' })
+  recipientIds?: Types.ObjectId[];
+
   createdAt: Date;
   updatedAt: Date;
 }

@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   MessageDraft,
@@ -16,8 +16,14 @@ import {
   CreateMessageDraftDto,
   UpdateMessageDraftDto,
   MessageDraftQueryDto,
+  SendTestEmailDto,
 } from './dto/message-draft.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  generateEmailHtml,
+  getTemplatePreviewData,
+  TemplateId,
+} from './email-templates';
 
 @Injectable()
 export class MessageDraftsService {
@@ -32,44 +38,51 @@ export class MessageDraftsService {
   ) {}
 
   /**
+   * Get available email templates with preview HTML
+   */
+  getTemplates() {
+    return getTemplatePreviewData();
+  }
+
+  /**
    * Create a new message draft
    */
   async create(
     createDto: CreateMessageDraftDto,
     userId: string,
   ): Promise<MessageDraftDocument> {
-    // Parse the scheduled date and time
-    const scheduledDateTime = this.parseDateTime(
-      createDto.scheduledDate,
-      createDto.scheduledTime,
-    );
+    const scheduledDateTime = createDto.scheduledDate
+      ? this.parseDateTime(createDto.scheduledDate, createDto.scheduledTime)
+      : this.parseDateTime(
+          new Date().toISOString().split('T')[0],
+          createDto.scheduledTime,
+        );
 
-    // Check if a draft already exists for this date
-    const existing = await this.messageDraftModel.findOne({
-      scheduledDate: new Date(createDto.scheduledDate),
-      status: { $in: ['draft', 'scheduled'] },
-    });
-
-    if (existing) {
-      throw new BadRequestException(
-        `A draft already exists for ${createDto.scheduledDate}. Please edit or delete it first.`,
+    const title =
+      createDto.title ||
+      this.generateDefaultTitle(
+        createDto.scheduledDate || new Date().toISOString().split('T')[0],
       );
-    }
-
-    // Generate default title if not provided
-    const title = createDto.title || this.generateDefaultTitle(createDto.scheduledDate);
 
     const draft = await this.messageDraftModel.create({
       title,
       message: createDto.message,
-      scheduledDate: new Date(createDto.scheduledDate),
+      subject: createDto.subject || 'A Message from The PowerPoint Tribe',
+      templateId: createDto.templateId || 1,
+      recipientMode: createDto.recipientMode || 'by_date',
+      recipientIds: createDto.recipientIds
+        ? createDto.recipientIds.map((id) => new Types.ObjectId(id))
+        : undefined,
+      scheduledDate: createDto.scheduledDate
+        ? new Date(createDto.scheduledDate)
+        : undefined,
       scheduledTime: scheduledDateTime,
       status: 'draft',
       createdBy: userId,
       updatedBy: userId,
     });
 
-    this.logger.log(`Message draft created for ${createDto.scheduledDate}`);
+    this.logger.log(`Message draft created: ${draft._id}`);
     return draft;
   }
 
@@ -87,9 +100,7 @@ export class MessageDraftsService {
     const skip = (page - 1) * limit;
 
     const filter: any = {};
-    if (status) {
-      filter.status = status;
-    }
+    if (status) filter.status = status;
 
     const [drafts, total] = await Promise.all([
       this.messageDraftModel
@@ -103,13 +114,7 @@ export class MessageDraftsService {
       this.messageDraftModel.countDocuments(filter),
     ]);
 
-    return {
-      drafts,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+    return { drafts, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   /**
@@ -122,10 +127,7 @@ export class MessageDraftsService {
       .populate('updatedBy', 'firstName lastName email')
       .exec();
 
-    if (!draft) {
-      throw new NotFoundException('Message draft not found');
-    }
-
+    if (!draft) throw new NotFoundException('Message draft not found');
     return draft;
   }
 
@@ -139,34 +141,37 @@ export class MessageDraftsService {
   ): Promise<MessageDraftDocument> {
     const draft = await this.findOne(id);
 
-    // Don't allow editing sent or sending drafts
     if (draft.status === 'sent' || draft.status === 'sending') {
       throw new BadRequestException(
         `Cannot edit a draft that is ${draft.status}`,
       );
     }
 
-    const updateData: any = {
-      updatedBy: userId,
-    };
+    const updateData: any = { updatedBy: userId };
 
-    if (updateDto.title !== undefined) {
-      updateData.title = updateDto.title;
-    }
-
-    if (updateDto.message !== undefined) {
-      updateData.message = updateDto.message;
-    }
+    if (updateDto.title !== undefined) updateData.title = updateDto.title;
+    if (updateDto.message !== undefined) updateData.message = updateDto.message;
+    if (updateDto.subject !== undefined) updateData.subject = updateDto.subject;
+    if (updateDto.templateId !== undefined)
+      updateData.templateId = updateDto.templateId;
+    if (updateDto.recipientMode !== undefined)
+      updateData.recipientMode = updateDto.recipientMode;
+    if (updateDto.recipientIds !== undefined)
+      updateData.recipientIds = updateDto.recipientIds.map(
+        (rid) => new Types.ObjectId(rid),
+      );
 
     if (updateDto.scheduledDate !== undefined) {
       updateData.scheduledDate = new Date(updateDto.scheduledDate);
     }
 
     if (updateDto.scheduledTime !== undefined) {
-      const scheduledDate =
-        updateDto.scheduledDate || draft.scheduledDate.toISOString().split('T')[0];
+      const dateStr =
+        updateDto.scheduledDate ||
+        draft.scheduledDate?.toISOString().split('T')[0] ||
+        new Date().toISOString().split('T')[0];
       updateData.scheduledTime = this.parseDateTime(
-        scheduledDate,
+        dateStr,
         updateDto.scheduledTime,
       );
     }
@@ -177,9 +182,7 @@ export class MessageDraftsService {
       { new: true },
     );
 
-    if (!updated) {
-      throw new NotFoundException('Message draft not found');
-    }
+    if (!updated) throw new NotFoundException('Message draft not found');
 
     this.logger.log(`Message draft ${id} updated`);
     return updated;
@@ -191,7 +194,6 @@ export class MessageDraftsService {
   async delete(id: string): Promise<void> {
     const draft = await this.findOne(id);
 
-    // Don't allow deleting sent drafts
     if (draft.status === 'sent' || draft.status === 'sending') {
       throw new BadRequestException(
         `Cannot delete a draft that is ${draft.status}`,
@@ -203,26 +205,60 @@ export class MessageDraftsService {
   }
 
   /**
-   * Preview a message with sample data
+   * Preview a message with sample data using a template
    */
-  async preview(message: string): Promise<{
+  async preview(
+    message: string,
+    templateId?: number,
+    subject?: string,
+  ): Promise<{
     preview: string;
     htmlPreview: string;
     availableVariables: string[];
   }> {
-    const sampleData = {
+    const tId = (templateId || 1) as TemplateId;
+    const sub = subject || 'Welcome to The PowerPoint Tribe';
+
+    const personalizedBody = this.replaceVariables(message, {
       firstName: 'John',
       lastName: 'Doe',
-    };
+    });
 
-    const preview = this.replaceVariables(message, sampleData);
-    const htmlPreview = this.generateEmailHtml(preview);
+    const htmlPreview = generateEmailHtml(tId, {
+      firstName: 'John',
+      messageBody: personalizedBody,
+      subject: sub,
+    });
 
     return {
-      preview,
+      preview: personalizedBody,
       htmlPreview,
       availableVariables: ['{{firstName}}', '{{lastName}}'],
     };
+  }
+
+  /**
+   * Send a test email to any address
+   */
+  async sendTestEmail(dto: SendTestEmailDto): Promise<void> {
+    const templateId = (dto.templateId || 1) as TemplateId;
+    const subject = dto.subject
+      ? `[Test] ${dto.subject}`
+      : '[Test] A Message from The PowerPoint Tribe';
+
+    const html = generateEmailHtml(templateId, {
+      firstName: 'Friend',
+      messageBody: dto.message,
+      subject,
+    });
+
+    await this.notificationsService.sendCustomEmail({
+      to: dto.email,
+      subject,
+      html,
+    });
+
+    this.logger.log(`Test email sent to ${dto.email}`);
   }
 
   /**
@@ -234,7 +270,6 @@ export class MessageDraftsService {
     if (draft.status === 'sent') {
       throw new BadRequestException('This draft has already been sent');
     }
-
     if (draft.status === 'sending') {
       throw new BadRequestException('This draft is currently being sent');
     }
@@ -243,16 +278,13 @@ export class MessageDraftsService {
   }
 
   /**
-   * Cron job to check and send scheduled drafts
-   * Runs every 5 minutes
+   * Cron job to check and send scheduled drafts (every hour)
    */
   @Cron(CronExpression.EVERY_HOUR)
   async checkAndSendScheduledDrafts(): Promise<void> {
     this.logger.log('Checking for scheduled message drafts to send...');
 
     const now = new Date();
-
-    // Find drafts that are scheduled and due to be sent
     const draftsDue = await this.messageDraftModel.find({
       status: { $in: ['draft', 'scheduled'] },
       scheduledTime: { $lte: now },
@@ -273,72 +305,81 @@ export class MessageDraftsService {
   }
 
   /**
-   * Send a message draft to all first timers from the scheduled date
+   * Core sending logic — supports both by_date and individual recipient modes
    */
   private async sendDraft(draft: MessageDraftDocument): Promise<void> {
     this.logger.log(`Sending message draft ${draft._id}...`);
 
-    // Update status to sending
     await this.messageDraftModel.findByIdAndUpdate(draft._id, {
       status: 'sending',
     });
 
     try {
-      // Get start and end of the scheduled date
-      const startOfDay = new Date(draft.scheduledDate);
-      startOfDay.setHours(0, 0, 0, 0);
+      let firstTimers: FirstTimerDocument[];
 
-      const endOfDay = new Date(draft.scheduledDate);
-      endOfDay.setHours(23, 59, 59, 999);
+      if (draft.recipientMode === 'individual' && draft.recipientIds?.length) {
+        // Individual mode: fetch specific first-timers
+        firstTimers = await this.firstTimerModel.find({
+          _id: { $in: draft.recipientIds },
+          email: { $exists: true, $ne: null },
+        });
+      } else {
+        // By-date mode: find first-timers from the scheduled date
+        if (!draft.scheduledDate) {
+          throw new BadRequestException(
+            'No service date set for by_date recipient mode',
+          );
+        }
+        const startOfDay = new Date(draft.scheduledDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(draft.scheduledDate);
+        endOfDay.setHours(23, 59, 59, 999);
 
-      // Find all first timers who registered on this date
-      const firstTimers = await this.firstTimerModel.find({
-        dateOfVisit: {
-          $gte: startOfDay,
-          $lte: endOfDay,
-        },
-        email: { $exists: true, $ne: null },
-      });
+        firstTimers = await this.firstTimerModel.find({
+          dateOfVisit: { $gte: startOfDay, $lte: endOfDay },
+          email: { $exists: true, $ne: null },
+        });
+      }
 
       this.logger.log(
-        `Found ${firstTimers.length} first timer(s) for ${draft.scheduledDate.toISOString().split('T')[0]}`,
+        `Found ${firstTimers.length} recipient(s) for draft ${draft._id}`,
       );
 
+      const templateId = (draft.templateId || 1) as TemplateId;
+      const subject = draft.subject || 'A Message from The PowerPoint Tribe';
       let successCount = 0;
       let failedCount = 0;
 
-      // Send emails to each first timer
-      for (const firstTimer of firstTimers) {
+      for (const ft of firstTimers) {
         try {
-          // Skip if no email address
-          if (!firstTimer.email) {
-            this.logger.warn(`Skipping first timer ${firstTimer._id} - no email address`);
-            continue;
-          }
+          if (!ft.email) continue;
 
-          const personalizedMessage = this.replaceVariables(draft.message, {
-            firstName: firstTimer.firstName,
-            lastName: firstTimer.lastName,
+          const personalizedBody = this.replaceVariables(draft.message, {
+            firstName: ft.firstName,
+            lastName: ft.lastName,
           });
 
-          const htmlContent = this.generateEmailHtml(personalizedMessage);
+          const html = generateEmailHtml(templateId, {
+            firstName: ft.firstName,
+            messageBody: personalizedBody,
+            subject,
+          });
 
           await this.notificationsService.sendCustomEmail({
-            to: firstTimer.email,
-            subject: 'A Message from Our Church',
-            html: htmlContent,
+            to: ft.email,
+            subject,
+            html,
           });
 
           successCount++;
         } catch (error) {
           this.logger.error(
-            `Failed to send email to ${firstTimer.email}: ${error.message}`,
+            `Failed to send email to ${ft.email}: ${error.message}`,
           );
           failedCount++;
         }
       }
 
-      // Update draft with results
       await this.messageDraftModel.findByIdAndUpdate(draft._id, {
         status: failedCount === 0 ? 'sent' : 'failed',
         sentAt: new Date(),
@@ -352,22 +393,17 @@ export class MessageDraftsService {
       });
 
       this.logger.log(
-        `Draft ${draft._id} sent successfully. Success: ${successCount}, Failed: ${failedCount}`,
+        `Draft ${draft._id} sent. Success: ${successCount}, Failed: ${failedCount}`,
       );
     } catch (error) {
-      // Update draft as failed
       await this.messageDraftModel.findByIdAndUpdate(draft._id, {
         status: 'failed',
         failureReason: error.message,
       });
-
       throw error;
     }
   }
 
-  /**
-   * Replace variables in message template
-   */
   private replaceVariables(
     template: string,
     data: { firstName: string; lastName: string },
@@ -377,29 +413,6 @@ export class MessageDraftsService {
       .replace(/\{\{lastName\}\}/g, data.lastName);
   }
 
-  /**
-   * Generate HTML email from plain message
-   */
-  private generateEmailHtml(message: string): string {
-    return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
-          <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="white-space: pre-wrap; line-height: 1.6; color: #333;">
-              ${message}
-            </div>
-          </div>
-          <div style="margin-top: 20px; text-align: center; color: #666; font-size: 14px;">
-            <p>Blessings,<br/>The Church Team</p>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * Parse date and time strings into a Date object
-   */
   private parseDateTime(dateStr: string, timeStr: string): Date {
     const [hours, minutes] = timeStr.split(':').map(Number);
     const date = new Date(dateStr);
@@ -407,9 +420,6 @@ export class MessageDraftsService {
     return date;
   }
 
-  /**
-   * Generate default title for a message draft
-   */
   private generateDefaultTitle(dateStr: string): string {
     const date = new Date(dateStr);
     const formattedDate = date.toLocaleDateString('en-US', {
