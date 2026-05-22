@@ -30,6 +30,14 @@ import {
   EventPartnerDocument,
   PartnerStatus,
 } from './schemas/event-partner.schema';
+import {
+  AccountabilityEntry,
+  AccountabilityEntryDocument,
+} from './schemas/accountability-entry.schema';
+import {
+  RecordAccountabilityDto,
+  AccountabilityQueryDto,
+} from './dto/accountability.dto';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventSearchDto } from './dto/event-search.dto';
@@ -108,6 +116,8 @@ export class EventsService {
     private sessionAttendanceModel: Model<SessionAttendanceDocument>,
     @InjectModel(EventPartner.name)
     private partnerModel: Model<EventPartnerDocument>,
+    @InjectModel(AccountabilityEntry.name)
+    private accountabilityModel: Model<AccountabilityEntryDocument>,
     private branchAccessService: BranchAccessService,
     private emailProvider: EmailProvider,
     @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
@@ -3401,5 +3411,125 @@ export class EventsService {
       event: eventId,
       status: RegistrationStatus.CONFIRMED,
     });
+  }
+
+  // ========== ACCOUNTABILITY TRACKING ==========
+
+  /**
+   * Record or update weekly accountability metrics for a participant
+   */
+  async recordAccountability(
+    eventId: string,
+    dto: RecordAccountabilityDto,
+    submittedBy?: string,
+  ): Promise<AccountabilityEntryDocument> {
+    const event = await this.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+
+    const registration = await this.registrationModel.findById(dto.registrationId);
+    if (!registration) throw new NotFoundException('Registration not found');
+
+    const data: any = {
+      event: new Types.ObjectId(eventId),
+      registration: new Types.ObjectId(dto.registrationId),
+      week: dto.week,
+      platform: dto.platform,
+      postCount: dto.postCount,
+      postLinks: dto.postLinks || [],
+      engagementRate: dto.engagementRate,
+      followerGrowth: dto.followerGrowth,
+      consistencyScore: dto.consistencyScore,
+      peerReviewScore: dto.peerReviewScore || 0,
+      notes: dto.notes,
+    };
+
+    if (dto.weekStartDate) data.weekStartDate = new Date(dto.weekStartDate);
+    if (submittedBy) data.submittedBy = new Types.ObjectId(submittedBy);
+
+    const entry = await this.accountabilityModel.findOneAndUpdate(
+      {
+        event: new Types.ObjectId(eventId),
+        registration: new Types.ObjectId(dto.registrationId),
+        week: dto.week,
+      },
+      { $set: data },
+      { upsert: true, new: true },
+    );
+
+    return entry;
+  }
+
+  /**
+   * Get all accountability entries for one participant
+   */
+  async getAccountabilityForRegistration(
+    eventId: string,
+    registrationId: string,
+  ): Promise<AccountabilityEntryDocument[]> {
+    return this.accountabilityModel
+      .find({
+        event: new Types.ObjectId(eventId),
+        registration: new Types.ObjectId(registrationId),
+      })
+      .sort({ week: 1 })
+      .exec();
+  }
+
+  /**
+   * Get accountability overview for all participants (optionally filtered by week)
+   */
+  async getAccountabilityOverview(
+    eventId: string,
+    query?: AccountabilityQueryDto,
+  ): Promise<{
+    entries: any[];
+    summary: any;
+  }> {
+    const filter: any = { event: new Types.ObjectId(eventId) };
+    if (query?.week) filter.week = query.week;
+
+    const entries = await this.accountabilityModel
+      .find(filter)
+      .populate({
+        path: 'registration',
+        select: 'attendeeInfo customFieldResponses checkInCode',
+      })
+      .sort({ week: 1, 'registration.attendeeInfo.firstName': 1 })
+      .exec();
+
+    // Calculate summary
+    const weekEntries = query?.week
+      ? entries
+      : entries.filter((e) => e.week === Math.max(...entries.map((x) => x.week)));
+
+    const totalParticipants = weekEntries.length;
+    const avgPostCount =
+      totalParticipants > 0
+        ? weekEntries.reduce((sum, e) => sum + e.postCount, 0) / totalParticipants
+        : 0;
+    const avgEngagement =
+      totalParticipants > 0
+        ? weekEntries.reduce((sum, e) => sum + e.engagementRate, 0) / totalParticipants
+        : 0;
+    const avgConsistency =
+      totalParticipants > 0
+        ? weekEntries.reduce((sum, e) => sum + e.consistencyScore, 0) / totalParticipants
+        : 0;
+    const totalFollowerGrowth = weekEntries.reduce(
+      (sum, e) => sum + e.followerGrowth,
+      0,
+    );
+
+    return {
+      entries,
+      summary: {
+        totalParticipants,
+        avgPostCount: Math.round(avgPostCount * 10) / 10,
+        avgEngagement: Math.round(avgEngagement * 10) / 10,
+        avgConsistency: Math.round(avgConsistency * 10) / 10,
+        totalFollowerGrowth,
+        weeksTracked: [...new Set(entries.map((e) => e.week))].length,
+      },
+    };
   }
 }

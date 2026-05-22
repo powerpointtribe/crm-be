@@ -219,4 +219,41 @@ return this.eventsService.getPartnerAnalytics(eventId);
       partners: partnerStats,
     };
   }
+
+  // ── Accountability Tracking ──
+
+  @Post('accountability')
+  @RequirePermission('events:manage-registrations')
+  @ApiOperation({ summary: 'Record weekly accountability metrics for a participant' })
+  async recordAccountability(
+    @Param('eventId') eventId: string,
+    @Body() dto: any,
+    @Req() req: any,
+  ) {
+    const submittedBy = req.user?._id?.toString();
+    const entry = await this.eventsService.recordAccountability(eventId, dto, submittedBy);
+    return { success: true, message: 'Accountability recorded', data: entry };
+  }
+
+  @Get('accountability')
+  @RequirePermission('events:view-registrations')
+  @ApiOperation({ summary: 'Get accountability overview for all participants' })
+  async getAccountabilityOverview(
+    @Param('eventId') eventId: string,
+    @Query('week') week?: number,
+  ) {
+    const result = await this.eventsService.getAccountabilityOverview(eventId, { week });
+    return { success: true, data: result };
+  }
+
+  @Get('accountability/:registrationId')
+  @RequirePermission('events:view-registrations')
+  @ApiOperation({ summary: 'Get accountability history for one participant' })
+  async getAccountabilityForRegistration(
+    @Param('eventId') eventId: string,
+    @Param('registrationId') registrationId: string,
+  ) {
+    const entries = await this.eventsService.getAccountabilityForRegistration(eventId, registrationId);
+    return { success: true, data: entries };
+  }
 }

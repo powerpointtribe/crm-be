@@ -22,6 +22,10 @@ import {
   EventPartner,
   EventPartnerSchema,
 } from './schemas/event-partner.schema';
+import {
+  AccountabilityEntry,
+  AccountabilityEntrySchema,
+} from './schemas/accountability-entry.schema';
 import { CommonModule } from '../common/common.module';
 import { RolesModule } from '../roles/roles.module';
 import { AuthModule } from '../auth/auth.module';
@@ -40,6 +44,7 @@ import { EventEmailProcessor } from '../queue/processors/event-email.processor';
       { name: EventSession.name, schema: EventSessionSchema },
       { name: SessionAttendance.name, schema: SessionAttendanceSchema },
       { name: EventPartner.name, schema: EventPartnerSchema },
+      { name: AccountabilityEntry.name, schema: AccountabilityEntrySchema },
     ]),
     BullModule.registerQueue({
       name: QueueName.EMAIL_NOTIFICATIONS,
