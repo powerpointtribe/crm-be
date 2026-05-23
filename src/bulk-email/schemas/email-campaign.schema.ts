@@ -19,6 +19,7 @@ export enum RecipientFilterType {
   BY_UNIT = 'by_unit',
   BY_DISTRICT = 'by_district',
   BY_MEMBERSHIP_STATUS = 'by_membership_status',
+  BY_MAILING_LIST = 'by_mailing_list',
   CUSTOM = 'custom',
 }
 
@@ -28,6 +29,7 @@ export interface RecipientFilter {
   groupIds?: string[];
   unitIds?: string[];
   districtIds?: string[];
+  mailingListIds?: string[];
   membershipStatuses?: string[];
   customMemberIds?: string[];
 }
@@ -85,6 +87,7 @@ export class EmailCampaign {
       districtIds: [{ type: String }],
       membershipStatuses: [{ type: String }],
       customMemberIds: [{ type: String }],
+      mailingListIds: [{ type: String }],
     },
     default: { filterType: RecipientFilterType.ALL_MEMBERS },
   })

@@ -71,9 +71,9 @@ export class EmailTemplateService {
       filter.category = category;
     }
 
-    // Active status filter
-    if (typeof isActive === 'boolean') {
-      filter.isActive = isActive;
+    // Active status filter (handle both boolean and string from query params)
+    if (isActive !== undefined && isActive !== null) {
+      filter.isActive = String(isActive) === 'true';
     }
 
     // Search filter

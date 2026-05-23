@@ -3,7 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import { EmailCampaign, EmailCampaignDocument, CampaignStatus } from './schemas/email-campaign.schema';
+import { EmailCampaign, EmailCampaignDocument, CampaignStatus, RecipientFilterType } from './schemas/email-campaign.schema';
+import { MailingList, MailingListDocument } from './schemas/mailing-list.schema';
 import { EmailSendLog, EmailSendLogDocument, EmailSendStatus } from './schemas/email-send-log.schema';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { EmailCampaignService } from './email-campaign.service';
@@ -26,6 +27,8 @@ export class BulkEmailSenderService {
     private emailSendLogModel: Model<EmailSendLogDocument>,
     @InjectModel(Member.name)
     private memberModel: Model<MemberDocument>,
+    @InjectModel(MailingList.name)
+    private mailingListModel: Model<MailingListDocument>,
     private emailCampaignService: EmailCampaignService,
     @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
     private emailQueue: Queue,
@@ -86,9 +89,6 @@ export class BulkEmailSenderService {
     await this.emailCampaignService.markAsSending(campaignId);
 
     try {
-      // Get all recipients
-      const recipients = await this.emailCampaignService.getRecipients(campaign);
-
       // If test email specified, only send to that
       if (testEmail) {
         await this.sendSingleEmail(campaign, {
@@ -100,26 +100,101 @@ export class BulkEmailSenderService {
         return;
       }
 
-      // Create send logs for all recipients
-      const sendLogs = recipients.map((member) => ({
-        campaign: campaign._id,
-        member: member._id,
-        email: member.email,
-        status: EmailSendStatus.PENDING,
-      }));
+      // Get recipients — either from members DB or mailing list
+      let sendLogs: any[];
+
+      if (campaign.recipientFilter?.filterType === RecipientFilterType.BY_MAILING_LIST) {
+        // Fetch contacts from mailing lists
+        const listIds = campaign.recipientFilter.mailingListIds || [];
+        const lists = await this.mailingListModel
+          .find({ _id: { $in: listIds.map(id => new Types.ObjectId(id)) } })
+          .select('contacts');
+
+        const contacts: Array<{ email: string; firstName?: string; lastName?: string; member?: Types.ObjectId }> = [];
+        const seenEmails = new Set<string>();
+        for (const list of lists) {
+          for (const c of list.contacts) {
+            if (c.email && !seenEmails.has(c.email)) {
+              seenEmails.add(c.email);
+              contacts.push(c);
+            }
+          }
+        }
+
+        sendLogs = contacts.map((c) => ({
+          campaign: campaign._id,
+          member: c.member || undefined,
+          email: c.email,
+          status: EmailSendStatus.PENDING,
+        }));
+      } else {
+        const recipients = await this.emailCampaignService.getRecipients(campaign);
+        sendLogs = recipients.map((member) => ({
+          campaign: campaign._id,
+          member: member._id,
+          email: member.email,
+          status: EmailSendStatus.PENDING,
+        }));
+      }
 
       await this.emailSendLogModel.insertMany(sendLogs, { ordered: false }).catch((err) => {
         // Ignore duplicate key errors for retries
         if (err.code !== 11000) throw err;
       });
 
+      // Build unified recipient list for batch processing
+      const recipientList = sendLogs.map((log) => ({
+        email: log.email,
+        firstName: (log as any).firstName || 'Friend',
+        lastName: (log as any).lastName || '',
+        _id: log.member,
+      }));
+
+      // If from mailing list, enrich with contact names
+      if (campaign.recipientFilter?.filterType === RecipientFilterType.BY_MAILING_LIST) {
+        const listIds = campaign.recipientFilter.mailingListIds || [];
+        const lists = await this.mailingListModel
+          .find({ _id: { $in: listIds.map(id => new Types.ObjectId(id)) } })
+          .select('contacts');
+        const contactMap = new Map<string, any>();
+        for (const list of lists) {
+          for (const c of list.contacts) {
+            contactMap.set(c.email, c);
+          }
+        }
+        for (const r of recipientList) {
+          const c = contactMap.get(r.email);
+          if (c) {
+            r.firstName = c.firstName || 'Friend';
+            r.lastName = c.lastName || '';
+          }
+        }
+      } else {
+        // For member-based campaigns, get member details
+        const memberIds = sendLogs.filter(l => l.member).map(l => l.member);
+        if (memberIds.length > 0) {
+          const members = await this.memberModel
+            .find({ _id: { $in: memberIds } })
+            .select('firstName lastName email')
+            .lean();
+          const memberMap = new Map(members.map(m => [(m._id as any).toString(), m]));
+          for (const r of recipientList) {
+            const m = r._id ? memberMap.get(r._id.toString()) : null;
+            if (m) {
+              r.firstName = m.firstName;
+              r.lastName = m.lastName;
+            }
+          }
+        }
+      }
+
       // Process in batches
       const batchSize = 50;
       let sentCount = 0;
       let failedCount = 0;
 
-      for (let i = 0; i < recipients.length; i += batchSize) {
-        const batch = recipients.slice(i, i + batchSize);
+      for (let i = 0; i < recipientList.length; i += batchSize) {
+        const batch = recipientList.slice(i, i + batchSize);
 
         const results = await Promise.allSettled(
           batch.map((member) => this.sendSingleEmail(campaign, member)),

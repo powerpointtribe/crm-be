@@ -27,10 +27,10 @@ export class EmailSendLog {
   @Prop({
     type: Types.ObjectId,
     ref: 'Member',
-    required: true,
     index: true,
+    sparse: true,
   })
-  member: Types.ObjectId;
+  member?: Types.ObjectId;
 
   @Prop({ required: true, lowercase: true, trim: true })
   email: string;
@@ -71,7 +71,11 @@ export class EmailSendLog {
 export const EmailSendLogSchema = SchemaFactory.createForClass(EmailSendLog);
 
 // Indexes
-EmailSendLogSchema.index({ campaign: 1, member: 1 }, { unique: true });
+EmailSendLogSchema.index(
+  { campaign: 1, member: 1 },
+  { unique: true, partialFilterExpression: { member: { $type: 'objectId' } } },
+);
+EmailSendLogSchema.index({ campaign: 1, email: 1 }, { unique: true });
 EmailSendLogSchema.index({ campaign: 1, status: 1 });
 EmailSendLogSchema.index({ campaign: 1, email: 1 });
 EmailSendLogSchema.index({ sentAt: -1 });

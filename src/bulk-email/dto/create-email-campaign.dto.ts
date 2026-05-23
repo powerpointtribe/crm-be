@@ -65,13 +65,19 @@ export class RecipientFilterDto {
   @IsArray()
   @IsMongoId({ each: true })
   customMemberIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Mailing list IDs' })
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  mailingListIds?: string[];
 }
 
 export class CreateEmailCampaignDto {
-  @ApiProperty({ description: 'Branch ID' })
-  @IsNotEmpty({ message: 'Branch is required' })
+  @ApiPropertyOptional({ description: 'Branch ID (auto-assigned from user if not provided)' })
+  @IsOptional()
   @IsMongoId()
-  branch: string;
+  branch?: string;
 
   @ApiProperty({ description: 'Campaign name', example: 'Easter Announcement' })
   @IsString()

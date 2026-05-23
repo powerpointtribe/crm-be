@@ -465,11 +465,17 @@ export class EmailCampaignService {
         filter.branch = campaign.branch;
         break;
 
+      case RecipientFilterType.BY_MAILING_LIST:
+        // Mailing lists are handled separately in the sender service
+        // Return a filter that matches nothing from members collection
+        // The sender will fetch contacts directly from the mailing list
+        filter._id = { $in: [] };
+        break;
+
       case RecipientFilterType.CUSTOM:
         if (recipientFilter.customMemberIds?.length) {
           filter._id = { $in: recipientFilter.customMemberIds.map((id) => new Types.ObjectId(id)) };
         } else {
-          // No custom members selected, return empty
           filter._id = { $in: [] };
         }
         break;

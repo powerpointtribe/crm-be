@@ -48,6 +48,10 @@ export class EmailCampaignController {
   })
   async create(@Body() createCampaignDto: CreateEmailCampaignDto, @Request() req) {
     const createdBy = req.user?._id?.toString();
+    // Auto-assign branch from user if not provided
+    if (!createCampaignDto.branch) {
+      createCampaignDto.branch = (req.user?.branch?._id || req.user?.branch)?.toString();
+    }
     return this.emailCampaignService.create(createCampaignDto, createdBy);
   }
 
