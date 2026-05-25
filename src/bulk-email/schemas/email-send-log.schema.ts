@@ -77,5 +77,4 @@ EmailSendLogSchema.index(
 );
 EmailSendLogSchema.index({ campaign: 1, email: 1 }, { unique: true });
 EmailSendLogSchema.index({ campaign: 1, status: 1 });
-EmailSendLogSchema.index({ campaign: 1, email: 1 });
 EmailSendLogSchema.index({ sentAt: -1 });
