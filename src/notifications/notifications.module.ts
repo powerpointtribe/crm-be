@@ -12,10 +12,12 @@ import { FirstTimer, FirstTimerSchema } from '../first-timers/schemas/first-time
 import { MemberActivity, MemberActivitySchema } from '../activity-tracker/schemas/member-activity.schema';
 import { Group, GroupSchema } from '../groups/schemas/group.schema';
 import { NotificationDismissal, NotificationDismissalSchema } from './schemas/notification-dismissal.schema';
+import { EmailTemplateSharedModule } from '../bulk-email/email-template-shared.module';
 
 @Module({
   imports: [
     ConfigModule,
+    EmailTemplateSharedModule,
     MongooseModule.forFeature([
       { name: FirstTimer.name, schema: FirstTimerSchema },
       { name: MemberActivity.name, schema: MemberActivitySchema },

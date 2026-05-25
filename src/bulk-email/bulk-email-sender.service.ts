@@ -49,7 +49,22 @@ export class BulkEmailSenderService {
     }
 
     // Get recipient count for stats
-    const recipientCount = await this.emailCampaignService.getRecipientCount(campaign);
+    let recipientCount: number;
+    if (campaign.recipientFilter?.filterType === RecipientFilterType.BY_MAILING_LIST) {
+      const listIds = campaign.recipientFilter.mailingListIds || [];
+      const lists = await this.mailingListModel
+        .find({ _id: { $in: listIds.map(id => new Types.ObjectId(id)) } })
+        .select('contacts');
+      const seenEmails = new Set<string>();
+      for (const list of lists) {
+        for (const c of list.contacts) {
+          if (c.email) seenEmails.add(c.email);
+        }
+      }
+      recipientCount = seenEmails.size;
+    } else {
+      recipientCount = await this.emailCampaignService.getRecipientCount(campaign);
+    }
 
     // Update campaign stats
     await this.emailCampaignModel.findByIdAndUpdate(campaignId, {
@@ -211,8 +226,9 @@ export class BulkEmailSenderService {
               { campaign: campaign._id, member: member._id },
               {
                 $set: {
-                  status: EmailSendStatus.SENT,
+                  status: EmailSendStatus.DELIVERED,
                   sentAt: new Date(),
+                  deliveredAt: new Date(),
                   messageId: result.value.messageId,
                 },
               },
@@ -240,6 +256,7 @@ export class BulkEmailSenderService {
         await this.emailCampaignModel.findByIdAndUpdate(campaignId, {
           $set: {
             'stats.sent': sentCount,
+            'stats.delivered': sentCount,
             'stats.failed': failedCount,
           },
         });
@@ -278,11 +295,15 @@ export class BulkEmailSenderService {
       );
 
       // Send email using the email provider
-      const result = await this.emailProvider.sendEmail({
+      const emailOptions: any = {
         to: member.email,
         subject,
         html: content,
-      });
+      };
+      if (campaign.ccEmails?.length) emailOptions.cc = campaign.ccEmails;
+      if (campaign.bccEmails?.length) emailOptions.bcc = campaign.bccEmails;
+
+      const result = await this.emailProvider.sendEmail(emailOptions);
 
       const messageId = result?.messageId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 

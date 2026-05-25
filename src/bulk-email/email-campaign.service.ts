@@ -40,6 +40,7 @@ export class EmailCampaignService {
   ): Promise<EmailCampaign> {
     const campaign = new this.emailCampaignModel({
       ...createCampaignDto,
+      branch: createCampaignDto.branch ? new Types.ObjectId(createCampaignDto.branch) : undefined,
       status: CampaignStatus.DRAFT,
       createdBy: createdBy ? new Types.ObjectId(createdBy) : undefined,
     });
@@ -62,10 +63,11 @@ export class EmailCampaignService {
 
     const filter: any = {};
 
-    // Branch filter
+    // Branch filter — handle both ObjectId and string stored values
     const effectiveBranchId = query.branchId || branchId;
     if (effectiveBranchId) {
-      filter.branch = new Types.ObjectId(effectiveBranchId);
+      const branchOid = new Types.ObjectId(effectiveBranchId);
+      filter.branch = { $in: [branchOid, effectiveBranchId.toString()] };
     }
 
     // Status filter

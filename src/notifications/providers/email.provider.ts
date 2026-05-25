@@ -180,6 +180,8 @@ export class EmailProvider {
     subject: string;
     html: string;
     from?: string;
+    cc?: string[];
+    bcc?: string[];
   }): Promise<any> {
     if (this.emailProvider === 'sendgrid') {
       return this.sendEmailWithSendGrid(options);
@@ -296,6 +298,8 @@ export class EmailProvider {
     subject: string;
     html: string;
     from?: string;
+    cc?: string[];
+    bcc?: string[];
   }): Promise<any> {
     const recipients = Array.isArray(options.to) ? options.to : [options.to];
     const defaultSender =
@@ -310,12 +314,14 @@ export class EmailProvider {
     this.logger.log(`From: ${fromEmail}`);
 
     try {
-      const mailOptions = {
+      const mailOptions: any = {
         from: fromEmail,
         to: recipients.join(', '),
         subject: options.subject,
         html: options.html,
       };
+      if (options.cc?.length) mailOptions.cc = options.cc.join(', ');
+      if (options.bcc?.length) mailOptions.bcc = options.bcc.join(', ');
 
       this.logger.debug(
         'Nodemailer email payload:',
@@ -399,6 +405,8 @@ export class EmailProvider {
     subject: string;
     html: string;
     from?: string;
+    cc?: string[];
+    bcc?: string[];
   }): Promise<any> {
     const recipients = Array.isArray(options.to) ? options.to : [options.to];
     const defaultSender =
@@ -413,12 +421,14 @@ export class EmailProvider {
     this.logger.log(`From: ${fromEmail}`);
 
     try {
-      const mailOptions = {
+      const mailOptions: any = {
         from: fromEmail,
         to: recipients.join(', '),
         subject: options.subject,
         html: options.html,
       };
+      if (options.cc?.length) mailOptions.cc = options.cc.join(', ');
+      if (options.bcc?.length) mailOptions.bcc = options.bcc.join(', ');
 
       const result = await this.nodemailerTransporter.sendMail(mailOptions);
 

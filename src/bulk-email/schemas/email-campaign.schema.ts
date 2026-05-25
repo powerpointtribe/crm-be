@@ -130,6 +130,12 @@ export class EmailCampaign {
   })
   stats: CampaignStats;
 
+  @Prop({ type: [String], default: [] })
+  ccEmails: string[];
+
+  @Prop({ type: [String], default: [] })
+  bccEmails: string[];
+
   @Prop({ type: Types.ObjectId, ref: 'Member' })
   createdBy?: Types.ObjectId;
 

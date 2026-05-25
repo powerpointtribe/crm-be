@@ -11,6 +11,7 @@ import {
   MaxLength,
   ArrayMaxSize,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ServiceTag } from '../schemas/service-report.schema';
 
@@ -110,5 +111,6 @@ export class CreateServiceReportDto {
   })
   @IsOptional()
   @IsMongoId()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   branchId?: string;
 }

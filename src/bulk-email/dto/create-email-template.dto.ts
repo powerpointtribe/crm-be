@@ -7,15 +7,32 @@ import {
   IsArray,
   IsEnum,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TemplateCategory, AVAILABLE_TEMPLATE_VARIABLES } from '../schemas/email-template.schema';
+import { TemplateCategory, TemplateModule, AVAILABLE_TEMPLATE_VARIABLES } from '../schemas/email-template.schema';
+
+export class VariableDefinitionDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  sampleValue?: string;
+}
 
 export class CreateEmailTemplateDto {
-  @ApiProperty({ description: 'Branch ID' })
-  @IsNotEmpty({ message: 'Branch is required' })
+  @ApiPropertyOptional({ description: 'Branch ID (auto-assigned from user if not provided)' })
+  @IsOptional()
   @IsMongoId()
-  branch: string;
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  branch?: string;
 
   @ApiProperty({ description: 'Template name', example: 'Weekly Newsletter' })
   @IsString()
@@ -57,6 +74,33 @@ export class CreateEmailTemplateDto {
   @IsEnum(TemplateCategory)
   category?: TemplateCategory;
 
+  @ApiPropertyOptional({
+    description: 'Module this template belongs to',
+    enum: TemplateModule,
+  })
+  @IsOptional()
+  @IsEnum(TemplateModule)
+  module?: TemplateModule;
+
+  @ApiPropertyOptional({
+    description: 'Programmatic slug (e.g. members.birthday-wishes)',
+    example: 'members.birthday-wishes',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  slug?: string;
+
+  @ApiPropertyOptional({
+    description: 'Variable definitions for template placeholders',
+    type: [VariableDefinitionDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VariableDefinitionDto)
+  variableDefinitions?: VariableDefinitionDto[];
+
   @ApiPropertyOptional({ description: 'Is template active', default: true })
   @IsOptional()
   @IsBoolean()
@@ -96,6 +140,30 @@ export class UpdateEmailTemplateDto {
   @IsOptional()
   @IsEnum(TemplateCategory)
   category?: TemplateCategory;
+
+  @ApiPropertyOptional({
+    description: 'Module this template belongs to',
+    enum: TemplateModule,
+  })
+  @IsOptional()
+  @IsEnum(TemplateModule)
+  module?: TemplateModule;
+
+  @ApiPropertyOptional({ description: 'Programmatic slug' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  slug?: string;
+
+  @ApiPropertyOptional({
+    description: 'Variable definitions for template placeholders',
+    type: [VariableDefinitionDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VariableDefinitionDto)
+  variableDefinitions?: VariableDefinitionDto[];
 
   @ApiPropertyOptional({ description: 'Is template active' })
   @IsOptional()

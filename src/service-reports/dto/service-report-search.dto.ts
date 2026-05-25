@@ -8,6 +8,7 @@ import {
   IsBoolean,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SearchDto } from '../../common/dto/search.dto';
 import { ServiceTag } from '../schemas/service-report.schema';
@@ -18,6 +19,7 @@ export class ServiceReportSearchDto extends SearchDto {
   })
   @IsOptional()
   @IsMongoId()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   branchId?: string;
 
   @ApiPropertyOptional({

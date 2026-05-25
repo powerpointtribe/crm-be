@@ -111,6 +111,18 @@ export class CreateEmailCampaignDto {
   @ValidateNested()
   @Type(() => RecipientFilterDto)
   recipientFilter?: RecipientFilterDto;
+
+  @ApiPropertyOptional({ description: 'CC email addresses', example: ['cc@example.com'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ccEmails?: string[];
+
+  @ApiPropertyOptional({ description: 'BCC email addresses', example: ['bcc@example.com'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  bccEmails?: string[];
 }
 
 export class UpdateEmailCampaignDto {
@@ -141,6 +153,18 @@ export class UpdateEmailCampaignDto {
   @ValidateNested()
   @Type(() => RecipientFilterDto)
   recipientFilter?: RecipientFilterDto;
+
+  @ApiPropertyOptional({ description: 'CC email addresses' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ccEmails?: string[];
+
+  @ApiPropertyOptional({ description: 'BCC email addresses' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  bccEmails?: string[];
 }
 
 export class ScheduleCampaignDto {

@@ -39,6 +39,9 @@ export class EmailTemplateController {
   })
   async create(@Body() createTemplateDto: CreateEmailTemplateDto, @Request() req) {
     const createdBy = req.user?._id?.toString();
+    if (!createTemplateDto.branch) {
+      createTemplateDto.branch = (req.user?.branch?._id || req.user?.branch)?.toString();
+    }
     return this.emailTemplateService.create(createTemplateDto, createdBy);
   }
 
@@ -60,6 +63,22 @@ export class EmailTemplateController {
   @RequirePermission(BulkEmailPermission.VIEW_TEMPLATES)
   async getAvailableVariables() {
     return this.emailTemplateService.getAvailableVariables();
+  }
+
+  @Get('modules')
+  @RequirePermission(BulkEmailPermission.VIEW_TEMPLATES)
+  async getModuleCounts() {
+    return this.emailTemplateService.getModuleCounts();
+  }
+
+  @Get('by-slug/:slug')
+  @RequirePermission(BulkEmailPermission.VIEW_TEMPLATES)
+  async findBySlug(@Param('slug') slug: string) {
+    const template = await this.emailTemplateService.findBySlug(slug);
+    if (!template) {
+      throw new NotFoundException(`Template with slug "${slug}" not found`);
+    }
+    return template;
   }
 
   @Get(':id')

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -53,6 +54,7 @@ export class EmailTemplateService {
       limit = 20,
       search,
       category,
+      module,
       isActive,
       sortBy = 'createdAt',
       sortOrder = 'desc',
@@ -60,15 +62,31 @@ export class EmailTemplateService {
 
     const filter: any = {};
 
-    // Branch filter
+    const conditions: any[] = [];
+
+    // Branch filter — show both branch-specific and global (system) templates
     const effectiveBranchId = query.branchId || branchId;
     if (effectiveBranchId) {
-      filter.branch = new Types.ObjectId(effectiveBranchId);
+      conditions.push({
+        $or: [
+          { branch: new Types.ObjectId(effectiveBranchId) },
+          { branch: null },
+        ],
+      });
     }
 
     // Category filter
     if (category) {
       filter.category = category;
+    }
+
+    // Module filter
+    if (module) {
+      if (module === 'uncategorized') {
+        conditions.push({ $or: [{ module: null }, { module: { $exists: false } }] });
+      } else {
+        filter.module = module;
+      }
     }
 
     // Active status filter (handle both boolean and string from query params)
@@ -78,10 +96,16 @@ export class EmailTemplateService {
 
     // Search filter
     if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { subject: { $regex: search, $options: 'i' } },
-      ];
+      conditions.push({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { subject: { $regex: search, $options: 'i' } },
+        ],
+      });
+    }
+
+    if (conditions.length > 0) {
+      filter.$and = conditions;
     }
 
     const total = await this.emailTemplateModel.countDocuments(filter);
@@ -158,10 +182,32 @@ export class EmailTemplateService {
     return updatedTemplate;
   }
 
+  async findBySlug(slug: string): Promise<EmailTemplate | null> {
+    return this.emailTemplateModel
+      .findOne({ slug })
+      .populate('branch', 'name')
+      .populate('createdBy', 'firstName lastName')
+      .populate('updatedBy', 'firstName lastName')
+      .exec();
+  }
+
+  async getModuleCounts(): Promise<{ module: string; count: number }[]> {
+    return this.emailTemplateModel.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: '$module', count: { $sum: 1 } } },
+      { $project: { module: { $ifNull: ['$_id', 'uncategorized'] }, count: 1, _id: 0 } },
+      { $sort: { module: 1 } },
+    ]);
+  }
+
   async remove(id: string): Promise<void> {
     const template = await this.emailTemplateModel.findById(id);
     if (!template) {
       throw new NotFoundException(`Template with ID ${id} not found`);
+    }
+
+    if (template.isSystem) {
+      throw new BadRequestException('System templates cannot be deleted');
     }
 
     await this.emailTemplateModel.findByIdAndDelete(id);

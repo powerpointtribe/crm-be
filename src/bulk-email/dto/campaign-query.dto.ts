@@ -8,7 +8,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TemplateCategory } from '../schemas/email-template.schema';
+import { TemplateCategory, TemplateModule } from '../schemas/email-template.schema';
 import { CampaignStatus } from '../schemas/email-campaign.schema';
 import { EmailSendStatus } from '../schemas/email-send-log.schema';
 
@@ -27,6 +27,11 @@ export class TemplateQueryDto {
   @IsOptional()
   @IsEnum(TemplateCategory)
   category?: TemplateCategory;
+
+  @ApiPropertyOptional({ description: 'Filter by module (or "uncategorized" for templates with no module)', enum: [...Object.values(TemplateModule), 'uncategorized'] as any })
+  @IsOptional()
+  @IsString()
+  module?: string;
 
   @ApiPropertyOptional({ description: 'Filter by active status' })
   @IsOptional()

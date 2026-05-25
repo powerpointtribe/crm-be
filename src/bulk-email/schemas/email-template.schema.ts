@@ -12,6 +12,22 @@ export enum TemplateCategory {
   NEWSLETTER = 'newsletter',
 }
 
+export enum TemplateModule {
+  FIRST_TIMERS = 'first-timers',
+  MEMBERS = 'members',
+  EVENTS = 'events',
+  FINANCE = 'finance',
+  AUTH = 'auth',
+  GROUPS = 'groups',
+  BULK_EMAIL = 'bulk-email',
+}
+
+export interface VariableDefinition {
+  name: string;
+  description: string;
+  sampleValue: string;
+}
+
 export const AVAILABLE_TEMPLATE_VARIABLES = [
   'firstName',
   'lastName',
@@ -35,13 +51,24 @@ export class EmailTemplate {
   @Prop({
     type: Types.ObjectId,
     ref: 'Branch',
-    required: true,
     index: true,
   })
-  branch: Types.ObjectId;
+  branch?: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   name: string;
+
+  @Prop({ trim: true, sparse: true })
+  slug?: string;
+
+  @Prop({
+    type: String,
+    enum: Object.values(TemplateModule),
+  })
+  module?: TemplateModule;
+
+  @Prop({ default: false })
+  isSystem: boolean;
 
   @Prop({ required: true, trim: true })
   subject: string;
@@ -57,6 +84,16 @@ export class EmailTemplate {
     default: ['firstName', 'lastName', 'email'],
   })
   availableVariables: string[];
+
+  @Prop({
+    type: [{
+      name: { type: String, required: true },
+      description: { type: String },
+      sampleValue: { type: String },
+    }],
+    default: [],
+  })
+  variableDefinitions: VariableDefinition[];
 
   @Prop({
     type: String,
@@ -84,7 +121,12 @@ export class EmailTemplate {
 export const EmailTemplateSchema = SchemaFactory.createForClass(EmailTemplate);
 
 // Indexes
-EmailTemplateSchema.index({ branch: 1, name: 1 }, { unique: true });
+EmailTemplateSchema.index(
+  { branch: 1, name: 1 },
+  { unique: true, partialFilterExpression: { branch: { $exists: true } } },
+);
+EmailTemplateSchema.index({ slug: 1 }, { unique: true, sparse: true });
+EmailTemplateSchema.index({ module: 1, isActive: 1 });
 EmailTemplateSchema.index({ branch: 1, category: 1 });
 EmailTemplateSchema.index({ branch: 1, isActive: 1 });
 EmailTemplateSchema.index({ name: 'text', subject: 'text' });

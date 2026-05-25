@@ -14,6 +14,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { RolesModule } from '../roles/roles.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { ActivityTrackerModule } from '../activity-tracker/activity-tracker.module';
+import { EmailTemplateSharedModule } from '../bulk-email/email-template-shared.module';
 import {
   UserInvitation,
   UserInvitationSchema,
@@ -108,6 +109,7 @@ const logger = new Logger('QueueModule');
       { name: QueueName.ACTIVITY_LOGS },
     ),
     NotificationsModule,
+    EmailTemplateSharedModule,
     forwardRef(() => AuditLogsModule),
     forwardRef(() => ActivityTrackerModule),
   ],

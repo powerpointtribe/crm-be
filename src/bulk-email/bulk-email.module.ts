@@ -2,7 +2,6 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 // Schemas
-import { EmailTemplate, EmailTemplateSchema } from './schemas/email-template.schema';
 import { EmailCampaign, EmailCampaignSchema } from './schemas/email-campaign.schema';
 import { EmailSendLog, EmailSendLogSchema } from './schemas/email-send-log.schema';
 import { MailingList, MailingListSchema } from './schemas/mailing-list.schema';
@@ -23,6 +22,9 @@ import { EmailTemplateController } from './email-template.controller';
 import { EmailCampaignController } from './email-campaign.controller';
 import { MailingListController } from './mailing-list.controller';
 
+// Shared module for template resolver + schema
+import { EmailTemplateSharedModule } from './email-template-shared.module';
+
 // Other modules
 import { CommonModule } from '../common/common.module';
 import { RolesModule } from '../roles/roles.module';
@@ -32,8 +34,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
+    EmailTemplateSharedModule,
     MongooseModule.forFeature([
-      { name: EmailTemplate.name, schema: EmailTemplateSchema },
       { name: EmailCampaign.name, schema: EmailCampaignSchema },
       { name: EmailSendLog.name, schema: EmailSendLogSchema },
       { name: Member.name, schema: MemberSchema },
@@ -43,7 +45,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     CommonModule,
     RolesModule,
     forwardRef(() => AuditLogsModule),
-    QueueModule, // Import QueueModule which exports BullModule with all queues
+    QueueModule,
     NotificationsModule,
   ],
   controllers: [
