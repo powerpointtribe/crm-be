@@ -658,6 +658,7 @@ export class NotificationsService {
     eventLocation?: any;
     checkInCode: string;
     customFieldResponses?: Map<string, string> | Record<string, string>;
+    confirmationTemplateId?: string;
   }): Promise<void> {
     const eventDate =
       data.eventDate instanceof Date
@@ -701,19 +702,37 @@ export class NotificationsService {
       ? `<tr><td style="padding:8px 0;color:#0D7770;font-size:14px;width:24px;">&#127919;</td><td style="padding:8px 0;font-size:14px;color:#333;">${track}</td></tr>`
       : '';
 
-    const { subject, html } = await this.templateResolver.resolveTemplate(
-      'events.registration-confirmation',
-      {
-        firstName: data.firstName,
-        eventTitle: data.eventTitle,
-        checkInCodeHtml,
-        formattedDate,
-        formattedTime,
-        locationHtml,
-        trackHtml,
-        year: String(new Date().getFullYear()),
-      },
-    );
+    const templateVars = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      eventTitle: data.eventTitle,
+      checkInCode: data.checkInCode,
+      checkInCodeHtml,
+      formattedDate,
+      formattedTime,
+      locationHtml,
+      trackHtml,
+      year: String(new Date().getFullYear()),
+    };
+
+    let resolved: { subject: string; html: string } | null = null;
+
+    if (data.confirmationTemplateId) {
+      resolved = await this.templateResolver.resolveTemplateById(
+        data.confirmationTemplateId,
+        templateVars,
+      );
+    }
+
+    if (!resolved) {
+      resolved = await this.templateResolver.resolveTemplate(
+        'events.registration-confirmation',
+        templateVars,
+      );
+    }
+
+    const { subject, html } = resolved;
 
     await this.emailProvider.sendEmail({
       to: data.email,

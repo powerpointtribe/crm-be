@@ -52,6 +52,7 @@ export class EventEmailProcessor {
         eventLocation: data.eventLocation,
         checkInCode: data.checkInCode,
         customFieldResponses: data.customFieldResponses,
+        confirmationTemplateId: data.confirmationTemplateId,
       });
 
       this.logger.log(

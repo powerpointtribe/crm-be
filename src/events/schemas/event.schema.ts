@@ -124,6 +124,7 @@ export interface RegistrationSettings {
   formStatus?: 'draft' | 'live';
   integrationMode?: 'embedded' | 'api';
   apiKey?: string;
+  confirmationTemplateId?: Types.ObjectId;
 }
 
 // Committee member type definition
@@ -295,6 +296,7 @@ export class Event {
         default: 'embedded',
       },
       apiKey: { type: String },
+      confirmationTemplateId: { type: Types.ObjectId, ref: 'EmailTemplate' },
     },
     default: {
       isOpen: true,
@@ -313,6 +315,9 @@ export class Event {
   // Registration Slug for Public URL
   @Prop({ unique: true, sparse: true, trim: true, lowercase: true })
   registrationSlug?: string;
+
+  @Prop({ type: String, trim: true, uppercase: true, default: 'LBS' })
+  checkInCodePrefix?: string;
 
   // Committee Members
   @Prop({

@@ -824,6 +824,7 @@ export class EventsService {
         eventLocation: event.location?.name || '',
         checkInCode: savedReg.checkInCode,
         customFieldResponses: savedReg.customFieldResponses,
+        confirmationTemplateId: event.registrationSettings?.confirmationTemplateId?.toString(),
       }).catch((err) => {
         this.logger.error(`Failed to queue registration email for ${dto.email}: ${err.message}`);
       });

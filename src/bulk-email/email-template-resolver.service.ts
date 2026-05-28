@@ -131,6 +131,31 @@ export class EmailTemplateResolverService {
     });
   }
 
+  async resolveTemplateById(
+    templateId: string,
+    variables: Record<string, string>,
+  ): Promise<ResolvedTemplate | null> {
+    const cacheKey = `id:${templateId}`;
+    const cached = this.cache.get(cacheKey);
+    let template: EmailTemplateDocument | null = null;
+
+    if (cached && Date.now() - cached.cachedAt < this.CACHE_TTL_MS) {
+      template = cached.template;
+    } else {
+      template = await this.emailTemplateModel
+        .findOne({ _id: new Types.ObjectId(templateId), isActive: true })
+        .exec();
+      this.cache.set(cacheKey, { template, cachedAt: Date.now() });
+    }
+
+    if (!template) return null;
+
+    return {
+      subject: this.substituteVariables(template.subject, variables),
+      html: this.substituteVariables(template.htmlContent, variables),
+    };
+  }
+
   /**
    * Clear the template cache (e.g., after template updates).
    */

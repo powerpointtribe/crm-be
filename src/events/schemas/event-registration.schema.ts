@@ -50,8 +50,10 @@ export class EventRegistration {
   @Prop({ type: Types.ObjectId, ref: 'Event', required: true })
   event: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true })
-  branch: Types.ObjectId;
+  // Optional: global events (isGlobal: true) are not scoped to a branch.
+  // For branch-scoped events this is populated from event.branch at registration time.
+  @Prop({ type: Types.ObjectId, ref: 'Branch', required: false })
+  branch?: Types.ObjectId;
 
   // Member Reference (optional for visitors)
   @Prop({ type: Types.ObjectId, ref: 'Member' })
@@ -142,15 +144,19 @@ EventRegistrationSchema.index(
 );
 EventRegistrationSchema.index({ registeredAt: -1 });
 
-// Pre-save hook to generate sequential check-in code (LBS-XXX)
 EventRegistrationSchema.pre('save', async function (next) {
   if (!this.checkInCode) {
     const Model = this.constructor as any;
 
-    // Find the highest existing LBS- code number for this event
+    let prefix = 'LBS';
+    try {
+      const eventDoc: any = await this.model('Event').findById(this.event).select('checkInCodePrefix').lean();
+      if (eventDoc?.checkInCodePrefix) prefix = eventDoc.checkInCodePrefix;
+    } catch {}
+
     const lastReg = await Model.findOne({
       event: this.event,
-      checkInCode: new RegExp(`^LBS-\\d+$`),
+      checkInCode: new RegExp(`^${prefix}-\\d+$`),
     })
       .sort({ checkInCode: -1 })
       .select('checkInCode')
@@ -162,7 +168,7 @@ EventRegistrationSchema.pre('save', async function (next) {
       if (match) nextNum = parseInt(match[1], 10) + 1;
     }
 
-    this.checkInCode = `LBS-${String(nextNum).padStart(3, '0')}`;
+    this.checkInCode = `${prefix}-${String(nextNum).padStart(3, '0')}`;
   }
   next();
 });

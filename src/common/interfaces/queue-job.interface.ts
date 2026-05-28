@@ -253,6 +253,7 @@ export interface EventRegistrationConfirmationJobData {
   eventLocation?: string;
   checkInCode: string;
   customFieldResponses?: Map<string, string>;
+  confirmationTemplateId?: string;
 }
 
 export interface PartnerInquiryJobData {
