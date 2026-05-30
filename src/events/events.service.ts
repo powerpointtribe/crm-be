@@ -761,7 +761,7 @@ export class EventsService {
       });
       if (existing) {
         throw new ConflictException(
-          `The email "${dto.email}" is already registered for this event`,
+          `It looks like you've already registered for this event with this email. We can't wait to see you there!`,
         );
       }
     }

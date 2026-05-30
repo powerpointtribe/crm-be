@@ -189,19 +189,9 @@ export class EventsController {
 
     const registration = await this.eventsService.publicRegister(slug, dto);
 
-    // Return limited information
     return {
       success: true,
-      message: 'Registration successful',
-      registration: {
-        _id: registration._id,
-        status: registration.status,
-        checkInCode: registration.checkInCode,
-        attendeeInfo: {
-          firstName: registration.attendeeInfo.firstName,
-          lastName: registration.attendeeInfo.lastName,
-        },
-      },
+      message: `You've been successfully registered, ${registration.attendeeInfo.firstName}! We look forward to seeing you.`,
     };
   }
 
