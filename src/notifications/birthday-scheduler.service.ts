@@ -1,10 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { MembersService } from '../members/members.service';
 import { NotificationsService } from './notifications.service';
 import { UserPermissionsService } from '../roles/services/user-permissions.service';
 import { NotificationsPermission } from './permissions';
+import { FirstTimer, FirstTimerDocument } from '../first-timers/schemas/first-timer.schema';
 
 @Injectable()
 export class BirthdaySchedulerService {
@@ -15,6 +18,7 @@ export class BirthdaySchedulerService {
     private readonly notificationsService: NotificationsService,
     private readonly userPermissionsService: UserPermissionsService,
     private readonly configService: ConfigService,
+    @InjectModel(FirstTimer.name) private readonly firstTimerModel: Model<FirstTimerDocument>,
   ) {}
 
   /**
@@ -250,6 +254,134 @@ export class BirthdaySchedulerService {
   }
 
   /**
+   * Send birthday notifications for first timers in "engaged" stage
+   * Notifies both the follow-up person and users with the permission
+   * Runs at 8:30 AM daily
+   */
+  @Cron('30 8 * * *')
+  async sendFirstTimerBirthdayNotifications(): Promise<{
+    firstTimersFound: number;
+    followUpNotified: number;
+    permissionedNotified: number;
+    failed: number;
+  }> {
+    this.logger.log('Starting first timer birthday notifications job...');
+
+    const result = { firstTimersFound: 0, followUpNotified: 0, permissionedNotified: 0, failed: 0 };
+
+    try {
+      const today = new Date();
+      const todayMM = String(today.getMonth() + 1).padStart(2, '0');
+      const todayDD = String(today.getDate()).padStart(2, '0');
+      const todayMMDD = `${todayMM}-${todayDD}`;
+
+      const birthdayFirstTimers = await this.firstTimerModel
+        .find({
+          dateOfBirth: todayMMDD,
+          stage: 'engaged',
+          isActive: true,
+          isArchived: { $ne: true },
+        })
+        .populate('assignedTo', 'firstName lastName email')
+        .populate('followUpPerson', 'firstName lastName email')
+        .populate('giaLeader', 'firstName lastName email')
+        .lean();
+
+      if (birthdayFirstTimers.length === 0) {
+        this.logger.log('No first timer birthdays today (engaged stage)');
+        return result;
+      }
+
+      result.firstTimersFound = birthdayFirstTimers.length;
+      this.logger.log(`Found ${birthdayFirstTimers.length} first timer(s) with birthdays today`);
+
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://app.example.com';
+
+      const firstTimerData = birthdayFirstTimers.map((ft) => {
+        const assignedTo = ft.assignedTo as any;
+        const followUpPerson = ft.followUpPerson as any;
+        return {
+          firstName: ft.firstName,
+          lastName: ft.lastName,
+          phone: ft.phone,
+          email: ft.email,
+          assignedTo: assignedTo ? `${assignedTo.firstName} ${assignedTo.lastName}` : undefined,
+          followUpPerson: followUpPerson ? `${followUpPerson.firstName} ${followUpPerson.lastName}` : undefined,
+        };
+      });
+
+      // 1. Notify individual follow-up persons about their specific first timers
+      const notifiedEmails = new Set<string>();
+
+      for (const ft of birthdayFirstTimers) {
+        const followUpPerson = (ft.followUpPerson as any) || (ft.assignedTo as any) || (ft.giaLeader as any);
+        if (!followUpPerson?.email) continue;
+        if (notifiedEmails.has(followUpPerson.email)) continue;
+
+        const theirFirstTimers = birthdayFirstTimers.filter((f) => {
+          const fup = (f.followUpPerson as any) || (f.assignedTo as any) || (f.giaLeader as any);
+          return fup?.email === followUpPerson.email;
+        });
+
+        try {
+          await this.notificationsService.sendFirstTimerBirthdayNotification({
+            recipientEmail: followUpPerson.email,
+            recipientName: `${followUpPerson.firstName} ${followUpPerson.lastName}`,
+            firstTimerBirthdays: theirFirstTimers.map((f) => ({
+              firstName: f.firstName,
+              lastName: f.lastName,
+              phone: f.phone,
+              email: f.email,
+            })),
+            frontendUrl,
+          });
+
+          notifiedEmails.add(followUpPerson.email);
+          result.followUpNotified++;
+          this.logger.log(`Notified follow-up person ${followUpPerson.email} about first timer birthday(s)`);
+        } catch (error) {
+          this.logger.error(`Failed to notify ${followUpPerson.email}: ${error.message}`);
+          result.failed++;
+        }
+      }
+
+      // 2. Notify users with the first timer birthday notification permission
+      const usersWithPermission = await this.userPermissionsService.getMembersWithPermission(
+        NotificationsPermission.RECEIVE_FIRST_TIMER_BIRTHDAY_NOTIFICATION,
+      );
+
+      for (const recipient of usersWithPermission) {
+        if (!recipient.email) continue;
+        if (notifiedEmails.has(recipient.email)) continue;
+
+        try {
+          await this.notificationsService.sendFirstTimerBirthdayNotification({
+            recipientEmail: recipient.email,
+            recipientName: `${recipient.firstName} ${recipient.lastName}`,
+            firstTimerBirthdays: firstTimerData,
+            frontendUrl,
+          });
+
+          notifiedEmails.add(recipient.email);
+          result.permissionedNotified++;
+          this.logger.log(`Notified permissioned user ${recipient.email} about first timer birthday(s)`);
+        } catch (error) {
+          this.logger.error(`Failed to notify ${recipient.email}: ${error.message}`);
+          result.failed++;
+        }
+      }
+
+      this.logger.log(
+        `First timer birthday notifications completed: ${result.firstTimersFound} found, ${result.followUpNotified} follow-up persons notified, ${result.permissionedNotified} permissioned users notified, ${result.failed} failed`,
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(`First timer birthday notifications job failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Manually trigger birthday wishes (for testing)
    */
   async triggerBirthdayWishes() {
@@ -271,5 +403,10 @@ export class BirthdaySchedulerService {
   async triggerBirthdayDayNotifications() {
     this.logger.log('Manually triggering birthday day notifications...');
     return this.sendBirthdayDayNotifications();
+  }
+
+  async triggerFirstTimerBirthdayNotifications() {
+    this.logger.log('Manually triggering first timer birthday notifications...');
+    return this.sendFirstTimerBirthdayNotifications();
   }
 }

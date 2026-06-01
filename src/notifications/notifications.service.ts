@@ -602,6 +602,75 @@ export class NotificationsService {
     });
   }
 
+  async sendFirstTimerBirthdayNotification(data: {
+    recipientEmail: string;
+    recipientName: string;
+    firstTimerBirthdays: Array<{
+      firstName: string;
+      lastName: string;
+      phone: string;
+      email?: string;
+      assignedTo?: string;
+      followUpPerson?: string;
+    }>;
+    frontendUrl: string;
+  }): Promise<void> {
+    const todayDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const birthdayListHtml = `<table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+      <thead><tr style="background: #f9fafb;">
+        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Name</th>
+        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Phone</th>
+        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Email</th>
+        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Follow-up Person</th>
+      </tr></thead><tbody>${data.firstTimerBirthdays
+      .map(
+        (ft) => `<tr>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;"><strong>${ft.firstName} ${ft.lastName}</strong></td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${ft.phone || '-'}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${ft.email || '-'}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${ft.followUpPerson || ft.assignedTo || '-'}</td>
+        </tr>`,
+      )
+      .join('')}</tbody></table>`;
+
+    const subject = `🎂 First Timer Birthday Alert - ${todayDate}`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">🎂 First Timer Birthday Today!</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">${todayDate}</p>
+        </div>
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+          <p style="margin-top: 0;">Hi ${data.recipientName},</p>
+          <p>The following first timer(s) currently being followed up are celebrating their birthday today. This is a great opportunity to reach out and wish them well! 🎉</p>
+          ${birthdayListHtml}
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${data.frontendUrl}/first-timers" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 500;">View First Timers</a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px; margin-bottom: 0;">A birthday call or message can make a lasting impression. Let's show them they're valued!</p>
+        </div>
+        <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+          <p>Sent from Church Management System</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.emailProvider.sendEmail({
+      to: data.recipientEmail,
+      subject,
+      html,
+    });
+  }
+
   async sendCustomEmail(options: {
     to: string;
     subject: string;

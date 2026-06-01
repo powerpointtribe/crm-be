@@ -9,6 +9,9 @@ export enum NotificationsPermission {
   RECEIVE_PRE_BIRTHDAY_NOTIFICATION = 'notifications:receive-pre-birthday',
   SEND_BIRTHDAY_WISHES = 'notifications:send-birthday-wishes',
 
+  // First-timer birthday notifications
+  RECEIVE_FIRST_TIMER_BIRTHDAY_NOTIFICATION = 'notifications:receive-first-timer-birthday',
+
   // General notification permissions
   VIEW_NOTIFICATIONS = 'notifications:view',
   MANAGE_NOTIFICATIONS = 'notifications:manage',
@@ -26,6 +29,9 @@ export const NotificationsPermissionMetadata = {
   },
   [NotificationsPermission.SEND_BIRTHDAY_WISHES]: {
     description: 'Send birthday wishes to members',
+  },
+  [NotificationsPermission.RECEIVE_FIRST_TIMER_BIRTHDAY_NOTIFICATION]: {
+    description: 'Receive notifications when first timers being followed up have birthdays',
   },
   [NotificationsPermission.VIEW_NOTIFICATIONS]: {
     path: '/notifications',

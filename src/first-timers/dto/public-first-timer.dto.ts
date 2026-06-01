@@ -71,9 +71,12 @@ export class PublicCreateFirstTimerDto {
   @IsNotEmpty()
   lastName: string;
 
-  @ApiProperty({ description: 'Phone number', example: '+234801234567' })
+  @ApiProperty({ description: 'Phone number', example: '08012345678' })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^(\+?234|0)\d{10}$/, {
+    message: 'Please enter a valid Nigerian phone number (e.g. 08012345678 or +2348012345678)',
+  })
   phone: string;
 
   @ApiPropertyOptional({ description: 'Email address' })

@@ -492,9 +492,12 @@ export class ServiceReportsService {
     reportDate: Date,
   ): Promise<PdfComparisonStats | undefined> {
     try {
-      // Get overall statistics
+      const currentYear = new Date().getFullYear();
+      const yearStart = new Date(currentYear, 0, 1);
+
+      // Get current year statistics
       const overallStats = await this.serviceReportModel.aggregate([
-        { $match: { isActive: true } },
+        { $match: { isActive: true, date: { $gte: yearStart } } },
         {
           $group: {
             _id: null,
