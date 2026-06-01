@@ -8,7 +8,12 @@ import {
 import { randomBytes } from 'crypto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery } from 'mongoose';
-import { Event, EventDocument, EventStatus, EventType } from './schemas/event.schema';
+import {
+  Event,
+  EventDocument,
+  EventStatus,
+  EventType,
+} from './schemas/event.schema';
 import {
   EventRegistration,
   EventRegistrationDocument,
@@ -97,6 +102,7 @@ import {
   BranchAccessService,
   BranchFilterContext,
 } from '../common/services/branch-access.service';
+import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { EmailProvider } from '../notifications/providers/email.provider';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
@@ -118,6 +124,8 @@ export class EventsService {
     private partnerModel: Model<EventPartnerDocument>,
     @InjectModel(AccountabilityEntry.name)
     private accountabilityModel: Model<AccountabilityEntryDocument>,
+    @InjectModel(Member.name)
+    private memberModel: Model<MemberDocument>,
     private branchAccessService: BranchAccessService,
     private emailProvider: EmailProvider,
     @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
@@ -369,7 +377,9 @@ export class EventsService {
       );
     }
     if (updateEventDto.branch) {
-      (updateEventDto as any).branch = new Types.ObjectId(updateEventDto.branch);
+      (updateEventDto as any).branch = new Types.ObjectId(
+        updateEventDto.branch,
+      );
     }
 
     Object.assign(event, updateEventDto);
@@ -547,7 +557,9 @@ export class EventsService {
     if (event.registrationSettings?.maxAttendees) {
       const currentCount = await this.registrationModel.countDocuments({
         event: event._id,
-        status: { $in: [RegistrationStatus.PENDING, RegistrationStatus.CONFIRMED] },
+        status: {
+          $in: [RegistrationStatus.PENDING, RegistrationStatus.CONFIRMED],
+        },
       });
 
       if (currentCount >= event.registrationSettings.maxAttendees) {
@@ -566,7 +578,9 @@ export class EventsService {
         member: new Types.ObjectId(dto.memberId),
       });
       if (existingReg) {
-        throw new ConflictException('Member is already registered for this event');
+        throw new ConflictException(
+          'Member is already registered for this event',
+        );
       }
     }
 
@@ -593,7 +607,8 @@ export class EventsService {
         : new Map(),
       notes: dto.notes,
       registeredAt: new Date(),
-      confirmedAt: initialStatus === RegistrationStatus.CONFIRMED ? new Date() : undefined,
+      confirmedAt:
+        initialStatus === RegistrationStatus.CONFIRMED ? new Date() : undefined,
     });
 
     const savedReg = await registration.save();
@@ -721,7 +736,9 @@ export class EventsService {
     });
 
     if (!registration) {
-      throw new NotFoundException('Registration not found with this check-in code');
+      throw new NotFoundException(
+        'Registration not found with this check-in code',
+      );
     }
 
     return this.checkInAttendee(eventId, registration._id.toString());
@@ -771,7 +788,9 @@ export class EventsService {
     if (event.registrationSettings?.maxAttendees) {
       const currentCount = await this.registrationModel.countDocuments({
         event: event._id,
-        status: { $in: [RegistrationStatus.PENDING, RegistrationStatus.CONFIRMED] },
+        status: {
+          $in: [RegistrationStatus.PENDING, RegistrationStatus.CONFIRMED],
+        },
       });
 
       if (currentCount >= event.registrationSettings.maxAttendees) {
@@ -784,14 +803,33 @@ export class EventsService {
     }
 
     // Determine status based on approval requirement
-    if (!event.registrationSettings?.requireApproval && initialStatus !== RegistrationStatus.WAITLISTED) {
+    if (
+      !event.registrationSettings?.requireApproval &&
+      initialStatus !== RegistrationStatus.WAITLISTED
+    ) {
       initialStatus = RegistrationStatus.CONFIRMED;
+    }
+
+    let attendeeType = AttendeeType.VISITOR;
+    const isMemberField = dto.customFieldResponses?.isMember;
+    if (isMemberField && isMemberField.toLowerCase() === 'yes') {
+      attendeeType = AttendeeType.MEMBER;
+    } else if (dto.email && attendeeType === AttendeeType.VISITOR) {
+      const existingMember = await this.memberModel
+        .findOne({
+          email: dto.email.toLowerCase(),
+        })
+        .select('_id')
+        .lean();
+      if (existingMember) {
+        attendeeType = AttendeeType.MEMBER;
+      }
     }
 
     const registration = new this.registrationModel({
       event: event._id,
       branch: event.branch,
-      attendeeType: AttendeeType.VISITOR,
+      attendeeType,
       attendeeInfo: {
         firstName: dto.firstName,
         lastName: dto.lastName,
@@ -804,7 +842,8 @@ export class EventsService {
         ? new Map(Object.entries(dto.customFieldResponses))
         : new Map(),
       registeredAt: new Date(),
-      confirmedAt: initialStatus === RegistrationStatus.CONFIRMED ? new Date() : undefined,
+      confirmedAt:
+        initialStatus === RegistrationStatus.CONFIRMED ? new Date() : undefined,
     });
 
     const savedReg = await registration.save();
@@ -814,20 +853,25 @@ export class EventsService {
 
     // Queue confirmation email (fire-and-forget)
     if (dto.email) {
-      this.emailQueue.add(JobType.EVENT_REGISTRATION_CONFIRMATION, {
-        registrationId: savedReg._id.toString(),
-        email: dto.email.toLowerCase(),
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        eventTitle: event.title,
-        eventDate: event.startDate,
-        eventLocation: event.location?.name || '',
-        checkInCode: savedReg.checkInCode,
-        customFieldResponses: savedReg.customFieldResponses,
-        confirmationTemplateId: event.registrationSettings?.confirmationTemplateId?.toString(),
-      }).catch((err) => {
-        this.logger.error(`Failed to queue registration email for ${dto.email}: ${err.message}`);
-      });
+      this.emailQueue
+        .add(JobType.EVENT_REGISTRATION_CONFIRMATION, {
+          registrationId: savedReg._id.toString(),
+          email: dto.email.toLowerCase(),
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          eventTitle: event.title,
+          eventDate: event.startDate,
+          eventLocation: event.location?.name || '',
+          checkInCode: savedReg.checkInCode,
+          customFieldResponses: savedReg.customFieldResponses,
+          confirmationTemplateId:
+            event.registrationSettings?.confirmationTemplateId?.toString(),
+        })
+        .catch((err) => {
+          this.logger.error(
+            `Failed to queue registration email for ${dto.email}: ${err.message}`,
+          );
+        });
     }
 
     return savedReg;
@@ -843,20 +887,21 @@ export class EventsService {
   }
 
   private async updateEventCounts(eventId: string): Promise<void> {
-    const [registrationCount, confirmedCount, attendedCount] = await Promise.all([
-      this.registrationModel.countDocuments({
-        event: new Types.ObjectId(eventId),
-        status: { $nin: [RegistrationStatus.CANCELLED] },
-      }),
-      this.registrationModel.countDocuments({
-        event: new Types.ObjectId(eventId),
-        status: RegistrationStatus.CONFIRMED,
-      }),
-      this.registrationModel.countDocuments({
-        event: new Types.ObjectId(eventId),
-        status: RegistrationStatus.ATTENDED,
-      }),
-    ]);
+    const [registrationCount, confirmedCount, attendedCount] =
+      await Promise.all([
+        this.registrationModel.countDocuments({
+          event: new Types.ObjectId(eventId),
+          status: { $nin: [RegistrationStatus.CANCELLED] },
+        }),
+        this.registrationModel.countDocuments({
+          event: new Types.ObjectId(eventId),
+          status: RegistrationStatus.CONFIRMED,
+        }),
+        this.registrationModel.countDocuments({
+          event: new Types.ObjectId(eventId),
+          status: RegistrationStatus.ATTENDED,
+        }),
+      ]);
 
     await this.eventModel.findByIdAndUpdate(eventId, {
       registrationCount,
@@ -933,7 +978,8 @@ export class EventsService {
         max: event.registrationSettings?.maxAttendees || null,
         current: confirmedCount + pendingCount,
         available: event.registrationSettings?.maxAttendees
-          ? event.registrationSettings.maxAttendees - (confirmedCount + pendingCount)
+          ? event.registrationSettings.maxAttendees -
+            (confirmedCount + pendingCount)
           : null,
       },
     };
@@ -963,7 +1009,7 @@ export class EventsService {
     if (!durationMinutes && dto.startTime && dto.endTime) {
       const [startH, startM] = dto.startTime.split(':').map(Number);
       const [endH, endM] = dto.endTime.split(':').map(Number);
-      durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+      durationMinutes = endH * 60 + endM - (startH * 60 + startM);
     }
 
     const session = new this.sessionModel({
@@ -973,7 +1019,7 @@ export class EventsService {
       learningObjectives,
       resources,
       durationMinutes,
-      facilitators: dto.facilitators?.map(f => ({
+      facilitators: dto.facilitators?.map((f) => ({
         member: new Types.ObjectId(f.member),
         role: f.role,
       })),
@@ -996,7 +1042,15 @@ export class EventsService {
       throw new NotFoundException(`Event with ID ${eventId} not found`);
     }
 
-    const { page = 1, limit = 20, sessionType, status, dateFrom, dateTo, facilitator } = searchDto;
+    const {
+      page = 1,
+      limit = 20,
+      sessionType,
+      status,
+      dateFrom,
+      dateTo,
+      facilitator,
+    } = searchDto;
 
     const filter: FilterQuery<EventSessionDocument> = { event: event._id };
 
@@ -1059,7 +1113,7 @@ export class EventsService {
 
     // Transform facilitators if provided
     if (dto.facilitators) {
-      (dto as any).facilitators = dto.facilitators.map(f => ({
+      (dto as any).facilitators = dto.facilitators.map((f) => ({
         member: new Types.ObjectId(f.member),
         role: f.role,
       }));
@@ -1103,9 +1157,13 @@ export class EventsService {
       throw new NotFoundException(`Session with ID ${sessionId} not found`);
     }
 
-    const registration = await this.registrationModel.findById(dto.registrationId);
+    const registration = await this.registrationModel.findById(
+      dto.registrationId,
+    );
     if (!registration) {
-      throw new NotFoundException(`Registration with ID ${dto.registrationId} not found`);
+      throw new NotFoundException(
+        `Registration with ID ${dto.registrationId} not found`,
+      );
     }
 
     // Calculate late minutes if checking in
@@ -1124,7 +1182,8 @@ export class EventsService {
     let status = dto.status;
     if (
       status === SessionAttendanceStatus.PRESENT &&
-      lateByMinutes > (session.attendanceConfig?.lateArrivalThresholdMinutes || 15)
+      lateByMinutes >
+        (session.attendanceConfig?.lateArrivalThresholdMinutes || 15)
     ) {
       status = SessionAttendanceStatus.LATE;
     }
@@ -1138,10 +1197,15 @@ export class EventsService {
     if (attendance) {
       // Update existing record
       attendance.status = status;
-      attendance.checkInTime = dto.checkInTime ? new Date(dto.checkInTime) : attendance.checkInTime;
-      attendance.checkOutTime = dto.checkOutTime ? new Date(dto.checkOutTime) : attendance.checkOutTime;
+      attendance.checkInTime = dto.checkInTime
+        ? new Date(dto.checkInTime)
+        : attendance.checkInTime;
+      attendance.checkOutTime = dto.checkOutTime
+        ? new Date(dto.checkOutTime)
+        : attendance.checkOutTime;
       attendance.lateByMinutes = lateByMinutes;
-      if (dto.facilitatorNotes) attendance.facilitatorNotes = dto.facilitatorNotes;
+      if (dto.facilitatorNotes)
+        attendance.facilitatorNotes = dto.facilitatorNotes;
     } else {
       // Create new record
       attendance = new this.sessionAttendanceModel({
@@ -1200,7 +1264,9 @@ export class EventsService {
     });
 
     if (!attendance) {
-      throw new NotFoundException('Attendance record not found for this registration');
+      throw new NotFoundException(
+        'Attendance record not found for this registration',
+      );
     }
 
     const percentage = (dto.score / dto.maxScore) * 100;
@@ -1249,7 +1315,8 @@ export class EventsService {
 
     if (queryDto.startDate || queryDto.endDate) {
       filter.startDate = {};
-      if (queryDto.startDate) filter.startDate.$gte = new Date(queryDto.startDate);
+      if (queryDto.startDate)
+        filter.startDate.$gte = new Date(queryDto.startDate);
       if (queryDto.endDate) filter.startDate.$lte = new Date(queryDto.endDate);
     }
 
@@ -1268,14 +1335,22 @@ export class EventsService {
       totalCertificationsIssued,
     ] = await Promise.all([
       this.eventModel.countDocuments(filter),
-      this.eventModel.countDocuments({ ...filter, status: EventStatus.PUBLISHED }),
-      this.eventModel.countDocuments({ ...filter, status: EventStatus.COMPLETED }),
+      this.eventModel.countDocuments({
+        ...filter,
+        status: EventStatus.PUBLISHED,
+      }),
+      this.eventModel.countDocuments({
+        ...filter,
+        status: EventStatus.COMPLETED,
+      }),
       this.eventModel.countDocuments({ ...filter, startDate: { $gt: now } }),
       this.eventModel.countDocuments({ ...filter, type: EventType.TRAINING }),
-      this.eventModel.aggregate([
-        { $match: filter },
-        { $group: { _id: null, total: { $sum: '$certifiedCount' } } },
-      ]).then(r => r[0]?.total || 0),
+      this.eventModel
+        .aggregate([
+          { $match: filter },
+          { $group: { _id: null, total: { $sum: '$certifiedCount' } } },
+        ])
+        .then((r) => r[0]?.total || 0),
     ]);
 
     // Get registration and attendance totals
@@ -1292,9 +1367,10 @@ export class EventsService {
       }),
     ]);
 
-    const averageAttendanceRate = totalRegistrations > 0
-      ? Math.round((totalAttendees / totalRegistrations) * 100)
-      : 0;
+    const averageAttendanceRate =
+      totalRegistrations > 0
+        ? Math.round((totalAttendees / totalRegistrations) * 100)
+        : 0;
 
     return {
       totalEvents,
@@ -1319,7 +1395,10 @@ export class EventsService {
     let attendeeProgress: AttendeeProgressDto[] | undefined;
 
     // Only get session/training analytics for training events
-    if (event.type === EventType.TRAINING && event.trainingConfig?.hasMultipleSessions) {
+    if (
+      event.type === EventType.TRAINING &&
+      event.trainingConfig?.hasMultipleSessions
+    ) {
       sessions = await this.getSessionAnalytics(eventId);
       completion = await this.getTrainingCompletionSummary(eventId);
       attendeeProgress = await this.getAttendeeProgress(eventId);
@@ -1337,7 +1416,9 @@ export class EventsService {
     };
   }
 
-  async getRegistrationAnalytics(eventId: string): Promise<RegistrationAnalyticsDto> {
+  async getRegistrationAnalytics(
+    eventId: string,
+  ): Promise<RegistrationAnalyticsDto> {
     const event = await this.eventModel.findById(eventId);
     if (!event) {
       throw new NotFoundException(`Event with ID ${eventId} not found`);
@@ -1355,14 +1436,38 @@ export class EventsService {
       visitorRegistrations,
     ] = await Promise.all([
       this.registrationModel.countDocuments({ event: event._id }),
-      this.registrationModel.countDocuments({ event: event._id, status: RegistrationStatus.CONFIRMED }),
-      this.registrationModel.countDocuments({ event: event._id, status: RegistrationStatus.PENDING }),
-      this.registrationModel.countDocuments({ event: event._id, status: RegistrationStatus.CANCELLED }),
-      this.registrationModel.countDocuments({ event: event._id, status: RegistrationStatus.WAITLISTED }),
-      this.registrationModel.countDocuments({ event: event._id, status: RegistrationStatus.ATTENDED }),
-      this.registrationModel.countDocuments({ event: event._id, status: RegistrationStatus.NO_SHOW }),
-      this.registrationModel.countDocuments({ event: event._id, attendeeType: AttendeeType.MEMBER }),
-      this.registrationModel.countDocuments({ event: event._id, attendeeType: AttendeeType.VISITOR }),
+      this.registrationModel.countDocuments({
+        event: event._id,
+        status: RegistrationStatus.CONFIRMED,
+      }),
+      this.registrationModel.countDocuments({
+        event: event._id,
+        status: RegistrationStatus.PENDING,
+      }),
+      this.registrationModel.countDocuments({
+        event: event._id,
+        status: RegistrationStatus.CANCELLED,
+      }),
+      this.registrationModel.countDocuments({
+        event: event._id,
+        status: RegistrationStatus.WAITLISTED,
+      }),
+      this.registrationModel.countDocuments({
+        event: event._id,
+        status: RegistrationStatus.ATTENDED,
+      }),
+      this.registrationModel.countDocuments({
+        event: event._id,
+        status: RegistrationStatus.NO_SHOW,
+      }),
+      this.registrationModel.countDocuments({
+        event: event._id,
+        attendeeType: AttendeeType.MEMBER,
+      }),
+      this.registrationModel.countDocuments({
+        event: event._id,
+        attendeeType: AttendeeType.VISITOR,
+      }),
     ]);
 
     // Get registrations by day
@@ -1379,9 +1484,10 @@ export class EventsService {
     ]);
 
     const activeRegistrations = confirmedRegistrations + pendingRegistrations;
-    const conversionRate = activeRegistrations > 0
-      ? Math.round((attendedRegistrations / activeRegistrations) * 100)
-      : 0;
+    const conversionRate =
+      activeRegistrations > 0
+        ? Math.round((attendedRegistrations / activeRegistrations) * 100)
+        : 0;
 
     return {
       totalRegistrations,
@@ -1407,8 +1513,12 @@ export class EventsService {
 
     const sessions = await this.sessionModel.find({ event: event._id });
     const totalSessions = sessions.length;
-    const completedSessions = sessions.filter(s => s.status === SessionStatus.COMPLETED).length;
-    const upcomingSessions = sessions.filter(s => s.status === SessionStatus.SCHEDULED).length;
+    const completedSessions = sessions.filter(
+      (s) => s.status === SessionStatus.COMPLETED,
+    ).length;
+    const upcomingSessions = sessions.filter(
+      (s) => s.status === SessionStatus.SCHEDULED,
+    ).length;
 
     // Get attendance data per session
     const attendanceBySession = await Promise.all(
@@ -1433,7 +1543,8 @@ export class EventsService {
         ]);
 
         const total = present + late + absent + excused;
-        const attendanceRate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+        const attendanceRate =
+          total > 0 ? Math.round(((present + late) / total) * 100) : 0;
 
         return {
           sessionId: session._id.toString(),
@@ -1449,22 +1560,30 @@ export class EventsService {
     );
 
     // Calculate averages
-    const totalAttendanceRates = attendanceBySession.reduce((sum, s) => sum + s.attendanceRate, 0);
-    const averageAttendancePerSession = totalSessions > 0
-      ? Math.round(totalAttendanceRates / totalSessions)
-      : 0;
+    const totalAttendanceRates = attendanceBySession.reduce(
+      (sum, s) => sum + s.attendanceRate,
+      0,
+    );
+    const averageAttendancePerSession =
+      totalSessions > 0 ? Math.round(totalAttendanceRates / totalSessions) : 0;
 
-    const totalLateCount = attendanceBySession.reduce((sum, s) => sum + s.late, 0);
+    const totalLateCount = attendanceBySession.reduce(
+      (sum, s) => sum + s.late,
+      0,
+    );
     const totalAttendeeCount = attendanceBySession.reduce(
       (sum, s) => sum + s.present + s.late + s.absent + s.excused,
       0,
     );
-    const averageLateArrivalPercentage = totalAttendeeCount > 0
-      ? Math.round((totalLateCount / totalAttendeeCount) * 100)
-      : 0;
+    const averageLateArrivalPercentage =
+      totalAttendeeCount > 0
+        ? Math.round((totalLateCount / totalAttendeeCount) * 100)
+        : 0;
 
     // Get assessment results for sessions with assessments
-    const sessionsWithAssessment = sessions.filter(s => s.assessment?.hasAssessment);
+    const sessionsWithAssessment = sessions.filter(
+      (s) => s.assessment?.hasAssessment,
+    );
     const assessmentResults = await Promise.all(
       sessionsWithAssessment.map(async (session) => {
         const results = await this.sessionAttendanceModel.find({
@@ -1473,16 +1592,21 @@ export class EventsService {
         });
 
         const totalAttempts = results.length;
-        const passed = results.filter(r => r.assessmentResult?.passed).length;
-        const avgScore = totalAttempts > 0
-          ? results.reduce((sum, r) => sum + (r.assessmentResult?.percentage || 0), 0) / totalAttempts
-          : 0;
+        const passed = results.filter((r) => r.assessmentResult?.passed).length;
+        const avgScore =
+          totalAttempts > 0
+            ? results.reduce(
+                (sum, r) => sum + (r.assessmentResult?.percentage || 0),
+                0,
+              ) / totalAttempts
+            : 0;
 
         return {
           sessionId: session._id.toString(),
           sessionTitle: session.title,
           averageScore: Math.round(avgScore),
-          passRate: totalAttempts > 0 ? Math.round((passed / totalAttempts) * 100) : 0,
+          passRate:
+            totalAttempts > 0 ? Math.round((passed / totalAttempts) * 100) : 0,
           totalAttempts,
         };
       }),
@@ -1499,7 +1623,9 @@ export class EventsService {
     };
   }
 
-  async getTrainingCompletionSummary(eventId: string): Promise<TrainingCompletionSummaryDto> {
+  async getTrainingCompletionSummary(
+    eventId: string,
+  ): Promise<TrainingCompletionSummaryDto> {
     const event = await this.findById(eventId);
 
     const registrations = await this.registrationModel.find({
@@ -1511,7 +1637,11 @@ export class EventsService {
     const sessions = await this.sessionModel.find({ event: event._id });
     const totalRequiredSessions = event.trainingConfig?.requireAllSessions
       ? sessions.length
-      : Math.ceil(sessions.length * (event.trainingConfig?.minimumAttendancePercentage || 80) / 100);
+      : Math.ceil(
+          (sessions.length *
+            (event.trainingConfig?.minimumAttendancePercentage || 80)) /
+            100,
+        );
 
     let totalCompleted = 0;
     let totalCertified = 0;
@@ -1521,15 +1651,19 @@ export class EventsService {
     for (const registration of registrations) {
       const attendanceRecords = await this.sessionAttendanceModel.find({
         registration: registration._id,
-        status: { $in: [SessionAttendanceStatus.PRESENT, SessionAttendanceStatus.LATE] },
+        status: {
+          $in: [SessionAttendanceStatus.PRESENT, SessionAttendanceStatus.LATE],
+        },
       });
 
       const sessionsAttended = attendanceRecords.length;
-      const attendancePercentage = sessions.length > 0
-        ? (sessionsAttended / sessions.length) * 100
-        : 0;
+      const attendancePercentage =
+        sessions.length > 0 ? (sessionsAttended / sessions.length) * 100 : 0;
 
-      if (attendancePercentage >= (event.trainingConfig?.minimumAttendancePercentage || 80)) {
+      if (
+        attendancePercentage >=
+        (event.trainingConfig?.minimumAttendancePercentage || 80)
+      ) {
         totalCompleted++;
         // Check certification (simplified - can be enhanced)
         if (event.trainingConfig?.hasCertification) {
@@ -1542,8 +1676,14 @@ export class EventsService {
       }
     }
 
-    const completionRate = totalEnrolled > 0 ? Math.round((totalCompleted / totalEnrolled) * 100) : 0;
-    const certificationRate = totalEnrolled > 0 ? Math.round((totalCertified / totalEnrolled) * 100) : 0;
+    const completionRate =
+      totalEnrolled > 0
+        ? Math.round((totalCompleted / totalEnrolled) * 100)
+        : 0;
+    const certificationRate =
+      totalEnrolled > 0
+        ? Math.round((totalCertified / totalEnrolled) * 100)
+        : 0;
 
     return {
       totalEnrolled,
@@ -1561,10 +1701,12 @@ export class EventsService {
   async getAttendeeProgress(eventId: string): Promise<AttendeeProgressDto[]> {
     const event = await this.findById(eventId);
 
-    const registrations = await this.registrationModel.find({
-      event: event._id,
-      status: { $nin: [RegistrationStatus.CANCELLED] },
-    }).populate('member', 'firstName lastName email');
+    const registrations = await this.registrationModel
+      .find({
+        event: event._id,
+        status: { $nin: [RegistrationStatus.CANCELLED] },
+      })
+      .populate('member', 'firstName lastName email');
 
     const sessions = await this.sessionModel.find({ event: event._id });
     const totalSessionsRequired = sessions.length;
@@ -1583,35 +1725,46 @@ export class EventsService {
         .populate('session', 'title date');
 
       const sessionsAttended = attendanceRecords.filter(
-        a => a.status === SessionAttendanceStatus.PRESENT || a.status === SessionAttendanceStatus.LATE,
+        (a) =>
+          a.status === SessionAttendanceStatus.PRESENT ||
+          a.status === SessionAttendanceStatus.LATE,
       ).length;
 
       const assessmentScores = attendanceRecords
-        .filter(a => a.assessmentResult?.score !== undefined)
-        .map(a => a.assessmentResult!);
+        .filter((a) => a.assessmentResult?.score !== undefined)
+        .map((a) => a.assessmentResult!);
 
-      const avgScore = assessmentScores.length > 0
-        ? assessmentScores.reduce((sum, a) => sum + a.percentage, 0) / assessmentScores.length
-        : 0;
+      const avgScore =
+        assessmentScores.length > 0
+          ? assessmentScores.reduce((sum, a) => sum + a.percentage, 0) /
+            assessmentScores.length
+          : 0;
 
-      const assessmentsPassed = assessmentScores.filter(a => a.passed).length;
-      const assessmentsFailed = assessmentScores.filter(a => !a.passed).length;
+      const assessmentsPassed = assessmentScores.filter((a) => a.passed).length;
+      const assessmentsFailed = assessmentScores.filter(
+        (a) => !a.passed,
+      ).length;
 
       const objectivesCompleted = attendanceRecords.reduce(
-        (sum, a) => sum + (a.objectivesCompletion?.filter(o => o.completed).length || 0),
+        (sum, a) =>
+          sum +
+          (a.objectivesCompletion?.filter((o) => o.completed).length || 0),
         0,
       );
 
-      const attendancePercentage = totalSessionsRequired > 0
-        ? Math.round((sessionsAttended / totalSessionsRequired) * 100)
-        : 0;
+      const attendancePercentage =
+        totalSessionsRequired > 0
+          ? Math.round((sessionsAttended / totalSessionsRequired) * 100)
+          : 0;
 
       const overallProgress = Math.round(
-        (attendancePercentage * 0.6) + // 60% weight for attendance
-        (avgScore * 0.4), // 40% weight for assessments
+        attendancePercentage * 0.6 + // 60% weight for attendance
+          avgScore * 0.4, // 40% weight for assessments
       );
 
-      const isCompleted = attendancePercentage >= (event.trainingConfig?.minimumAttendancePercentage || 80);
+      const isCompleted =
+        attendancePercentage >=
+        (event.trainingConfig?.minimumAttendancePercentage || 80);
       const isCertified = isCompleted && event.trainingConfig?.hasCertification;
 
       const attendeeName = registration.member
@@ -1639,7 +1792,7 @@ export class EventsService {
         overallProgress,
         isCompleted,
         isCertified: isCertified || false,
-        sessionDetails: attendanceRecords.map(a => ({
+        sessionDetails: attendanceRecords.map((a) => ({
           sessionId: a.session.toString(),
           sessionTitle: (a.session as any)?.title || '',
           date: a.checkInTime?.toISOString() || '',
@@ -1670,7 +1823,9 @@ export class EventsService {
     });
   }
 
-  private async updateSessionAttendanceCounts(sessionId: string): Promise<void> {
+  private async updateSessionAttendanceCounts(
+    sessionId: string,
+  ): Promise<void> {
     const [attendanceCount, lateCount, absentCount] = await Promise.all([
       this.sessionAttendanceModel.countDocuments({
         session: new Types.ObjectId(sessionId),
@@ -1717,7 +1872,7 @@ export class EventsService {
 
     // Get events in range
     const events = await this.eventModel.find(filter).sort({ startDate: 1 });
-    const eventIds = events.map(e => e._id);
+    const eventIds = events.map((e) => e._id);
 
     // Get all registrations for these events
     const registrations = await this.registrationModel.find({
@@ -1725,7 +1880,10 @@ export class EventsService {
     });
 
     // Group by period
-    const groupedTrends: Map<string, { registrations: number; attendees: number; noShows: number }> = new Map();
+    const groupedTrends: Map<
+      string,
+      { registrations: number; attendees: number; noShows: number }
+    > = new Map();
 
     for (const event of events) {
       let periodKey: string;
@@ -1742,15 +1900,27 @@ export class EventsService {
       }
 
       if (!groupedTrends.has(periodKey)) {
-        groupedTrends.set(periodKey, { registrations: 0, attendees: 0, noShows: 0 });
+        groupedTrends.set(periodKey, {
+          registrations: 0,
+          attendees: 0,
+          noShows: 0,
+        });
       }
 
-      const eventRegs = registrations.filter(r => r.event.toString() === event._id.toString());
+      const eventRegs = registrations.filter(
+        (r) => r.event.toString() === event._id.toString(),
+      );
       const current = groupedTrends.get(periodKey)!;
 
-      current.registrations += eventRegs.filter(r => r.status !== RegistrationStatus.CANCELLED).length;
-      current.attendees += eventRegs.filter(r => r.status === RegistrationStatus.ATTENDED).length;
-      current.noShows += eventRegs.filter(r => r.status === RegistrationStatus.NO_SHOW).length;
+      current.registrations += eventRegs.filter(
+        (r) => r.status !== RegistrationStatus.CANCELLED,
+      ).length;
+      current.attendees += eventRegs.filter(
+        (r) => r.status === RegistrationStatus.ATTENDED,
+      ).length;
+      current.noShows += eventRegs.filter(
+        (r) => r.status === RegistrationStatus.NO_SHOW,
+      ).length;
     }
 
     const trends = Array.from(groupedTrends.entries()).map(([date, data]) => ({
@@ -1758,20 +1928,31 @@ export class EventsService {
       registrations: data.registrations,
       attendees: data.attendees,
       noShows: data.noShows,
-      attendanceRate: data.registrations > 0
-        ? Math.round((data.attendees / data.registrations) * 100)
-        : 0,
+      attendanceRate:
+        data.registrations > 0
+          ? Math.round((data.attendees / data.registrations) * 100)
+          : 0,
     }));
 
     // Calculate summary stats
     const totalAttendees = trends.reduce((sum, t) => sum + t.attendees, 0);
-    const totalRegistrations = trends.reduce((sum, t) => sum + t.registrations, 0);
-    const averageAttendanceRate = totalRegistrations > 0
-      ? Math.round((totalAttendees / totalRegistrations) * 100)
-      : 0;
+    const totalRegistrations = trends.reduce(
+      (sum, t) => sum + t.registrations,
+      0,
+    );
+    const averageAttendanceRate =
+      totalRegistrations > 0
+        ? Math.round((totalAttendees / totalRegistrations) * 100)
+        : 0;
 
-    const peakTrend = trends.reduce((max, t) => t.attendees > max.attendees ? t : max, trends[0] || { date: '', attendees: 0 });
-    const lowestTrend = trends.reduce((min, t) => t.attendees < min.attendees ? t : min, trends[0] || { date: '', attendees: 0 });
+    const peakTrend = trends.reduce(
+      (max, t) => (t.attendees > max.attendees ? t : max),
+      trends[0] || { date: '', attendees: 0 },
+    );
+    const lowestTrend = trends.reduce(
+      (min, t) => (t.attendees < min.attendees ? t : min),
+      trends[0] || { date: '', attendees: 0 },
+    );
 
     // Calculate growth rate (first vs last period)
     let growthRate = 0;
@@ -1796,17 +1977,29 @@ export class EventsService {
   async getRegistrationFunnel(eventId: string): Promise<RegistrationFunnelDto> {
     const event = await this.findById(eventId);
 
-    const registrations = await this.registrationModel.find({ event: event._id });
+    const registrations = await this.registrationModel.find({
+      event: event._id,
+    });
 
     // Calculate funnel stages
     const total = registrations.length;
-    const confirmed = registrations.filter(r =>
-      [RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED].includes(r.status)
+    const confirmed = registrations.filter((r) =>
+      [RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED].includes(
+        r.status,
+      ),
     ).length;
-    const attended = registrations.filter(r => r.status === RegistrationStatus.ATTENDED).length;
-    const cancelled = registrations.filter(r => r.status === RegistrationStatus.CANCELLED).length;
-    const waitlisted = registrations.filter(r => r.status === RegistrationStatus.WAITLISTED).length;
-    const noShow = registrations.filter(r => r.status === RegistrationStatus.NO_SHOW).length;
+    const attended = registrations.filter(
+      (r) => r.status === RegistrationStatus.ATTENDED,
+    ).length;
+    const cancelled = registrations.filter(
+      (r) => r.status === RegistrationStatus.CANCELLED,
+    ).length;
+    const waitlisted = registrations.filter(
+      (r) => r.status === RegistrationStatus.WAITLISTED,
+    ).length;
+    const noShow = registrations.filter(
+      (r) => r.status === RegistrationStatus.NO_SHOW,
+    ).length;
 
     const stages = [
       {
@@ -1819,32 +2012,48 @@ export class EventsService {
         stage: 'Confirmed',
         count: confirmed,
         percentage: total > 0 ? Math.round((confirmed / total) * 100) : 0,
-        dropOffRate: total > 0 ? Math.round(((total - confirmed - waitlisted) / total) * 100) : 0,
+        dropOffRate:
+          total > 0
+            ? Math.round(((total - confirmed - waitlisted) / total) * 100)
+            : 0,
       },
       {
         stage: 'Attended',
         count: attended,
         percentage: total > 0 ? Math.round((attended / total) * 100) : 0,
-        dropOffRate: confirmed > 0 ? Math.round(((confirmed - attended) / confirmed) * 100) : 0,
+        dropOffRate:
+          confirmed > 0
+            ? Math.round(((confirmed - attended) / confirmed) * 100)
+            : 0,
       },
     ];
 
     // Calculate time metrics
-    const confirmedRegs = registrations.filter(r => r.confirmedAt);
-    const avgTimeToConfirmation = confirmedRegs.length > 0
-      ? confirmedRegs.reduce((sum, r) => {
-          const diff = new Date(r.confirmedAt!).getTime() - new Date(r.registeredAt).getTime();
-          return sum + diff;
-        }, 0) / confirmedRegs.length / (1000 * 60 * 60) // Convert to hours
-      : 0;
+    const confirmedRegs = registrations.filter((r) => r.confirmedAt);
+    const avgTimeToConfirmation =
+      confirmedRegs.length > 0
+        ? confirmedRegs.reduce((sum, r) => {
+            const diff =
+              new Date(r.confirmedAt!).getTime() -
+              new Date(r.registeredAt).getTime();
+            return sum + diff;
+          }, 0) /
+          confirmedRegs.length /
+          (1000 * 60 * 60) // Convert to hours
+        : 0;
 
-    const checkedInRegs = registrations.filter(r => r.checkedInAt);
-    const avgTimeToCheckIn = checkedInRegs.length > 0
-      ? checkedInRegs.reduce((sum, r) => {
-          const diff = new Date(r.checkedInAt!).getTime() - new Date(r.registeredAt).getTime();
-          return sum + diff;
-        }, 0) / checkedInRegs.length / (1000 * 60 * 60) // Convert to hours
-      : 0;
+    const checkedInRegs = registrations.filter((r) => r.checkedInAt);
+    const avgTimeToCheckIn =
+      checkedInRegs.length > 0
+        ? checkedInRegs.reduce((sum, r) => {
+            const diff =
+              new Date(r.checkedInAt!).getTime() -
+              new Date(r.registeredAt).getTime();
+            return sum + diff;
+          }, 0) /
+          checkedInRegs.length /
+          (1000 * 60 * 60) // Convert to hours
+        : 0;
 
     // Find peak registration patterns
     const hourCounts = new Map<number, number>();
@@ -1880,7 +2089,8 @@ export class EventsService {
     return {
       eventId: event._id.toString(),
       stages,
-      overallConversionRate: total > 0 ? Math.round((attended / total) * 100) : 0,
+      overallConversionRate:
+        total > 0 ? Math.round((attended / total) * 100) : 0,
       averageTimeToConfirmation: Math.round(avgTimeToConfirmation * 10) / 10,
       averageTimeToCheckIn: Math.round(avgTimeToCheckIn * 10) / 10,
       peakRegistrationHour: peakHour,
@@ -1907,7 +2117,10 @@ export class EventsService {
         const date = new Date(reg.checkedInAt);
         const timeKey = `${String(date.getHours()).padStart(2, '0')}:${String(Math.floor(date.getMinutes() / 15) * 15).padStart(2, '0')}`;
         timelineCounts.set(timeKey, (timelineCounts.get(timeKey) || 0) + 1);
-        hourCounts.set(date.getHours(), (hourCounts.get(date.getHours()) || 0) + 1);
+        hourCounts.set(
+          date.getHours(),
+          (hourCounts.get(date.getHours()) || 0) + 1,
+        );
       }
     }
 
@@ -1929,7 +2142,8 @@ export class EventsService {
       }
       return sum;
     }, 0);
-    const avgMinutes = totalCheckIns > 0 ? Math.round(totalMinutes / totalCheckIns) : 0;
+    const avgMinutes =
+      totalCheckIns > 0 ? Math.round(totalMinutes / totalCheckIns) : 0;
     const avgHours = Math.floor(avgMinutes / 60);
     const avgMins = avgMinutes % 60;
     const averageCheckInTime = `${String(avgHours).padStart(2, '0')}:${String(avgMins).padStart(2, '0')}`;
@@ -1948,7 +2162,8 @@ export class EventsService {
     for (const reg of registrations) {
       if (reg.checkedInAt) {
         const checkInTime = new Date(reg.checkedInAt);
-        const diffMinutes = (checkInTime.getTime() - eventStart.getTime()) / (1000 * 60);
+        const diffMinutes =
+          (checkInTime.getTime() - eventStart.getTime()) / (1000 * 60);
 
         if (diffMinutes < -30) {
           earlyCheckIns++;
@@ -1981,7 +2196,9 @@ export class EventsService {
     };
   }
 
-  async getCommitteeAnalytics(eventId: string): Promise<EventCommitteeAnalyticsDto> {
+  async getCommitteeAnalytics(
+    eventId: string,
+  ): Promise<EventCommitteeAnalyticsDto> {
     const event = await this.findById(eventId);
 
     const committeeMembers = event.committee || [];
@@ -1993,30 +2210,34 @@ export class EventsService {
       rolesCount.set(member.role, (rolesCount.get(member.role) || 0) + 1);
     }
 
-    const rolesDistribution = Array.from(rolesCount.entries()).map(([role, count]) => ({
-      role,
-      count,
-    }));
+    const rolesDistribution = Array.from(rolesCount.entries()).map(
+      ([role, count]) => ({
+        role,
+        count,
+      }),
+    );
 
     // Build member performance data
-    const memberPerformance: CommitteeMemberPerformanceDto[] = committeeMembers.map(cm => {
-      const member = cm.member as any;
-      return {
-        memberId: cm.member.toString(),
-        memberName: member?.firstName && member?.lastName
-          ? `${member.firstName} ${member.lastName}`
-          : 'Unknown',
-        role: cm.role,
-        assignedAt: cm.assignedAt,
-        eventsAssigned: 1, // Current event
-        tasksCompleted: 0, // Can be enhanced with task tracking
-        tasksTotal: 0,
-        checkInsPerformed: 0, // Can be enhanced with audit log analysis
-        registrationsProcessed: 0,
-        lastActivityDate: cm.assignedAt,
-        performanceScore: 85, // Default score - can be calculated
-      };
-    });
+    const memberPerformance: CommitteeMemberPerformanceDto[] =
+      committeeMembers.map((cm) => {
+        const member = cm.member as any;
+        return {
+          memberId: cm.member.toString(),
+          memberName:
+            member?.firstName && member?.lastName
+              ? `${member.firstName} ${member.lastName}`
+              : 'Unknown',
+          role: cm.role,
+          assignedAt: cm.assignedAt,
+          eventsAssigned: 1, // Current event
+          tasksCompleted: 0, // Can be enhanced with task tracking
+          tasksTotal: 0,
+          checkInsPerformed: 0, // Can be enhanced with audit log analysis
+          registrationsProcessed: 0,
+          lastActivityDate: cm.assignedAt,
+          performanceScore: 85, // Default score - can be calculated
+        };
+      });
 
     return {
       totalCommitteeMembers,
@@ -2037,30 +2258,37 @@ export class EventsService {
 
     if (queryDto.startDate || queryDto.endDate) {
       filter.startDate = {};
-      if (queryDto.startDate) filter.startDate.$gte = new Date(queryDto.startDate);
+      if (queryDto.startDate)
+        filter.startDate.$gte = new Date(queryDto.startDate);
       if (queryDto.endDate) filter.startDate.$lte = new Date(queryDto.endDate);
     }
 
     const events = await this.eventModel.find(filter);
-    const eventIds = events.map(e => e._id);
+    const eventIds = events.map((e) => e._id);
 
     // Get all attended registrations
-    const attendedRegs = await this.registrationModel.find({
-      event: { $in: eventIds },
-      status: RegistrationStatus.ATTENDED,
-      member: { $exists: true },
-    }).populate('member', 'firstName lastName email');
+    const attendedRegs = await this.registrationModel
+      .find({
+        event: { $in: eventIds },
+        status: RegistrationStatus.ATTENDED,
+        member: { $exists: true },
+      })
+      .populate('member', 'firstName lastName email');
 
     // Calculate unique and repeat attendees
-    const memberAttendance = new Map<string, { name: string; count: number; sessions: number }>();
+    const memberAttendance = new Map<
+      string,
+      { name: string; count: number; sessions: number }
+    >();
 
     for (const reg of attendedRegs) {
       if (reg.member) {
         const memberId = reg.member.toString();
         const member = reg.member as any;
-        const name = member?.firstName && member?.lastName
-          ? `${member.firstName} ${member.lastName}`
-          : 'Unknown';
+        const name =
+          member?.firstName && member?.lastName
+            ? `${member.firstName} ${member.lastName}`
+            : 'Unknown';
 
         if (!memberAttendance.has(memberId)) {
           memberAttendance.set(memberId, { name, count: 0, sessions: 0 });
@@ -2071,7 +2299,9 @@ export class EventsService {
     }
 
     const totalUniqueAttendees = memberAttendance.size;
-    const repeatAttendees = Array.from(memberAttendance.values()).filter(m => m.count > 1).length;
+    const repeatAttendees = Array.from(memberAttendance.values()).filter(
+      (m) => m.count > 1,
+    ).length;
     const firstTimeAttendees = totalUniqueAttendees - repeatAttendees;
 
     // Top attendees
@@ -2087,9 +2317,14 @@ export class EventsService {
       .slice(0, 10);
 
     // Attendees by event type
-    const typeAttendance = new Map<string, { unique: Set<string>; total: number }>();
+    const typeAttendance = new Map<
+      string,
+      { unique: Set<string>; total: number }
+    >();
     for (const event of events) {
-      const eventRegs = attendedRegs.filter(r => r.event.toString() === event._id.toString());
+      const eventRegs = attendedRegs.filter(
+        (r) => r.event.toString() === event._id.toString(),
+      );
 
       if (!typeAttendance.has(event.type)) {
         typeAttendance.set(event.type, { unique: new Set(), total: 0 });
@@ -2104,18 +2339,24 @@ export class EventsService {
       }
     }
 
-    const attendeesByEventType = Array.from(typeAttendance.entries()).map(([type, data]) => ({
-      eventType: type,
-      uniqueAttendees: data.unique.size,
-      totalAttendances: data.total,
-    }));
+    const attendeesByEventType = Array.from(typeAttendance.entries()).map(
+      ([type, data]) => ({
+        eventType: type,
+        uniqueAttendees: data.unique.size,
+        totalAttendances: data.total,
+      }),
+    );
 
     // Monthly engagement trend
-    const monthlyTrend = new Map<string, { unique: Set<string>; total: number; new: Set<string> }>();
+    const monthlyTrend = new Map<
+      string,
+      { unique: Set<string>; total: number; new: Set<string> }
+    >();
     const allTimeMembers = new Set<string>();
 
-    for (const reg of attendedRegs.sort((a, b) =>
-      new Date(a.registeredAt).getTime() - new Date(b.registeredAt).getTime()
+    for (const reg of attendedRegs.sort(
+      (a, b) =>
+        new Date(a.registeredAt).getTime() - new Date(b.registeredAt).getTime(),
     )) {
       if (reg.member) {
         const date = new Date(reg.registeredAt);
@@ -2123,7 +2364,11 @@ export class EventsService {
         const memberId = reg.member.toString();
 
         if (!monthlyTrend.has(monthKey)) {
-          monthlyTrend.set(monthKey, { unique: new Set(), total: 0, new: new Set() });
+          monthlyTrend.set(monthKey, {
+            unique: new Set(),
+            total: 0,
+            new: new Set(),
+          });
         }
 
         const current = monthlyTrend.get(monthKey)!;
@@ -2150,9 +2395,10 @@ export class EventsService {
       totalUniqueAttendees,
       repeatAttendees,
       firstTimeAttendees,
-      repeatAttendeeRate: totalUniqueAttendees > 0
-        ? Math.round((repeatAttendees / totalUniqueAttendees) * 100)
-        : 0,
+      repeatAttendeeRate:
+        totalUniqueAttendees > 0
+          ? Math.round((repeatAttendees / totalUniqueAttendees) * 100)
+          : 0,
       topAttendees,
       attendeesByEventType,
       engagementTrend,
@@ -2173,26 +2419,33 @@ export class EventsService {
     });
 
     // Get member engagement
-    const memberEngagement = await this.getMemberEngagementAnalytics(branchId, queryDto);
+    const memberEngagement = await this.getMemberEngagementAnalytics(
+      branchId,
+      queryDto,
+    );
 
     // Get upcoming events
     const now = new Date();
-    const upcomingEventsRaw = await this.eventModel.find({
-      branch: new Types.ObjectId(branchId),
-      startDate: { $gte: now },
-      status: EventStatus.PUBLISHED,
-    })
+    const upcomingEventsRaw = await this.eventModel
+      .find({
+        branch: new Types.ObjectId(branchId),
+        startDate: { $gte: now },
+        status: EventStatus.PUBLISHED,
+      })
       .sort({ startDate: 1 })
       .limit(5);
 
-    const upcomingEvents = upcomingEventsRaw.map(e => ({
+    const upcomingEvents = upcomingEventsRaw.map((e) => ({
       eventId: e._id.toString(),
       title: e.title,
       startDate: e.startDate,
       registrationCount: e.registrationCount || 0,
       capacity: e.registrationSettings?.maxAttendees,
       capacityPercentage: e.registrationSettings?.maxAttendees
-        ? Math.round(((e.registrationCount || 0) / e.registrationSettings.maxAttendees) * 100)
+        ? Math.round(
+            ((e.registrationCount || 0) / e.registrationSettings.maxAttendees) *
+              100,
+          )
         : undefined,
     }));
 
@@ -2205,7 +2458,10 @@ export class EventsService {
       startDate: { $gte: sixMonthsAgo },
     });
 
-    const monthlyEvents = new Map<string, { total: number; completed: number; cancelled: number }>();
+    const monthlyEvents = new Map<
+      string,
+      { total: number; completed: number; cancelled: number }
+    >();
     for (const event of eventsForMonths) {
       const monthKey = `${event.startDate.getFullYear()}-${String(event.startDate.getMonth() + 1).padStart(2, '0')}`;
 
@@ -2246,10 +2502,12 @@ export class EventsService {
   ): Promise<EventParticipantAccountabilitySummaryDto> {
     const event = await this.findById(eventId);
 
-    const registrations = await this.registrationModel.find({
-      event: event._id,
-      status: { $nin: [RegistrationStatus.CANCELLED] },
-    }).populate('member', 'firstName lastName email phone');
+    const registrations = await this.registrationModel
+      .find({
+        event: event._id,
+        status: { $nin: [RegistrationStatus.CANCELLED] },
+      })
+      .populate('member', 'firstName lastName email phone');
 
     const sessions = await this.sessionModel.find({ event: event._id });
     const totalSessionsRequired = sessions.length;
@@ -2274,7 +2532,12 @@ export class EventsService {
     let inactiveParticipants = 0;
     let droppedParticipants = 0;
 
-    const alerts: { type: string; severity: string; count: number; participants: { id: string; name: string }[] }[] = [];
+    const alerts: {
+      type: string;
+      severity: string;
+      count: number;
+      participants: { id: string; name: string }[];
+    }[] = [];
     const missedSessionsParticipants: { id: string; name: string }[] = [];
     const failingAssessmentParticipants: { id: string; name: string }[] = [];
     const atRiskParticipants: { id: string; name: string }[] = [];
@@ -2282,27 +2545,40 @@ export class EventsService {
 
     for (const registration of registrations) {
       const member = registration.member as any;
-      const participantName = member?.firstName && member?.lastName
-        ? `${member.firstName} ${member.lastName}`
-        : `${registration.attendeeInfo.firstName} ${registration.attendeeInfo.lastName}`;
-      const participantEmail = member?.email || registration.attendeeInfo.email || '';
+      const participantName =
+        member?.firstName && member?.lastName
+          ? `${member.firstName} ${member.lastName}`
+          : `${registration.attendeeInfo.firstName} ${registration.attendeeInfo.lastName}`;
+      const participantEmail =
+        member?.email || registration.attendeeInfo.email || '';
       const participantPhone = member?.phone || registration.attendeeInfo.phone;
 
       // Get attendance records
-      const attendanceRecords = await this.sessionAttendanceModel.find({
-        registration: registration._id,
-      }).populate('session', 'title date');
+      const attendanceRecords = await this.sessionAttendanceModel
+        .find({
+          registration: registration._id,
+        })
+        .populate('session', 'title date');
 
       const sessionsAttended = attendanceRecords.filter(
-        a => a.status === SessionAttendanceStatus.PRESENT || a.status === SessionAttendanceStatus.LATE
+        (a) =>
+          a.status === SessionAttendanceStatus.PRESENT ||
+          a.status === SessionAttendanceStatus.LATE,
       ).length;
-      const sessionsAbsent = attendanceRecords.filter(a => a.status === SessionAttendanceStatus.ABSENT).length;
-      const sessionsExcused = attendanceRecords.filter(a => a.status === SessionAttendanceStatus.EXCUSED).length;
-      const lateArrivals = attendanceRecords.filter(a => a.status === SessionAttendanceStatus.LATE).length;
+      const sessionsAbsent = attendanceRecords.filter(
+        (a) => a.status === SessionAttendanceStatus.ABSENT,
+      ).length;
+      const sessionsExcused = attendanceRecords.filter(
+        (a) => a.status === SessionAttendanceStatus.EXCUSED,
+      ).length;
+      const lateArrivals = attendanceRecords.filter(
+        (a) => a.status === SessionAttendanceStatus.LATE,
+      ).length;
 
-      const attendancePercentage = totalSessionsRequired > 0
-        ? Math.round((sessionsAttended / totalSessionsRequired) * 100)
-        : 0;
+      const attendancePercentage =
+        totalSessionsRequired > 0
+          ? Math.round((sessionsAttended / totalSessionsRequired) * 100)
+          : 0;
 
       // Determine attendance status
       let attendanceStatus: string;
@@ -2318,7 +2594,10 @@ export class EventsService {
       } else if (attendancePercentage >= 40) {
         attendanceStatus = 'at_risk';
         atRisk++;
-        atRiskParticipants.push({ id: registration._id.toString(), name: participantName });
+        atRiskParticipants.push({
+          id: registration._id.toString(),
+          name: participantName,
+        });
       } else {
         attendanceStatus = 'failed';
         failed++;
@@ -2327,15 +2606,27 @@ export class EventsService {
       totalAttendanceSum += attendancePercentage;
 
       // Assessment data
-      const assessmentResults = attendanceRecords.filter(a => a.assessmentResult?.score !== undefined);
-      const totalAssessments = sessions.filter(s => s.assessment?.hasAssessment).length;
+      const assessmentResults = attendanceRecords.filter(
+        (a) => a.assessmentResult?.score !== undefined,
+      );
+      const totalAssessments = sessions.filter(
+        (s) => s.assessment?.hasAssessment,
+      ).length;
       const assessmentsCompleted = assessmentResults.length;
-      const assessmentsPassed = assessmentResults.filter(a => a.assessmentResult?.passed).length;
-      const assessmentsFailed = assessmentResults.filter(a => !a.assessmentResult?.passed).length;
+      const assessmentsPassed = assessmentResults.filter(
+        (a) => a.assessmentResult?.passed,
+      ).length;
+      const assessmentsFailed = assessmentResults.filter(
+        (a) => !a.assessmentResult?.passed,
+      ).length;
 
-      const avgAssessmentScore = assessmentsCompleted > 0
-        ? assessmentResults.reduce((sum, a) => sum + (a.assessmentResult?.percentage || 0), 0) / assessmentsCompleted
-        : 0;
+      const avgAssessmentScore =
+        assessmentsCompleted > 0
+          ? assessmentResults.reduce(
+              (sum, a) => sum + (a.assessmentResult?.percentage || 0),
+              0,
+            ) / assessmentsCompleted
+          : 0;
 
       if (assessmentsCompleted > 0) {
         totalAssessmentSum += avgAssessmentScore;
@@ -2350,7 +2641,10 @@ export class EventsService {
       } else if (assessmentsFailed > 0) {
         assessmentStatus = 'failing';
         failingParticipants++;
-        failingAssessmentParticipants.push({ id: registration._id.toString(), name: participantName });
+        failingAssessmentParticipants.push({
+          id: registration._id.toString(),
+          name: participantName,
+        });
       } else {
         assessmentStatus = 'passing';
         passingParticipants++;
@@ -2358,13 +2652,18 @@ export class EventsService {
 
       // Completion and certification
       const completionPercentage = Math.round(
-        (attendancePercentage * 0.6) + (avgAssessmentScore * 0.4)
+        attendancePercentage * 0.6 + avgAssessmentScore * 0.4,
       );
-      const isEligibleForCertification = attendancePercentage >= (event.trainingConfig?.minimumAttendancePercentage || 80)
-        && assessmentsFailed === 0;
+      const isEligibleForCertification =
+        attendancePercentage >=
+          (event.trainingConfig?.minimumAttendancePercentage || 80) &&
+        assessmentsFailed === 0;
 
       let certificationStatus: string;
-      if (isEligibleForCertification && event.trainingConfig?.hasCertification) {
+      if (
+        isEligibleForCertification &&
+        event.trainingConfig?.hasCertification
+      ) {
         certificationStatus = 'certified';
         certified++;
         eligibleForCertification++;
@@ -2380,17 +2679,23 @@ export class EventsService {
           droppedParticipants++;
         } else {
           inactiveParticipants++;
-          inactiveList.push({ id: registration._id.toString(), name: participantName });
+          inactiveList.push({
+            id: registration._id.toString(),
+            name: participantName,
+          });
         }
       }
 
       // Check for missed sessions
       if (sessionsAbsent > 0) {
-        missedSessionsParticipants.push({ id: registration._id.toString(), name: participantName });
+        missedSessionsParticipants.push({
+          id: registration._id.toString(),
+          name: participantName,
+        });
       }
 
       // Build session records
-      const sessionRecords = attendanceRecords.map(a => ({
+      const sessionRecords = attendanceRecords.map((a) => ({
         sessionId: a.session.toString(),
         sessionTitle: (a.session as any)?.title || '',
         sessionDate: a.checkInTime || new Date(),
@@ -2404,7 +2709,10 @@ export class EventsService {
       }));
 
       // Calculate follow-up flags
-      const requiresFollowUp = attendanceStatus === 'at_risk' || attendanceStatus === 'failed' || assessmentStatus === 'failing';
+      const requiresFollowUp =
+        attendanceStatus === 'at_risk' ||
+        attendanceStatus === 'failed' ||
+        assessmentStatus === 'failing';
       let followUpReason: string | undefined;
       if (requiresFollowUp) {
         const reasons: string[] = [];
@@ -2418,20 +2726,36 @@ export class EventsService {
       }
 
       // Last activity
-      const lastAttendance = attendanceRecords.sort((a, b) =>
-        new Date(b.checkInTime || 0).getTime() - new Date(a.checkInTime || 0).getTime()
+      const lastAttendance = attendanceRecords.sort(
+        (a, b) =>
+          new Date(b.checkInTime || 0).getTime() -
+          new Date(a.checkInTime || 0).getTime(),
       )[0];
-      const lastActivityDate = lastAttendance?.checkInTime || registration.registeredAt;
-      const daysInactive = Math.floor((Date.now() - new Date(lastActivityDate).getTime()) / (1000 * 60 * 60 * 24));
+      const lastActivityDate =
+        lastAttendance?.checkInTime || registration.registeredAt;
+      const daysInactive = Math.floor(
+        (Date.now() - new Date(lastActivityDate).getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
 
       // Apply query filters
-      if (queryDto.attendanceStatus && attendanceStatus !== queryDto.attendanceStatus) continue;
-      if (queryDto.certificationStatus && certificationStatus !== queryDto.certificationStatus) continue;
+      if (
+        queryDto.attendanceStatus &&
+        attendanceStatus !== queryDto.attendanceStatus
+      )
+        continue;
+      if (
+        queryDto.certificationStatus &&
+        certificationStatus !== queryDto.certificationStatus
+      )
+        continue;
       if (queryDto.requiresFollowUp && !requiresFollowUp) continue;
       if (queryDto.search) {
         const searchLower = queryDto.search.toLowerCase();
-        if (!participantName.toLowerCase().includes(searchLower) &&
-            !participantEmail.toLowerCase().includes(searchLower)) {
+        if (
+          !participantName.toLowerCase().includes(searchLower) &&
+          !participantEmail.toLowerCase().includes(searchLower)
+        ) {
           continue;
         }
       }
@@ -2508,12 +2832,30 @@ export class EventsService {
       const sortOrder = queryDto.sortOrder === 'desc' ? -1 : 1;
       participants.sort((a, b) => {
         switch (queryDto.sortBy) {
-          case 'name': return a.participantName.localeCompare(b.participantName) * sortOrder;
-          case 'attendance': return (a.attendancePercentage - b.attendancePercentage) * sortOrder;
-          case 'progress': return (a.completionPercentage - b.completionPercentage) * sortOrder;
-          case 'score': return (a.averageAssessmentScore - b.averageAssessmentScore) * sortOrder;
-          case 'lastActivity': return (new Date(a.lastActivityDate || 0).getTime() - new Date(b.lastActivityDate || 0).getTime()) * sortOrder;
-          default: return 0;
+          case 'name':
+            return (
+              a.participantName.localeCompare(b.participantName) * sortOrder
+            );
+          case 'attendance':
+            return (
+              (a.attendancePercentage - b.attendancePercentage) * sortOrder
+            );
+          case 'progress':
+            return (
+              (a.completionPercentage - b.completionPercentage) * sortOrder
+            );
+          case 'score':
+            return (
+              (a.averageAssessmentScore - b.averageAssessmentScore) * sortOrder
+            );
+          case 'lastActivity':
+            return (
+              (new Date(a.lastActivityDate || 0).getTime() -
+                new Date(b.lastActivityDate || 0).getTime()) *
+              sortOrder
+            );
+          default:
+            return 0;
         }
       });
     }
@@ -2521,15 +2863,20 @@ export class EventsService {
     // Pagination
     const page = queryDto.page || 1;
     const limit = queryDto.limit || 20;
-    const paginatedParticipants = participants.slice((page - 1) * limit, page * limit);
+    const paginatedParticipants = participants.slice(
+      (page - 1) * limit,
+      page * limit,
+    );
 
     const totalParticipants = registrations.length;
-    const averageAttendanceRate = totalParticipants > 0
-      ? Math.round(totalAttendanceSum / totalParticipants)
-      : 0;
-    const averageAssessmentScore = assessmentCount > 0
-      ? Math.round(totalAssessmentSum / assessmentCount)
-      : 0;
+    const averageAttendanceRate =
+      totalParticipants > 0
+        ? Math.round(totalAttendanceSum / totalParticipants)
+        : 0;
+    const averageAssessmentScore =
+      assessmentCount > 0
+        ? Math.round(totalAssessmentSum / assessmentCount)
+        : 0;
 
     return {
       eventId: event._id.toString(),
@@ -2551,7 +2898,10 @@ export class EventsService {
       eligibleForCertification,
       certified,
       pendingCertification: eligibleForCertification - certified,
-      certificationRate: totalParticipants > 0 ? Math.round((certified / totalParticipants) * 100) : 0,
+      certificationRate:
+        totalParticipants > 0
+          ? Math.round((certified / totalParticipants) * 100)
+          : 0,
       alerts,
       participants: paginatedParticipants,
     };
@@ -2562,72 +2912,126 @@ export class EventsService {
     queryDto: ParticipantAccountabilityQueryDto,
   ): Promise<TrainingAccountabilityReportDto> {
     const event = await this.findById(eventId);
-    const accountability = await this.getParticipantAccountability(eventId, queryDto);
+    const accountability = await this.getParticipantAccountability(
+      eventId,
+      queryDto,
+    );
 
-    const sessions = await this.sessionModel.find({ event: event._id }).sort({ order: 1 });
+    const sessions = await this.sessionModel
+      .find({ event: event._id })
+      .sort({ order: 1 });
 
     // Build session breakdown
-    const sessionBreakdown = await Promise.all(sessions.map(async (session) => {
-      const attendances = await this.sessionAttendanceModel.find({ session: session._id });
-      const expectedAttendees = accountability.totalParticipants;
-      const actualAttendees = attendances.filter(
-        a => a.status === SessionAttendanceStatus.PRESENT || a.status === SessionAttendanceStatus.LATE
-      ).length;
-      const lateArrivals = attendances.filter(a => a.status === SessionAttendanceStatus.LATE).length;
-      const absences = attendances.filter(a => a.status === SessionAttendanceStatus.ABSENT).length;
-      const excused = attendances.filter(a => a.status === SessionAttendanceStatus.EXCUSED).length;
+    const sessionBreakdown = await Promise.all(
+      sessions.map(async (session) => {
+        const attendances = await this.sessionAttendanceModel.find({
+          session: session._id,
+        });
+        const expectedAttendees = accountability.totalParticipants;
+        const actualAttendees = attendances.filter(
+          (a) =>
+            a.status === SessionAttendanceStatus.PRESENT ||
+            a.status === SessionAttendanceStatus.LATE,
+        ).length;
+        const lateArrivals = attendances.filter(
+          (a) => a.status === SessionAttendanceStatus.LATE,
+        ).length;
+        const absences = attendances.filter(
+          (a) => a.status === SessionAttendanceStatus.ABSENT,
+        ).length;
+        const excused = attendances.filter(
+          (a) => a.status === SessionAttendanceStatus.EXCUSED,
+        ).length;
 
-      // Assessment data
-      const assessmentResults = attendances.filter(a => a.assessmentResult?.score !== undefined);
-      const assessmentAverage = assessmentResults.length > 0
-        ? assessmentResults.reduce((sum, a) => sum + (a.assessmentResult?.percentage || 0), 0) / assessmentResults.length
-        : undefined;
-      const assessmentPassRate = assessmentResults.length > 0
-        ? Math.round((assessmentResults.filter(a => a.assessmentResult?.passed).length / assessmentResults.length) * 100)
-        : undefined;
+        // Assessment data
+        const assessmentResults = attendances.filter(
+          (a) => a.assessmentResult?.score !== undefined,
+        );
+        const assessmentAverage =
+          assessmentResults.length > 0
+            ? assessmentResults.reduce(
+                (sum, a) => sum + (a.assessmentResult?.percentage || 0),
+                0,
+              ) / assessmentResults.length
+            : undefined;
+        const assessmentPassRate =
+          assessmentResults.length > 0
+            ? Math.round(
+                (assessmentResults.filter((a) => a.assessmentResult?.passed)
+                  .length /
+                  assessmentResults.length) *
+                  100,
+              )
+            : undefined;
 
-      return {
-        sessionId: session._id.toString(),
-        sessionTitle: session.title,
-        sessionDate: session.date,
-        expectedAttendees,
-        actualAttendees,
-        attendanceRate: expectedAttendees > 0 ? Math.round((actualAttendees / expectedAttendees) * 100) : 0,
-        lateArrivals,
-        absences,
-        excused,
-        assessmentAverage: assessmentAverage ? Math.round(assessmentAverage) : undefined,
-        assessmentPassRate,
-      };
-    }));
+        return {
+          sessionId: session._id.toString(),
+          sessionTitle: session.title,
+          sessionDate: session.date,
+          expectedAttendees,
+          actualAttendees,
+          attendanceRate:
+            expectedAttendees > 0
+              ? Math.round((actualAttendees / expectedAttendees) * 100)
+              : 0,
+          lateArrivals,
+          absences,
+          excused,
+          assessmentAverage: assessmentAverage
+            ? Math.round(assessmentAverage)
+            : undefined,
+          assessmentPassRate,
+        };
+      }),
+    );
 
     // Participant status breakdown
     const statusGroups = {
-      'excellent': accountability.participants.filter(p => p.attendanceStatus === 'excellent'),
-      'good': accountability.participants.filter(p => p.attendanceStatus === 'good'),
-      'needs_improvement': accountability.participants.filter(p => p.attendanceStatus === 'needs_improvement'),
-      'at_risk': accountability.participants.filter(p => p.attendanceStatus === 'at_risk'),
-      'failed': accountability.participants.filter(p => p.attendanceStatus === 'failed'),
+      excellent: accountability.participants.filter(
+        (p) => p.attendanceStatus === 'excellent',
+      ),
+      good: accountability.participants.filter(
+        (p) => p.attendanceStatus === 'good',
+      ),
+      needs_improvement: accountability.participants.filter(
+        (p) => p.attendanceStatus === 'needs_improvement',
+      ),
+      at_risk: accountability.participants.filter(
+        (p) => p.attendanceStatus === 'at_risk',
+      ),
+      failed: accountability.participants.filter(
+        (p) => p.attendanceStatus === 'failed',
+      ),
     };
 
-    const participantStatusBreakdown = Object.entries(statusGroups).map(([status, participants]) => ({
-      status,
-      count: participants.length,
-      percentage: accountability.totalParticipants > 0
-        ? Math.round((participants.length / accountability.totalParticipants) * 100)
-        : 0,
-      participants: participants.slice(0, 5).map(p => ({
-        id: p.registrationId,
-        name: p.participantName,
-        email: p.participantEmail,
-        progress: p.completionPercentage,
-      })),
-    }));
+    const participantStatusBreakdown = Object.entries(statusGroups).map(
+      ([status, participants]) => ({
+        status,
+        count: participants.length,
+        percentage:
+          accountability.totalParticipants > 0
+            ? Math.round(
+                (participants.length / accountability.totalParticipants) * 100,
+              )
+            : 0,
+        participants: participants.slice(0, 5).map((p) => ({
+          id: p.registrationId,
+          name: p.participantName,
+          email: p.participantEmail,
+          progress: p.completionPercentage,
+        })),
+      }),
+    );
 
     // At-risk participants with detailed info
     const atRiskParticipants = accountability.participants
-      .filter(p => p.attendanceStatus === 'at_risk' || p.attendanceStatus === 'failed' || p.assessmentStatus === 'failing')
-      .map(p => {
+      .filter(
+        (p) =>
+          p.attendanceStatus === 'at_risk' ||
+          p.attendanceStatus === 'failed' ||
+          p.assessmentStatus === 'failing',
+      )
+      .map((p) => {
         const riskFactors: string[] = [];
         let riskLevel: 'medium' | 'high' | 'critical' = 'medium';
 
@@ -2674,19 +3078,26 @@ export class EventsService {
 
     // Top performers
     const topPerformers = accountability.participants
-      .filter(p => p.attendanceStatus === 'excellent' || p.attendanceStatus === 'good')
+      .filter(
+        (p) =>
+          p.attendanceStatus === 'excellent' || p.attendanceStatus === 'good',
+      )
       .sort((a, b) => {
-        const scoreA = (a.attendancePercentage * 0.5) + (a.averageAssessmentScore * 0.5);
-        const scoreB = (b.attendancePercentage * 0.5) + (b.averageAssessmentScore * 0.5);
+        const scoreA =
+          a.attendancePercentage * 0.5 + a.averageAssessmentScore * 0.5;
+        const scoreB =
+          b.attendancePercentage * 0.5 + b.averageAssessmentScore * 0.5;
         return scoreB - scoreA;
       })
       .slice(0, 10)
-      .map(p => ({
+      .map((p) => ({
         registrationId: p.registrationId,
         participantName: p.participantName,
         attendanceRate: p.attendancePercentage,
         assessmentAverage: p.averageAssessmentScore,
-        overallScore: Math.round((p.attendancePercentage * 0.5) + (p.averageAssessmentScore * 0.5)),
+        overallScore: Math.round(
+          p.attendancePercentage * 0.5 + p.averageAssessmentScore * 0.5,
+        ),
       }));
 
     return {
@@ -2695,12 +3106,15 @@ export class EventsService {
       reportGeneratedAt: new Date(),
       totalEnrolled: accountability.totalParticipants,
       totalActive: accountability.activeParticipants,
-      totalCompleted: accountability.certified + accountability.excellentAttendance,
+      totalCompleted:
+        accountability.certified + accountability.excellentAttendance,
       totalDropped: accountability.droppedParticipants,
       completionRate: accountability.certificationRate,
       averageProgress: Math.round(
-        accountability.participants.reduce((sum, p) => sum + p.completionPercentage, 0) /
-        (accountability.participants.length || 1)
+        accountability.participants.reduce(
+          (sum, p) => sum + p.completionPercentage,
+          0,
+        ) / (accountability.participants.length || 1),
       ),
       sessionBreakdown,
       participantStatusBreakdown,
@@ -2719,15 +3133,20 @@ export class EventsService {
     submitPartnerDto: SubmitPartnerDto,
   ): Promise<EventPartnerDocument> {
     // Find event by registrationSlug
-    const event = await this.eventModel.findOne({ registrationSlug: eventSlug });
+    const event = await this.eventModel.findOne({
+      registrationSlug: eventSlug,
+    });
     if (!event) {
       throw new NotFoundException('Event not found');
     }
 
     // Check if event accepts partnerships
-    if (event.status === EventStatus.CANCELLED || event.status === EventStatus.COMPLETED) {
+    if (
+      event.status === EventStatus.CANCELLED ||
+      event.status === EventStatus.COMPLETED
+    ) {
       throw new BadRequestException(
-        `Event is ${event.status.toLowerCase()}. Partnership inquiries are not accepted.`
+        `Event is ${event.status.toLowerCase()}. Partnership inquiries are not accepted.`,
       );
     }
 
@@ -2739,7 +3158,7 @@ export class EventsService {
 
     if (existing) {
       throw new ConflictException(
-        'A partnership inquiry with this email already exists for this event'
+        'A partnership inquiry with this email already exists for this event',
       );
     }
 
@@ -2776,11 +3195,13 @@ export class EventsService {
         adminEmail: event.contactEmail || 'lbs@powerpointtribe.org',
       }),
     ]).catch((err) => {
-      this.logger.error(`Failed to queue partner emails for ${partner.email}: ${err.message}`);
+      this.logger.error(
+        `Failed to queue partner emails for ${partner.email}: ${err.message}`,
+      );
     });
 
     this.logger.log(
-      `Partnership inquiry submitted for event ${event.title} by ${partner.email}`
+      `Partnership inquiry submitted for event ${event.title} by ${partner.email}`,
     );
 
     return partner;
@@ -2895,7 +3316,7 @@ export class EventsService {
     await partner.save();
 
     this.logger.log(
-      `Partner ${partnerId} status updated to ${updateDto.status} for event ${eventId}`
+      `Partner ${partnerId} status updated to ${updateDto.status} for event ${eventId}`,
     );
 
     return partner;
@@ -2919,7 +3340,8 @@ export class EventsService {
     if (dto.company !== undefined) partner.company = dto.company;
     if (dto.email !== undefined) partner.email = dto.email;
     if (dto.phone !== undefined) partner.phone = dto.phone;
-    if (dto.interestDetails !== undefined) partner.interestDetails = dto.interestDetails;
+    if (dto.interestDetails !== undefined)
+      partner.interestDetails = dto.interestDetails;
     if (dto.notes !== undefined) partner.notes = dto.notes;
 
     return partner.save();
@@ -2973,7 +3395,10 @@ export class EventsService {
     // Update partner status if requested
     if (contactDto.updateStatus) {
       partner.status = contactDto.updateStatus;
-      if (contactDto.updateStatus === PartnerStatus.CONTACTED && !partner.contactedAt) {
+      if (
+        contactDto.updateStatus === PartnerStatus.CONTACTED &&
+        !partner.contactedAt
+      ) {
         partner.contactedAt = new Date();
       }
       await partner.save();
@@ -2985,7 +3410,7 @@ export class EventsService {
     }
 
     this.logger.log(
-      `Email sent to partner ${partner.email} for event ${event.title}`
+      `Email sent to partner ${partner.email} for event ${event.title}`,
     );
   }
 
@@ -3006,7 +3431,9 @@ export class EventsService {
 
     // If specific partner IDs provided, use those
     if (bulkEmailDto.partnerIds && bulkEmailDto.partnerIds.length > 0) {
-      filter._id = { $in: bulkEmailDto.partnerIds.map(id => new Types.ObjectId(id)) };
+      filter._id = {
+        $in: bulkEmailDto.partnerIds.map((id) => new Types.ObjectId(id)),
+      };
     }
     // Otherwise filter by status
     else if (bulkEmailDto.statuses && bulkEmailDto.statuses.length > 0) {
@@ -3014,33 +3441,39 @@ export class EventsService {
     }
 
     // Get all matching partners
-    const partners = await this.partnerModel.find(filter).select('_id email name company');
+    const partners = await this.partnerModel
+      .find(filter)
+      .select('_id email name company');
 
     if (partners.length === 0) {
       throw new BadRequestException('No partners match the specified criteria');
     }
 
     // Queue bulk email job
-    const job = await this.emailQueue.add('bulk-partner-email', {
-      eventId: event._id.toString(),
-      eventTitle: event.title,
-      subject: bulkEmailDto.subject,
-      message: bulkEmailDto.message,
-      partners: partners.map(p => ({
-        id: p._id.toString(),
-        email: p.email,
-        name: p.name,
-        company: p.company,
-      })),
-      scheduledFor: bulkEmailDto.scheduledFor,
-    }, {
-      delay: bulkEmailDto.scheduledFor
-        ? new Date(bulkEmailDto.scheduledFor).getTime() - Date.now()
-        : 0,
-    });
+    const job = await this.emailQueue.add(
+      'bulk-partner-email',
+      {
+        eventId: event._id.toString(),
+        eventTitle: event.title,
+        subject: bulkEmailDto.subject,
+        message: bulkEmailDto.message,
+        partners: partners.map((p) => ({
+          id: p._id.toString(),
+          email: p.email,
+          name: p.name,
+          company: p.company,
+        })),
+        scheduledFor: bulkEmailDto.scheduledFor,
+      },
+      {
+        delay: bulkEmailDto.scheduledFor
+          ? new Date(bulkEmailDto.scheduledFor).getTime() - Date.now()
+          : 0,
+      },
+    );
 
     this.logger.log(
-      `Bulk email queued for ${partners.length} partners for event ${event.title}`
+      `Bulk email queued for ${partners.length} partners for event ${event.title}`,
     );
 
     return {
@@ -3071,8 +3504,13 @@ export class EventsService {
     };
 
     // If specific registration IDs provided, use those
-    if (bulkEmailDto.registrationIds && bulkEmailDto.registrationIds.length > 0) {
-      filter._id = { $in: bulkEmailDto.registrationIds.map(id => new Types.ObjectId(id)) };
+    if (
+      bulkEmailDto.registrationIds &&
+      bulkEmailDto.registrationIds.length > 0
+    ) {
+      filter._id = {
+        $in: bulkEmailDto.registrationIds.map((id) => new Types.ObjectId(id)),
+      };
     }
     // Otherwise filter by status
     else if (bulkEmailDto.statuses && bulkEmailDto.statuses.length > 0) {
@@ -3085,32 +3523,38 @@ export class EventsService {
       .select('_id attendeeInfo customFieldResponses checkInCode');
 
     if (registrations.length === 0) {
-      throw new BadRequestException('No registrations match the specified criteria');
+      throw new BadRequestException(
+        'No registrations match the specified criteria',
+      );
     }
 
     // Queue bulk email job
-    const job = await this.emailQueue.add('bulk-registration-email', {
-      eventId: event._id.toString(),
-      eventTitle: event.title,
-      subject: bulkEmailDto.subject,
-      message: bulkEmailDto.message,
-      registrations: registrations.map(r => ({
-        id: r._id.toString(),
-        email: r.attendeeInfo.email,
-        firstName: r.attendeeInfo.firstName,
-        lastName: r.attendeeInfo.lastName,
-        checkInCode: r.checkInCode,
-        customFieldResponses: r.customFieldResponses,
-      })),
-      scheduledFor: bulkEmailDto.scheduledFor,
-    }, {
-      delay: bulkEmailDto.scheduledFor
-        ? new Date(bulkEmailDto.scheduledFor).getTime() - Date.now()
-        : 0,
-    });
+    const job = await this.emailQueue.add(
+      'bulk-registration-email',
+      {
+        eventId: event._id.toString(),
+        eventTitle: event.title,
+        subject: bulkEmailDto.subject,
+        message: bulkEmailDto.message,
+        registrations: registrations.map((r) => ({
+          id: r._id.toString(),
+          email: r.attendeeInfo.email,
+          firstName: r.attendeeInfo.firstName,
+          lastName: r.attendeeInfo.lastName,
+          checkInCode: r.checkInCode,
+          customFieldResponses: r.customFieldResponses,
+        })),
+        scheduledFor: bulkEmailDto.scheduledFor,
+      },
+      {
+        delay: bulkEmailDto.scheduledFor
+          ? new Date(bulkEmailDto.scheduledFor).getTime() - Date.now()
+          : 0,
+      },
+    );
 
     this.logger.log(
-      `Bulk email queued for ${registrations.length} registrations for event ${event.title}`
+      `Bulk email queued for ${registrations.length} registrations for event ${event.title}`,
     );
 
     return {
@@ -3175,7 +3619,7 @@ export class EventsService {
     ];
 
     // Add custom field columns
-    customFields.forEach(field => {
+    customFields.forEach((field) => {
       columns.push({
         header: field.label,
         key: field.id,
@@ -3186,7 +3630,7 @@ export class EventsService {
     columns.push({ header: 'Notes', key: 'notes', width: 30 });
 
     // Transform data
-    const data = registrations.map(reg => {
+    const data = registrations.map((reg) => {
       const baseData: any = {
         registrationId: reg._id.toString(),
         firstName: reg.attendeeInfo.firstName,
@@ -3217,18 +3661,24 @@ export class EventsService {
     if (format === 'csv') {
       return ExportUtil.generateCSV(data, columns);
     } else if (format === 'xlsx') {
-      return ExportUtil.generateExcel(data, columns, `${event.title} - Registrations`);
+      return ExportUtil.generateExcel(
+        data,
+        columns,
+        `${event.title} - Registrations`,
+      );
     } else if (format === 'pdf') {
-      return ExportUtil.generatePDF(data, columns, `${event.title} - Registrations`);
+      return ExportUtil.generatePDF(
+        data,
+        columns,
+        `${event.title} - Registrations`,
+      );
     }
   }
 
   /**
    * Get partner analytics
    */
-  async getPartnerAnalytics(
-    eventId: string,
-  ): Promise<any> {
+  async getPartnerAnalytics(eventId: string): Promise<any> {
     // Verify event exists and user has access
     const event = await this.findById(eventId);
 
@@ -3240,23 +3690,28 @@ export class EventsService {
     // Calculate statistics
     const total = partners.length;
     const statusBreakdown = {
-      pending: partners.filter(p => p.status === PartnerStatus.PENDING).length,
-      contacted: partners.filter(p => p.status === PartnerStatus.CONTACTED).length,
-      inDiscussion: partners.filter(p => p.status === PartnerStatus.IN_DISCUSSION).length,
-      confirmed: partners.filter(p => p.status === PartnerStatus.CONFIRMED).length,
-      declined: partners.filter(p => p.status === PartnerStatus.DECLINED).length,
+      pending: partners.filter((p) => p.status === PartnerStatus.PENDING)
+        .length,
+      contacted: partners.filter((p) => p.status === PartnerStatus.CONTACTED)
+        .length,
+      inDiscussion: partners.filter(
+        (p) => p.status === PartnerStatus.IN_DISCUSSION,
+      ).length,
+      confirmed: partners.filter((p) => p.status === PartnerStatus.CONFIRMED)
+        .length,
+      declined: partners.filter((p) => p.status === PartnerStatus.DECLINED)
+        .length,
     };
 
-    const conversionRate = total > 0
-      ? Math.round((statusBreakdown.confirmed / total) * 100)
-      : 0;
+    const conversionRate =
+      total > 0 ? Math.round((statusBreakdown.confirmed / total) * 100) : 0;
 
     // Timeline data (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const recentInquiries = partners.filter(
-      p => p.submittedAt >= thirtyDaysAgo
+      (p) => p.submittedAt >= thirtyDaysAgo,
     );
 
     return {
@@ -3274,10 +3729,12 @@ export class EventsService {
   /**
    * Helper: Get top companies from partners
    */
-  private getTopCompanies(partners: EventPartnerDocument[]): Array<{ company: string; count: number }> {
+  private getTopCompanies(
+    partners: EventPartnerDocument[],
+  ): Array<{ company: string; count: number }> {
     const companyMap = new Map<string, number>();
 
-    partners.forEach(p => {
+    partners.forEach((p) => {
       if (p.company) {
         const count = companyMap.get(p.company) || 0;
         companyMap.set(p.company, count + 1);
@@ -3343,11 +3800,14 @@ export class EventsService {
     ];
 
     // Transform data
-    const data = partners.map(partner => {
+    const data = partners.map((partner) => {
       const assignedMember = partner.assignedTo as any;
-      const assignedToName = assignedMember && typeof assignedMember === 'object' && assignedMember.firstName
-        ? `${assignedMember.firstName} ${assignedMember.lastName}`
-        : '';
+      const assignedToName =
+        assignedMember &&
+        typeof assignedMember === 'object' &&
+        assignedMember.firstName
+          ? `${assignedMember.firstName} ${assignedMember.lastName}`
+          : '';
 
       return {
         partnerId: partner._id.toString(),
@@ -3370,7 +3830,11 @@ export class EventsService {
     if (format === 'csv') {
       return ExportUtil.generateCSV(data, columns);
     } else if (format === 'xlsx') {
-      return ExportUtil.generateExcel(data, columns, `${event.title} - Partners`);
+      return ExportUtil.generateExcel(
+        data,
+        columns,
+        `${event.title} - Partners`,
+      );
     } else if (format === 'pdf') {
       return ExportUtil.generatePDF(data, columns, `${event.title} - Partners`);
     }
@@ -3407,7 +3871,9 @@ export class EventsService {
   /**
    * Get confirmed registrations for event (used by reminder scheduler)
    */
-  async getConfirmedRegistrations(eventId: Types.ObjectId): Promise<EventRegistrationDocument[]> {
+  async getConfirmedRegistrations(
+    eventId: Types.ObjectId,
+  ): Promise<EventRegistrationDocument[]> {
     return this.registrationModel.find({
       event: eventId,
       status: RegistrationStatus.CONFIRMED,
@@ -3427,7 +3893,9 @@ export class EventsService {
     const event = await this.findById(eventId);
     if (!event) throw new NotFoundException('Event not found');
 
-    const registration = await this.registrationModel.findById(dto.registrationId);
+    const registration = await this.registrationModel.findById(
+      dto.registrationId,
+    );
     if (!registration) throw new NotFoundException('Registration not found');
 
     const data: any = {
@@ -3501,20 +3969,25 @@ export class EventsService {
     // Calculate summary
     const weekEntries = query?.week
       ? entries
-      : entries.filter((e) => e.week === Math.max(...entries.map((x) => x.week)));
+      : entries.filter(
+          (e) => e.week === Math.max(...entries.map((x) => x.week)),
+        );
 
     const totalParticipants = weekEntries.length;
     const avgPostCount =
       totalParticipants > 0
-        ? weekEntries.reduce((sum, e) => sum + e.postCount, 0) / totalParticipants
+        ? weekEntries.reduce((sum, e) => sum + e.postCount, 0) /
+          totalParticipants
         : 0;
     const avgEngagement =
       totalParticipants > 0
-        ? weekEntries.reduce((sum, e) => sum + e.engagementRate, 0) / totalParticipants
+        ? weekEntries.reduce((sum, e) => sum + e.engagementRate, 0) /
+          totalParticipants
         : 0;
     const avgConsistency =
       totalParticipants > 0
-        ? weekEntries.reduce((sum, e) => sum + e.consistencyScore, 0) / totalParticipants
+        ? weekEntries.reduce((sum, e) => sum + e.consistencyScore, 0) /
+          totalParticipants
         : 0;
     const totalFollowerGrowth = weekEntries.reduce(
       (sum, e) => sum + e.followerGrowth,
