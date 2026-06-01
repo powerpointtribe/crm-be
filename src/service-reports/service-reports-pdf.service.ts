@@ -34,1313 +34,414 @@ export class ServiceReportsPdfService {
     others: 'Others',
   };
 
-  private generateDonutChart(report: ServiceReportDocument): string {
-    const data = [
-      { label: 'Males', value: report.numberOfMales, color: '#3B82F6' },
-      { label: 'Females', value: report.numberOfFemales, color: '#EC4899' },
-      { label: 'Children', value: report.numberOfChildren, color: '#10B981' },
-    ];
-
-    const total = report.totalAttendance;
-    if (total === 0) {
-      return `<svg viewBox="0 0 200 200" class="donut-chart">
-        <circle cx="100" cy="100" r="70" fill="#f1f5f9" />
-        <text x="100" y="100" text-anchor="middle" dy="0.3em" class="donut-center-text">No Data</text>
-      </svg>`;
-    }
-
-    const center = 100;
-    const outerRadius = 80;
-    const innerRadius = 50;
-    let cumulativePercentage = 0;
-
-    const paths = data
-      .filter((item) => item.value > 0)
-      .map((item) => {
-        const percentage = (item.value / total) * 100;
-        const startAngle = (cumulativePercentage / 100) * 360;
-        const endAngle = ((cumulativePercentage + percentage) / 100) * 360;
-
-        const startAngleRad = (startAngle - 90) * (Math.PI / 180);
-        const endAngleRad = (endAngle - 90) * (Math.PI / 180);
-
-        const outerX1 = center + outerRadius * Math.cos(startAngleRad);
-        const outerY1 = center + outerRadius * Math.sin(startAngleRad);
-        const outerX2 = center + outerRadius * Math.cos(endAngleRad);
-        const outerY2 = center + outerRadius * Math.sin(endAngleRad);
-
-        const innerX1 = center + innerRadius * Math.cos(startAngleRad);
-        const innerY1 = center + innerRadius * Math.sin(startAngleRad);
-        const innerX2 = center + innerRadius * Math.cos(endAngleRad);
-        const innerY2 = center + innerRadius * Math.sin(endAngleRad);
-
-        const largeArcFlag = percentage > 50 ? 1 : 0;
-
-        cumulativePercentage += percentage;
-
-        return `<path d="M ${outerX1} ${outerY1} A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${outerX2} ${outerY2} L ${innerX2} ${innerY2} A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${innerX1} ${innerY1} Z" fill="${item.color}" stroke="white" stroke-width="2">
-          <title>${item.label}: ${item.value} (${percentage.toFixed(1)}%)</title>
-        </path>`;
-      })
-      .join('');
-
-    return `
-      <svg viewBox="0 0 200 200" class="donut-chart">
-        <defs>
-          <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.15"/>
-          </filter>
-        </defs>
-        <g filter="url(#shadow)">
-          ${paths}
-        </g>
-        <circle cx="100" cy="100" r="45" fill="white" />
-        <text x="100" y="92" text-anchor="middle" class="donut-center-value">${total}</text>
-        <text x="100" y="112" text-anchor="middle" class="donut-center-label">Total</text>
-      </svg>
-    `;
+  private fmt(num: number): string {
+    return num.toLocaleString('en-US');
   }
 
-  private generateBarChart(
-    report: ServiceReportDocument,
-    stats?: PdfComparisonStats,
-  ): string {
-    const currentData = [
-      { label: 'Males', value: report.numberOfMales, color: '#3B82F6' },
-      { label: 'Females', value: report.numberOfFemales, color: '#EC4899' },
-      { label: 'Children', value: report.numberOfChildren, color: '#10B981' },
-      {
-        label: 'First Timers',
-        value: report.numberOfFirstTimers,
-        color: '#F59E0B',
-      },
-    ];
+  private pct(value: number, total: number): string {
+    return total > 0 ? ((value / total) * 100).toFixed(1) : '0';
+  }
 
-    const avgData = stats
-      ? [
-          { label: 'Males', value: Math.round(stats.averageMales) },
-          { label: 'Females', value: Math.round(stats.averageFemales) },
-          { label: 'Children', value: Math.round(stats.averageChildren) },
-          { label: 'First Timers', value: Math.round(stats.averageFirstTimers) },
-        ]
-      : null;
+  private delta(current: number, average: number): string {
+    if (average === 0) return '';
+    const diff = current - average;
+    const pct = ((diff / average) * 100).toFixed(0);
+    const isUp = diff >= 0;
+    const color = isUp ? '#10B981' : '#EF4444';
+    const arrow = isUp ? '&#9650;' : '&#9660;';
+    return `<span style="color:${color};font-size:11px;font-weight:600;">${arrow} ${isUp ? '+' : ''}${pct}%</span>`;
+  }
 
-    const maxValue = Math.max(
-      ...currentData.map((d) => d.value),
-      ...(avgData ? avgData.map((d) => d.value) : [0]),
-    );
-    const chartHeight = 180;
-    const chartWidth = 400;
-    const barWidth = avgData ? 35 : 50;
-    const groupGap = avgData ? 80 : 90;
-    const startX = 50;
+  private miniBar(value: number, max: number, color: string): string {
+    const w = max > 0 ? Math.round((value / max) * 100) : 0;
+    return `<div style="height:4px;background:#f1f5f9;border-radius:2px;margin-top:4px;"><div style="height:100%;width:${w}%;background:${color};border-radius:2px;"></div></div>`;
+  }
 
-    const bars = currentData
-      .map((item, index) => {
-        const x = startX + index * groupGap;
-        const barHeight = maxValue > 0 ? (item.value / maxValue) * chartHeight : 0;
-        const y = 200 - barHeight;
+  private buildTrendSvg(trend: { month: string; attendance: number }[]): string {
+    if (!trend || trend.length < 2) return '';
 
-        let avgBar = '';
-        if (avgData) {
-          const avgHeight =
-            maxValue > 0 ? (avgData[index].value / maxValue) * chartHeight : 0;
-          const avgY = 200 - avgHeight;
-          avgBar = `
-            <rect x="${x + barWidth + 5}" y="${avgY}" width="${barWidth}" height="${avgHeight}" fill="#CBD5E1" rx="4">
-              <title>Avg ${avgData[index].label}: ${avgData[index].value}</title>
-            </rect>
-            <text x="${x + barWidth + 5 + barWidth / 2}" y="${avgY - 5}" text-anchor="middle" class="bar-value" fill="#64748b">${avgData[index].value}</text>
-          `;
-        }
+    const W = 460, H = 100, PL = 35, PR = 10, PT = 10, PB = 25;
+    const gW = W - PL - PR, gH = H - PT - PB;
+    const maxA = Math.max(...trend.map(d => d.attendance));
+    const minA = Math.min(...trend.map(d => d.attendance));
+    const range = maxA - minA || 1;
 
-        return `
-          <g class="bar-group">
-            <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${item.color}" rx="4">
-              <title>${item.label}: ${item.value}</title>
-            </rect>
-            <text x="${x + barWidth / 2}" y="${y - 5}" text-anchor="middle" class="bar-value">${item.value}</text>
-            ${avgBar}
-            <text x="${x + (avgData ? barWidth + 2.5 : barWidth / 2)}" y="220" text-anchor="middle" class="bar-label">${item.label}</text>
-          </g>
-        `;
-      })
+    const pts = trend.map((d, i) => ({
+      x: PL + (i / (trend.length - 1)) * gW,
+      y: PT + gH - ((d.attendance - minA) / range) * gH,
+      ...d,
+    }));
+
+    const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+    const area = `${line} L${pts[pts.length - 1].x},${PT + gH} L${pts[0].x},${PT + gH} Z`;
+
+    const dots = pts.map(p =>
+      `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#6366F1" stroke="#fff" stroke-width="1.5"/>`
+    ).join('');
+
+    const labels = pts
+      .filter((_, i) => i % Math.max(1, Math.ceil(pts.length / 6)) === 0 || i === pts.length - 1)
+      .map(p => `<text x="${p.x}" y="${H - 5}" text-anchor="middle" style="font-size:8px;fill:#94a3b8;">${p.month}</text>`)
       .join('');
 
-    const legend = avgData
-      ? `
-      <g class="chart-legend" transform="translate(${chartWidth - 150}, 10)">
-        <rect x="0" y="0" width="12" height="12" fill="#3B82F6" rx="2"/>
-        <text x="18" y="10" class="legend-text">This Service</text>
-        <rect x="0" y="20" width="12" height="12" fill="#CBD5E1" rx="2"/>
-        <text x="18" y="30" class="legend-text">Average</text>
-      </g>
-    `
-      : '';
-
     return `
-      <svg viewBox="0 0 ${chartWidth + 50} 250" class="bar-chart">
+    <div style="margin-top:16px;">
+      <div style="font-size:11px;font-weight:600;color:#475569;margin-bottom:6px;">Attendance Trend</div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">
         <defs>
-          <linearGradient id="gridGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style="stop-color:#f8fafc;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#f1f5f9;stop-opacity:1" />
+          <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#6366F1" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="#6366F1" stop-opacity="0.02"/>
           </linearGradient>
         </defs>
-        <rect x="40" y="10" width="${chartWidth - 30}" height="200" fill="url(#gridGradient)" rx="8"/>
-        <!-- Grid lines -->
-        <line x1="40" y1="60" x2="${chartWidth + 10}" y2="60" stroke="#e2e8f0" stroke-dasharray="4"/>
-        <line x1="40" y1="110" x2="${chartWidth + 10}" y2="110" stroke="#e2e8f0" stroke-dasharray="4"/>
-        <line x1="40" y1="160" x2="${chartWidth + 10}" y2="160" stroke="#e2e8f0" stroke-dasharray="4"/>
-        ${bars}
-        ${legend}
+        <path d="${area}" fill="url(#tg)"/>
+        <path d="${line}" fill="none" stroke="#6366F1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        ${dots}
+        ${labels}
       </svg>
-    `;
+    </div>`;
   }
 
-  private generateTrendChart(monthlyTrend?: { month: string; attendance: number }[]): string {
-    if (!monthlyTrend || monthlyTrend.length < 2) {
-      return '';
-    }
+  private buildBarChart(report: ServiceReportDocument, stats?: PdfComparisonStats): string {
+    const items = [
+      { label: 'Males', val: report.numberOfMales, avg: stats ? Math.round(stats.averageMales) : 0, color: '#3B82F6' },
+      { label: 'Females', val: report.numberOfFemales, avg: stats ? Math.round(stats.averageFemales) : 0, color: '#EC4899' },
+      { label: 'Children', val: report.numberOfChildren, avg: stats ? Math.round(stats.averageChildren) : 0, color: '#10B981' },
+      { label: 'First Timers', val: report.numberOfFirstTimers, avg: stats ? Math.round(stats.averageFirstTimers) : 0, color: '#F59E0B' },
+    ];
 
-    const chartWidth = 500;
-    const chartHeight = 150;
-    const padding = { top: 20, right: 30, bottom: 40, left: 50 };
-    const graphWidth = chartWidth - padding.left - padding.right;
-    const graphHeight = chartHeight - padding.top - padding.bottom;
+    const maxVal = Math.max(...items.map(i => Math.max(i.val, i.avg)), 1);
+    const W = 440, H = 140, PL = 10, PB = 20;
+    const barW = stats ? 28 : 40;
+    const gap = stats ? 90 : 100;
 
-    const maxAttendance = Math.max(...monthlyTrend.map((d) => d.attendance));
-    const minAttendance = Math.min(...monthlyTrend.map((d) => d.attendance));
-    const range = maxAttendance - minAttendance || 1;
+    const bars = items.map((item, idx) => {
+      const x = PL + 30 + idx * gap;
+      const h = (item.val / maxVal) * (H - 30 - PB);
+      const y = H - PB - h;
+      let avgBar = '';
+      if (stats) {
+        const ah = (item.avg / maxVal) * (H - 30 - PB);
+        const ay = H - PB - ah;
+        avgBar = `
+          <rect x="${x + barW + 4}" y="${ay}" width="${barW}" height="${ah}" fill="#CBD5E1" rx="3"/>
+          <text x="${x + barW + 4 + barW / 2}" y="${ay - 4}" text-anchor="middle" style="font-size:9px;fill:#94a3b8;font-weight:600;">${item.avg}</text>`;
+      }
+      return `
+        <rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${item.color}" rx="3"/>
+        <text x="${x + barW / 2}" y="${y - 4}" text-anchor="middle" style="font-size:9px;fill:#334155;font-weight:600;">${item.val}</text>
+        ${avgBar}
+        <text x="${x + (stats ? barW + 2 : barW / 2)}" y="${H - 5}" text-anchor="middle" style="font-size:8px;fill:#94a3b8;">${item.label}</text>`;
+    }).join('');
 
-    const points = monthlyTrend.map((d, i) => {
-      const x = padding.left + (i / (monthlyTrend.length - 1)) * graphWidth;
-      const y =
-        padding.top +
-        graphHeight -
-        ((d.attendance - minAttendance) / range) * graphHeight;
-      return { x, y, ...d };
-    });
+    const legend = stats ? `
+      <g transform="translate(${W - 130},5)">
+        <rect x="0" y="0" width="10" height="10" fill="#3B82F6" rx="2"/>
+        <text x="14" y="9" style="font-size:9px;fill:#64748b;">This Service</text>
+        <rect x="0" y="16" width="10" height="10" fill="#CBD5E1" rx="2"/>
+        <text x="14" y="25" style="font-size:9px;fill:#64748b;">Year Avg</text>
+      </g>` : '';
 
-    const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-
-    const areaPath = `${linePath} L ${points[points.length - 1].x} ${padding.top + graphHeight} L ${points[0].x} ${padding.top + graphHeight} Z`;
-
-    const dots = points
-      .map(
-        (p) => `
-        <circle cx="${p.x}" cy="${p.y}" r="4" fill="#3B82F6" stroke="white" stroke-width="2">
-          <title>${p.month}: ${p.attendance}</title>
-        </circle>
-      `,
-      )
-      .join('');
-
-    const labels = points
-      .filter((_, i) => i % Math.ceil(points.length / 6) === 0 || i === points.length - 1)
-      .map(
-        (p) => `
-        <text x="${p.x}" y="${chartHeight - 10}" text-anchor="middle" class="trend-label">${p.month}</text>
-      `,
-      )
-      .join('');
-
-    return `
-      <div class="trend-section">
-        <h3 class="section-title">Attendance Trend (Last ${monthlyTrend.length} Months)</h3>
-        <svg viewBox="0 0 ${chartWidth} ${chartHeight}" class="trend-chart">
-          <defs>
-            <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:0.3" />
-              <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:0.05" />
-            </linearGradient>
-          </defs>
-          <rect x="${padding.left}" y="${padding.top}" width="${graphWidth}" height="${graphHeight}" fill="#f8fafc" rx="4"/>
-          <path d="${areaPath}" fill="url(#areaGradient)" />
-          <path d="${linePath}" fill="none" stroke="#3B82F6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          ${dots}
-          ${labels}
-          <text x="15" y="${padding.top + graphHeight / 2}" text-anchor="middle" transform="rotate(-90, 15, ${padding.top + graphHeight / 2})" class="axis-label">Attendance</text>
-        </svg>
-      </div>
-    `;
-  }
-
-  private generateComparisonIndicator(
-    current: number,
-    average: number,
-    label: string,
-  ): string {
-    if (average === 0) return '';
-
-    const diff = current - average;
-    const percentChange = ((diff / average) * 100).toFixed(1);
-    const isPositive = diff >= 0;
-    const color = isPositive ? '#10B981' : '#EF4444';
-    const arrow = isPositive ? '&#9650;' : '&#9660;';
-
-    return `
-      <div class="comparison-indicator ${isPositive ? 'positive' : 'negative'}">
-        <span class="indicator-arrow" style="color: ${color}">${arrow}</span>
-        <span class="indicator-value" style="color: ${color}">${isPositive ? '+' : ''}${percentChange}%</span>
-        <span class="indicator-label">vs avg ${label}</span>
-      </div>
-    `;
-  }
-
-  private formatNumber(num: number): string {
-    return num.toLocaleString('en-US');
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${bars}${legend}</svg>`;
   }
 
   generatePdfHtml(
     report: ServiceReportDocument,
     stats?: PdfComparisonStats,
   ): string {
-    const reportedByName =
-      report.reportedBy && typeof report.reportedBy === 'object'
-        ? `${(report.reportedBy as any).firstName} ${(report.reportedBy as any).lastName}`
-        : 'Unknown Reporter';
+    const year = new Date(report.date).getFullYear();
+    const reportedBy = report.reportedBy && typeof report.reportedBy === 'object'
+      ? `${(report.reportedBy as any).firstName} ${(report.reportedBy as any).lastName}`
+      : 'Unknown';
+    const branch = report.branch && typeof report.branch === 'object'
+      ? (report.branch as any).name
+      : 'Main Branch';
 
-    const branchName =
-      report.branch && typeof report.branch === 'object'
-        ? (report.branch as any).name
-        : 'Main Branch';
+    const fDate = new Date(report.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const sDate = new Date(report.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-    const formattedDate = new Date(report.date).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    const total = report.totalAttendance;
+    const adults = report.numberOfMales + report.numberOfFemales;
+    const returning = total - report.numberOfFirstTimers;
 
-    const shortDate = new Date(report.date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-
-    const malePercentage =
-      report.totalAttendance > 0
-        ? ((report.numberOfMales / report.totalAttendance) * 100).toFixed(1)
-        : '0';
-    const femalePercentage =
-      report.totalAttendance > 0
-        ? ((report.numberOfFemales / report.totalAttendance) * 100).toFixed(1)
-        : '0';
-    const childrenPercentage =
-      report.totalAttendance > 0
-        ? ((report.numberOfChildren / report.totalAttendance) * 100).toFixed(1)
-        : '0';
-    const firstTimerPercentage =
-      report.totalAttendance > 0
-        ? ((report.numberOfFirstTimers / report.totalAttendance) * 100).toFixed(1)
-        : '0';
-    const adultsCount = report.numberOfMales + report.numberOfFemales;
-    const adultsPercentage =
-      report.totalAttendance > 0
-        ? ((adultsCount / report.totalAttendance) * 100).toFixed(1)
-        : '0';
-    const returningMembers = report.totalAttendance - report.numberOfFirstTimers;
-
-    const attendanceVsAvg = stats
-      ? this.generateComparisonIndicator(
-          report.totalAttendance,
-          stats.averageAttendance,
-          '',
-        )
-      : '';
-
-    const firstTimersVsAvg = stats
-      ? this.generateComparisonIndicator(
-          report.numberOfFirstTimers,
-          stats.averageFirstTimers,
-          '',
-        )
-      : '';
-
-    const previousCompareHtml =
-      stats?.previousReport
-        ? `
-      <div class="previous-compare">
-        <div class="compare-header">
-          <span class="compare-icon">&#8644;</span>
-          <span>Compared to Previous Service</span>
+    const prevHtml = stats?.previousReport ? (() => {
+      const pDate = new Date(stats.previousReport.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const attDiff = report.totalAttendance - stats.previousReport.totalAttendance;
+      const ftDiff = report.numberOfFirstTimers - stats.previousReport.numberOfFirstTimers;
+      const attColor = attDiff >= 0 ? '#10B981' : '#EF4444';
+      const ftColor = ftDiff >= 0 ? '#10B981' : '#EF4444';
+      return `
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 16px;margin-top:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:11px;color:#0369a1;font-weight:600;">&#8644; vs Previous Service</div>
+          <div style="font-size:12px;color:#475569;margin-top:2px;">${stats.previousReport.serviceName} &middot; ${pDate}</div>
         </div>
-        <div class="compare-details">
-          <div class="compare-item">
-            <span class="compare-label">${stats.previousReport.serviceName}</span>
-            <span class="compare-date">${new Date(stats.previousReport.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+        <div style="display:flex;gap:20px;">
+          <div style="text-align:center;">
+            <div style="font-size:10px;color:#64748b;">Attendance</div>
+            <div style="font-size:16px;font-weight:700;color:${attColor};">${attDiff >= 0 ? '+' : ''}${attDiff}</div>
           </div>
-          <div class="compare-metrics">
-            <div class="compare-metric">
-              <span class="metric-label">Attendance</span>
-              <span class="metric-diff ${report.totalAttendance >= stats.previousReport.totalAttendance ? 'positive' : 'negative'}">
-                ${report.totalAttendance >= stats.previousReport.totalAttendance ? '+' : ''}${report.totalAttendance - stats.previousReport.totalAttendance}
-              </span>
-            </div>
-            <div class="compare-metric">
-              <span class="metric-label">First Timers</span>
-              <span class="metric-diff ${report.numberOfFirstTimers >= stats.previousReport.numberOfFirstTimers ? 'positive' : 'negative'}">
-                ${report.numberOfFirstTimers >= stats.previousReport.numberOfFirstTimers ? '+' : ''}${report.numberOfFirstTimers - stats.previousReport.numberOfFirstTimers}
-              </span>
-            </div>
+          <div style="text-align:center;">
+            <div style="font-size:10px;color:#64748b;">First Timers</div>
+            <div style="font-size:16px;font-weight:700;color:${ftColor};">${ftDiff >= 0 ? '+' : ''}${ftDiff}</div>
           </div>
         </div>
-      </div>
-    `
-        : '';
+      </div>`;
+    })() : '';
 
-    const statsInsightsHtml = stats
-      ? `
-      <div class="insights-section">
-        <h3 class="section-title">Performance Insights</h3>
-        <div class="insights-grid">
-          <div class="insight-card">
-            <div class="insight-icon blue">&#128200;</div>
-            <div class="insight-content">
-              <div class="insight-value">${this.formatNumber(Math.round(stats.averageAttendance))}</div>
-              <div class="insight-label">Average Attendance</div>
-            </div>
-          </div>
-          <div class="insight-card">
-            <div class="insight-icon green">&#128640;</div>
-            <div class="insight-content">
-              <div class="insight-value">${this.formatNumber(stats.highestAttendance)}</div>
-              <div class="insight-label">Highest Recorded</div>
-            </div>
-          </div>
-          <div class="insight-card">
-            <div class="insight-icon amber">&#128202;</div>
-            <div class="insight-content">
-              <div class="insight-value">${stats.totalReports}</div>
-              <div class="insight-label">Total Reports</div>
-            </div>
-          </div>
-          <div class="insight-card">
-            <div class="insight-icon pink">&#10024;</div>
-            <div class="insight-content">
-              <div class="insight-value">${((report.numberOfFirstTimers / Math.max(stats.averageFirstTimers, 0.1)) * 100).toFixed(0)}%</div>
-              <div class="insight-label">First Timer Rate vs Avg</div>
-            </div>
-          </div>
+    const tagsHtml = report.serviceTags?.length ? `
+      <div style="margin-top:16px;">
+        <div style="font-size:11px;font-weight:600;color:#475569;margin-bottom:6px;">Service Tags</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${report.serviceTags.map(t =>
+            `<span style="background:#EEF2FF;color:#4338CA;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:500;">&#127991; ${this.tagLabels[t] || t}</span>`
+          ).join('')}
         </div>
-      </div>
-    `
-      : '';
+      </div>` : '';
 
-    const trendChartHtml = this.generateTrendChart(stats?.monthlyTrend);
+    const notesHtml = report.notes ? `
+      <div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:14px 16px;margin-top:16px;">
+        <div style="font-size:11px;font-weight:600;color:#92400E;margin-bottom:4px;">&#128221; Notes</div>
+        <div style="font-size:12px;color:#78350F;line-height:1.6;white-space:pre-wrap;">${report.notes}</div>
+      </div>` : '';
 
-    return `
-<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The PowerPoint Tribe - ${branchName} | ${report.serviceName} - ${shortDate}</title>
-    <style>
-        :root {
-            --primary: #2563EB;
-            --primary-dark: #1E40AF;
-            --primary-light: #DBEAFE;
-            --secondary: #7C3AED;
-            --success: #10B981;
-            --warning: #F59E0B;
-            --danger: #EF4444;
-            --pink: #EC4899;
-            --gray-50: #F9FAFB;
-            --gray-100: #F3F4F6;
-            --gray-200: #E5E7EB;
-            --gray-300: #D1D5DB;
-            --gray-400: #9CA3AF;
-            --gray-500: #6B7280;
-            --gray-600: #4B5563;
-            --gray-700: #374151;
-            --gray-800: #1F2937;
-            --gray-900: #111827;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.5;
-            color: var(--gray-800);
-            background: white;
-            font-size: 14px;
-        }
-
-        .container {
-            max-width: 850px;
-            margin: 0 auto;
-            padding: 0;
-        }
-
-        /* Header Styles */
-        .header {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            color: white;
-            padding: 30px 40px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -20%;
-            width: 60%;
-            height: 200%;
-            background: radial-gradient(ellipse, rgba(255,255,255,0.1) 0%, transparent 70%);
-            transform: rotate(-15deg);
-        }
-
-        .header-content {
-            position: relative;
-            z-index: 1;
-        }
-
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 20px;
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .brand-logo {
-            width: 50px;
-            height: 50px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-        }
-
-        .brand-text {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            opacity: 0.9;
-        }
-
-        .report-badge {
-            background: rgba(255,255,255,0.2);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-            backdrop-filter: blur(10px);
-        }
-
-        .header-main {
-            margin-bottom: 15px;
-        }
-
-        .header-main h1 {
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
-        }
-
-        .header-subtitle {
-            font-size: 16px;
-            opacity: 0.9;
-            font-weight: 400;
-        }
-
-        .header-meta {
-            display: flex;
-            gap: 25px;
-            flex-wrap: wrap;
-        }
-
-        .meta-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            opacity: 0.9;
-        }
-
-        .meta-icon {
-            font-size: 16px;
-        }
-
-        /* Executive Summary */
-        .executive-summary {
-            background: var(--gray-50);
-            padding: 25px 40px;
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        .summary-title {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: var(--gray-500);
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
-
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 20px;
-        }
-
-        .summary-item {
-            text-align: center;
-        }
-
-        .summary-value {
-            font-size: 32px;
-            font-weight: 800;
-            color: var(--gray-900);
-            line-height: 1;
-            margin-bottom: 4px;
-        }
-
-        .summary-label {
-            font-size: 12px;
-            color: var(--gray-500);
-            font-weight: 500;
-        }
-
-        .summary-item.highlight .summary-value {
-            color: var(--primary);
-        }
-
-        .summary-item.accent .summary-value {
-            color: var(--success);
-        }
-
-        .comparison-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 11px;
-            margin-top: 4px;
-            padding: 2px 8px;
-            border-radius: 10px;
-            background: var(--gray-100);
-        }
-
-        .comparison-indicator.positive {
-            background: rgba(16, 185, 129, 0.1);
-        }
-
-        .comparison-indicator.negative {
-            background: rgba(239, 68, 68, 0.1);
-        }
-
-        /* Main Content */
-        .main-content {
-            padding: 30px 40px;
-        }
-
-        .section {
-            margin-bottom: 35px;
-        }
-
-        .section:last-child {
-            margin-bottom: 0;
-        }
-
-        .section-title {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--gray-800);
-            margin-bottom: 18px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--gray-200);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .section-title::before {
-            content: '';
-            width: 4px;
-            height: 20px;
-            background: var(--primary);
-            border-radius: 2px;
-        }
-
-        /* Demographics Section */
-        .demographics-container {
-            display: grid;
-            grid-template-columns: 220px 1fr;
-            gap: 30px;
-            align-items: start;
-        }
-
-        .donut-container {
-            background: white;
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: var(--shadow-md);
-            border: 1px solid var(--gray-100);
-        }
-
-        .donut-chart {
-            width: 180px;
-            height: 180px;
-            display: block;
-            margin: 0 auto;
-        }
-
-        .donut-center-value {
-            font-size: 28px;
-            font-weight: 800;
-            fill: var(--gray-900);
-        }
-
-        .donut-center-label {
-            font-size: 11px;
-            fill: var(--gray-500);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .demographics-details {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-        }
-
-        .demo-card {
-            background: white;
-            border-radius: 12px;
-            padding: 18px;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--gray-100);
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .demo-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            flex-shrink: 0;
-        }
-
-        .demo-icon.male { background: rgba(59, 130, 246, 0.1); }
-        .demo-icon.female { background: rgba(236, 72, 153, 0.1); }
-        .demo-icon.children { background: rgba(16, 185, 129, 0.1); }
-        .demo-icon.first-timer { background: rgba(245, 158, 11, 0.1); }
-        .demo-icon.adults { background: rgba(124, 58, 237, 0.1); }
-        .demo-icon.returning { background: rgba(20, 184, 166, 0.1); }
-
-        .demo-info {
-            flex: 1;
-        }
-
-        .demo-label {
-            font-size: 12px;
-            color: var(--gray-500);
-            font-weight: 500;
-            margin-bottom: 2px;
-        }
-
-        .demo-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--gray-900);
-            line-height: 1;
-        }
-
-        .demo-percent {
-            font-size: 13px;
-            color: var(--gray-400);
-            font-weight: 500;
-            margin-left: 4px;
-        }
-
-        .demo-bar {
-            height: 4px;
-            background: var(--gray-100);
-            border-radius: 2px;
-            margin-top: 8px;
-            overflow: hidden;
-        }
-
-        .demo-bar-fill {
-            height: 100%;
-            border-radius: 2px;
-            transition: width 0.3s ease;
-        }
-
-        .demo-bar-fill.male { background: #3B82F6; }
-        .demo-bar-fill.female { background: #EC4899; }
-        .demo-bar-fill.children { background: #10B981; }
-        .demo-bar-fill.first-timer { background: #F59E0B; }
-        .demo-bar-fill.adults { background: #7C3AED; }
-        .demo-bar-fill.returning { background: #14B8A6; }
-
-        /* Comparison Bar Chart */
-        .chart-section {
-            background: white;
-            border-radius: 16px;
-            padding: 25px;
-            box-shadow: var(--shadow-md);
-            border: 1px solid var(--gray-100);
-            margin-bottom: 25px;
-        }
-
-        .chart-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--gray-700);
-            margin-bottom: 15px;
-        }
-
-        .bar-chart {
-            width: 100%;
-            max-width: 500px;
-            height: auto;
-            display: block;
-            margin: 0 auto;
-        }
-
-        .bar-value {
-            font-size: 11px;
-            font-weight: 600;
-            fill: var(--gray-700);
-        }
-
-        .bar-label {
-            font-size: 10px;
-            fill: var(--gray-500);
-            font-weight: 500;
-        }
-
-        .legend-text {
-            font-size: 10px;
-            fill: var(--gray-600);
-        }
-
-        /* Trend Chart */
-        .trend-section {
-            margin-top: 25px;
-        }
-
-        .trend-chart {
-            width: 100%;
-            max-width: 550px;
-            height: auto;
-            display: block;
-            margin: 0 auto;
-        }
-
-        .trend-label {
-            font-size: 10px;
-            fill: var(--gray-500);
-        }
-
-        .axis-label {
-            font-size: 10px;
-            fill: var(--gray-500);
-            font-weight: 500;
-        }
-
-        /* Insights Section */
-        .insights-section {
-            margin-bottom: 25px;
-        }
-
-        .insights-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-        }
-
-        .insight-card {
-            background: white;
-            border-radius: 12px;
-            padding: 16px;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--gray-100);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .insight-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            flex-shrink: 0;
-        }
-
-        .insight-icon.blue { background: rgba(59, 130, 246, 0.1); }
-        .insight-icon.green { background: rgba(16, 185, 129, 0.1); }
-        .insight-icon.amber { background: rgba(245, 158, 11, 0.1); }
-        .insight-icon.pink { background: rgba(236, 72, 153, 0.1); }
-
-        .insight-value {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--gray-900);
-            line-height: 1;
-        }
-
-        .insight-label {
-            font-size: 11px;
-            color: var(--gray-500);
-            margin-top: 2px;
-        }
-
-        /* Previous Compare */
-        .previous-compare {
-            background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
-            border: 1px solid #BAE6FD;
-            border-radius: 12px;
-            padding: 18px;
-            margin-top: 20px;
-        }
-
-        .compare-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--primary-dark);
-            margin-bottom: 12px;
-        }
-
-        .compare-icon {
-            font-size: 16px;
-        }
-
-        .compare-details {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .compare-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .compare-label {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--gray-800);
-        }
-
-        .compare-date {
-            font-size: 12px;
-            color: var(--gray-500);
-        }
-
-        .compare-metrics {
-            display: flex;
-            gap: 25px;
-        }
-
-        .compare-metric {
-            text-align: center;
-        }
-
-        .metric-label {
-            font-size: 11px;
-            color: var(--gray-500);
-            display: block;
-            margin-bottom: 2px;
-        }
-
-        .metric-diff {
-            font-size: 18px;
-            font-weight: 700;
-        }
-
-        .metric-diff.positive { color: var(--success); }
-        .metric-diff.negative { color: var(--danger); }
-
-        /* Tags Section */
-        .tags-section {
-            margin-top: 25px;
-        }
-
-        .tags-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .tag {
-            background: linear-gradient(135deg, var(--primary-light) 0%, #C7D2FE 100%);
-            color: var(--primary-dark);
-            padding: 8px 16px;
-            border-radius: 25px;
-            font-size: 13px;
-            font-weight: 500;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            border: 1px solid rgba(37, 99, 235, 0.2);
-        }
-
-        .tag-icon {
-            font-size: 14px;
-        }
-
-        /* Notes Section */
-        .notes-section {
-            background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
-            border: 1px solid #FCD34D;
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 25px;
-        }
-
-        .notes-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-
-        .notes-icon {
-            font-size: 18px;
-        }
-
-        .notes-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #92400E;
-        }
-
-        .notes-content {
-            color: #78350F;
-            line-height: 1.7;
-            white-space: pre-wrap;
-            font-size: 14px;
-        }
-
-        /* Footer */
-        .footer {
-            background: var(--gray-50);
-            padding: 25px 40px;
-            border-top: 1px solid var(--gray-200);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .footer-brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .footer-logo {
-            width: 32px;
-            height: 32px;
-            background: var(--primary);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 14px;
-        }
-
-        .footer-text {
-            font-size: 12px;
-            color: var(--gray-600);
-            font-weight: 500;
-        }
-
-        .footer-info {
-            text-align: right;
-        }
-
-        .footer-generated {
-            font-size: 11px;
-            color: var(--gray-500);
-        }
-
-        .footer-id {
-            font-size: 10px;
-            color: var(--gray-400);
-            font-family: 'Courier New', monospace;
-            margin-top: 2px;
-        }
-
-        /* Print Styles */
-        @media print {
-            body {
-                font-size: 12px;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-
-            .header {
-                padding: 20px 30px;
-            }
-
-            .main-content {
-                padding: 20px 30px;
-            }
-
-            .executive-summary {
-                padding: 20px 30px;
-            }
-
-            .footer {
-                padding: 15px 30px;
-            }
-
-            .demo-card,
-            .insight-card,
-            .chart-section {
-                break-inside: avoid;
-            }
-
-            .section {
-                break-inside: avoid;
-            }
-
-            .summary-grid {
-                grid-template-columns: repeat(5, 1fr);
-            }
-
-            .demographics-container {
-                grid-template-columns: 200px 1fr;
-            }
-
-            .insights-grid {
-                grid-template-columns: repeat(4, 1fr);
-            }
-        }
-
-        @page {
-            margin: 0.5in;
-            size: A4;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${branch} | ${report.serviceName} - ${sDate}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color:#1e293b; background:#fff; font-size:13px; line-height:1.4; }
+  .page { max-width:780px; margin:0 auto; }
+
+  .hdr { background:linear-gradient(135deg,#1e40af 0%,#6366f1 100%); color:#fff; padding:24px 32px; position:relative; overflow:hidden; }
+  .hdr::after { content:''; position:absolute; top:-40%; right:-15%; width:50%; height:180%; background:radial-gradient(ellipse,rgba(255,255,255,.08) 0%,transparent 70%); transform:rotate(-12deg); }
+  .hdr-inner { position:relative; z-index:1; }
+  .hdr-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .hdr-brand { font-size:10px; text-transform:uppercase; letter-spacing:2px; opacity:.85; }
+  .hdr-badge { background:rgba(255,255,255,.18); padding:4px 12px; border-radius:14px; font-size:10px; font-weight:500; }
+  .hdr h1 { font-size:22px; font-weight:700; letter-spacing:-.3px; margin-bottom:4px; }
+  .hdr-sub { font-size:13px; opacity:.9; }
+  .hdr-meta { display:flex; gap:20px; margin-top:10px; font-size:11px; opacity:.85; }
+
+  .kpi { background:#f8fafc; padding:16px 32px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; }
+  .kpi-item { text-align:center; flex:1; }
+  .kpi-val { font-size:26px; font-weight:800; color:#0f172a; line-height:1; }
+  .kpi-val.blue { color:#2563eb; }
+  .kpi-val.green { color:#10b981; }
+  .kpi-lbl { font-size:10px; color:#64748b; font-weight:500; margin-top:3px; }
+
+  .body { padding:20px 32px; }
+
+  .section-title { font-size:13px; font-weight:700; color:#1e293b; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #e2e8f0; display:flex; align-items:center; gap:8px; }
+  .section-title::before { content:''; width:3px; height:14px; background:#2563eb; border-radius:2px; }
+
+  .insights { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px; }
+  .ins-card { background:#fff; border:1px solid #f1f5f9; border-radius:10px; padding:12px; display:flex; align-items:center; gap:10px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .ins-icon { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .ins-val { font-size:18px; font-weight:700; color:#0f172a; line-height:1; }
+  .ins-lbl { font-size:9px; color:#64748b; margin-top:1px; }
+
+  .demo-grid { display:grid; grid-template-columns:160px 1fr; gap:20px; align-items:start; margin-bottom:20px; }
+  .donut-wrap { background:#fff; border:1px solid #f1f5f9; border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); text-align:center; }
+  .demo-cards { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .demo-card { background:#fff; border:1px solid #f1f5f9; border-radius:8px; padding:10px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
+  .demo-dot { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .demo-val { font-size:18px; font-weight:700; color:#0f172a; }
+  .demo-pct { font-size:11px; color:#94a3b8; margin-left:2px; }
+  .demo-lbl { font-size:10px; color:#64748b; }
+
+  .chart-box { background:#fff; border:1px solid #f1f5f9; border-radius:10px; padding:16px; box-shadow:0 1px 2px rgba(0,0,0,.04); margin-bottom:20px; }
+  .chart-title { font-size:11px; font-weight:600; color:#475569; margin-bottom:8px; }
+
+  .ftr { background:#f8fafc; padding:14px 32px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; }
+  .ftr-brand { font-size:11px; color:#475569; font-weight:500; }
+  .ftr-info { text-align:right; font-size:10px; color:#94a3b8; }
+
+  @media print {
+    body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .hdr { padding:18px 24px; }
+    .body { padding:16px 24px; }
+    .kpi { padding:12px 24px; }
+    .ftr { padding:10px 24px; }
+  }
+  @page { margin:.4in; size:A4; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <div class="header-top">
-                    <div class="brand">
-                        <div class="brand-logo">&#9962;</div>
-                        <div class="brand-text">The PowerPoint Tribe - ${branchName}</div>
-                    </div>
-                    <div class="report-badge">Service Report</div>
-                </div>
-                <div class="header-main">
-                    <h1>${report.serviceName}</h1>
-                    <div class="header-subtitle">${formattedDate}</div>
-                </div>
-                <div class="header-meta">
-                    <div class="meta-item">
-                        <span class="meta-icon">&#128100;</span>
-                        <span>Reported by ${reportedByName}</span>
-                    </div>
-                    <div class="meta-item">
-                        <span class="meta-icon">&#128197;</span>
-                        <span>Generated ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                    </div>
-                </div>
-            </div>
-        </header>
+<div class="page">
 
-        <!-- Executive Summary -->
-        <div class="executive-summary">
-            <div class="summary-title">Executive Summary</div>
-            <div class="summary-grid">
-                <div class="summary-item highlight">
-                    <div class="summary-value">${this.formatNumber(report.totalAttendance)}</div>
-                    <div class="summary-label">Total Attendance</div>
-                    ${attendanceVsAvg}
-                </div>
-                <div class="summary-item">
-                    <div class="summary-value">${this.formatNumber(adultsCount)}</div>
-                    <div class="summary-label">Adults</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-value">${this.formatNumber(report.numberOfChildren)}</div>
-                    <div class="summary-label">Children</div>
-                </div>
-                <div class="summary-item accent">
-                    <div class="summary-value">${this.formatNumber(report.numberOfFirstTimers)}</div>
-                    <div class="summary-label">First Timers</div>
-                    ${firstTimersVsAvg}
-                </div>
-                <div class="summary-item">
-                    <div class="summary-value">${this.formatNumber(returningMembers)}</div>
-                    <div class="summary-label">Returning</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Performance Insights -->
-            ${statsInsightsHtml}
-
-            <!-- Demographics Section -->
-            <div class="section">
-                <h3 class="section-title">Attendance Demographics</h3>
-                <div class="demographics-container">
-                    <div class="donut-container">
-                        ${this.generateDonutChart(report)}
-                        <div style="text-align: center; margin-top: 12px; font-size: 11px; color: var(--gray-500);">Gender & Age Distribution</div>
-                    </div>
-                    <div class="demographics-details">
-                        <div class="demo-card">
-                            <div class="demo-icon male">&#9794;</div>
-                            <div class="demo-info">
-                                <div class="demo-label">Males</div>
-                                <div>
-                                    <span class="demo-value">${report.numberOfMales}</span>
-                                    <span class="demo-percent">(${malePercentage}%)</span>
-                                </div>
-                                <div class="demo-bar"><div class="demo-bar-fill male" style="width: ${malePercentage}%"></div></div>
-                            </div>
-                        </div>
-                        <div class="demo-card">
-                            <div class="demo-icon female">&#9792;</div>
-                            <div class="demo-info">
-                                <div class="demo-label">Females</div>
-                                <div>
-                                    <span class="demo-value">${report.numberOfFemales}</span>
-                                    <span class="demo-percent">(${femalePercentage}%)</span>
-                                </div>
-                                <div class="demo-bar"><div class="demo-bar-fill female" style="width: ${femalePercentage}%"></div></div>
-                            </div>
-                        </div>
-                        <div class="demo-card">
-                            <div class="demo-icon children">&#128118;</div>
-                            <div class="demo-info">
-                                <div class="demo-label">Children</div>
-                                <div>
-                                    <span class="demo-value">${report.numberOfChildren}</span>
-                                    <span class="demo-percent">(${childrenPercentage}%)</span>
-                                </div>
-                                <div class="demo-bar"><div class="demo-bar-fill children" style="width: ${childrenPercentage}%"></div></div>
-                            </div>
-                        </div>
-                        <div class="demo-card">
-                            <div class="demo-icon first-timer">&#127775;</div>
-                            <div class="demo-info">
-                                <div class="demo-label">First Timers</div>
-                                <div>
-                                    <span class="demo-value">${report.numberOfFirstTimers}</span>
-                                    <span class="demo-percent">(${firstTimerPercentage}%)</span>
-                                </div>
-                                <div class="demo-bar"><div class="demo-bar-fill first-timer" style="width: ${firstTimerPercentage}%"></div></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                ${previousCompareHtml}
-            </div>
-
-            <!-- Comparison Chart -->
-            ${
-              stats
-                ? `
-            <div class="section">
-                <h3 class="section-title">Attendance Comparison</h3>
-                <div class="chart-section">
-                    <div class="chart-title">This Service vs Historical Average</div>
-                    ${this.generateBarChart(report, stats)}
-                </div>
-                ${trendChartHtml}
-            </div>
-            `
-                : ''
-            }
-
-            ${
-              report.serviceTags && report.serviceTags.length > 0
-                ? `
-            <!-- Service Tags -->
-            <div class="section tags-section">
-                <h3 class="section-title">Service Categories</h3>
-                <div class="tags-container">
-                    ${report.serviceTags
-                      .map(
-                        (tag) => `
-                        <span class="tag">
-                            <span class="tag-icon">&#127991;</span>
-                            ${this.tagLabels[tag] || tag}
-                        </span>
-                    `,
-                      )
-                      .join('')}
-                </div>
-            </div>
-            `
-                : ''
-            }
-
-            ${
-              report.notes
-                ? `
-            <!-- Notes Section -->
-            <div class="notes-section">
-                <div class="notes-header">
-                    <span class="notes-icon">&#128221;</span>
-                    <span class="notes-title">Additional Notes</span>
-                </div>
-                <div class="notes-content">${report.notes}</div>
-            </div>
-            `
-                : ''
-            }
-        </main>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <div class="footer-brand">
-                <div class="footer-logo">&#9962;</div>
-                <div class="footer-text">The PowerPoint Tribe</div>
-            </div>
-            <div class="footer-info">
-                <div class="footer-generated">Generated on ${new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
-                <div class="footer-id">Report ID: ${(report as any)._id || 'N/A'}</div>
-            </div>
-        </footer>
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-inner">
+      <div class="hdr-top">
+        <div class="hdr-brand">&#9962; The PowerPoint Tribe &mdash; ${branch}</div>
+        <div class="hdr-badge">Service Report</div>
+      </div>
+      <h1>${report.serviceName}</h1>
+      <div class="hdr-sub">${fDate}</div>
+      <div class="hdr-meta">
+        <span>&#128100; ${reportedBy}</span>
+        <span>&#128197; Generated ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+      </div>
     </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi">
+    <div class="kpi-item">
+      <div class="kpi-val blue">${this.fmt(total)}</div>
+      <div class="kpi-lbl">Total Attendance</div>
+      ${stats ? this.delta(total, stats.averageAttendance) : ''}
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val">${this.fmt(report.numberOfMales)}</div>
+      <div class="kpi-lbl">Males</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val">${this.fmt(report.numberOfFemales)}</div>
+      <div class="kpi-lbl">Females</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val">${this.fmt(report.numberOfChildren)}</div>
+      <div class="kpi-lbl">Children</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val green">${this.fmt(report.numberOfFirstTimers)}</div>
+      <div class="kpi-lbl">First Timers</div>
+      ${stats ? this.delta(report.numberOfFirstTimers, stats.averageFirstTimers) : ''}
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- Year Insights -->
+    ${stats ? `
+    <div class="section-title">${year} Performance Snapshot</div>
+    <div class="insights">
+      <div class="ins-card">
+        <div class="ins-icon" style="background:rgba(59,130,246,.1);">&#128200;</div>
+        <div><div class="ins-val">${this.fmt(Math.round(stats.averageAttendance))}</div><div class="ins-lbl">Avg Attendance</div></div>
+      </div>
+      <div class="ins-card">
+        <div class="ins-icon" style="background:rgba(16,185,129,.1);">&#128640;</div>
+        <div><div class="ins-val">${this.fmt(stats.highestAttendance)}</div><div class="ins-lbl">Highest</div></div>
+      </div>
+      <div class="ins-card">
+        <div class="ins-icon" style="background:rgba(245,158,11,.1);">&#128202;</div>
+        <div><div class="ins-val">${stats.totalReports}</div><div class="ins-lbl">Reports</div></div>
+      </div>
+      <div class="ins-card">
+        <div class="ins-icon" style="background:rgba(236,72,153,.1);">&#10024;</div>
+        <div><div class="ins-val">${((report.numberOfFirstTimers / Math.max(stats.averageFirstTimers, 0.1)) * 100).toFixed(0)}%</div><div class="ins-lbl">FT Rate vs Avg</div></div>
+      </div>
+    </div>
+    ` : ''}
+
+    <!-- Demographics -->
+    <div class="section-title">Demographics</div>
+    <div class="demo-grid">
+      <div class="donut-wrap">
+        ${this.buildDonut(report)}
+        <div style="font-size:9px;color:#94a3b8;margin-top:6px;">Distribution</div>
+      </div>
+      <div class="demo-cards">
+        <div class="demo-card">
+          <div class="demo-dot" style="background:rgba(59,130,246,.1);">&#9794;</div>
+          <div>
+            <div class="demo-lbl">Males</div>
+            <div><span class="demo-val">${report.numberOfMales}</span><span class="demo-pct">${this.pct(report.numberOfMales, total)}%</span></div>
+            ${this.miniBar(report.numberOfMales, total, '#3B82F6')}
+          </div>
+        </div>
+        <div class="demo-card">
+          <div class="demo-dot" style="background:rgba(236,72,153,.1);">&#9792;</div>
+          <div>
+            <div class="demo-lbl">Females</div>
+            <div><span class="demo-val">${report.numberOfFemales}</span><span class="demo-pct">${this.pct(report.numberOfFemales, total)}%</span></div>
+            ${this.miniBar(report.numberOfFemales, total, '#EC4899')}
+          </div>
+        </div>
+        <div class="demo-card">
+          <div class="demo-dot" style="background:rgba(16,185,129,.1);">&#128118;</div>
+          <div>
+            <div class="demo-lbl">Children</div>
+            <div><span class="demo-val">${report.numberOfChildren}</span><span class="demo-pct">${this.pct(report.numberOfChildren, total)}%</span></div>
+            ${this.miniBar(report.numberOfChildren, total, '#10B981')}
+          </div>
+        </div>
+        <div class="demo-card">
+          <div class="demo-dot" style="background:rgba(245,158,11,.1);">&#127775;</div>
+          <div>
+            <div class="demo-lbl">First Timers</div>
+            <div><span class="demo-val">${report.numberOfFirstTimers}</span><span class="demo-pct">${this.pct(report.numberOfFirstTimers, total)}%</span></div>
+            ${this.miniBar(report.numberOfFirstTimers, total, '#F59E0B')}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${prevHtml}
+
+    <!-- Comparison Chart -->
+    ${stats ? `
+    <div style="margin-top:20px;">
+      <div class="section-title">Attendance Comparison (${year})</div>
+      <div class="chart-box">
+        <div class="chart-title">This Service vs ${year} Average</div>
+        ${this.buildBarChart(report, stats)}
+      </div>
+      ${stats.monthlyTrend ? this.buildTrendSvg(stats.monthlyTrend) : ''}
+    </div>
+    ` : ''}
+
+    ${tagsHtml}
+    ${notesHtml}
+  </div>
+
+  <!-- Footer -->
+  <div class="ftr">
+    <div class="ftr-brand">&#9962; The PowerPoint Tribe</div>
+    <div class="ftr-info">
+      <div>Generated ${new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+      <div style="font-family:monospace;margin-top:1px;">ID: ${(report as any)._id || 'N/A'}</div>
+    </div>
+  </div>
+
+</div>
 </body>
-</html>
-`;
+</html>`;
+  }
+
+  private buildDonut(report: ServiceReportDocument): string {
+    const data = [
+      { label: 'Males', value: report.numberOfMales, color: '#3B82F6' },
+      { label: 'Females', value: report.numberOfFemales, color: '#EC4899' },
+      { label: 'Children', value: report.numberOfChildren, color: '#10B981' },
+    ];
+    const total = report.totalAttendance;
+    if (total === 0) {
+      return `<svg viewBox="0 0 120 120" style="width:120px;height:120px;"><circle cx="60" cy="60" r="45" fill="#f1f5f9"/><text x="60" y="62" text-anchor="middle" style="font-size:11px;fill:#94a3b8;">No Data</text></svg>`;
+    }
+
+    const cx = 60, cy = 60, R = 48, r = 32;
+    let cum = 0;
+    const paths = data.filter(d => d.value > 0).map(d => {
+      const pct = (d.value / total) * 100;
+      const s = (cum / 100) * 360, e = ((cum + pct) / 100) * 360;
+      const sr = (s - 90) * Math.PI / 180, er = (e - 90) * Math.PI / 180;
+      const ox1 = cx + R * Math.cos(sr), oy1 = cy + R * Math.sin(sr);
+      const ox2 = cx + R * Math.cos(er), oy2 = cy + R * Math.sin(er);
+      const ix1 = cx + r * Math.cos(sr), iy1 = cy + r * Math.sin(sr);
+      const ix2 = cx + r * Math.cos(er), iy2 = cy + r * Math.sin(er);
+      const lg = pct > 50 ? 1 : 0;
+      cum += pct;
+      return `<path d="M${ox1},${oy1} A${R},${R} 0 ${lg} 1 ${ox2},${oy2} L${ix2},${iy2} A${r},${r} 0 ${lg} 0 ${ix1},${iy1}Z" fill="${d.color}" stroke="#fff" stroke-width="1.5"/>`;
+    }).join('');
+
+    return `<svg viewBox="0 0 120 120" style="width:120px;height:120px;">${paths}<circle cx="60" cy="60" r="28" fill="#fff"/><text x="60" y="56" text-anchor="middle" style="font-size:20px;font-weight:800;fill:#0f172a;">${total}</text><text x="60" y="70" text-anchor="middle" style="font-size:8px;fill:#94a3b8;text-transform:uppercase;letter-spacing:1px;">Total</text></svg>`;
   }
 
   async generatePdf(

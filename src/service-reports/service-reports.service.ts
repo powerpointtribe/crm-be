@@ -490,14 +490,21 @@ export class ServiceReportsService {
 
   async getPdfComparisonStats(
     reportDate: Date,
+    branchId?: any,
   ): Promise<PdfComparisonStats | undefined> {
     try {
-      const currentYear = new Date().getFullYear();
-      const yearStart = new Date(currentYear, 0, 1);
+      const reportYear = reportDate.getFullYear();
+      const yearStart = new Date(reportYear, 0, 1);
+      const yearEnd = new Date(reportYear, 11, 31, 23, 59, 59, 999);
 
-      // Get current year statistics
+      const matchFilter: any = { isActive: true, date: { $gte: yearStart, $lte: yearEnd } };
+      if (branchId) {
+        matchFilter.branch = branchId;
+      }
+
+      // Get year statistics scoped to this branch
       const overallStats = await this.serviceReportModel.aggregate([
-        { $match: { isActive: true, date: { $gte: yearStart } } },
+        { $match: matchFilter },
         {
           $group: {
             _id: null,
@@ -517,27 +524,30 @@ export class ServiceReportsService {
         return undefined;
       }
 
-      // Get previous service report (before this report's date)
+      // Get previous service report (before this report's date, same branch)
+      const prevFilter: any = { isActive: true, date: { $lt: reportDate } };
+      if (branchId) {
+        prevFilter.branch = branchId;
+      }
       const previousReport = await this.serviceReportModel
-        .findOne({
-          isActive: true,
-          date: { $lt: reportDate },
-        })
+        .findOne(prevFilter)
         .sort({ date: -1 })
         .select('date serviceName totalAttendance numberOfFirstTimers')
         .lean()
         .exec();
 
-      // Get monthly trend data (last 12 months)
-      const twelveMonthsAgo = new Date();
+      // Get monthly trend data (last 12 months, same branch)
+      const twelveMonthsAgo = new Date(reportDate);
       twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+      const trendFilter: any = { isActive: true, date: { $gte: twelveMonthsAgo, $lte: reportDate } };
+      if (branchId) {
+        trendFilter.branch = branchId;
+      }
 
       const monthlyTrendData = await this.serviceReportModel.aggregate([
         {
-          $match: {
-            isActive: true,
-            date: { $gte: twelveMonthsAgo },
-          },
+          $match: trendFilter,
         },
         {
           $group: {
@@ -611,7 +621,10 @@ export class ServiceReportsService {
       throw new NotFoundException('Service report not found');
     }
 
-    const stats = await this.getPdfComparisonStats(report.date);
+    const branchId = report.branch && typeof report.branch === 'object'
+      ? (report.branch as any)._id
+      : report.branch;
+    const stats = await this.getPdfComparisonStats(report.date, branchId);
     return this.pdfService.generatePdf(report, stats);
   }
 }
