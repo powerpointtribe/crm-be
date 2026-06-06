@@ -181,7 +181,7 @@ export class AutoInitService implements OnModuleInit {
       let defaultBranch = await this.branchModel.findOne({ isActive: true });
 
       if (!defaultBranch) {
-        this.logger.log('Creating default headquarters branch...');
+        this.logger.log('Creating default headquarters campus...');
         defaultBranch = await this.branchModel.create({
           name: 'Anthony',
           slug: 'anthony',
@@ -195,7 +195,7 @@ export class AutoInitService implements OnModuleInit {
           isActive: true,
           isMainBranch: true,
         });
-        this.logger.log('✓ Created default headquarters branch');
+        this.logger.log('✓ Created default headquarters campus');
       }
 
       // Find or create admin user
@@ -262,12 +262,12 @@ export class AutoInitService implements OnModuleInit {
         let defaultBranch = await this.branchModel.findOne({ isActive: true });
 
         if (!defaultBranch) {
-          // Create a default headquarters branch
-          this.logger.log('Creating default headquarters branch...');
+          // Create a default headquarters campus
+          this.logger.log('Creating default headquarters campus...');
           defaultBranch = await this.branchModel.create({
             name: 'Headquarters',
             slug: 'headquarters',
-            description: 'Main headquarters branch',
+            description: 'Main headquarters campus',
             address: {
               street: 'Main Street',
               city: 'City',
@@ -277,7 +277,7 @@ export class AutoInitService implements OnModuleInit {
             isActive: true,
             isMainBranch: true,
           });
-          this.logger.log('✓ Created default headquarters branch');
+          this.logger.log('✓ Created default headquarters campus');
         }
 
         await this.invitationModel.create({

@@ -198,4 +198,57 @@ export const eventsDefaults: TemplateDefinition[] = [
       { name: 'viewUrl', description: 'Dashboard URL to view inquiry', sampleValue: 'https://pptcrm.powerpointtribe.org/events/partners?id=123' },
     ],
   },
+  {
+    // CMIT — Campus Ministers in Training welcome email. Sent to every person who
+    // registers for the CMIT event (wired via the event's confirmationTemplateId,
+    // set by the cmit-welcome-template seeder). Uses the same template variables
+    // the events registration-confirmation flow provides.
+    slug: 'events.cmit-welcome',
+    name: 'CMIT Registration Welcome',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.WELCOME,
+    subject: 'Welcome to CMIT — you\'re in, {{firstName}}!',
+    htmlContent: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+  <div style="background:#0f2545;padding:38px 24px 34px;text-align:center;">
+    <div style="display:inline-block;background:rgba(200,160,74,0.18);border-radius:50%;width:56px;height:56px;line-height:56px;font-size:24px;margin-bottom:14px;">&#10003;</div>
+    <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:0.5px;">Welcome to CMIT</h1>
+    <p style="margin:8px 0 0;font-size:13px;color:#c8a04a;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;">Cohort 01</p>
+  </div>
+  <div style="padding:26px 24px;">
+    <p style="font-size:15px;color:#1a1a1a;margin:0 0 16px;font-weight:500;">Hi {{firstName}},</p>
+    <p style="font-size:15px;color:#555;margin:0 0 20px;line-height:1.6;">Your place in <strong style="color:#0f2545;">Campus Ministers in Training (CMIT)</strong> is confirmed &mdash; we're so glad you said yes. You're now part of a national community being equipped to rebuild and lead campus ministry across Nigeria.</p>
+    <div style="border-radius:8px;overflow:hidden;margin:0 0 22px;border:1px solid #eee;">
+      <div style="background:#f8fafc;padding:13px 20px;border-bottom:1px solid #eee;">
+        <p style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#888;">The Cohort</p>
+      </div>
+      <div style="padding:14px 20px;">
+        <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
+          <tr><td style="padding:7px 0;color:#c8a04a;font-size:14px;width:24px;">&#128197;</td><td style="padding:7px 0;font-size:14px;color:#333;">Begins {{formattedDate}}</td></tr>
+          <tr><td style="padding:7px 0;color:#c8a04a;font-size:14px;width:24px;">&#128336;</td><td style="padding:7px 0;font-size:14px;color:#333;">Saturdays &middot; 5 weekly sessions (3 hrs each)</td></tr>
+          <tr><td style="padding:7px 0;color:#c8a04a;font-size:14px;width:24px;">&#128187;</td><td style="padding:7px 0;font-size:14px;color:#333;">Fully online &mdash; Zoom link shared before week one</td></tr>
+        </table>
+      </div>
+    </div>
+    <div style="margin:0 0 22px;">
+      <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#0f2545;">What happens next:</p>
+      <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
+        <tr><td style="padding:5px 0;font-size:13px;color:#555;">&#9679;&nbsp; We'll reach out on <strong>WhatsApp and email</strong> with your cohort group and joining details.</td></tr>
+        <tr><td style="padding:5px 0;font-size:13px;color:#555;">&#9679;&nbsp; Keep an eye on both &mdash; that's where session links and reminders will come.</td></tr>
+        <tr><td style="padding:5px 0;font-size:13px;color:#555;">&#9679;&nbsp; Come ready to learn, contribute, and build lasting friendships.</td></tr>
+      </table>
+    </div>
+    <p style="font-size:14px;color:#555;margin:0 0 6px;line-height:1.6;">The five weeks open a door that stays open &mdash; an alumni network and mentorship that walk with you long after the cohort wraps. The more you lean in, the more it gives back.</p>
+    <div style="text-align:center;margin:26px 0 4px;"><p style="margin:0;font-size:14px;color:#0f2545;font-weight:600;">See you in class. &#128075;</p></div>
+  </div>
+  <div style="padding:20px 24px;border-top:1px solid #f0f0f0;text-align:center;">
+    <p style="margin:0 0 3px;font-size:12px;color:#9ca3af;">CMIT &mdash; Campus Ministers in Training</p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;">A vision of Dami Oguntunde Ministries &middot; &copy; {{year}}</p>
+  </div>
+</div>`,
+    variableDefinitions: [
+      { name: 'firstName', description: 'Registrant first name', sampleValue: 'Adaeze' },
+      { name: 'formattedDate', description: 'Formatted cohort start date', sampleValue: 'Saturday, August 1, 2026' },
+      { name: 'year', description: 'Current year', sampleValue: '2026' },
+    ],
+  },
 ];

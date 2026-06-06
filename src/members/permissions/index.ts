@@ -55,7 +55,7 @@ export const MembersPermissionMetadata = {
   [MembersPermission.VIEW_ALL_MEMBERS]: {
     path: '/members',
     method: 'GET',
-    description: 'View all members across all units, ministries, and branches',
+    description: 'View all members across all units, ministries, and campuses',
   },
   [MembersPermission.VIEW_MEMBER_DETAILS]: {
     path: '/members/:id',

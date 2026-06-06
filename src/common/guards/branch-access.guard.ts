@@ -106,7 +106,7 @@ export class BranchAccessGuard implements CanActivate {
 
         if (!accessResult.hasAccess) {
           throw new ForbiddenException(
-            accessResult.reason || 'Access denied to this branch',
+            accessResult.reason || 'Access denied to this campus',
           );
         }
       }

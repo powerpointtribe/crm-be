@@ -18,7 +18,7 @@ export class CreateInvitationDto {
   @IsMongoId()
   roleId: string;
 
-  @ApiProperty({ description: 'Branch ID to assign the member to' })
+  @ApiProperty({ description: 'Campus ID to assign the member to' })
   @IsNotEmpty()
   @IsMongoId()
   branchId: string;

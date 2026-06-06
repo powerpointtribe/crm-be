@@ -32,7 +32,7 @@ export class RequisitionQueryDto {
   @IsMongoId()
   requestor?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by branch ID' })
+  @ApiPropertyOptional({ description: 'Filter by campus ID' })
   @IsOptional()
   @IsMongoId()
   branch?: string;

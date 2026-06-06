@@ -104,7 +104,7 @@ export class FinanceService {
       : user.branch;
 
     if (!branchId) {
-      throw new BadRequestException('User must be assigned to a branch to create requisitions');
+      throw new BadRequestException('User must be assigned to a campus to create requisitions');
     }
 
     // Always generate reference number (serves as unique ticket ID throughout lifecycle)
@@ -696,7 +696,7 @@ export class FinanceService {
     });
 
     if (!branch) {
-      throw new BadRequestException(`Branch with slug "${dto.branchSlug}" not found`);
+      throw new BadRequestException(`Campus with slug "${dto.branchSlug}" not found`);
     }
 
     // Calculate total amount from cost breakdown
@@ -933,7 +933,7 @@ export class FinanceService {
       .exec();
 
     if (!branch) {
-      throw new NotFoundException(`Branch with slug "${slug}" not found`);
+      throw new NotFoundException(`Campus with slug "${slug}" not found`);
     }
 
     return {
@@ -991,7 +991,7 @@ export class FinanceService {
     if (!branch) {
       return {
         eligible: false,
-        reason: 'Branch not found',
+        reason: 'Campus not found',
       };
     }
 
@@ -1005,7 +1005,7 @@ export class FinanceService {
     if (!member) {
       return {
         eligible: false,
-        reason: 'Member not found. Please ensure you are a registered member of this branch.',
+        reason: 'Member not found. Please ensure you are a registered member of this campus.',
       };
     }
 

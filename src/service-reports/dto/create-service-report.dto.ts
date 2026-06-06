@@ -107,7 +107,7 @@ export class CreateServiceReportDto {
   notes?: string;
 
   @ApiPropertyOptional({
-    description: 'Branch ID (for users with global view-all permission)',
+    description: 'Campus ID (for users with global view-all permission)',
   })
   @IsOptional()
   @IsMongoId()

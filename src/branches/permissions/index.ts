@@ -27,36 +27,36 @@ export const BranchesPermissionMetadata = {
   [BranchesPermission.CREATE_BRANCH]: {
     path: '/branches',
     method: 'POST',
-    description: 'Create a new branch',
+    description: 'Create a new campus',
   },
   [BranchesPermission.VIEW_BRANCHES]: {
     path: '/branches',
     method: 'GET',
-    description: 'View all branches',
+    description: 'View all campuses',
   },
   [BranchesPermission.VIEW_BRANCH_DETAILS]: {
     path: '/branches/:id',
     method: 'GET',
-    description: 'View specific branch details',
+    description: 'View specific campus details',
   },
   [BranchesPermission.VIEW_ALL_BRANCHES]: {
     path: '/branches/all',
     method: 'GET',
-    description: 'View and switch between all branches',
+    description: 'View and switch between all campuses',
   },
   [BranchesPermission.UPDATE_BRANCH]: {
     path: '/branches/:id',
     method: 'PATCH',
-    description: 'Update branch information',
+    description: 'Update campus information',
   },
   [BranchesPermission.ASSIGN_PASTOR]: {
     path: '/branches/:id/assign-pastor',
     method: 'PATCH',
-    description: 'Assign pastor to branch',
+    description: 'Assign pastor to campus',
   },
   [BranchesPermission.DELETE_BRANCH]: {
     path: '/branches/:id',
     method: 'DELETE',
-    description: 'Delete/deactivate a branch',
+    description: 'Delete/deactivate a campus',
   },
 };

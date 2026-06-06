@@ -254,6 +254,8 @@ export interface EventRegistrationConfirmationJobData {
   checkInCode: string;
   customFieldResponses?: Map<string, string>;
   confirmationTemplateId?: string;
+  senderEmail?: string;
+  senderName?: string;
 }
 
 export interface PartnerInquiryJobData {
@@ -277,6 +279,8 @@ export interface EventReminderJobData {
   eventLocation?: string;
   checkInCode: string;
   daysUntil: number;
+  senderEmail?: string;
+  senderName?: string;
 }
 
 export interface BulkEventEmailJobData {

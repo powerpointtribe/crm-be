@@ -22,8 +22,8 @@ const transformToDate = ({ value }: { value: any }) => {
 };
 
 export class CreateBookDto {
-  @ApiProperty({ description: 'Branch ID' })
-  @IsNotEmpty({ message: 'Branch is required' })
+  @ApiProperty({ description: 'Campus ID' })
+  @IsNotEmpty({ message: 'Campus is required' })
   @IsMongoId()
   branch: string;
 

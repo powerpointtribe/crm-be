@@ -121,7 +121,7 @@ class HostingInfoDto {
 
 export class CreateGroupDto {
   @ApiPropertyOptional({
-    description: 'Branch ID (auto-filled from user context if not provided)',
+    description: 'Campus ID (auto-filled from user context if not provided)',
   })
   @IsOptional()
   @IsMongoId()

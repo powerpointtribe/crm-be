@@ -5,7 +5,7 @@ import { GroupType } from '../../common/enums/group-types.enum';
 
 export class GroupSearchDto extends SearchDto {
   @ApiPropertyOptional({
-    description: 'Filter by branch ID (only for users with branches:view-all permission)',
+    description: 'Filter by campus ID (only for users with branches:view-all permission)',
   })
   @IsOptional()
   @IsMongoId()

@@ -33,26 +33,26 @@ export class BranchesController {
 
   @Post()
   @RequirePermission('branches:create')
-  @ApiOperation({ summary: 'Create a new branch' })
-  @ApiResponse({ status: 201, description: 'Branch created successfully' })
+  @ApiOperation({ summary: 'Create a new campus' })
+  @ApiResponse({ status: 201, description: 'Campus created successfully' })
   async create(@Body() createBranchDto: CreateBranchDto) {
     const branch = await this.branchesService.create(createBranchDto);
-    return ResponseUtil.success(branch, 'Branch created successfully');
+    return ResponseUtil.success(branch, 'Campus created successfully');
   }
 
   @Get()
   @RequirePermission('branches:view')
-  @ApiOperation({ summary: 'Get all branches' })
-  @ApiResponse({ status: 200, description: 'Branches retrieved successfully' })
+  @ApiOperation({ summary: 'Get all campuses' })
+  @ApiResponse({ status: 200, description: 'Campuses retrieved successfully' })
   async findAll() {
     const branches = await this.branchesService.findAll();
-    return ResponseUtil.success(branches, 'Branches retrieved successfully');
+    return ResponseUtil.success(branches, 'Campuses retrieved successfully');
   }
 
   @Get('selector')
   @RequirePermission('branches:view-all')
-  @ApiOperation({ summary: 'Get branches for branch selector dropdown' })
-  @ApiResponse({ status: 200, description: 'Branches retrieved for selector' })
+  @ApiOperation({ summary: 'Get campuses for campus selector dropdown' })
+  @ApiResponse({ status: 200, description: 'Campuses retrieved for selector' })
   async getBranchesForSelector() {
     const branches = await this.branchesService.findAll();
     // Return only essential fields for the selector
@@ -62,13 +62,13 @@ export class BranchesController {
       slug: b.slug,
       isActive: b.isActive,
     }));
-    return ResponseUtil.success(selectorBranches, 'Branches retrieved successfully');
+    return ResponseUtil.success(selectorBranches, 'Campuses retrieved successfully');
   }
 
   @Get('public')
   @Public()
-  @ApiOperation({ summary: 'Get all active branches (public)' })
-  @ApiResponse({ status: 200, description: 'Branches retrieved successfully' })
+  @ApiOperation({ summary: 'Get all active campuses (public)' })
+  @ApiResponse({ status: 200, description: 'Campuses retrieved successfully' })
   async findAllPublic() {
     const branches = await this.branchesService.findAll();
     // Return only public-facing branch data
@@ -79,34 +79,34 @@ export class BranchesController {
       phone: b.phone,
       email: b.email,
     }));
-    return ResponseUtil.success(publicBranches, 'Branches retrieved successfully');
+    return ResponseUtil.success(publicBranches, 'Campuses retrieved successfully');
   }
 
   @Get(':id')
   @RequirePermission('branches:view-details')
-  @ApiOperation({ summary: 'Get branch by ID' })
-  @ApiParam({ name: 'id', description: 'Branch ID' })
-  @ApiResponse({ status: 200, description: 'Branch retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Branch not found' })
+  @ApiOperation({ summary: 'Get campus by ID' })
+  @ApiParam({ name: 'id', description: 'Campus ID' })
+  @ApiResponse({ status: 200, description: 'Campus retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Campus not found' })
   async findOne(@Param('id') id: string) {
     const branch = await this.branchesService.findById(id);
     if (!branch) {
-      return ResponseUtil.error('Branch not found');
+      return ResponseUtil.error('Campus not found');
     }
-    return ResponseUtil.success(branch, 'Branch retrieved successfully');
+    return ResponseUtil.success(branch, 'Campus retrieved successfully');
   }
 
   @Patch(':id')
   @RequirePermission('branches:update')
-  @ApiOperation({ summary: 'Update branch' })
-  @ApiParam({ name: 'id', description: 'Branch ID' })
-  @ApiResponse({ status: 200, description: 'Branch updated successfully' })
+  @ApiOperation({ summary: 'Update campus' })
+  @ApiParam({ name: 'id', description: 'Campus ID' })
+  @ApiResponse({ status: 200, description: 'Campus updated successfully' })
   async update(@Param('id') id: string, @Body() updateData: Partial<Branch>) {
     const branch = await this.branchesService.update(id, updateData);
     if (!branch) {
-      return ResponseUtil.error('Branch not found');
+      return ResponseUtil.error('Campus not found');
     }
-    return ResponseUtil.success(branch, 'Branch updated successfully');
+    return ResponseUtil.success(branch, 'Campus updated successfully');
   }
 
   // NOTE: Pastor assignment endpoints have been removed.
@@ -115,14 +115,14 @@ export class BranchesController {
 
   @Delete(':id')
   @RequirePermission('branches:delete')
-  @ApiOperation({ summary: 'Deactivate branch' })
-  @ApiParam({ name: 'id', description: 'Branch ID' })
-  @ApiResponse({ status: 200, description: 'Branch deactivated successfully' })
+  @ApiOperation({ summary: 'Deactivate campus' })
+  @ApiParam({ name: 'id', description: 'Campus ID' })
+  @ApiResponse({ status: 200, description: 'Campus deactivated successfully' })
   async deactivate(@Param('id') id: string) {
     const branch = await this.branchesService.deactivate(id);
     if (!branch) {
-      return ResponseUtil.error('Branch not found');
+      return ResponseUtil.error('Campus not found');
     }
-    return ResponseUtil.success(branch, 'Branch deactivated successfully');
+    return ResponseUtil.success(branch, 'Campus deactivated successfully');
   }
 }

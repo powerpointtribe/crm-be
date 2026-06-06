@@ -87,16 +87,16 @@ export class UserInvitationsService {
 
     // Validate branch exists
     if (!Types.ObjectId.isValid(createInvitationDto.branchId)) {
-      throw new BadRequestException('Invalid branch ID');
+      throw new BadRequestException('Invalid campus ID');
     }
 
     const branch = await this.branchModel.findById(createInvitationDto.branchId);
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException('Campus not found');
     }
 
     if (!branch.isActive) {
-      throw new BadRequestException('Cannot assign to inactive branch');
+      throw new BadRequestException('Cannot assign to inactive campus');
     }
 
     // Check for existing pending invitation for this member
@@ -204,14 +204,14 @@ export class UserInvitationsService {
 
     // 3. Validate branch exists and is active
     if (!Types.ObjectId.isValid(dto.branchId)) {
-      throw new BadRequestException('Invalid branch ID');
+      throw new BadRequestException('Invalid campus ID');
     }
     const branch = await this.branchModel.findById(dto.branchId);
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException('Campus not found');
     }
     if (!branch.isActive) {
-      throw new BadRequestException('Cannot assign to inactive branch');
+      throw new BadRequestException('Cannot assign to inactive campus');
     }
 
     // 4. Generate temporary password

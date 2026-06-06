@@ -29,7 +29,7 @@ export class CreateOperationalInvitationDto {
   @IsMongoId()
   roleId: string;
 
-  @ApiProperty({ description: 'Branch ID to assign' })
+  @ApiProperty({ description: 'Campus ID to assign' })
   @IsNotEmpty()
   @IsMongoId()
   branchId: string;

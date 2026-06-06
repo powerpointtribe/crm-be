@@ -35,7 +35,7 @@ export class EmailTemplateService {
     });
 
     if (existing) {
-      throw new ConflictException('A template with this name already exists in this branch');
+      throw new ConflictException('A template with this name already exists in this campus');
     }
 
     const template = new this.emailTemplateModel({
@@ -159,7 +159,7 @@ export class EmailTemplateService {
       });
 
       if (existing) {
-        throw new ConflictException('A template with this name already exists in this branch');
+        throw new ConflictException('A template with this name already exists in this campus');
       }
     }
 
@@ -245,7 +245,7 @@ export class EmailTemplateService {
       fullName: 'John Doe',
       email: 'john.doe@example.com',
       phone: '+2348012345678',
-      branchName: 'Main Branch',
+      branchName: 'Main Campus',
       districtName: 'District 1',
       unitName: 'Ushering Unit',
       membershipStatus: 'Member',

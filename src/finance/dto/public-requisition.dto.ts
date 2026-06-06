@@ -43,7 +43,7 @@ export class PublicCreateRequisitionDto {
   submitterPhone?: string;
 
   // Branch identification
-  @ApiProperty({ description: 'Branch slug for the requisition (e.g., lagos-mainland)' })
+  @ApiProperty({ description: 'Campus slug for the requisition (e.g., lagos-mainland)' })
   @IsString()
   @IsNotEmpty()
   @Matches(/^[a-z0-9-]+$/, { message: 'Branch slug must be lowercase alphanumeric with hyphens' })
@@ -239,7 +239,7 @@ export class CheckLxlEligibilityDto {
   @IsNotEmpty()
   email: string;
 
-  @ApiProperty({ description: 'Branch slug for the requisition' })
+  @ApiProperty({ description: 'Campus slug for the requisition' })
   @IsString()
   @IsNotEmpty()
   @Matches(/^[a-z0-9-]+$/, { message: 'Branch slug must be lowercase alphanumeric with hyphens' })

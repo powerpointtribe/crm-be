@@ -144,7 +144,7 @@ export class CreateMemberDto {
 
   // CHURCH STRUCTURE - Branch, District and Unit Assignments
   @ApiPropertyOptional({
-    description: 'Branch/Campus ID (auto-assigned from logged-in user if not provided)',
+    description: 'Campus ID (auto-assigned from logged-in user if not provided)',
   })
   @IsOptional()
   @IsMongoId()

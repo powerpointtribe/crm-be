@@ -94,7 +94,7 @@ export class FormFieldConfigService {
   ): Promise<FormFieldConfigDocument> {
     // Validate IDs
     if (!branchId || !this.isValidObjectId(branchId)) {
-      throw new BadRequestException('Invalid branch ID');
+      throw new BadRequestException('Invalid campus ID');
     }
     if (!memberId || !this.isValidObjectId(memberId)) {
       throw new BadRequestException('Invalid member ID');
@@ -198,7 +198,7 @@ export class FormFieldConfigService {
     dto: BulkUpdateSortOrderDto,
   ): Promise<void> {
     if (!branchId || !this.isValidObjectId(branchId)) {
-      throw new BadRequestException('Invalid branch ID');
+      throw new BadRequestException('Invalid campus ID');
     }
     if (!memberId || !this.isValidObjectId(memberId)) {
       throw new BadRequestException('Invalid member ID');
@@ -236,7 +236,7 @@ export class FormFieldConfigService {
     memberId: string,
   ): Promise<{ created: boolean; count: number }> {
     if (!branchId || !this.isValidObjectId(branchId)) {
-      throw new BadRequestException('Invalid branch ID');
+      throw new BadRequestException('Invalid campus ID');
     }
     if (!memberId || !this.isValidObjectId(memberId)) {
       throw new BadRequestException('Invalid member ID');
@@ -408,7 +408,7 @@ export class FormFieldConfigService {
     formType: string,
   ): Promise<{ count: number }> {
     if (!branchId || !this.isValidObjectId(branchId)) {
-      throw new BadRequestException('Invalid branch ID');
+      throw new BadRequestException('Invalid campus ID');
     }
 
     // Delete ALL fields for this form type (regardless of branch - to clean up bad data)

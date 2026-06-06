@@ -128,7 +128,7 @@ export class BranchAccessService {
             hasAccess: false,
             scope: AccessScope.BRANCH,
             filters: {},
-            reason: 'Branch Pastor has no branch assignment',
+            reason: 'Campus Pastor has no campus assignment',
           };
         }
         return {
@@ -145,7 +145,7 @@ export class BranchAccessService {
             hasAccess: false,
             scope: AccessScope.DISTRICT,
             filters: {},
-            reason: 'User has no branch assignment',
+            reason: 'User has no campus assignment',
           };
         }
 
@@ -241,7 +241,7 @@ export class BranchAccessService {
           return {
             ...accessResult,
             hasAccess: false,
-            reason: 'Resource belongs to a different branch',
+            reason: 'Resource belongs to a different campus',
           };
         }
         return { ...accessResult, hasAccess: true };
@@ -256,7 +256,7 @@ export class BranchAccessService {
           return {
             ...accessResult,
             hasAccess: false,
-            reason: 'Resource belongs to a different branch',
+            reason: 'Resource belongs to a different campus',
           };
         }
 
@@ -436,7 +436,7 @@ export class BranchAccessService {
             hasAccess: false,
             scope,
             filters: {},
-            reason: 'Inviter has no branch assignment',
+            reason: 'Inviter has no campus assignment',
           };
         }
         if (
@@ -447,7 +447,7 @@ export class BranchAccessService {
             hasAccess: false,
             scope,
             filters: { branchId: inviter.branch },
-            reason: 'Cannot invite users to a different branch',
+            reason: 'Cannot invite users to a different campus',
           };
         }
         return {
@@ -463,7 +463,7 @@ export class BranchAccessService {
             hasAccess: false,
             scope,
             filters: {},
-            reason: 'Inviter has no branch assignment',
+            reason: 'Inviter has no campus assignment',
           };
         }
         if (
@@ -474,7 +474,7 @@ export class BranchAccessService {
             hasAccess: false,
             scope,
             filters: {},
-            reason: 'Cannot invite users to a different branch',
+            reason: 'Cannot invite users to a different campus',
           };
         }
 

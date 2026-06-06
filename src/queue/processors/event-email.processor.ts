@@ -53,6 +53,8 @@ export class EventEmailProcessor {
         checkInCode: data.checkInCode,
         customFieldResponses: data.customFieldResponses,
         confirmationTemplateId: data.confirmationTemplateId,
+        senderEmail: data.senderEmail,
+        senderName: data.senderName,
       });
 
       this.logger.log(
@@ -155,6 +157,8 @@ export class EventEmailProcessor {
         eventLocation: data.eventLocation,
         checkInCode: data.checkInCode,
         daysUntil: data.daysUntil,
+        senderEmail: data.senderEmail,
+        senderName: data.senderName,
       });
 
       this.logger.log(

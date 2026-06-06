@@ -69,7 +69,7 @@ async function seedData() {
     }
 
     // Step 1: Create Main Branch
-    logger.log('Step 1: Creating branch...');
+    logger.log('Step 1: Creating campus...');
     let branch = await branchModel.findOne({ slug: 'main-campus' });
 
     if (!branch) {

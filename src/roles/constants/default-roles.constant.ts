@@ -60,7 +60,7 @@ export const DEFAULT_ROLES: DefaultRoleConfig[] = [
  *   "name": "Senior Pastor",
  *   "slug": "senior-pastor",
  *   "displayName": "Senior Pastor",
- *   "description": "Senior Pastor with view access to all data across all branches. Can approve requisitions.",
+ *   "description": "Senior Pastor with view access to all data across all campuses. Can approve requisitions.",
  *   "level": 80,
  *   "isSystemRole": false,
  *   "colorCode": "#8B5CF6",

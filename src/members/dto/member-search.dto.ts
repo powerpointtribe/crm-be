@@ -15,7 +15,7 @@ import { MembershipStatus } from '../../common/enums/member-status.enum';
 
 export class MemberSearchDto extends SearchDto {
   @ApiPropertyOptional({
-    description: 'Filter by branch ID (only for users with branches:view-all permission)',
+    description: 'Filter by campus ID (only for users with branches:view-all permission)',
   })
   @IsOptional()
   @IsMongoId()

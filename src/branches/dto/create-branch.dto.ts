@@ -13,8 +13,8 @@ import { Transform } from 'class-transformer';
 
 export class CreateBranchDto {
   @IsString()
-  @MinLength(2, { message: 'Branch name must be at least 2 characters' })
-  @MaxLength(100, { message: 'Branch name cannot exceed 100 characters' })
+  @MinLength(2, { message: 'Campus name must be at least 2 characters' })
+  @MaxLength(100, { message: 'Campus name cannot exceed 100 characters' })
   @Transform(({ value }) => value?.trim())
   name: string;
 

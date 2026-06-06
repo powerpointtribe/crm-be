@@ -251,7 +251,7 @@ export class ExpenseCategoryService {
     });
 
     if (!branch) {
-      throw new NotFoundException(`Branch with slug "${branchSlug}" not found`);
+      throw new NotFoundException(`Campus with slug "${branchSlug}" not found`);
     }
 
     return this.expenseCategoryModel

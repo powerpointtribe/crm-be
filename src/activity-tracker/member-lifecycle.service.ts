@@ -429,13 +429,13 @@ export class MemberLifecycleService {
     return this.logLifecycleEvent({
       memberId,
       activityType: ActivityType.BRANCH_TRANSFER,
-      title: 'Branch Transfer',
+      title: 'Campus Transfer',
       description: `Transferred from ${fromBranchName} to ${toBranchName}`,
       priority: ActivityPriority.HIGH,
       previousLocation: fromBranchName,
       newLocation: toBranchName,
       initiatedBy,
-      reason: reason || 'Branch transfer',
+      reason: reason || 'Campus transfer',
       tags: ['branch-transfer', 'transfer'],
     });
   }

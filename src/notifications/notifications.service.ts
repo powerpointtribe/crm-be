@@ -718,6 +718,22 @@ export class NotificationsService {
     });
   }
 
+  /**
+   * Build a "From" header for event emails. Returns a `Name <email>` string
+   * when the event defines a custom sender, otherwise undefined so the email
+   * provider falls back to the platform default sender.
+   * NOTE: the sender domain must be verified on the configured email provider.
+   */
+  private buildSenderFrom(
+    senderEmail?: string,
+    senderName?: string,
+    fallbackName?: string,
+  ): string | undefined {
+    if (!senderEmail) return undefined;
+    const name = senderName || fallbackName;
+    return name ? `${name} <${senderEmail}>` : senderEmail;
+  }
+
   async sendEventRegistrationConfirmation(data: {
     email: string;
     firstName: string;
@@ -728,6 +744,8 @@ export class NotificationsService {
     checkInCode: string;
     customFieldResponses?: Map<string, string> | Record<string, string>;
     confirmationTemplateId?: string;
+    senderEmail?: string;
+    senderName?: string;
   }): Promise<void> {
     const eventDate =
       data.eventDate instanceof Date
@@ -807,6 +825,11 @@ export class NotificationsService {
       to: data.email,
       subject,
       html,
+      from: this.buildSenderFrom(
+        data.senderEmail,
+        data.senderName,
+        data.eventTitle,
+      ),
     });
   }
 
@@ -893,6 +916,8 @@ export class NotificationsService {
     eventLocation?: string;
     checkInCode: string;
     daysUntil: number;
+    senderEmail?: string;
+    senderName?: string;
   }): Promise<void> {
     const formattedDate = data.eventDate.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -989,6 +1014,11 @@ export class NotificationsService {
       to: data.email,
       subject,
       html,
+      from: this.buildSenderFrom(
+        data.senderEmail,
+        data.senderName,
+        data.eventTitle,
+      ),
     });
   }
 

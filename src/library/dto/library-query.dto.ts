@@ -17,7 +17,7 @@ export class BookQueryDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by branch ID' })
+  @ApiPropertyOptional({ description: 'Filter by campus ID' })
   @IsOptional()
   @IsMongoId()
   branchId?: string;
@@ -66,7 +66,7 @@ export class CategoryQueryDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by branch ID' })
+  @ApiPropertyOptional({ description: 'Filter by campus ID' })
   @IsOptional()
   @IsMongoId()
   branchId?: string;
@@ -106,7 +106,7 @@ export class BorrowingQueryDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by branch ID' })
+  @ApiPropertyOptional({ description: 'Filter by campus ID' })
   @IsOptional()
   @IsMongoId()
   branchId?: string;

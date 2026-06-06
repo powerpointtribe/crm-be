@@ -125,6 +125,12 @@ export interface RegistrationSettings {
   integrationMode?: 'embedded' | 'api';
   apiKey?: string;
   confirmationTemplateId?: Types.ObjectId;
+  // Per-event email sender. When set, registration/reminder emails for this
+  // event are sent "From" this address/name instead of the platform default.
+  // NOTE: the domain must be a verified sending domain on the configured email
+  // provider (e.g. ZeptoMail), otherwise the send will be rejected.
+  senderEmail?: string;
+  senderName?: string;
 }
 
 // Committee member type definition
@@ -297,6 +303,8 @@ export class Event {
       },
       apiKey: { type: String },
       confirmationTemplateId: { type: Types.ObjectId, ref: 'EmailTemplate' },
+      senderEmail: { type: String },
+      senderName: { type: String },
     },
     default: {
       isOpen: true,

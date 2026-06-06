@@ -80,6 +80,8 @@ export class EventReminderScheduler {
             eventLocation: event.location,
             checkInCode: registration.checkInCode,
             daysUntil,
+            senderEmail: event.registrationSettings?.senderEmail,
+            senderName: event.registrationSettings?.senderName,
           });
 
           totalRemindersQueued++;
@@ -149,6 +151,8 @@ export class EventReminderScheduler {
           eventLocation: event.location,
           checkInCode: registration.checkInCode,
           daysUntil,
+          senderEmail: event.registrationSettings?.senderEmail,
+          senderName: event.registrationSettings?.senderName,
         });
 
         queuedCount++;

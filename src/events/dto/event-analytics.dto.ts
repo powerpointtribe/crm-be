@@ -641,7 +641,7 @@ export class TrendAnalyticsQueryDto {
   @IsEnum(EventType)
   eventType?: EventType;
 
-  @ApiPropertyOptional({ description: 'Branch ID filter' })
+  @ApiPropertyOptional({ description: 'Campus ID filter' })
   @IsOptional()
   @IsMongoId()
   branchId?: string;

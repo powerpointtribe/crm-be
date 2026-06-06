@@ -30,7 +30,7 @@ export class RecipientFilterDto {
   @IsEnum(RecipientFilterType)
   filterType: RecipientFilterType;
 
-  @ApiPropertyOptional({ description: 'Branch IDs to filter by' })
+  @ApiPropertyOptional({ description: 'Campus IDs to filter by' })
   @IsOptional()
   @IsArray()
   @IsMongoId({ each: true })
@@ -74,7 +74,7 @@ export class RecipientFilterDto {
 }
 
 export class CreateEmailCampaignDto {
-  @ApiPropertyOptional({ description: 'Branch ID (auto-assigned from user if not provided)' })
+  @ApiPropertyOptional({ description: 'Campus ID (auto-assigned from user if not provided)' })
   @IsOptional()
   @IsMongoId()
   branch?: string;

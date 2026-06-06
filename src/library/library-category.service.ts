@@ -30,7 +30,7 @@ export class LibraryCategoryService {
     });
 
     if (existing) {
-      throw new ConflictException('A category with this name already exists in this branch');
+      throw new ConflictException('A category with this name already exists in this campus');
     }
 
     const category = new this.bookCategoryModel({
@@ -111,7 +111,7 @@ export class LibraryCategoryService {
       });
 
       if (existing) {
-        throw new ConflictException('A category with this name already exists in this branch');
+        throw new ConflictException('A category with this name already exists in this campus');
       }
     }
 

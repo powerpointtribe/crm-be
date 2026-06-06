@@ -866,6 +866,8 @@ export class EventsService {
           customFieldResponses: savedReg.customFieldResponses,
           confirmationTemplateId:
             event.registrationSettings?.confirmationTemplateId?.toString(),
+          senderEmail: event.registrationSettings?.senderEmail,
+          senderName: event.registrationSettings?.senderName,
         })
         .catch((err) => {
           this.logger.error(

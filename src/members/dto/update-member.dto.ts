@@ -128,7 +128,7 @@ export class UpdateMemberDto {
   @Type(() => UpdateAddressDto)
   address?: UpdateAddressDto;
 
-  @ApiPropertyOptional({ description: 'Branch/Campus ID' })
+  @ApiPropertyOptional({ description: 'Campus ID' })
   @IsOptional()
   @IsMongoId()
   branch?: string;

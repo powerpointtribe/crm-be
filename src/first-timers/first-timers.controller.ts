@@ -162,26 +162,26 @@ export class FirstTimersController {
   @ApiOperation({
     summary: 'Get branch-specific public registration form configuration',
   })
-  @ApiParam({ name: 'slug', description: 'Branch slug (e.g., lagos-mainland)' })
+  @ApiParam({ name: 'slug', description: 'Campus slug (e.g., lagos-mainland)' })
   @ApiResponse({
     status: 200,
-    description: 'Branch-specific form configuration retrieved successfully',
+    description: 'Campus-specific form configuration retrieved successfully',
   })
   @ApiResponse({
     status: 404,
-    description: 'Branch not found',
+    description: 'Campus not found',
   })
   async getBranchFormConfig(@Param('slug') slug: string) {
     const branchConfig =
       await this.firstTimersService.getBranchFormConfig(slug);
 
     if (!branchConfig) {
-      return ResponseUtil.error('Branch not found');
+      return ResponseUtil.error('Campus not found');
     }
 
     return ResponseUtil.success(
       branchConfig,
-      'Branch form configuration retrieved successfully',
+      'Campus form configuration retrieved successfully',
     );
   }
 
@@ -192,10 +192,10 @@ export class FirstTimersController {
     summary:
       'Register a new first-time visitor via branch-specific form (Public endpoint)',
   })
-  @ApiParam({ name: 'slug', description: 'Branch slug (e.g., lagos-mainland)' })
+  @ApiParam({ name: 'slug', description: 'Campus slug (e.g., lagos-mainland)' })
   @ApiResponse({
     status: 201,
-    description: 'First-timer registered successfully with branch assignment',
+    description: 'First-timer registered successfully with campus assignment',
   })
   @ApiResponse({
     status: 400,
@@ -203,7 +203,7 @@ export class FirstTimersController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Branch not found',
+    description: 'Campus not found',
   })
   async createPublicWithBranch(
     @Param('slug') slug: string,
@@ -213,7 +213,7 @@ export class FirstTimersController {
       // Verify branch exists and get branch ID
       const branch = await this.firstTimersService.getBranchBySlug(slug);
       if (!branch) {
-        throw new BadRequestException(`Branch with slug '${slug}' not found`);
+        throw new BadRequestException(`Campus with slug '${slug}' not found`);
       }
 
       const existingDuplicate =

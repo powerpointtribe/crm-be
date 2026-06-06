@@ -20,6 +20,8 @@
     "seed:lbs-2026:remove": "npx ts-node src/events/seeders/seed-lbs-2026.ts remove",
     "seed:cmit-cohort-1": "npx ts-node src/events/seeders/seed-cmit-cohort-1.ts",
     "seed:cmit-cohort-1:remove": "npx ts-node src/events/seeders/seed-cmit-cohort-1.ts remove",
+    "seed:cmit-welcome-template": "npx ts-node src/events/seeders/seed-cmit-welcome-template.ts",
+    "seed:cmit-welcome-template:remove": "npx ts-node src/events/seeders/seed-cmit-welcome-template.ts remove",
     "seed:juba-2026": "npx ts-node src/events/seeders/seed-juba-2026.ts",
     "seed:juba-2026:remove": "npx ts-node src/events/seeders/seed-juba-2026.ts remove",
     "fix:invalid-districts": "npx ts-node src/scripts/fix-invalid-districts.ts",

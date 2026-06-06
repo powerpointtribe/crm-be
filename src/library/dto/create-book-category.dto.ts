@@ -11,8 +11,8 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBookCategoryDto {
-  @ApiProperty({ description: 'Branch ID' })
-  @IsNotEmpty({ message: 'Branch is required' })
+  @ApiProperty({ description: 'Campus ID' })
+  @IsNotEmpty({ message: 'Campus is required' })
   @IsMongoId()
   branch: string;
 

@@ -151,7 +151,7 @@ export class PublicFinanceController {
   @Public()
   @Get('expense-categories/:branchSlug')
   @ApiOperation({ summary: 'Get expense categories for a branch (no auth required)' })
-  @ApiParam({ name: 'branchSlug', description: 'Branch slug (e.g., lagos-mainland)' })
+  @ApiParam({ name: 'branchSlug', description: 'Campus slug (e.g., lagos-mainland)' })
   @ApiResponse({ status: 200, description: 'Expense categories retrieved' })
   async getPublicExpenseCategories(@Param('branchSlug') branchSlug: string) {
     const categories = await this.expenseCategoryService.findByBranchSlug(branchSlug);
@@ -164,10 +164,10 @@ export class PublicFinanceController {
   @Public()
   @Get('branches')
   @ApiOperation({ summary: 'Get all branches for public requisition form' })
-  @ApiResponse({ status: 200, description: 'Branches retrieved' })
+  @ApiResponse({ status: 200, description: 'Campuses retrieved' })
   async getPublicBranches() {
     const branches = await this.financeService.getPublicBranches();
-    return ResponseUtil.success(branches, 'Branches retrieved successfully');
+    return ResponseUtil.success(branches, 'Campuses retrieved successfully');
   }
 
   /**
@@ -176,12 +176,12 @@ export class PublicFinanceController {
   @Public()
   @Get('branches/:slug')
   @ApiOperation({ summary: 'Get branch info by slug (no auth required)' })
-  @ApiParam({ name: 'slug', description: 'Branch slug (e.g., lagos-mainland)' })
-  @ApiResponse({ status: 200, description: 'Branch retrieved' })
-  @ApiResponse({ status: 404, description: 'Branch not found' })
+  @ApiParam({ name: 'slug', description: 'Campus slug (e.g., lagos-mainland)' })
+  @ApiResponse({ status: 200, description: 'Campus retrieved' })
+  @ApiResponse({ status: 404, description: 'Campus not found' })
   async getPublicBranchBySlug(@Param('slug') slug: string) {
     const branch = await this.financeService.getPublicBranchBySlug(slug);
-    return ResponseUtil.success(branch, 'Branch retrieved successfully');
+    return ResponseUtil.success(branch, 'Campus retrieved successfully');
   }
 
   /**
@@ -190,7 +190,7 @@ export class PublicFinanceController {
   @Public()
   @Get('groups/:branchSlug')
   @ApiOperation({ summary: 'Get groups/units for a branch (no auth required)' })
-  @ApiParam({ name: 'branchSlug', description: 'Branch slug' })
+  @ApiParam({ name: 'branchSlug', description: 'Campus slug' })
   @ApiResponse({ status: 200, description: 'Groups retrieved' })
   async getPublicGroups(@Param('branchSlug') branchSlug: string) {
     const groups = await this.financeService.getPublicGroups(branchSlug);

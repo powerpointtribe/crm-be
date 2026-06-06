@@ -53,9 +53,9 @@ export class MasterImportMemberDto {
   maritalStatus?: string;
 
   // ============ BRANCH ASSIGNMENT ============
-  @ApiProperty({ description: 'Branch name (will be created if not exists)', example: 'Main Campus' })
+  @ApiProperty({ description: 'Campus name (will be created if not exists)', example: 'Main Campus' })
   @IsString()
-  @IsNotEmpty({ message: 'Branch name is required for each member' })
+  @IsNotEmpty({ message: 'Campus name is required for each member' })
   branchName: string;
 
   // ============ DISTRICT ASSIGNMENT ============
@@ -179,7 +179,7 @@ export class BulkImportMasterResultDto {
   @ApiProperty({ description: 'Number of members skipped (already exist)' })
   membersSkipped: number;
 
-  @ApiProperty({ description: 'Number of branches created' })
+  @ApiProperty({ description: 'Number of campuses created' })
   branchesCreated: number;
 
   @ApiProperty({ description: 'Number of districts created' })

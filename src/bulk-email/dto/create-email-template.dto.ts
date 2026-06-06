@@ -28,7 +28,7 @@ export class VariableDefinitionDto {
 }
 
 export class CreateEmailTemplateDto {
-  @ApiPropertyOptional({ description: 'Branch ID (auto-assigned from user if not provided)' })
+  @ApiPropertyOptional({ description: 'Campus ID (auto-assigned from user if not provided)' })
   @IsOptional()
   @IsMongoId()
   @Transform(({ value }) => (value === '' ? undefined : value))

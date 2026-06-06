@@ -355,7 +355,7 @@ export class UpdateFirstTimerDto {
   @IsMongoId()
   giaLeader?: string;
 
-  @ApiPropertyOptional({ description: 'Branch ID' })
+  @ApiPropertyOptional({ description: 'Campus ID' })
   @IsOptional()
   @IsMongoId()
   branch?: string;

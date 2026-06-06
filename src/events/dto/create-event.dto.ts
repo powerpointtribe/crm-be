@@ -493,7 +493,7 @@ export class CreateEventDto {
   @IsMongoId()
   organizer?: string;
 
-  @ApiProperty({ description: 'Branch ID' })
+  @ApiProperty({ description: 'Campus ID' })
   @IsMongoId()
   @IsNotEmpty()
   branch: string;

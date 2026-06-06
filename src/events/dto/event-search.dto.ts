@@ -52,7 +52,7 @@ export class EventSearchDto {
   @IsEnum(EventStatus)
   status?: EventStatus;
 
-  @ApiPropertyOptional({ description: 'Filter by branch ID' })
+  @ApiPropertyOptional({ description: 'Filter by campus ID' })
   @IsOptional()
   @IsMongoId()
   branchId?: string;

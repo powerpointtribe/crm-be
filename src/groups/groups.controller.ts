@@ -66,7 +66,7 @@ export class GroupsController {
     if (!createGroupDto.branch) {
       const userBranchId = user.branch?._id || user.branch;
       if (!userBranchId) {
-        throw new ForbiddenException('User does not have an assigned branch');
+        throw new ForbiddenException('User does not have an assigned campus');
       }
       createGroupDto.branch = userBranchId.toString();
     }
