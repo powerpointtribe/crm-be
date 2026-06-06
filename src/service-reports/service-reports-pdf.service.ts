@@ -131,7 +131,8 @@ export class ServiceReportsPdfService {
   }
 
   generatePdfHtml(report: ServiceReportDocument, stats?: PdfComparisonStats): string {
-    const year = new Date(report.date).getFullYear();
+    // Performance insights reflect the current year, not the report's year.
+    const year = new Date().getFullYear();
     const reportedBy = report.reportedBy && typeof report.reportedBy === 'object'
       ? `${(report.reportedBy as any).firstName} ${(report.reportedBy as any).lastName}`
       : 'Unknown';
@@ -146,16 +147,16 @@ export class ServiceReportsPdfService {
       const pDate = new Date(stats.previousReport.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const attD = report.totalAttendance - stats.previousReport.totalAttendance;
       const ftD = report.numberOfFirstTimers - stats.previousReport.numberOfFirstTimers;
-      return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:#F0F9FF;border-radius:6px;margin-top:10px;">
+      return `<div data-pdf-block style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:#F0F9FF;border-radius:6px;margin-top:10px;">
         <div style="flex:1;"><span style="font-size:9px;font-weight:600;color:#0C4A6E;text-transform:uppercase;letter-spacing:.5px;">vs ${stats.previousReport.serviceName} (${pDate})</span></div>
         <div style="text-align:center;padding:0 10px;"><div style="font-size:8px;color:#64748b;">Attendance</div><div style="font-size:14px;font-weight:700;color:${attD >= 0 ? '#059669' : '#DC2626'};">${attD >= 0 ? '+' : ''}${attD}</div></div>
         <div style="text-align:center;padding:0 10px;"><div style="font-size:8px;color:#64748b;">First Timers</div><div style="font-size:14px;font-weight:700;color:${ftD >= 0 ? '#059669' : '#DC2626'};">${ftD >= 0 ? '+' : ''}${ftD}</div></div>
       </div>`;
     })() : '';
 
-    const tags = report.serviceTags?.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;">${report.serviceTags.map(t => `<span style="background:#EEF2FF;color:#4338CA;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:500;">${this.tagLabels[t] || t}</span>`).join('')}</div>` : '';
+    const tags = report.serviceTags?.length ? `<div data-pdf-block style="display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;">${report.serviceTags.map(t => `<span style="background:#EEF2FF;color:#4338CA;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:500;">${this.tagLabels[t] || t}</span>`).join('')}</div>` : '';
 
-    const notes = report.notes ? `<div style="background:#FFFBEB;border-left:3px solid #F59E0B;padding:8px 12px;margin-top:10px;border-radius:0 6px 6px 0;"><div style="font-size:8px;font-weight:600;color:#92400E;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Notes</div><div style="font-size:9px;color:#78350F;line-height:1.5;white-space:pre-wrap;">${report.notes}</div></div>` : '';
+    const notes = report.notes ? `<div data-pdf-block style="background:#FFFBEB;border-left:3px solid #F59E0B;padding:8px 12px;margin-top:10px;border-radius:0 6px 6px 0;"><div style="font-size:8px;font-weight:600;color:#92400E;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Notes</div><div style="font-size:9px;color:#78350F;line-height:1.5;white-space:pre-wrap;">${report.notes}</div></div>` : '';
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -164,7 +165,7 @@ body{font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-seri
 </style></head><body><div class="page">
 
 <!-- HEADER -->
-<div class="header" style="background:linear-gradient(135deg,#312E81 0%,#4F46E5 50%,#6366F1 100%);color:#fff;padding:18px 24px 14px;position:relative;overflow:hidden;">
+<div class="header" data-pdf-block style="background:linear-gradient(135deg,#312E81 0%,#4F46E5 50%,#6366F1 100%);color:#fff;padding:16px 24px 12px;position:relative;overflow:hidden;">
 <div style="position:absolute;top:-30%;right:-10%;width:40%;height:160%;background:radial-gradient(ellipse,rgba(255,255,255,.06) 0%,transparent 70%);transform:rotate(-15deg);"></div>
 <div style="position:relative;z-index:1;">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -181,7 +182,7 @@ body{font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-seri
 </div>
 
 <!-- KPI STRIP -->
-<div class="section" style="display:flex;border-bottom:1px solid #E2E8F0;background:#FAFBFC;">
+<div class="section" data-pdf-block style="display:flex;border-bottom:1px solid #E2E8F0;background:#FAFBFC;">
 <div style="flex:1;text-align:center;padding:10px 8px 8px;border-right:1px solid #F1F5F9;">
 <div style="font-size:22px;font-weight:800;color:#4F46E5;line-height:1;">${this.n(total)}</div>
 <div style="font-size:7.5px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:.8px;margin-top:2px;">Attendance</div>
@@ -203,11 +204,11 @@ ${stats ? `<div style="margin-top:1px;">${this.delta(report.numberOfFirstTimers,
 </div>
 
 <!-- BODY -->
-<div style="padding:14px 24px 10px;">
+<div style="padding:12px 22px 8px;">
 
 ${stats ? `
 <!-- YEAR INSIGHTS -->
-<div class="section" style="margin-bottom:12px;">
+<div class="section" data-pdf-block style="margin-bottom:12px;">
 <div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:#4F46E5;border-radius:1px;"></div>${year} Performance</div>
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
 <div style="background:#F8FAFC;border:1px solid #F1F5F9;border-radius:8px;padding:8px 10px;">
@@ -231,7 +232,7 @@ ${stats ? `
 ` : ''}
 
 <!-- DEMOGRAPHICS -->
-<div class="section" style="margin-bottom:12px;">
+<div class="section" data-pdf-block style="margin-bottom:12px;">
 <div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:#4F46E5;border-radius:1px;"></div>Demographics</div>
 <div style="display:flex;gap:14px;align-items:flex-start;">
 <div style="text-align:center;flex-shrink:0;">
@@ -262,7 +263,7 @@ ${prevHtml}
 
 ${stats ? `
 <!-- COMPARISON CHART -->
-<div class="section" style="margin-top:12px;">
+<div class="section" data-pdf-block style="margin-top:12px;">
 <div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:#4F46E5;border-radius:1px;"></div>This Service vs ${year} Average</div>
 <div style="background:#F8FAFC;border:1px solid #F1F5F9;border-radius:8px;padding:10px 12px;">
 ${this.bars(report, stats)}
@@ -271,7 +272,7 @@ ${this.bars(report, stats)}
 
 ${stats.monthlyTrend && stats.monthlyTrend.length >= 2 ? `
 <!-- TREND -->
-<div class="section" style="margin-top:12px;">
+<div class="section" data-pdf-block style="margin-top:12px;">
 <div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:#4F46E5;border-radius:1px;"></div>Attendance Trend</div>
 <div style="background:#F8FAFC;border:1px solid #F1F5F9;border-radius:8px;padding:10px 12px;">
 ${this.trend(stats.monthlyTrend)}
@@ -286,7 +287,7 @@ ${notes}
 </div>
 
 <!-- FOOTER -->
-<div class="footer" style="border-top:1px solid #E2E8F0;padding:8px 24px;display:flex;justify-content:space-between;align-items:center;background:#FAFBFC;">
+<div class="footer" data-pdf-block style="border-top:1px solid #E2E8F0;padding:8px 24px;display:flex;justify-content:space-between;align-items:center;background:#FAFBFC;">
 <div style="font-size:8px;color:#94a3b8;font-weight:500;">The PowerPoint Tribe • ${branch}</div>
 <div style="font-size:7px;color:#CBD5E1;font-family:monospace;">ID: ${(report as any)._id || 'N/A'}</div>
 </div>

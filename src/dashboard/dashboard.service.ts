@@ -54,11 +54,11 @@ export class DashboardService {
     endDateParam?: string,
     branchId?: string,
   ): Promise<DashboardOverviewDto> {
-    // Default to past 3 months if no date range provided
+    // Default to the present year (Jan 1 → now) if no date range provided
     const endDate = endDateParam ? new Date(endDateParam) : new Date();
     const startDate = startDateParam
       ? new Date(startDateParam)
-      : new Date(endDate.getTime() - 90 * 24 * 60 * 60 * 1000); // 3 months ago
+      : new Date(endDate.getFullYear(), 0, 1); // Jan 1 of the current year
 
     const [stats, recentActivity, membershipTrends, upcomingTasks] =
       await Promise.all([
@@ -95,11 +95,11 @@ export class DashboardService {
     endDateParam?: string,
     branchId?: string,
   ): Promise<DashboardOverviewDto> {
-    // Default to past 3 months if no date range provided
+    // Default to the present year (Jan 1 → now) if no date range provided
     const endDate = endDateParam ? new Date(endDateParam) : new Date();
     const startDate = startDateParam
       ? new Date(startDateParam)
-      : new Date(endDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+      : new Date(endDate.getFullYear(), 0, 1); // Jan 1 of the current year
 
     // Build scope information
     const scope: DashboardScopeDto = {

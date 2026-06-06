@@ -294,20 +294,20 @@ export class ServiceReportsService {
   }
 
   async remove(id: string, userId: string): Promise<void> {
-    const report = await this.findById(id);
-
-    // Check if user has permission to delete this report
-    const reportedByIdString = typeof report.reportedBy === 'object' && report.reportedBy._id
-      ? report.reportedBy._id.toString()
-      : report.reportedBy.toString();
-
-    if (reportedByIdString !== userId.toString()) {
-      throw new ForbiddenException(
-        'You can only delete reports that you created',
-      );
+    // Authorization is handled by the `service-reports:delete` permission on the
+    // controller. Anyone holding that permission may delete any report, not just
+    // the report's creator — so no ownership check here.
+    //
+    // Look up WITHOUT the isActive filter so deleting is idempotent: an
+    // already-soft-deleted report returns success (lets the UI clear the row)
+    // instead of a confusing 404. Only a genuinely non-existent id 404s.
+    const report = await this.serviceReportModel.findById(id).exec();
+    if (!report) {
+      throw new NotFoundException('Service report not found');
     }
-
-    await this.serviceReportModel.findByIdAndUpdate(id, { isActive: false });
+    if (report.isActive) {
+      await this.serviceReportModel.findByIdAndUpdate(id, { isActive: false });
+    }
   }
 
   async getServiceReportStats(dateFrom?: string, dateTo?: string): Promise<any> {
@@ -493,9 +493,11 @@ export class ServiceReportsService {
     branchId?: any,
   ): Promise<PdfComparisonStats | undefined> {
     try {
-      const reportYear = reportDate.getFullYear();
-      const yearStart = new Date(reportYear, 0, 1);
-      const yearEnd = new Date(reportYear, 11, 31, 23, 59, 59, 999);
+      // Performance insights are always based on the CURRENT year's reports,
+      // regardless of when the report being downloaded was recorded.
+      const currentYear = new Date().getFullYear();
+      const yearStart = new Date(currentYear, 0, 1);
+      const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
       const matchFilter: any = { isActive: true, date: { $gte: yearStart, $lte: yearEnd } };
       if (branchId) {
@@ -536,11 +538,8 @@ export class ServiceReportsService {
         .lean()
         .exec();
 
-      // Get monthly trend data (last 12 months, same branch)
-      const twelveMonthsAgo = new Date(reportDate);
-      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-
-      const trendFilter: any = { isActive: true, date: { $gte: twelveMonthsAgo, $lte: reportDate } };
+      // Monthly trend across the current year (same branch).
+      const trendFilter: any = { isActive: true, date: { $gte: yearStart, $lte: yearEnd } };
       if (branchId) {
         trendFilter.branch = branchId;
       }

@@ -27,8 +27,12 @@ import { UpdateGroupDto } from './dto/update-group.dto';
 import { GroupSearchDto } from './dto/group-search.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../roles/guards/permission.guard';
-import { RequirePermission } from '../roles/decorators/require-permission.decorator';
+import {
+  RequirePermission,
+  RequireAnyPermission,
+} from '../roles/decorators/require-permission.decorator';
 import { GroupsPermission } from './permissions';
+import { FirstTimersPermission } from '../first-timers/permissions';
 import { GroupType } from '../common/enums/group-types.enum';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
@@ -122,7 +126,12 @@ export class GroupsController {
   }
 
   @Get('districts')
-  @RequirePermission(GroupsPermission.VIEW_GROUPS)
+  // Also allow first-timer integrators: the "ready for integration" flow needs
+  // the district list to populate its dropdown even if the user lacks groups:view.
+  @RequireAnyPermission(
+    GroupsPermission.VIEW_GROUPS,
+    FirstTimersPermission.CONVERT_FIRST_TIMER,
+  )
   @ApiOperation({ summary: 'Get all districts' })
   @ApiResponse({ status: 200, description: 'Districts retrieved successfully' })
   async getDistricts() {
@@ -131,7 +140,11 @@ export class GroupsController {
   }
 
   @Get('units')
-  @RequirePermission(GroupsPermission.VIEW_GROUPS)
+  // Also allow first-timer integrators (see getDistricts above).
+  @RequireAnyPermission(
+    GroupsPermission.VIEW_GROUPS,
+    FirstTimersPermission.CONVERT_FIRST_TIMER,
+  )
   @ApiOperation({ summary: 'Get all units' })
   @ApiResponse({ status: 200, description: 'Units retrieved successfully' })
   async getUnits() {

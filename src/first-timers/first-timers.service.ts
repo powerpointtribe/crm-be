@@ -148,7 +148,10 @@ export class FirstTimersService {
       page = 1,
       limit = 10,
       search,
-      sortBy = 'createdAt',
+      // Default ordering is by the visitor's actual visit date (dateOfVisit),
+      // not the system entry/creation date (createdAt). Callers can still
+      // override via the sortBy query param.
+      sortBy = 'dateOfVisit',
       sortOrder = 'desc',
       status,
       assignedTo,
@@ -258,8 +261,12 @@ export class FirstTimersService {
       ];
     }
 
-    // Build sort query
+    // Build sort query. Add createdAt as a stable tiebreaker so records sharing
+    // the same primary sort value (e.g. the same visit date) keep a consistent order.
     const sortQuery = QueryBuilder.buildSortQuery(sortBy, sortOrder);
+    if (!('createdAt' in sortQuery)) {
+      sortQuery.createdAt = -1;
+    }
 
     // Execute queries with proper population
     const [firstTimers, total] = await Promise.all([
