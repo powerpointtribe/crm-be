@@ -127,7 +127,12 @@ export class EmailProvider {
       throw new Error('ZEPTOMAIL_API_KEY is required');
     }
     const url = 'https://api.zeptomail.com/v1.1/email';
-    this.zeptoClient = new SendMailClient({ url, token: apiKey });
+    // The Send Mail API expects the token in `Zoho-enczapikey <key>` form.
+    // Add the prefix defensively so a bare key (also used for SMTP) still works.
+    const token = /^Zoho-enczapikey/i.test(apiKey)
+      ? apiKey
+      : `Zoho-enczapikey ${apiKey}`;
+    this.zeptoClient = new SendMailClient({ url, token });
     this.logger.log('ZeptoMail client initialized successfully');
   }
 
@@ -357,7 +362,7 @@ export class EmailProvider {
 
   /**
    * Parse a "from" string into { name, address }. Accepts either a bare email
-   * ("info@cmithub.com") or a "Name <email>" form. Returns undefined when no
+   * ("info@cmithub.org") or a "Name <email>" form. Returns undefined when no
    * from is provided so callers can fall back to the platform default.
    */
   private parseFrom(
@@ -382,7 +387,7 @@ export class EmailProvider {
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
 
     // Honor a per-event sender when provided. options.from may be either a bare
-    // address ("info@cmithub.com") or a "Name <address>" string — parse both so
+    // address ("info@cmithub.org") or a "Name <address>" string — parse both so
     // the event's sender (e.g. CMIT) is used instead of the platform default.
     const parsedFrom = this.parseFrom(options.from);
     const fromAddress = parsedFrom?.address || defaultSender;

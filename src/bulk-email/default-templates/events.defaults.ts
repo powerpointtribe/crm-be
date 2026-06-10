@@ -260,7 +260,7 @@ export const eventsDefaults: TemplateDefinition[] = [
                 Dami Oguntunde Teaching Ministries
               </p>
               <h1 class="h1" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:28px; line-height:34px; color:#1B1A18; font-weight:700;">
-                Campus Ministry Intensive Training
+                Campus Ministers In Training
               </h1>
               <p style="margin:14px 0 0 0; font-size:14px; line-height:21px; color:#908C85;">
                 A movement to rebuild strong, value-driven campus ministry for the next generation.
@@ -285,7 +285,7 @@ export const eventsDefaults: TemplateDefinition[] = [
               </p>
 
               <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
-                The <strong style="color:#1B1A18;">Campus Ministry Intensive Training (CMIT)</strong> was created for such students.
+                The <strong style="color:#1B1A18;">Campus Ministers In Training (CMIT)</strong> was created for such students.
               </p>
 
               <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
@@ -393,7 +393,7 @@ export const eventsDefaults: TemplateDefinition[] = [
           <tr>
             <td align="center" style="padding:24px 40px; font-family:'Helvetica Neue',Arial,sans-serif;">
               <p style="margin:0 0 6px 0; font-size:11px; line-height:17px; color:#A8A39B;">
-                You're receiving this email because you indicated interest in the Campus Ministry Intensive Training.
+                You're receiving this email because you indicated interest for Campus Ministers In Training.
               </p>
               <p style="margin:0; font-size:11px; line-height:17px; color:#A8A39B;">
                 &copy; {{year}} Dami Oguntunde Teaching Ministries
@@ -409,7 +409,7 @@ export const eventsDefaults: TemplateDefinition[] = [
 </html>`,
     variableDefinitions: [
       { name: 'firstName', description: 'Registrant first name', sampleValue: 'Adaeze' },
-      { name: 'applicationUrl', description: 'Per-registrant application form link', sampleValue: 'https://cmithub.com/apply/abc123' },
+      { name: 'applicationUrl', description: 'Per-registrant application form link', sampleValue: 'https://cmithub.org/apply/abc123' },
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },
