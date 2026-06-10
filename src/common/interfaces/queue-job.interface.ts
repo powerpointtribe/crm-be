@@ -256,6 +256,7 @@ export interface EventRegistrationConfirmationJobData {
   confirmationTemplateId?: string;
   senderEmail?: string;
   senderName?: string;
+  applicationUrl?: string;
 }
 
 export interface PartnerInquiryJobData {

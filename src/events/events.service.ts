@@ -57,6 +57,7 @@ import {
   RegistrationSearchDto,
 } from './dto/create-registration.dto';
 import { PublicRegistrationDto } from './dto/public-registration.dto';
+import { SubmitApplicationDto } from './dto/submit-application.dto';
 import {
   SubmitPartnerDto,
   UpdatePartnerStatusDto,
@@ -868,6 +869,10 @@ export class EventsService {
             event.registrationSettings?.confirmationTemplateId?.toString(),
           senderEmail: event.registrationSettings?.senderEmail,
           senderName: event.registrationSettings?.senderName,
+          applicationUrl: this.buildApplicationUrl(
+            event.registrationSettings?.applicationBaseUrl,
+            savedReg.applicationToken,
+          ),
         })
         .catch((err) => {
           this.logger.error(
@@ -877,6 +882,117 @@ export class EventsService {
     }
 
     return savedReg;
+  }
+
+  // ========== PUBLIC APPLICATION FORM (per-registrant link) ==========
+
+  /**
+   * Build the public application form URL for a registrant. Uses the event's
+   * configured `applicationBaseUrl`, falling back to the platform FRONTEND_URL.
+   * Returns undefined when no base URL or token is available.
+   */
+  private buildApplicationUrl(
+    applicationBaseUrl?: string,
+    token?: string,
+  ): string | undefined {
+    if (!token) return undefined;
+    const base = applicationBaseUrl || process.env.FRONTEND_URL || '';
+    if (!base) return undefined;
+    return `${base.replace(/\/+$/, '')}/apply/${token}`;
+  }
+
+  /**
+   * Fetch the prefill data for a registrant's application form by their unique
+   * token. Public — used to populate the one-pager application form.
+   */
+  async getApplicationByToken(token: string): Promise<{
+    eventTitle: string;
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+    gender?: string;
+    alreadySubmitted: boolean;
+    customFields: any[];
+    customFieldResponses: Record<string, string>;
+  }> {
+    const registration = await this.registrationModel
+      .findOne({ applicationToken: token })
+      .lean();
+
+    if (!registration) {
+      throw new NotFoundException('Application link is invalid or has expired');
+    }
+
+    const event = await this.eventModel
+      .findById(registration.event)
+      .select('title registrationSettings.customFields')
+      .lean();
+
+    const responses = registration.customFieldResponses
+      ? Object.fromEntries(
+          registration.customFieldResponses instanceof Map
+            ? registration.customFieldResponses
+            : Object.entries(registration.customFieldResponses),
+        )
+      : {};
+
+    return {
+      eventTitle: event?.title || '',
+      firstName: registration.attendeeInfo?.firstName || '',
+      lastName: registration.attendeeInfo?.lastName || '',
+      email: registration.attendeeInfo?.email,
+      phone: registration.attendeeInfo?.phone,
+      gender: registration.attendeeInfo?.gender,
+      alreadySubmitted: !!registration.applicationSubmittedAt,
+      customFields: event?.registrationSettings?.customFields || [],
+      customFieldResponses: responses as Record<string, string>,
+    };
+  }
+
+  /**
+   * Submit (or update) the full application for an existing registration via
+   * the registrant's unique token. Public — core attendee fields update
+   * attendeeInfo; everything else is merged into customFieldResponses.
+   */
+  async submitApplicationByToken(
+    token: string,
+    dto: SubmitApplicationDto,
+  ): Promise<EventRegistrationDocument> {
+    const registration = await this.registrationModel.findOne({
+      applicationToken: token,
+    });
+
+    if (!registration) {
+      throw new NotFoundException('Application link is invalid or has expired');
+    }
+
+    // Update core attendee fields when provided.
+    if (dto.firstName) registration.attendeeInfo.firstName = dto.firstName;
+    if (dto.lastName) registration.attendeeInfo.lastName = dto.lastName;
+    if (dto.email)
+      registration.attendeeInfo.email = dto.email.toLowerCase();
+    if (dto.phone) registration.attendeeInfo.phone = dto.phone;
+    if (dto.gender) registration.attendeeInfo.gender = dto.gender;
+
+    // Merge remaining answers into the customFieldResponses map.
+    if (dto.customFieldResponses) {
+      const merged = new Map<string, string>(
+        registration.customFieldResponses instanceof Map
+          ? registration.customFieldResponses
+          : Object.entries(registration.customFieldResponses || {}),
+      );
+      for (const [key, value] of Object.entries(dto.customFieldResponses)) {
+        if (value !== undefined && value !== null) {
+          merged.set(key, String(value));
+        }
+      }
+      registration.customFieldResponses = merged;
+    }
+
+    registration.applicationSubmittedAt = new Date();
+
+    return registration.save();
   }
 
   // ========== HELPER METHODS ==========

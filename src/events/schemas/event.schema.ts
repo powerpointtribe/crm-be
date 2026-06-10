@@ -131,6 +131,10 @@ export interface RegistrationSettings {
   // provider (e.g. ZeptoMail), otherwise the send will be rejected.
   senderEmail?: string;
   senderName?: string;
+  // Base URL where the per-registrant application form is hosted. The welcome
+  // email builds the applicant's link as `{applicationBaseUrl}/apply/{token}`.
+  // Falls back to the platform FRONTEND_URL when not set.
+  applicationBaseUrl?: string;
 }
 
 // Committee member type definition
@@ -305,6 +309,7 @@ export class Event {
       confirmationTemplateId: { type: Types.ObjectId, ref: 'EmailTemplate' },
       senderEmail: { type: String },
       senderName: { type: String },
+      applicationBaseUrl: { type: String },
     },
     default: {
       isOpen: true,

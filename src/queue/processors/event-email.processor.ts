@@ -55,6 +55,7 @@ export class EventEmailProcessor {
         confirmationTemplateId: data.confirmationTemplateId,
         senderEmail: data.senderEmail,
         senderName: data.senderName,
+        applicationUrl: data.applicationUrl,
       });
 
       this.logger.log(

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import * as crypto from 'crypto';
 
 export type EventRegistrationDocument = EventRegistration &
   Document & { _id: Types.ObjectId };
@@ -97,6 +98,16 @@ export class EventRegistration {
   @Prop({ sparse: true, trim: true })
   checkInCode?: string;
 
+  // Application token — a unique, unguessable token used to build a public,
+  // per-registrant application form link (e.g. {baseUrl}/apply/{token}).
+  // Generated automatically on first save.
+  @Prop({ unique: true, sparse: true, trim: true })
+  applicationToken?: string;
+
+  // Set when the registrant submits the full application form via their link.
+  @Prop({ type: Date })
+  applicationSubmittedAt?: Date;
+
   // Legacy check-in code (preserved from old PRO-/ENT- format)
   @Prop({ trim: true })
   legacyCheckInCode?: string;
@@ -145,6 +156,11 @@ EventRegistrationSchema.index(
 EventRegistrationSchema.index({ registeredAt: -1 });
 
 EventRegistrationSchema.pre('save', async function (next) {
+  // Generate a unique application token for the per-registrant form link.
+  if (!this.applicationToken) {
+    this.applicationToken = crypto.randomBytes(24).toString('hex');
+  }
+
   if (!this.checkInCode) {
     const Model = this.constructor as any;
 

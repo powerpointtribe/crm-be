@@ -746,6 +746,7 @@ export class NotificationsService {
     confirmationTemplateId?: string;
     senderEmail?: string;
     senderName?: string;
+    applicationUrl?: string;
   }): Promise<void> {
     const eventDate =
       data.eventDate instanceof Date
@@ -789,6 +790,15 @@ export class NotificationsService {
       ? `<tr><td style="padding:8px 0;color:#0D7770;font-size:14px;width:24px;">&#127919;</td><td style="padding:8px 0;font-size:14px;color:#333;">${track}</td></tr>`
       : '';
 
+    // Application form call-to-action. Rendered only when the event provides an
+    // application URL (a per-registrant link to complete the full application).
+    const applicationButtonHtml = data.applicationUrl
+      ? `<div style="text-align:center;margin:24px 0 8px;">
+          <a href="${data.applicationUrl}" style="display:inline-block;background:#c8a04a;color:#0f2545;font-size:15px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:8px;">Complete your application &rarr;</a>
+          <p style="margin:12px 0 0;font-size:12px;color:#888;line-height:1.5;">This link is unique to you. Please complete it so we can review your application.</p>
+        </div>`
+      : '';
+
     const templateVars = {
       firstName: data.firstName,
       lastName: data.lastName,
@@ -800,6 +810,8 @@ export class NotificationsService {
       formattedTime,
       locationHtml,
       trackHtml,
+      applicationUrl: data.applicationUrl || '',
+      applicationButtonHtml,
       year: String(new Date().getFullYear()),
     };
 

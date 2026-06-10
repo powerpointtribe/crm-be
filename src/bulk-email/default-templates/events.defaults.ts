@@ -238,16 +238,18 @@ export const eventsDefaults: TemplateDefinition[] = [
       </table>
     </div>
     <p style="font-size:14px;color:#555;margin:0 0 6px;line-height:1.6;">The five weeks open a door that stays open &mdash; an alumni network and mentorship that walk with you long after the cohort wraps. The more you lean in, the more it gives back.</p>
+    {{applicationButtonHtml}}
     <div style="text-align:center;margin:26px 0 4px;"><p style="margin:0;font-size:14px;color:#0f2545;font-weight:600;">See you in class. &#128075;</p></div>
   </div>
   <div style="padding:20px 24px;border-top:1px solid #f0f0f0;text-align:center;">
     <p style="margin:0 0 3px;font-size:12px;color:#9ca3af;">CMIT &mdash; Campus Ministers in Training</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;">A vision of Dami Oguntunde Ministries &middot; &copy; {{year}}</p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;">A vision of Dami Oguntunde Teaching Ministries &middot; &copy; {{year}}</p>
   </div>
 </div>`,
     variableDefinitions: [
       { name: 'firstName', description: 'Registrant first name', sampleValue: 'Adaeze' },
       { name: 'formattedDate', description: 'Formatted cohort start date', sampleValue: 'Saturday, August 1, 2026' },
+      { name: 'applicationButtonHtml', description: 'Pre-rendered application form CTA button (empty when no application link)', sampleValue: '' },
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },

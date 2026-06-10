@@ -40,6 +40,7 @@ import {
   RegistrationSearchDto,
 } from './dto/create-registration.dto';
 import { PublicRegistrationDto } from './dto/public-registration.dto';
+import { SubmitApplicationDto } from './dto/submit-application.dto';
 import {
   CreateSessionDto,
   UpdateSessionDto,
@@ -192,6 +193,31 @@ export class EventsController {
     return {
       success: true,
       message: `You've been successfully registered, ${registration.attendeeInfo.firstName}! We look forward to seeing you.`,
+    };
+  }
+
+  // ===== Public per-registrant application form (unique token link) =====
+
+  @Get('public/applications/:token')
+  @Public()
+  async getPublicApplication(@Param('token') token: string) {
+    return this.eventsService.getApplicationByToken(token);
+  }
+
+  @Patch('public/applications/:token')
+  @Public()
+  async submitPublicApplication(
+    @Param('token') token: string,
+    @Body() dto: SubmitApplicationDto,
+  ) {
+    const registration = await this.eventsService.submitApplicationByToken(
+      token,
+      dto,
+    );
+
+    return {
+      success: true,
+      message: `Thank you, ${registration.attendeeInfo.firstName}! Your application has been received.`,
     };
   }
 
