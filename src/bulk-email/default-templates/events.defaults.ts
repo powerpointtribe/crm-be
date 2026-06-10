@@ -207,49 +207,209 @@ export const eventsDefaults: TemplateDefinition[] = [
     name: 'CMIT Registration Welcome',
     module: TemplateModule.EVENTS,
     category: TemplateCategory.WELCOME,
-    subject: 'Welcome to CMIT — you\'re in, {{firstName}}!',
-    htmlContent: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
-  <div style="background:#0f2545;padding:38px 24px 34px;text-align:center;">
-    <div style="display:inline-block;background:rgba(200,160,74,0.18);border-radius:50%;width:56px;height:56px;line-height:56px;font-size:24px;margin-bottom:14px;">&#10003;</div>
-    <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:0.5px;">Welcome to CMIT</h1>
-    <p style="margin:8px 0 0;font-size:13px;color:#c8a04a;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;">Cohort 01</p>
+    subject: 'You\'re invited to CMIT, {{firstName}}',
+    htmlContent: `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>You're Invited to CMIT</title>
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+  <style>
+    html, body { margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; }
+    * { -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; border-collapse: collapse !important; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    a { text-decoration: none; }
+
+    @media screen and (max-width: 600px) {
+      .container { width: 100% !important; }
+      .px { padding-left: 26px !important; padding-right: 26px !important; }
+      .h1 { font-size: 24px !important; line-height: 30px !important; }
+      .detail-cell { display: block !important; width: 100% !important; padding: 8px 0 !important; border: 0 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#F4F3F0;">
+  <!-- Preheader (hidden) -->
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#F4F3F0; opacity:0;">
+    A generation of student ministers is rising. CMIT begins 1 August 2026 — fully online. Send your application today.
   </div>
-  <div style="padding:26px 24px;">
-    <p style="font-size:15px;color:#1a1a1a;margin:0 0 16px;font-weight:500;">Hi {{firstName}},</p>
-    <p style="font-size:15px;color:#555;margin:0 0 20px;line-height:1.6;">Your place in <strong style="color:#0f2545;">Campus Ministers in Training (CMIT)</strong> is confirmed &mdash; we're so glad you said yes. You're now part of a national community being equipped to rebuild and lead campus ministry across Nigeria.</p>
-    <div style="border-radius:8px;overflow:hidden;margin:0 0 22px;border:1px solid #eee;">
-      <div style="background:#f8fafc;padding:13px 20px;border-bottom:1px solid #eee;">
-        <p style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#888;">The Cohort</p>
-      </div>
-      <div style="padding:14px 20px;">
-        <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
-          <tr><td style="padding:7px 0;color:#c8a04a;font-size:14px;width:24px;">&#128197;</td><td style="padding:7px 0;font-size:14px;color:#333;">Begins {{formattedDate}}</td></tr>
-          <tr><td style="padding:7px 0;color:#c8a04a;font-size:14px;width:24px;">&#128336;</td><td style="padding:7px 0;font-size:14px;color:#333;">Saturdays &middot; 5 weekly sessions (3 hrs each)</td></tr>
-          <tr><td style="padding:7px 0;color:#c8a04a;font-size:14px;width:24px;">&#128187;</td><td style="padding:7px 0;font-size:14px;color:#333;">Fully online &mdash; Zoom link shared before week one</td></tr>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F3F0;">
+    <tr>
+      <td align="center" style="padding:28px 16px;">
+
+        <!-- Card -->
+        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#FFFFFF; border:1px solid #E7E4DE; border-radius:12px; overflow:hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td class="px" style="padding:36px 44px 30px 44px; background-color:#F1EFEA; border-bottom:1px solid #DCD8D0; font-family:'Helvetica Neue',Arial,sans-serif;">
+              <p style="margin:0 0 18px 0; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:#908C85; font-weight:700;">
+                Dami Oguntunde Teaching Ministries
+              </p>
+              <h1 class="h1" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:28px; line-height:34px; color:#1B1A18; font-weight:700;">
+                Campus Ministry Intensive Training
+              </h1>
+              <p style="margin:14px 0 0 0; font-size:14px; line-height:21px; color:#908C85;">
+                A movement to rebuild strong, value-driven campus ministry for the next generation.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td class="px" style="padding:30px 44px 4px 44px; font-family:'Helvetica Neue',Arial,sans-serif;">
+
+              <p style="margin:0 0 18px 0; font-family:Georgia,'Times New Roman',serif; font-size:19px; line-height:26px; color:#1B1A18; font-weight:700;">
+                Dear {{firstName}},
+              </p>
+
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
+                Thank you for indicating interest to be a part of this initiative.
+              </p>
+
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
+                Across many campuses in Nigeria today, participation in Christian fellowships and discipleship communities is steadily declining. Yet, there remains a generation of students who carry a genuine burden for God, His Kingdom, and the transformation of their campuses.
+              </p>
+
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
+                The <strong style="color:#1B1A18;">Campus Ministry Intensive Training (CMIT)</strong> was created for such students.
+              </p>
+
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
+                CMIT is a strategic, interdenominational discipleship and leadership development programme designed to equip university students and emerging campus leaders with the knowledge, convictions, and practical tools needed to thrive in campus ministry.
+              </p>
+
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
+                Over five weeks, participants will engage in a structured online learning experience covering the history, importance, challenges, practice, and legacy of campus ministry. Through teaching sessions, mentorship, assignments, and assessments, students will be prepared to become effective disciples and impactful leaders within their institutions.
+              </p>
+
+              <p style="margin:0 0 4px 0; font-size:15px; line-height:24px; color:#46443F;">
+                Whether you currently serve in a fellowship, desire to strengthen your leadership capacity, or simply have a passion for seeing God move on your campus, CMIT was designed with you in mind.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Details panel -->
+          <tr>
+            <td class="px" style="padding:24px 44px 0 44px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F7F6F3; border-radius:8px;">
+                <tr>
+                  <td style="padding:22px 26px; font-family:'Helvetica Neue',Arial,sans-serif;">
+                    <p style="margin:0 0 16px 0; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#908C85; font-weight:700;">
+                      Programme at a glance
+                    </p>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td class="detail-cell" width="50%" valign="top" style="padding:0 14px 14px 0; font-size:14px; line-height:20px; color:#46443F;">
+                          <span style="color:#908C85; font-size:12px;">Begins</span><br><strong style="color:#1B1A18;">1st August 2026</strong>
+                        </td>
+                        <td class="detail-cell" width="50%" valign="top" style="padding:0 0 14px 14px; font-size:14px; line-height:20px; color:#46443F; border-left:1px solid #E7E4DE;">
+                          <span style="color:#908C85; font-size:12px;">&nbsp;&nbsp;Format</span><br>&nbsp;&nbsp;<strong style="color:#1B1A18;">Fully online</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="detail-cell" width="50%" valign="top" style="padding:14px 14px 0 0; font-size:14px; line-height:20px; color:#46443F; border-top:1px solid #E7E4DE;">
+                          <span style="color:#908C85; font-size:12px;">Duration</span><br><strong style="color:#1B1A18;">Five weeks</strong>
+                        </td>
+                        <td class="detail-cell" width="50%" valign="top" style="padding:14px 0 0 14px; font-size:14px; line-height:20px; color:#46443F; border-top:1px solid #E7E4DE; border-left:1px solid #E7E4DE;">
+                          <span style="color:#908C85; font-size:12px;">&nbsp;&nbsp;Who it's for</span><br>&nbsp;&nbsp;<strong style="color:#1B1A18;">Students across Nigeria</strong>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Closing copy -->
+          <tr>
+            <td class="px" style="padding:26px 44px 0 44px; font-family:'Helvetica Neue',Arial,sans-serif;">
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
+                We invite you to join a growing community of student ministers committed to rebuilding strong, value-driven campus ministry systems for the next generation.
+              </p>
+              <p style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:17px; line-height:25px; color:#1B1A18; font-weight:700;">
+                Send your application today and become part of the movement.
+              </p>
+            </td>
+          </tr>
+
+          <!-- CTA button (left-aligned) -->
+          <tr>
+            <td class="px" style="padding:24px 44px 0 44px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" bgcolor="#1B1A18" style="border-radius:6px;">
+                    <a href="{{applicationUrl}}" target="_blank" style="display:inline-block; padding:14px 38px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:15px; font-weight:700; letter-spacing:0.3px; color:#FFFFFF; background-color:#1B1A18; border-radius:6px;">
+                      Send Application
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:14px 0 0 0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; line-height:19px; color:#908C85;">
+                Or open this link in your browser:
+                <a href="{{applicationUrl}}" target="_blank" style="color:#1B1A18; text-decoration:underline; word-break:break-all;">{{applicationUrl}}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Signature -->
+          <tr>
+            <td class="px" style="padding:24px 44px 38px 44px; font-family:'Helvetica Neue',Arial,sans-serif;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="height:1px; background-color:#E7E4DE; line-height:1px; font-size:0;">&nbsp;</td></tr>
+              </table>
+              <p style="margin:22px 0 4px 0; font-size:15px; line-height:22px; color:#46443F;">
+                Warm regards,
+              </p>
+              <p style="margin:0; font-size:15px; line-height:22px; color:#1B1A18; font-weight:700;">
+                The CMIT Team
+              </p>
+              <p style="margin:0; font-size:13px; line-height:20px; color:#908C85;">
+                Dami Oguntunde Teaching Ministries
+              </p>
+            </td>
+          </tr>
+
         </table>
-      </div>
-    </div>
-    <div style="margin:0 0 22px;">
-      <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#0f2545;">What happens next:</p>
-      <table style="width:100%;border-spacing:0;" cellpadding="0" cellspacing="0">
-        <tr><td style="padding:5px 0;font-size:13px;color:#555;">&#9679;&nbsp; We'll reach out on <strong>WhatsApp and email</strong> with your cohort group and joining details.</td></tr>
-        <tr><td style="padding:5px 0;font-size:13px;color:#555;">&#9679;&nbsp; Keep an eye on both &mdash; that's where session links and reminders will come.</td></tr>
-        <tr><td style="padding:5px 0;font-size:13px;color:#555;">&#9679;&nbsp; Come ready to learn, contribute, and build lasting friendships.</td></tr>
-      </table>
-    </div>
-    <p style="font-size:14px;color:#555;margin:0 0 6px;line-height:1.6;">The five weeks open a door that stays open &mdash; an alumni network and mentorship that walk with you long after the cohort wraps. The more you lean in, the more it gives back.</p>
-    {{applicationButtonHtml}}
-    <div style="text-align:center;margin:26px 0 4px;"><p style="margin:0;font-size:14px;color:#0f2545;font-weight:600;">See you in class. &#128075;</p></div>
-  </div>
-  <div style="padding:20px 24px;border-top:1px solid #f0f0f0;text-align:center;">
-    <p style="margin:0 0 3px;font-size:12px;color:#9ca3af;">CMIT &mdash; Campus Ministers in Training</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;">A vision of Dami Oguntunde Teaching Ministries &middot; &copy; {{year}}</p>
-  </div>
-</div>`,
+        <!-- /Card -->
+
+        <!-- Footer -->
+        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px;">
+          <tr>
+            <td align="center" style="padding:24px 40px; font-family:'Helvetica Neue',Arial,sans-serif;">
+              <p style="margin:0 0 6px 0; font-size:11px; line-height:17px; color:#A8A39B;">
+                You're receiving this email because you indicated interest in the Campus Ministry Intensive Training.
+              </p>
+              <p style="margin:0; font-size:11px; line-height:17px; color:#A8A39B;">
+                &copy; {{year}} Dami Oguntunde Teaching Ministries
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
     variableDefinitions: [
       { name: 'firstName', description: 'Registrant first name', sampleValue: 'Adaeze' },
-      { name: 'formattedDate', description: 'Formatted cohort start date', sampleValue: 'Saturday, August 1, 2026' },
-      { name: 'applicationButtonHtml', description: 'Pre-rendered application form CTA button (empty when no application link)', sampleValue: '' },
+      { name: 'applicationUrl', description: 'Per-registrant application form link', sampleValue: 'https://cmithub.com/apply/abc123' },
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },

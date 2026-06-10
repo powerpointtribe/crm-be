@@ -355,6 +355,22 @@ export class EmailProvider {
     }
   }
 
+  /**
+   * Parse a "from" string into { name, address }. Accepts either a bare email
+   * ("info@cmithub.com") or a "Name <email>" form. Returns undefined when no
+   * from is provided so callers can fall back to the platform default.
+   */
+  private parseFrom(
+    from?: string,
+  ): { name?: string; address: string } | undefined {
+    if (!from) return undefined;
+    const match = from.match(/^\s*(.*?)\s*<\s*([^>]+)\s*>\s*$/);
+    if (match) {
+      return { name: match[1] || undefined, address: match[2].trim() };
+    }
+    return { address: from.trim() };
+  }
+
   private async sendEmailWithZeptoMailer(options: {
     to: string | string[];
     subject: string;
@@ -364,16 +380,22 @@ export class EmailProvider {
     const recipients = Array.isArray(options.to) ? options.to : [options.to];
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
-    const fromEmail = defaultSender;
+
+    // Honor a per-event sender when provided. options.from may be either a bare
+    // address ("info@cmithub.com") or a "Name <address>" string — parse both so
+    // the event's sender (e.g. CMIT) is used instead of the platform default.
+    const parsedFrom = this.parseFrom(options.from);
+    const fromAddress = parsedFrom?.address || defaultSender;
+    const fromName = parsedFrom?.name || 'The Powerpoint Tribe';
 
     this.logger.log(
       `[Zeptomail] Attempting to send email to: ${recipients.join(', ')}`,
     );
     this.logger.log(`Subject: ${options.subject}`);
-    this.logger.log(`From: ${fromEmail}`);
+    this.logger.log(`From: ${fromName} <${fromAddress}>`);
 
     const payload = {
-      from: { address: defaultSender, name: 'The Powerpoint Tribe' },
+      from: { address: fromAddress, name: fromName },
       to: recipients.map((email) => ({
         email_address: { address: email },
       })),
