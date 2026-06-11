@@ -1,0 +1,51 @@
+name: Build & Deploy to EC2
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Install everything (dev deps needed for the build), compile,
+      # then strip dev deps so only runtime node_modules ships.
+      - name: Install & build
+        run: |
+          npm ci
+          npm run build
+          npm prune --omit=dev
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      # Sync only build output + runtime deps + manifests.
+      # --delete keeps the server folders clean, but is scoped to
+      # dist/ and node_modules/ only — your .env is never touched.
+      - name: Sync to EC2
+        run: |
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
+            dist/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/app/dist/
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
+            node_modules/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/app/node_modules/
+          rsync -az -e "ssh -i ~/.ssh/deploy_key" \
+            package.json package-lock.json ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/app/
+
+      # reload if already running, otherwise start fresh (first deploy).
+      - name: Restart app
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+            "cd /home/ubuntu/app && (pm2 reload crm-be --update-env || pm2 start dist/main.js --name crm-be) && pm2 save"
