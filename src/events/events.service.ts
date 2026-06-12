@@ -532,6 +532,26 @@ export class EventsService {
     return createPaginatedResult(data, total, page, limit);
   }
 
+  /** Fetch a single registration (for the admin single-registration view). */
+  async getRegistrationById(
+    eventId: string,
+    registrationId: string,
+  ): Promise<EventRegistrationDocument> {
+    const registration = await this.registrationModel
+      .findOne({
+        _id: registrationId,
+        event: new Types.ObjectId(eventId),
+      })
+      .populate('member', 'firstName lastName email phone')
+      .exec();
+
+    if (!registration) {
+      throw new NotFoundException('Registration not found');
+    }
+
+    return registration;
+  }
+
   async createRegistration(
     eventId: string,
     dto: CreateRegistrationDto,
@@ -967,6 +987,14 @@ export class EventsService {
       throw new NotFoundException('Application link is invalid or has expired');
     }
 
+    // One-time use: once an application has been submitted, the link expires and
+    // cannot be reused or edited.
+    if (registration.applicationSubmittedAt) {
+      throw new ConflictException(
+        'This application has already been submitted. The link can no longer be used.',
+      );
+    }
+
     // Update core attendee fields when provided.
     if (dto.firstName) registration.attendeeInfo.firstName = dto.firstName;
     if (dto.lastName) registration.attendeeInfo.lastName = dto.lastName;
@@ -990,7 +1018,12 @@ export class EventsService {
       registration.customFieldResponses = merged;
     }
 
-    registration.applicationSubmittedAt = new Date();
+    // Only stamp the submission (and lock the link) on a final submit. A draft
+    // save (submit === false) just persists progress so the applicant can
+    // reopen the link later and continue from their last update.
+    if (dto.submit !== false) {
+      registration.applicationSubmittedAt = new Date();
+    }
 
     return registration.save();
   }

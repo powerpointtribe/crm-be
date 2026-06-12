@@ -215,9 +215,14 @@ export class EventsController {
       dto,
     );
 
+    const firstName = registration.attendeeInfo.firstName;
     return {
       success: true,
-      message: `Thank you, ${registration.attendeeInfo.firstName}! Your application has been received.`,
+      submitted: dto.submit !== false,
+      message:
+        dto.submit === false
+          ? `Saved, ${firstName}. You can come back to this link and finish anytime.`
+          : `Thank you, ${firstName}! Your application has been received.`,
     };
   }
 
@@ -461,6 +466,15 @@ export class EventsController {
     @Query() query: RegistrationSearchDto,
   ) {
     return this.eventsService.getRegistrations(id, query);
+  }
+
+  @Get(':id/registrations/:regId')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  async getRegistration(
+    @Param('id') id: string,
+    @Param('regId') regId: string,
+  ) {
+    return this.eventsService.getRegistrationById(id, regId);
   }
 
   @Post(':id/registrations')

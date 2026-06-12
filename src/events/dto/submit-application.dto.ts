@@ -4,6 +4,7 @@ import {
   IsEmail,
   IsEnum,
   IsObject,
+  IsBoolean,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -47,4 +48,13 @@ export class SubmitApplicationDto {
   @IsOptional()
   @IsObject()
   customFieldResponses?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description:
+      'Set false to save a draft (continue later) without finalizing/locking the application. Defaults to true (final submission).',
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  submit?: boolean;
 }
