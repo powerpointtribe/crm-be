@@ -318,7 +318,7 @@ export const eventsDefaults: TemplateDefinition[] = [
                           <span style="color:#908C85; font-size:12px;">Begins</span><br><strong style="color:#1B1A18;">1st August 2026</strong>
                         </td>
                         <td class="detail-cell" width="50%" valign="top" style="padding:0 0 14px 14px; font-size:14px; line-height:20px; color:#46443F; border-left:1px solid #E7E4DE;">
-                          <span style="color:#908C85; font-size:12px;">&nbsp;&nbsp;Format</span><br>&nbsp;&nbsp;<strong style="color:#1B1A18;">Fully online</strong>
+                          <span style="color:#908C85; font-size:12px;">Format</span><br><strong style="color:#1B1A18;">Fully online</strong>
                         </td>
                       </tr>
                       <tr>
@@ -326,7 +326,7 @@ export const eventsDefaults: TemplateDefinition[] = [
                           <span style="color:#908C85; font-size:12px;">Duration</span><br><strong style="color:#1B1A18;">Five weeks</strong>
                         </td>
                         <td class="detail-cell" width="50%" valign="top" style="padding:14px 0 0 14px; font-size:14px; line-height:20px; color:#46443F; border-top:1px solid #E7E4DE; border-left:1px solid #E7E4DE;">
-                          <span style="color:#908C85; font-size:12px;">&nbsp;&nbsp;Who it's for</span><br>&nbsp;&nbsp;<strong style="color:#1B1A18;">Students across Nigeria</strong>
+                          <span style="color:#908C85; font-size:12px;">Who it's for</span><br><strong style="color:#1B1A18;">Students across Nigeria</strong>
                         </td>
                       </tr>
                     </table>
