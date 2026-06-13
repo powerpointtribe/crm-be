@@ -477,6 +477,27 @@ export class EventsController {
     return this.eventsService.getRegistrationById(id, regId);
   }
 
+  @Post(':id/registrations/:regId/regenerate-application-link')
+  @RequirePermission(EventsPermission.UPDATE_REGISTRATION)
+  async regenerateApplicationLink(
+    @Param('id') id: string,
+    @Param('regId') regId: string,
+    @Body() body: { email?: string },
+  ) {
+    const result = await this.eventsService.regenerateApplicationLink(
+      id,
+      regId,
+      body?.email,
+    );
+    return {
+      success: true,
+      message: result.sentTo
+        ? `New application link generated and sent to ${result.sentTo}.`
+        : 'New application link generated.',
+      ...result,
+    };
+  }
+
   @Post(':id/registrations')
   @RequirePermission(EventsPermission.CREATE_REGISTRATION)
   @AuditLog({

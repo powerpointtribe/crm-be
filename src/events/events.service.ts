@@ -552,6 +552,71 @@ export class EventsService {
     return registration;
   }
 
+  /**
+   * Regenerate a registrant's application link (new token) and email it to the
+   * registrant's email or a different address. Unlocks the application for
+   * (re)submission while preserving any answers already saved. Admin action.
+   */
+  async regenerateApplicationLink(
+    eventId: string,
+    registrationId: string,
+    email?: string,
+  ): Promise<{ applicationUrl?: string; sentTo: string | null }> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    const registration = await this.registrationModel.findOne({
+      _id: registrationId,
+      event: new Types.ObjectId(eventId),
+    });
+    if (!registration) {
+      throw new NotFoundException('Registration not found');
+    }
+
+    // Fresh token + unlock for (re)submission. Existing answers are preserved.
+    registration.applicationToken = randomBytes(24).toString('hex');
+    registration.applicationSubmittedAt = undefined;
+    await registration.save();
+
+    const applicationUrl = this.buildApplicationUrl(
+      event.registrationSettings?.applicationBaseUrl,
+      registration.applicationToken,
+    );
+
+    const sentTo = (email || registration.attendeeInfo.email || '')
+      .trim()
+      .toLowerCase();
+
+    if (sentTo) {
+      await this.emailQueue
+        .add(JobType.EVENT_REGISTRATION_CONFIRMATION, {
+          registrationId: registration._id.toString(),
+          email: sentTo,
+          firstName: registration.attendeeInfo.firstName,
+          lastName: registration.attendeeInfo.lastName,
+          eventTitle: event.title,
+          eventDate: event.startDate,
+          eventLocation: event.location?.name || '',
+          checkInCode: registration.checkInCode,
+          customFieldResponses: registration.customFieldResponses,
+          confirmationTemplateId:
+            event.registrationSettings?.confirmationTemplateId?.toString(),
+          senderEmail: event.registrationSettings?.senderEmail,
+          senderName: event.registrationSettings?.senderName,
+          applicationUrl,
+        })
+        .catch((err) => {
+          this.logger.error(
+            `Failed to queue application link email for ${sentTo}: ${err.message}`,
+          );
+        });
+    }
+
+    return { applicationUrl, sentTo: sentTo || null };
+  }
+
   async createRegistration(
     eventId: string,
     dto: CreateRegistrationDto,
