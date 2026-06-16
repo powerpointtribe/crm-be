@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -15,6 +16,13 @@ import {
   LessonProgress,
   LessonProgressDocument,
 } from './schemas/lesson-progress.schema';
+import { Quiz, QuizDocument } from './schemas/quiz.schema';
+import {
+  QuizAttempt,
+  QuizAttemptDocument,
+} from './schemas/quiz-attempt.schema';
+import { Assignment, AssignmentDocument } from './schemas/assignment.schema';
+import { Submission, SubmissionDocument } from './schemas/submission.schema';
 import { Event, EventDocument } from '../events/schemas/event.schema';
 import {
   EventRegistration,
@@ -29,11 +37,15 @@ import {
   SessionAttendanceDocument,
 } from '../events/schemas/session-attendance.schema';
 import { PortalAccountDocument } from '../portal/schemas/portal-account.schema';
+import { AiService } from '../ai/ai.service';
 import {
+  CreateAssignmentDto,
   CreateLessonDto,
   CreateModuleDto,
+  UpdateAssignmentDto,
   UpdateLessonDto,
   UpdateModuleDto,
+  UpsertQuizDto,
 } from './dto/lms.dto';
 
 @Injectable()
@@ -45,6 +57,15 @@ export class LmsService {
     private readonly lessonModel: Model<LessonDocument>,
     @InjectModel(LessonProgress.name)
     private readonly progressModel: Model<LessonProgressDocument>,
+    @InjectModel(Quiz.name)
+    private readonly quizModel: Model<QuizDocument>,
+    @InjectModel(QuizAttempt.name)
+    private readonly quizAttemptModel: Model<QuizAttemptDocument>,
+    @InjectModel(Assignment.name)
+    private readonly assignmentModel: Model<AssignmentDocument>,
+    @InjectModel(Submission.name)
+    private readonly submissionModel: Model<SubmissionDocument>,
+    private readonly aiService: AiService,
     @InjectModel(Event.name)
     private readonly eventModel: Model<EventDocument>,
     @InjectModel(EventRegistration.name)
@@ -107,6 +128,34 @@ export class LmsService {
     return { success: true };
   }
 
+  async reorderModules(eventId: string, orderedIds: string[]) {
+    await this.assertEvent(eventId);
+    const eventOid = new Types.ObjectId(eventId);
+    await Promise.all(
+      orderedIds.map((mid, i) =>
+        this.moduleModel.updateOne(
+          { _id: new Types.ObjectId(mid), event: eventOid },
+          { $set: { order: i } },
+        ),
+      ),
+    );
+    return { success: true };
+  }
+
+  async reorderLessons(moduleId: string, orderedIds: string[]) {
+    const mod = await this.moduleModel.findById(moduleId);
+    if (!mod) throw new NotFoundException('Module not found');
+    await Promise.all(
+      orderedIds.map((lid, i) =>
+        this.lessonModel.updateOne(
+          { _id: new Types.ObjectId(lid), module: mod._id },
+          { $set: { order: i } },
+        ),
+      ),
+    );
+    return { success: true };
+  }
+
   async createLesson(moduleId: string, dto: CreateLessonDto) {
     const mod = await this.moduleModel.findById(moduleId);
     if (!mod) throw new NotFoundException('Module not found');
@@ -155,6 +204,439 @@ export class LmsService {
     const lesson = await this.lessonModel.findByIdAndDelete(lessonId);
     if (!lesson) throw new NotFoundException('Lesson not found');
     await this.progressModel.deleteMany({ lesson: lesson._id });
+    await this.quizModel.deleteMany({ lesson: lesson._id });
+    await this.quizAttemptModel.deleteMany({ lesson: lesson._id });
+    return { success: true };
+  }
+
+  // ===================== FACILITATOR: quizzes =====================
+
+  /** Facilitator view of a lesson's quiz (includes correct answers). */
+  async getQuizForLesson(lessonId: string) {
+    const quiz = await this.quizModel
+      .findOne({ lesson: new Types.ObjectId(lessonId) })
+      .lean();
+    return { quiz: quiz || null };
+  }
+
+  /** Create or replace the quiz for a lesson. */
+  async upsertQuiz(lessonId: string, dto: UpsertQuizDto) {
+    const lesson = await this.lessonModel.findById(lessonId);
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    const questions = (dto.questions || []).map((q) => ({
+      id: q.id || randomBytes(6).toString('hex'),
+      prompt: q.prompt,
+      options: q.options || [],
+      correctIndex: q.correctIndex ?? 0,
+      points: q.points ?? 1,
+    }));
+
+    const quiz = await this.quizModel.findOneAndUpdate(
+      { lesson: lesson._id },
+      {
+        $set: {
+          event: lesson.event,
+          title: dto.title,
+          passingScore: dto.passingScore ?? 70,
+          status: dto.status || 'draft',
+          questions,
+        },
+      },
+      { new: true, upsert: true },
+    );
+    return quiz;
+  }
+
+  async deleteQuiz(lessonId: string) {
+    const lessonOid = new Types.ObjectId(lessonId);
+    await this.quizModel.deleteOne({ lesson: lessonOid });
+    await this.quizAttemptModel.deleteMany({ lesson: lessonOid });
+    return { success: true };
+  }
+
+  // ===================== FACILITATOR: assignments =====================
+
+  async listAssignments(eventId: string) {
+    await this.assertEvent(eventId);
+    const eventOid = new Types.ObjectId(eventId);
+    const assignments = await this.assignmentModel
+      .find({ event: eventOid })
+      .sort({ createdAt: -1 })
+      .lean();
+    const counts = await this.submissionModel.aggregate([
+      { $match: { event: eventOid } },
+      {
+        $group: {
+          _id: '$assignment',
+          submitted: { $sum: 1 },
+          graded: {
+            $sum: { $cond: [{ $ne: ['$grade', null] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+    const byId: Record<string, { submitted: number; graded: number }> = {};
+    for (const c of counts)
+      byId[String(c._id)] = { submitted: c.submitted, graded: c.graded };
+    return assignments.map((a) => ({
+      ...a,
+      submissionCount: byId[String(a._id)]?.submitted || 0,
+      gradedCount: byId[String(a._id)]?.graded || 0,
+    }));
+  }
+
+  async createAssignment(eventId: string, dto: CreateAssignmentDto) {
+    const event = await this.assertEvent(eventId);
+    return this.assignmentModel.create({
+      event: event._id,
+      lesson: dto.lesson ? new Types.ObjectId(dto.lesson) : undefined,
+      title: dto.title,
+      instructions: dto.instructions,
+      dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+      maxScore: dto.maxScore ?? 100,
+      status: dto.status || 'draft',
+    });
+  }
+
+  async updateAssignment(assignmentId: string, dto: UpdateAssignmentDto) {
+    const update: any = { ...dto };
+    if (dto.lesson !== undefined)
+      update.lesson = dto.lesson ? new Types.ObjectId(dto.lesson) : undefined;
+    if (dto.dueDate !== undefined)
+      update.dueDate = dto.dueDate ? new Date(dto.dueDate) : undefined;
+    const a = await this.assignmentModel.findByIdAndUpdate(
+      assignmentId,
+      { $set: update },
+      { new: true },
+    );
+    if (!a) throw new NotFoundException('Assignment not found');
+    return a;
+  }
+
+  async deleteAssignment(assignmentId: string) {
+    const a = await this.assignmentModel.findByIdAndDelete(assignmentId);
+    if (!a) throw new NotFoundException('Assignment not found');
+    await this.submissionModel.deleteMany({ assignment: a._id });
+    return { success: true };
+  }
+
+  async listSubmissions(assignmentId: string) {
+    const assignment = await this.assignmentModel.findById(assignmentId).lean();
+    if (!assignment) throw new NotFoundException('Assignment not found');
+    const subs = await this.submissionModel
+      .find({ assignment: assignment._id })
+      .populate('registration', 'attendeeInfo')
+      .sort({ submittedAt: -1 })
+      .lean();
+    return {
+      assignment,
+      submissions: subs.map((s: any) => ({
+        id: s._id,
+        registrationId: s.registration?._id || s.registration,
+        name: `${s.registration?.attendeeInfo?.firstName || ''} ${
+          s.registration?.attendeeInfo?.lastName || ''
+        }`.trim(),
+        email: s.registration?.attendeeInfo?.email,
+        text: s.text,
+        fileUrl: s.fileUrl,
+        fileName: s.fileName,
+        submittedAt: s.submittedAt,
+        grade: s.grade ?? null,
+        feedback: s.feedback || '',
+        gradedAt: s.gradedAt,
+      })),
+    };
+  }
+
+  async gradeSubmission(
+    submissionId: string,
+    grade: number,
+    feedback?: string,
+  ) {
+    const s = await this.submissionModel.findByIdAndUpdate(
+      submissionId,
+      { $set: { grade, feedback, gradedAt: new Date() } },
+      { new: true },
+    );
+    if (!s) throw new NotFoundException('Submission not found');
+    return { success: true };
+  }
+
+  // ===================== FACILITATOR: AI course generation =====================
+
+  async generateCourseDraft(
+    eventId: string,
+    params: {
+      topic: string;
+      audience?: string;
+      moduleCount?: number;
+      notes?: string;
+    },
+  ) {
+    const event = await this.assertEvent(eventId);
+    const schema = {
+      type: 'object',
+      properties: {
+        modules: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              description: { type: 'string' },
+              lessons: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string' },
+                    summary: { type: 'string' },
+                    content: {
+                      type: 'string',
+                      description:
+                        'Lesson body as simple HTML using <p>, <h4>, <ul><li>. No markdown.',
+                    },
+                    reflectionPrompt: { type: 'string' },
+                  },
+                  required: ['title', 'summary', 'content'],
+                },
+              },
+            },
+            required: ['title', 'lessons'],
+          },
+        },
+      },
+      required: ['modules'],
+    };
+    const moduleCount = params.moduleCount || 4;
+    const system =
+      'You are an expert instructional designer. Produce a clear, practical course outline. ' +
+      'Lesson bodies must be concise, well-structured HTML (only <p>, <h4>, <ul>, <li>, <strong>). Never use markdown.';
+    const prompt =
+      `Design a course for the programme "${event.title}".\n` +
+      `Topic / focus: ${params.topic}\n` +
+      (params.audience ? `Audience: ${params.audience}\n` : '') +
+      `Create about ${moduleCount} modules, each with 2–4 lessons.\n` +
+      (params.notes ? `Additional notes: ${params.notes}\n` : '') +
+      'Every lesson needs: a title, a one-line summary, a short HTML body, and a reflection prompt.';
+
+    const draft = await this.aiService.generateJson<{ modules: any[] }>({
+      system,
+      prompt,
+      schema,
+      toolName: 'emit_course',
+      maxTokens: 8000,
+    });
+    return draft;
+  }
+
+  /** Create AI-drafted modules + lessons as DRAFTS (facilitator reviews/publishes). */
+  async applyCourseDraft(
+    eventId: string,
+    modules: Array<{
+      title: string;
+      description?: string;
+      lessons?: Array<{
+        title: string;
+        summary?: string;
+        content?: string;
+        reflectionPrompt?: string;
+      }>;
+    }>,
+  ) {
+    const event = await this.assertEvent(eventId);
+    let moduleOrder = await this.moduleModel.countDocuments({
+      event: event._id,
+    });
+    let lessonsCreated = 0;
+    for (const m of modules || []) {
+      if (!m.title?.trim()) continue;
+      const mod = await this.moduleModel.create({
+        event: event._id,
+        title: m.title.trim(),
+        description: m.description,
+        order: moduleOrder++,
+        status: 'draft',
+      });
+      let lessonOrder = 0;
+      for (const l of m.lessons || []) {
+        if (!l.title?.trim()) continue;
+        await this.lessonModel.create({
+          event: event._id,
+          module: mod._id,
+          title: l.title.trim(),
+          summary: l.summary,
+          content: l.content,
+          reflectionPrompt: l.reflectionPrompt,
+          order: lessonOrder++,
+          resources: [],
+          status: 'draft',
+        });
+        lessonsCreated += 1;
+      }
+    }
+    return {
+      success: true,
+      modulesCreated: (modules || []).filter((m) => m.title?.trim()).length,
+      lessonsCreated,
+    };
+  }
+
+  // ===================== STUDENT: AI teaching assistant =====================
+
+  async askAssistant(
+    account: PortalAccountDocument,
+    params: {
+      eventSlug?: string;
+      lessonId?: string;
+      message: string;
+      history?: Array<{ role: string; content: string }>;
+    },
+  ) {
+    const { event } = await this.resolveLearner(account, params.eventSlug);
+    const stripHtml = (s: string) =>
+      String(s || '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    let context = '';
+    if (params.lessonId) {
+      const lesson = await this.lessonModel
+        .findOne({
+          _id: new Types.ObjectId(params.lessonId),
+          event: event._id,
+          status: 'published',
+        })
+        .lean();
+      if (lesson) {
+        context = `Current lesson: ${lesson.title}\n${lesson.summary || ''}\n${stripHtml(
+          lesson.content || '',
+        )}`;
+      }
+    }
+    if (!context) {
+      const lessons = await this.lessonModel
+        .find({ event: event._id, status: 'published' })
+        .select('title summary')
+        .sort({ order: 1 })
+        .lean();
+      context =
+        'Course lessons:\n' +
+        lessons.map((l) => `- ${l.title}: ${l.summary || ''}`).join('\n');
+    }
+
+    const system =
+      `You are a warm, encouraging teaching assistant for the programme "${event.title}". ` +
+      'Answer the learner using the course material below. If a question is outside the material, ' +
+      'say so briefly and give helpful general guidance. Be concise (a few short paragraphs max).\n\n' +
+      `COURSE MATERIAL:\n${context.slice(0, 8000)}`;
+
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+      ...(params.history || []).slice(-8).map((h) => {
+        const role: 'user' | 'assistant' =
+          h.role === 'assistant' ? 'assistant' : 'user';
+        return { role, content: String(h.content || '').slice(0, 2000) };
+      }),
+      { role: 'user', content: params.message },
+    ];
+
+    const reply = await this.aiService.chat({
+      system,
+      messages,
+      maxTokens: 1024,
+    });
+    return { reply };
+  }
+
+  // ===================== STUDENT: assignments =====================
+
+  async getAssignmentsForStudent(
+    account: PortalAccountDocument,
+    eventSlug?: string,
+  ) {
+    const { event, registration } = await this.resolveLearner(
+      account,
+      eventSlug,
+    );
+    const [assignments, mySubs] = await Promise.all([
+      this.assignmentModel
+        .find({ event: event._id, status: 'published' })
+        .sort({ dueDate: 1, createdAt: -1 })
+        .lean(),
+      this.submissionModel
+        .find({ event: event._id, registration: registration._id })
+        .lean(),
+    ]);
+    const byAssignment: Record<string, any> = {};
+    for (const s of mySubs) byAssignment[String(s.assignment)] = s;
+
+    return {
+      assignments: assignments.map((a) => {
+        const s = byAssignment[String(a._id)];
+        return {
+          id: a._id,
+          title: a.title,
+          instructions: a.instructions,
+          dueDate: a.dueDate,
+          maxScore: a.maxScore,
+          submission: s
+            ? {
+                text: s.text || '',
+                fileUrl: s.fileUrl || '',
+                fileName: s.fileName || '',
+                submittedAt: s.submittedAt,
+                grade: s.grade ?? null,
+                feedback: s.feedback || '',
+              }
+            : null,
+        };
+      }),
+    };
+  }
+
+  async submitAssignment(
+    account: PortalAccountDocument,
+    assignmentId: string,
+    data: { text?: string; fileUrl?: string; fileName?: string },
+  ) {
+    const assignment = await this.assignmentModel.findOne({
+      _id: new Types.ObjectId(assignmentId),
+      status: 'published',
+    });
+    if (!assignment) throw new NotFoundException('Assignment not found');
+
+    const registration = await this.registrationModel.findOne({
+      event: assignment.event,
+      'attendeeInfo.email': account.email,
+      admissionStatus: 'accepted',
+    });
+    if (!registration) throw new ForbiddenException('Not enrolled.');
+
+    if (!data.text?.trim() && !data.fileUrl?.trim()) {
+      throw new BadRequestException(
+        'Add some text or attach a file before submitting.',
+      );
+    }
+
+    await this.submissionModel.updateOne(
+      { assignment: assignment._id, registration: registration._id },
+      {
+        $set: {
+          event: assignment.event,
+          text: data.text,
+          fileUrl: data.fileUrl,
+          fileName: data.fileName,
+          submittedAt: new Date(),
+        },
+        $setOnInsert: {
+          assignment: assignment._id,
+          registration: registration._id,
+        },
+      },
+      { upsert: true },
+    );
     return { success: true };
   }
 
@@ -386,6 +868,172 @@ export class LmsService {
       { upsert: true },
     );
     return { success: true };
+  }
+
+  // ===================== STUDENT: quizzes =====================
+
+  /** Published quiz for a lesson (answers stripped) + the learner's attempt. */
+  async getQuizForStudent(account: PortalAccountDocument, lessonId: string) {
+    const quiz = await this.quizModel
+      .findOne({ lesson: new Types.ObjectId(lessonId), status: 'published' })
+      .lean();
+    if (!quiz) return { quiz: null };
+
+    const registration = await this.registrationModel.findOne({
+      event: quiz.event,
+      'attendeeInfo.email': account.email,
+      admissionStatus: 'accepted',
+    });
+    if (!registration) throw new ForbiddenException('Not enrolled.');
+
+    const attempt = await this.quizAttemptModel
+      .findOne({ registration: registration._id, quiz: quiz._id })
+      .lean();
+
+    return {
+      quiz: {
+        id: quiz._id,
+        title: quiz.title,
+        passingScore: quiz.passingScore,
+        questions: (quiz.questions || []).map((q) => ({
+          id: q.id,
+          prompt: q.prompt,
+          options: q.options,
+        })),
+      },
+      attempt: attempt
+        ? {
+            score: attempt.score,
+            passed: attempt.passed,
+            attempts: attempt.attempts,
+            answers: attempt.answers,
+          }
+        : null,
+    };
+  }
+
+  /** Grade a quiz submission, store the attempt, and complete the lesson on pass. */
+  async submitQuiz(
+    account: PortalAccountDocument,
+    lessonId: string,
+    answers: number[],
+  ) {
+    const quiz = await this.quizModel.findOne({
+      lesson: new Types.ObjectId(lessonId),
+      status: 'published',
+    });
+    if (!quiz) throw new NotFoundException('Quiz not found');
+
+    const registration = await this.registrationModel.findOne({
+      event: quiz.event,
+      'attendeeInfo.email': account.email,
+      admissionStatus: 'accepted',
+    });
+    if (!registration) throw new ForbiddenException('Not enrolled.');
+
+    const questions = quiz.questions || [];
+    const total = questions.length;
+    let correctCount = 0;
+    questions.forEach((q, i) => {
+      if (answers[i] === q.correctIndex) correctCount += 1;
+    });
+    const score = total ? Math.round((correctCount / total) * 100) : 0;
+    const passed = score >= (quiz.passingScore ?? 70);
+
+    await this.quizAttemptModel.updateOne(
+      { registration: registration._id, quiz: quiz._id },
+      {
+        $set: {
+          event: quiz.event,
+          lesson: quiz.lesson,
+          answers,
+          score,
+          correctCount,
+          total,
+          passed,
+        },
+        $inc: { attempts: 1 },
+      },
+      { upsert: true },
+    );
+
+    // Passing a quiz completes its lesson (advances the module-lock chain).
+    if (passed) {
+      await this.progressModel.updateOne(
+        { registration: registration._id, lesson: quiz.lesson },
+        {
+          $set: {
+            event: quiz.event,
+            status: 'completed',
+            completedAt: new Date(),
+          },
+          $setOnInsert: { registration: registration._id },
+        },
+        { upsert: true },
+      );
+    }
+
+    return {
+      score,
+      passed,
+      correctCount,
+      total,
+      passingScore: quiz.passingScore ?? 70,
+    };
+  }
+
+  /**
+   * Certificate of completion. Eligible once the learner has completed every
+   * published lesson in the event. Returns the data a printable certificate
+   * needs; callers render it. Not eligible → { eligible:false, completed, total }.
+   */
+  async getCertificate(account: PortalAccountDocument, eventSlug?: string) {
+    const { event, registration } = await this.resolveLearner(
+      account,
+      eventSlug,
+    );
+    const [lessons, completed] = await Promise.all([
+      this.lessonModel
+        .find({ event: event._id, status: 'published' })
+        .select('_id')
+        .lean(),
+      this.progressModel
+        .find({ registration: registration._id, status: 'completed' })
+        .select('lesson completedAt')
+        .lean(),
+    ]);
+
+    const total = lessons.length;
+    const completedSet = new Set(completed.map((c) => String(c.lesson)));
+    const doneCount = lessons.filter((l) =>
+      completedSet.has(String(l._id)),
+    ).length;
+    const eligible = total > 0 && doneCount === total;
+
+    if (!eligible) {
+      return { eligible: false, completed: doneCount, total };
+    }
+
+    const times = completed
+      .filter((c) => completedSet.has(String(c.lesson)) && c.completedAt)
+      .map((c) => new Date(c.completedAt as Date).getTime());
+    const completedAt = times.length ? new Date(Math.max(...times)) : new Date();
+
+    const name = `${registration.attendeeInfo?.firstName || ''} ${
+      registration.attendeeInfo?.lastName || ''
+    }`.trim();
+    const code =
+      registration.checkInCode ||
+      String(registration._id).slice(-6).toUpperCase();
+
+    return {
+      eligible: true,
+      learnerName: name,
+      eventTitle: event.title,
+      completedAt,
+      lessonsCompleted: doneCount,
+      certificateId: `${(event.registrationSlug || 'CERT').toUpperCase()}-${code}`,
+    };
   }
 
   // ===================== STUDENT: sessions & attendance =====================

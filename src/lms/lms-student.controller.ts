@@ -12,7 +12,13 @@ import { PortalJwtGuard } from '../portal/guards/portal-jwt.guard';
 import { CurrentPortalAccount } from '../portal/decorators/current-portal-account.decorator';
 import { PortalAccountDocument } from '../portal/schemas/portal-account.schema';
 import { LmsService } from './lms.service';
-import { SaveReflectionDto, SetLessonProgressDto } from './dto/lms.dto';
+import {
+  AssistantDto,
+  SaveReflectionDto,
+  SetLessonProgressDto,
+  SubmitAssignmentDto,
+  SubmitQuizDto,
+} from './dto/lms.dto';
 
 /** Learner-facing LMS reads + progress. Portal-auth (PortalAccount). */
 @ApiTags('LMS (student)')
@@ -75,5 +81,64 @@ export class LmsStudentController {
     @Param('sessionId') sessionId: string,
   ) {
     return this.lms.checkIn(account, sessionId);
+  }
+
+  @Get('me/certificate')
+  getCertificate(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Query('eventSlug') eventSlug?: string,
+  ) {
+    return this.lms.getCertificate(account, eventSlug);
+  }
+
+  @Get('me/lessons/:lessonId/quiz')
+  getQuiz(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Param('lessonId') lessonId: string,
+  ) {
+    return this.lms.getQuizForStudent(account, lessonId);
+  }
+
+  @Post('me/lessons/:lessonId/quiz/submit')
+  submitQuiz(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Param('lessonId') lessonId: string,
+    @Body() dto: SubmitQuizDto,
+  ) {
+    return this.lms.submitQuiz(account, lessonId, dto.answers);
+  }
+
+  @Get('me/assignments')
+  getAssignments(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Query('eventSlug') eventSlug?: string,
+  ) {
+    return this.lms.getAssignmentsForStudent(account, eventSlug);
+  }
+
+  @Post('me/assignments/:assignmentId/submit')
+  submitAssignment(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Param('assignmentId') assignmentId: string,
+    @Body() dto: SubmitAssignmentDto,
+  ) {
+    return this.lms.submitAssignment(account, assignmentId, {
+      text: dto.text,
+      fileUrl: dto.fileUrl,
+      fileName: dto.fileName,
+    });
+  }
+
+  @Post('me/assistant')
+  askAssistant(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Body() dto: AssistantDto,
+  ) {
+    return this.lms.askAssistant(account, {
+      eventSlug: dto.eventSlug,
+      lessonId: dto.lessonId,
+      message: dto.message,
+      history: dto.history,
+    });
   }
 }

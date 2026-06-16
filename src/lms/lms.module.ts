@@ -13,6 +13,13 @@ import {
   LessonProgress,
   LessonProgressSchema,
 } from './schemas/lesson-progress.schema';
+import { Quiz, QuizSchema } from './schemas/quiz.schema';
+import {
+  QuizAttempt,
+  QuizAttemptSchema,
+} from './schemas/quiz-attempt.schema';
+import { Assignment, AssignmentSchema } from './schemas/assignment.schema';
+import { Submission, SubmissionSchema } from './schemas/submission.schema';
 import { Event, EventSchema } from '../events/schemas/event.schema';
 import {
   EventRegistration,
@@ -28,6 +35,7 @@ import {
 } from '../events/schemas/session-attendance.schema';
 import { AuthModule } from '../auth/auth.module';
 import { RolesModule } from '../roles/roles.module';
+import { AiModule } from '../ai/ai.module';
 import { CommitteeScopeGuard } from './guards/committee-scope.guard';
 
 @Module({
@@ -37,6 +45,10 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
       { name: CourseModuleSchemaClass.name, schema: CourseModuleSchema },
       { name: Lesson.name, schema: LessonSchema },
       { name: LessonProgress.name, schema: LessonProgressSchema },
+      { name: Quiz.name, schema: QuizSchema },
+      { name: QuizAttempt.name, schema: QuizAttemptSchema },
+      { name: Assignment.name, schema: AssignmentSchema },
+      { name: Submission.name, schema: SubmissionSchema },
       { name: Event.name, schema: EventSchema },
       { name: EventRegistration.name, schema: EventRegistrationSchema },
       { name: EventSession.name, schema: EventSessionSchema },
@@ -44,6 +56,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
     ]),
     forwardRef(() => AuthModule),
     RolesModule,
+    AiModule,
   ],
   controllers: [LmsFacilitatorController, LmsStudentController],
   providers: [LmsService, CommitteeScopeGuard],

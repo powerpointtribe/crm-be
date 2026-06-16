@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -16,10 +17,17 @@ import { EventsPermission } from '../events/permissions';
 import { CommitteeScopeGuard } from './guards/committee-scope.guard';
 import { LmsService } from './lms.service';
 import {
+  ApplyCourseDto,
+  CreateAssignmentDto,
   CreateLessonDto,
   CreateModuleDto,
+  GenerateCourseDto,
+  GradeSubmissionDto,
+  ReorderDto,
+  UpdateAssignmentDto,
   UpdateLessonDto,
   UpdateModuleDto,
+  UpsertQuizDto,
 } from './dto/lms.dto';
 
 /**
@@ -51,6 +59,24 @@ export class LmsFacilitatorController {
     @Body() dto: CreateModuleDto,
   ) {
     return this.lms.createModule(eventId, dto);
+  }
+
+  @Patch('events/:eventId/modules/reorder')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  reorderModules(
+    @Param('eventId') eventId: string,
+    @Body() dto: ReorderDto,
+  ) {
+    return this.lms.reorderModules(eventId, dto.orderedIds);
+  }
+
+  @Patch('modules/:moduleId/lessons/reorder')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  reorderLessons(
+    @Param('moduleId') moduleId: string,
+    @Body() dto: ReorderDto,
+  ) {
+    return this.lms.reorderLessons(moduleId, dto.orderedIds);
   }
 
   @Patch('modules/:moduleId')
@@ -90,5 +116,92 @@ export class LmsFacilitatorController {
   @RequirePermission(EventsPermission.UPDATE_EVENT)
   deleteLesson(@Param('lessonId') lessonId: string) {
     return this.lms.deleteLesson(lessonId);
+  }
+
+  // ── Quizzes (per lesson) ──────────────────────────────────────────────────
+
+  @Get('lessons/:lessonId/quiz')
+  @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
+  getQuiz(@Param('lessonId') lessonId: string) {
+    return this.lms.getQuizForLesson(lessonId);
+  }
+
+  @Put('lessons/:lessonId/quiz')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  upsertQuiz(
+    @Param('lessonId') lessonId: string,
+    @Body() dto: UpsertQuizDto,
+  ) {
+    return this.lms.upsertQuiz(lessonId, dto);
+  }
+
+  @Delete('lessons/:lessonId/quiz')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  deleteQuiz(@Param('lessonId') lessonId: string) {
+    return this.lms.deleteQuiz(lessonId);
+  }
+
+  // ── Assignments (event-scoped; :eventId keeps the committee guard happy) ───
+
+  @Get('events/:eventId/assignments')
+  @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
+  listAssignments(@Param('eventId') eventId: string) {
+    return this.lms.listAssignments(eventId);
+  }
+
+  @Post('events/:eventId/assignments')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  createAssignment(
+    @Param('eventId') eventId: string,
+    @Body() dto: CreateAssignmentDto,
+  ) {
+    return this.lms.createAssignment(eventId, dto);
+  }
+
+  @Patch('events/:eventId/assignments/:assignmentId')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  updateAssignment(
+    @Param('assignmentId') assignmentId: string,
+    @Body() dto: UpdateAssignmentDto,
+  ) {
+    return this.lms.updateAssignment(assignmentId, dto);
+  }
+
+  @Delete('events/:eventId/assignments/:assignmentId')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  deleteAssignment(@Param('assignmentId') assignmentId: string) {
+    return this.lms.deleteAssignment(assignmentId);
+  }
+
+  @Get('events/:eventId/assignments/:assignmentId/submissions')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  listSubmissions(@Param('assignmentId') assignmentId: string) {
+    return this.lms.listSubmissions(assignmentId);
+  }
+
+  @Patch('events/:eventId/submissions/:submissionId/grade')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  gradeSubmission(
+    @Param('submissionId') submissionId: string,
+    @Body() dto: GradeSubmissionDto,
+  ) {
+    return this.lms.gradeSubmission(submissionId, dto.grade, dto.feedback);
+  }
+
+  // ── AI course generation ──────────────────────────────────────────────────
+
+  @Post('events/:eventId/ai/generate-course')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  generateCourse(
+    @Param('eventId') eventId: string,
+    @Body() dto: GenerateCourseDto,
+  ) {
+    return this.lms.generateCourseDraft(eventId, dto);
+  }
+
+  @Post('events/:eventId/ai/apply-course')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  applyCourse(@Param('eventId') eventId: string, @Body() dto: ApplyCourseDto) {
+    return this.lms.applyCourseDraft(eventId, dto.modules);
   }
 }
