@@ -1060,6 +1060,26 @@ export class FinanceService {
       };
     }
 
+    // Besides LXL/leadership, a member explicitly granted the
+    // finance:raise-requisition permission (via their role) is also eligible.
+    if (member.role) {
+      try {
+        const { permissions } =
+          await this.userPermissionsService.getUserPermissions(
+            (member.role as any)._id || member.role,
+          );
+        if (permissions?.includes(FinancePermission.RAISE_REQUISITION)) {
+          return {
+            eligible: true,
+            memberName,
+            leadershipRole: 'Authorized to raise requisitions',
+          };
+        }
+      } catch {
+        // If permission resolution fails, fall through to "not eligible".
+      }
+    }
+
     // Member is not LXL - likely a regular member or champ (DC)
     return {
       eligible: false,

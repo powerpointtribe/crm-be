@@ -7,6 +7,10 @@ export enum FinancePermission {
   // Requisition - CREATE operations
   CREATE_REQUISITION = 'finance:create-requisition',
 
+  // Grants eligibility to raise requisitions via the public form even when the
+  // member is NOT LXL/leadership. Assign to a role to authorize specific members.
+  RAISE_REQUISITION = 'finance:raise-requisition',
+
   // Requisition - READ operations
   VIEW_REQUISITIONS = 'finance:view-requisitions',
   VIEW_REQUISITION_DETAILS = 'finance:view-requisition-details',
@@ -49,6 +53,12 @@ export const FinancePermissionMetadata = {
     path: '/finance/requisitions',
     method: 'POST',
     description: 'Create a new requisition request',
+  },
+  [FinancePermission.RAISE_REQUISITION]: {
+    path: null,
+    method: null,
+    description:
+      'Eligible to raise requisitions via the public form (in addition to LXL leaders)',
   },
   [FinancePermission.VIEW_REQUISITIONS]: {
     path: '/finance/requisitions',
