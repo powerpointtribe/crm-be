@@ -36,6 +36,7 @@ import {
 import { AuthModule } from '../auth/auth.module';
 import { RolesModule } from '../roles/roles.module';
 import { AiModule } from '../ai/ai.module';
+import { ZoomModule } from '../zoom/zoom.module';
 import { CommitteeScopeGuard } from './guards/committee-scope.guard';
 
 @Module({
@@ -57,6 +58,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
     forwardRef(() => AuthModule),
     RolesModule,
     AiModule,
+    ZoomModule,
   ],
   controllers: [LmsFacilitatorController, LmsStudentController],
   providers: [LmsService, CommitteeScopeGuard],

@@ -3,7 +3,22 @@ import { Document, Types } from 'mongoose';
 
 export type QuizDocument = Quiz & Document & { _id: Types.ObjectId };
 
-/** One multiple-choice question (single correct answer). */
+/**
+ * One quiz question. `type` controls the answer format:
+ *  - multiple_choice / dropdown — single choice from `options` (correctIndex)
+ *  - checkboxes                 — multiple choices from `options` (correctIndexes)
+ *  - short_text / long_text / date / file — open answers (recorded, not auto-graded)
+ */
+export const QUESTION_TYPES = [
+  'multiple_choice',
+  'dropdown',
+  'checkboxes',
+  'short_text',
+  'long_text',
+  'date',
+  'file',
+] as const;
+
 @Schema({ _id: false })
 export class QuizQuestion {
   @Prop({ required: true })
@@ -12,11 +27,26 @@ export class QuizQuestion {
   @Prop({ required: true, trim: true })
   prompt: string;
 
+  @Prop({
+    type: String,
+    enum: QUESTION_TYPES,
+    default: 'multiple_choice',
+  })
+  type: string;
+
   @Prop({ type: [String], default: [] })
   options: string[];
 
+  // Single-correct (multiple_choice, dropdown).
   @Prop({ type: Number, default: 0 })
   correctIndex: number;
+
+  // Multi-correct (checkboxes).
+  @Prop({ type: [Number], default: [] })
+  correctIndexes: number[];
+
+  @Prop({ type: Boolean, default: true })
+  required: boolean;
 
   @Prop({ type: Number, default: 1 })
   points: number;

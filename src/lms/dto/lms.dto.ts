@@ -106,14 +106,50 @@ export class QuizQuestionDto {
   @IsNotEmpty()
   prompt: string;
 
-  @ApiProperty({ type: [String] })
+  @ApiPropertyOptional({
+    enum: [
+      'multiple_choice',
+      'dropdown',
+      'checkboxes',
+      'short_text',
+      'long_text',
+      'date',
+      'file',
+    ],
+  })
+  @IsOptional()
+  @IsIn([
+    'multiple_choice',
+    'dropdown',
+    'checkboxes',
+    'short_text',
+    'long_text',
+    'date',
+    'file',
+  ])
+  type?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  options: string[];
+  options?: string[];
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsNumber()
-  correctIndex: number;
+  correctIndex?: number;
+
+  @ApiPropertyOptional({ type: [Number] })
+  @IsOptional()
+  @IsArray()
+  @IsNumber({}, { each: true })
+  correctIndexes?: number[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  required?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -150,10 +186,10 @@ export class SubmitQuizDto {
   @IsString()
   eventSlug?: string;
 
-  @ApiProperty({ type: [Number] })
+  // One response per question; type depends on the question (index/array/string).
+  @ApiProperty({ type: [Object] })
   @IsArray()
-  @IsNumber({}, { each: true })
-  answers: number[];
+  responses: any[];
 }
 
 export class CreateAssignmentDto {

@@ -105,7 +105,7 @@ export class LmsStudentController {
     @Param('lessonId') lessonId: string,
     @Body() dto: SubmitQuizDto,
   ) {
-    return this.lms.submitQuiz(account, lessonId, dto.answers);
+    return this.lms.submitQuiz(account, lessonId, dto.responses);
   }
 
   @Get('me/assignments')

@@ -204,4 +204,15 @@ export class LmsFacilitatorController {
   applyCourse(@Param('eventId') eventId: string, @Body() dto: ApplyCourseDto) {
     return this.lms.applyCourseDraft(eventId, dto.modules);
   }
+
+  // ── Zoom auto-attendance ──────────────────────────────────────────────────
+
+  @Post('events/:eventId/sessions/:sessionId/sync-zoom-attendance')
+  @RequirePermission(EventsPermission.CHECK_IN)
+  syncZoomAttendance(
+    @Param('eventId') eventId: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.lms.syncZoomAttendance(eventId, sessionId);
+  }
 }

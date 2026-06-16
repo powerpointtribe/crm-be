@@ -38,6 +38,7 @@ import {
 } from '../events/schemas/session-attendance.schema';
 import { PortalAccountDocument } from '../portal/schemas/portal-account.schema';
 import { AiService } from '../ai/ai.service';
+import { ZoomService } from '../zoom/zoom.service';
 import {
   CreateAssignmentDto,
   CreateLessonDto,
@@ -66,6 +67,7 @@ export class LmsService {
     @InjectModel(Submission.name)
     private readonly submissionModel: Model<SubmissionDocument>,
     private readonly aiService: AiService,
+    private readonly zoomService: ZoomService,
     @InjectModel(Event.name)
     private readonly eventModel: Model<EventDocument>,
     @InjectModel(EventRegistration.name)
@@ -224,13 +226,21 @@ export class LmsService {
     const lesson = await this.lessonModel.findById(lessonId);
     if (!lesson) throw new NotFoundException('Lesson not found');
 
-    const questions = (dto.questions || []).map((q) => ({
-      id: q.id || randomBytes(6).toString('hex'),
-      prompt: q.prompt,
-      options: q.options || [],
-      correctIndex: q.correctIndex ?? 0,
-      points: q.points ?? 1,
-    }));
+    const choiceTypes = ['multiple_choice', 'dropdown', 'checkboxes'];
+    const questions = (dto.questions || []).map((q) => {
+      const type = q.type || 'multiple_choice';
+      const isChoice = choiceTypes.includes(type);
+      return {
+        id: q.id || randomBytes(6).toString('hex'),
+        prompt: q.prompt,
+        type,
+        options: isChoice ? q.options || [] : [],
+        correctIndex: type === 'checkboxes' ? 0 : q.correctIndex ?? 0,
+        correctIndexes: type === 'checkboxes' ? q.correctIndexes || [] : [],
+        required: q.required !== false,
+        points: q.points ?? 1,
+      };
+    });
 
     const quiz = await this.quizModel.findOneAndUpdate(
       { lesson: lesson._id },
@@ -898,7 +908,9 @@ export class LmsService {
         questions: (quiz.questions || []).map((q) => ({
           id: q.id,
           prompt: q.prompt,
-          options: q.options,
+          type: q.type || 'multiple_choice',
+          options: q.options || [],
+          required: q.required !== false,
         })),
       },
       attempt: attempt
@@ -906,7 +918,7 @@ export class LmsService {
             score: attempt.score,
             passed: attempt.passed,
             attempts: attempt.attempts,
-            answers: attempt.answers,
+            responses: attempt.responses,
           }
         : null,
     };
@@ -916,7 +928,7 @@ export class LmsService {
   async submitQuiz(
     account: PortalAccountDocument,
     lessonId: string,
-    answers: number[],
+    responses: any[],
   ) {
     const quiz = await this.quizModel.findOne({
       lesson: new Types.ObjectId(lessonId),
@@ -931,14 +943,29 @@ export class LmsService {
     });
     if (!registration) throw new ForbiddenException('Not enrolled.');
 
+    // Only choice questions are auto-graded; open answers (text/date/file) are
+    // recorded for facilitator review and don't affect the score.
+    const choiceTypes = ['multiple_choice', 'dropdown', 'checkboxes'];
     const questions = quiz.questions || [];
-    const total = questions.length;
+    let gradable = 0;
     let correctCount = 0;
     questions.forEach((q, i) => {
-      if (answers[i] === q.correctIndex) correctCount += 1;
+      const type = q.type || 'multiple_choice';
+      if (!choiceTypes.includes(type)) return;
+      gradable += 1;
+      const resp = responses[i];
+      if (type === 'checkboxes') {
+        const sel = (Array.isArray(resp) ? resp : []).map(Number).sort();
+        const corr = (q.correctIndexes || []).map(Number).sort();
+        if (sel.length === corr.length && sel.every((v, k) => v === corr[k])) {
+          correctCount += 1;
+        }
+      } else if (Number(resp) === q.correctIndex) {
+        correctCount += 1;
+      }
     });
-    const score = total ? Math.round((correctCount / total) * 100) : 0;
-    const passed = score >= (quiz.passingScore ?? 70);
+    const score = gradable ? Math.round((correctCount / gradable) * 100) : 100;
+    const passed = gradable ? score >= (quiz.passingScore ?? 70) : true;
 
     await this.quizAttemptModel.updateOne(
       { registration: registration._id, quiz: quiz._id },
@@ -946,10 +973,10 @@ export class LmsService {
         $set: {
           event: quiz.event,
           lesson: quiz.lesson,
-          answers,
+          responses,
           score,
           correctCount,
-          total,
+          total: gradable,
           passed,
         },
         $inc: { attempts: 1 },
@@ -977,7 +1004,7 @@ export class LmsService {
       score,
       passed,
       correctCount,
-      total,
+      total: gradable,
       passingScore: quiz.passingScore ?? 70,
     };
   }
@@ -1102,6 +1129,97 @@ export class LmsService {
       { upsert: true },
     );
     return { success: true, status: 'present' };
+  }
+
+  // ===================== FACILITATOR: Zoom auto-attendance =====================
+
+  private parseZoomMeetingId(url?: string): string | null {
+    if (!url) return null;
+    // e.g. https://us02web.zoom.us/j/1234567890?pwd=...
+    const m = url.match(/\/j\/(\d+)/);
+    return m ? m[1] : null;
+  }
+
+  /**
+   * Pull a session's Zoom meeting participants (report API) and mark attendance
+   * for matched (by email) accepted registrants. present if >= 5 min, else late.
+   */
+  async syncZoomAttendance(eventId: string, sessionId: string) {
+    const session = await this.sessionModel.findOne({
+      _id: new Types.ObjectId(sessionId),
+      event: new Types.ObjectId(eventId),
+    });
+    if (!session) throw new NotFoundException('Session not found');
+
+    const meetingId = this.parseZoomMeetingId(session.location?.virtualLink);
+    if (!meetingId) {
+      throw new BadRequestException(
+        'This session has no standard Zoom meeting link (https://zoom.us/j/<id>). Set one, then sync.',
+      );
+    }
+
+    const participants =
+      await this.zoomService.getPastMeetingParticipants(meetingId);
+
+    const regs = await this.registrationModel
+      .find({ event: session.event, admissionStatus: 'accepted' })
+      .select('attendeeInfo')
+      .lean();
+    const byEmail = new Map<string, Types.ObjectId>();
+    for (const r of regs) {
+      const e = (r.attendeeInfo?.email || '').toLowerCase();
+      if (e) byEmail.set(e, r._id);
+    }
+
+    // Aggregate total duration + earliest join per participant email.
+    const durBySec: Record<string, number> = {};
+    const earliestJoin: Record<string, string> = {};
+    for (const p of participants) {
+      const e = (p.user_email || '').toLowerCase();
+      if (!e) continue;
+      durBySec[e] = (durBySec[e] || 0) + (p.duration || 0);
+      if (p.join_time && (!earliestJoin[e] || p.join_time < earliestJoin[e])) {
+        earliestJoin[e] = p.join_time;
+      }
+    }
+
+    const PRESENT_THRESHOLD_SEC = 5 * 60;
+    let marked = 0;
+    const matched = new Set<string>();
+    const unmatched: Array<{ email: string; minutes: number }> = [];
+
+    for (const [email, sec] of Object.entries(durBySec)) {
+      const regId = byEmail.get(email);
+      if (!regId) {
+        unmatched.push({ email, minutes: Math.round(sec / 60) });
+        continue;
+      }
+      matched.add(email);
+      const status = sec >= PRESENT_THRESHOLD_SEC ? 'present' : 'late';
+      await this.attendanceModel.updateOne(
+        { session: session._id, registration: regId },
+        {
+          $set: {
+            event: session.event,
+            status,
+            checkInTime: earliestJoin[email]
+              ? new Date(earliestJoin[email])
+              : new Date(),
+          },
+          $setOnInsert: { session: session._id, registration: regId },
+        },
+        { upsert: true },
+      );
+      marked += 1;
+    }
+
+    return {
+      meetingId,
+      totalParticipants: participants.length,
+      matched: matched.size,
+      marked,
+      unmatched,
+    };
   }
 
   // ===================== FACILITATOR: engagement analytics =====================

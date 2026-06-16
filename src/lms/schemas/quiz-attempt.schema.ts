@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Types, SchemaTypes } from 'mongoose';
 
 export type QuizAttemptDocument = QuizAttempt &
   Document & { _id: Types.ObjectId };
@@ -24,8 +24,10 @@ export class QuizAttempt {
   @Prop({ type: Types.ObjectId, ref: 'Lesson', required: true, index: true })
   lesson: Types.ObjectId;
 
-  @Prop({ type: [Number], default: [] })
-  answers: number[]; // selected option index per question
+  // One response per question, shape depends on question type:
+  //   number (single choice) | number[] (checkboxes) | string (text/date/file)
+  @Prop({ type: [SchemaTypes.Mixed], default: [] })
+  responses: any[];
 
   @Prop({ type: Number, default: 0 })
   score: number; // percent
