@@ -437,6 +437,20 @@ export class EventsService {
       );
     }
 
+    // Deep-merge registrationSettings so an update that omits config fields
+    // (e.g. senderEmail, senderName, applicationBaseUrl) preserves them instead
+    // of wiping the whole object. Fields the caller DOES send still override.
+    if (updateEventDto.registrationSettings) {
+      const existingSettings =
+        (event.registrationSettings as any)?.toObject?.() ??
+        event.registrationSettings ??
+        {};
+      (updateEventDto as any).registrationSettings = {
+        ...existingSettings,
+        ...updateEventDto.registrationSettings,
+      };
+    }
+
     Object.assign(event, updateEventDto);
     return event.save();
   }
