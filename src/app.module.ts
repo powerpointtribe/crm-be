@@ -29,6 +29,8 @@ import { EntryImportModule } from './entry-import/entry-import.module';
 import { EventsModule } from './events/events.module';
 import { LibraryModule } from './library/library.module';
 import { BulkEmailModule } from './bulk-email/bulk-email.module';
+import { PortalModule } from './portal/portal.module';
+import { LmsModule } from './lms/lms.module';
 
 @Module({
   imports: [
@@ -85,6 +87,8 @@ import { BulkEmailModule } from './bulk-email/bulk-email.module';
     EventsModule,
     LibraryModule,
     BulkEmailModule,
+    PortalModule,
+    LmsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -121,6 +121,26 @@ export class EventsController {
     }
   }
 
+  // Events the current member facilitates (committee/organizer) — powers the
+  // facilitator dashboard event picker. Admins with MANAGE_EVENTS see all.
+  // MUST be declared before the ':id' route below.
+  @Get('mine')
+  @RequirePermission(EventsPermission.VIEW_EVENTS)
+  async myEvents(@Request() req) {
+    const currentMember = req.user;
+    let canViewAll = false;
+    if (currentMember?.role) {
+      const userPermissions =
+        await this.userPermissionsService.getUserPermissions(
+          currentMember.role._id || currentMember.role,
+        );
+      canViewAll = userPermissions.permissions?.includes(
+        EventsPermission.DELETE_EVENT,
+      );
+    }
+    return this.eventsService.getEventsForFacilitator(currentMember, canViewAll);
+  }
+
   // ========== PUBLIC ENDPOINTS (No Auth) - MUST BE BEFORE :id ROUTES ==========
 
   // Helper to validate API key for events in API integration mode
@@ -475,6 +495,58 @@ export class EventsController {
     @Param('regId') regId: string,
   ) {
     return this.eventsService.getRegistrationById(id, regId);
+  }
+
+  @Patch(':id/registrations/:regId/accept')
+  @RequirePermission(EventsPermission.UPDATE_REGISTRATION)
+  async acceptRegistration(
+    @Param('id') id: string,
+    @Param('regId') regId: string,
+  ) {
+    const result = await this.eventsService.setAdmission(id, regId, 'accepted');
+    return {
+      ...result,
+      message: result.invitedEmail
+        ? `Accepted. Portal invite sent to ${result.invitedEmail}.`
+        : 'Accepted.',
+    };
+  }
+
+  @Patch(':id/registrations/:regId/reject')
+  @RequirePermission(EventsPermission.UPDATE_REGISTRATION)
+  async rejectRegistration(
+    @Param('id') id: string,
+    @Param('regId') regId: string,
+  ) {
+    return this.eventsService.setAdmission(id, regId, 'rejected');
+  }
+
+  // Facilitator announcement / broadcast to an event's attendees. Queues one
+  // branded email per recipient. Omit registrationIds to email everyone; pass
+  // registrationIds (e.g. accepted attendees) to target a subset.
+  @Post(':id/announcements')
+  @RequirePermission(EventsPermission.SEND_EMAILS)
+  async sendAnnouncement(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      subject: string;
+      message: string;
+      registrationIds?: string[];
+      scheduledFor?: string;
+    },
+  ) {
+    const result = await this.eventsService.sendBulkEmailToRegistrants(id, {
+      subject: body.subject,
+      message: body.message,
+      registrationIds: body.registrationIds,
+      scheduledFor: body.scheduledFor,
+    });
+    return {
+      success: true,
+      message: `Announcement queued for ${result.recipientCount} recipient(s).`,
+      ...result,
+    };
   }
 
   @Post(':id/registrations/:regId/regenerate-application-link')

@@ -108,6 +108,7 @@ import { EmailProvider } from '../notifications/providers/email.provider';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { QueueName, JobType } from '../common/interfaces/queue-job.interface';
+import { PortalService } from '../portal/portal.service';
 
 @Injectable()
 export class EventsService {
@@ -131,6 +132,7 @@ export class EventsService {
     private emailProvider: EmailProvider,
     @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
     private emailQueue: Queue,
+    private portalService: PortalService,
   ) {}
 
   // ========== EVENT CRUD OPERATIONS ==========
@@ -295,6 +297,58 @@ export class EventsService {
     }
 
     return event;
+  }
+
+  /**
+   * Events the given member facilitates — i.e. is on the committee of, or
+   * organizes. Powers the facilitator dashboard event picker. If the member
+   * holds a broad "view all events" permission (admins), we return every
+   * event so they can manage any cohort.
+   */
+  async getEventsForFacilitator(member: any, canViewAll = false) {
+    const memberId = member?._id || member?.sub;
+    const filter = canViewAll
+      ? {}
+      : {
+          $or: [
+            { 'committee.member': memberId },
+            { organizer: memberId },
+          ],
+        };
+
+    const events = await this.eventModel
+      .find(filter)
+      .select(
+        'title type status startDate endDate registrationSlug registrationCount committee organizer bannerImage',
+      )
+      .sort({ startDate: -1 })
+      .lean()
+      .exec();
+
+    const myId = String(memberId || '');
+    return events.map((e: any) => {
+      const onCommittee = (e.committee || []).some(
+        (c: any) => String(c.member) === myId,
+      );
+      const isOrganizer = String(e.organizer || '') === myId;
+      return {
+        id: String(e._id),
+        title: e.title,
+        type: e.type,
+        status: e.status,
+        startDate: e.startDate,
+        endDate: e.endDate,
+        slug: e.registrationSlug,
+        registrationCount: e.registrationCount || 0,
+        bannerImage: e.bannerImage,
+        role: isOrganizer
+          ? 'organizer'
+          : onCommittee
+            ? (e.committee || []).find((c: any) => String(c.member) === myId)
+                ?.role || 'facilitator'
+            : 'admin',
+      };
+    });
   }
 
   async findBySlug(slug: string): Promise<EventDocument> {
@@ -615,6 +669,49 @@ export class EventsService {
     }
 
     return { applicationUrl, sentTo: sentTo || null };
+  }
+
+  /**
+   * Set a registrant's admission decision. Accepting provisions an LMS portal
+   * account and emails a set-password invite link. Admin/facilitator action.
+   */
+  async setAdmission(
+    eventId: string,
+    registrationId: string,
+    admissionStatus: 'accepted' | 'rejected' | 'waitlisted' | 'applied',
+  ): Promise<{
+    success: true;
+    admissionStatus: string;
+    invitedEmail: string | null;
+  }> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+    const registration = await this.registrationModel.findOne({
+      _id: registrationId,
+      event: new Types.ObjectId(eventId),
+    });
+    if (!registration) {
+      throw new NotFoundException('Registration not found');
+    }
+
+    registration.admissionStatus = admissionStatus;
+    if (admissionStatus === 'accepted' && !registration.acceptedAt) {
+      registration.acceptedAt = new Date();
+    }
+    await registration.save();
+
+    let invitedEmail: string | null = null;
+    if (admissionStatus === 'accepted') {
+      const { sentTo } = await this.portalService.provisionAndInvite(
+        registration,
+        event,
+      );
+      invitedEmail = sentTo;
+    }
+
+    return { success: true, admissionStatus, invitedEmail };
   }
 
   async createRegistration(
@@ -3760,6 +3857,8 @@ export class EventsService {
           checkInCode: r.checkInCode,
           customFieldResponses: r.customFieldResponses,
         })),
+        senderEmail: event.registrationSettings?.senderEmail,
+        senderName: event.registrationSettings?.senderName,
         scheduledFor: bulkEmailDto.scheduledFor,
       },
       {

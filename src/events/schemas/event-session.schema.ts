@@ -53,8 +53,9 @@ export class EventSession {
   @Prop({ type: Types.ObjectId, ref: 'Event', required: true })
   event: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true })
-  branch: Types.ObjectId;
+  // Optional: global events (isGlobal) are not scoped to a branch.
+  @Prop({ type: Types.ObjectId, ref: 'Branch', required: false })
+  branch?: Types.ObjectId;
 
   // Session Details
   @Prop({ required: true, trim: true })

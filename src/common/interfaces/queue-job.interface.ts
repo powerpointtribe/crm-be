@@ -62,6 +62,7 @@ export enum JobType {
   EVENT_REMINDER = 'event-reminder',
   BULK_REGISTRATION_EMAIL = 'bulk-registration-email',
   BULK_PARTNER_EMAIL = 'bulk-partner-email',
+  PORTAL_INVITE = 'portal-invite',
 
   // Activity log jobs
   LOG_GROUP_MEMBER_ADDITION = 'log-group-member-addition',
@@ -259,6 +260,15 @@ export interface EventRegistrationConfirmationJobData {
   applicationUrl?: string;
 }
 
+export interface PortalInviteJobData {
+  email: string;
+  firstName?: string;
+  eventTitle: string;
+  setupUrl: string;
+  senderEmail?: string;
+  senderName?: string;
+}
+
 export interface PartnerInquiryJobData {
   partnerId: string;
   partnerEmail: string;
@@ -304,4 +314,6 @@ export interface BulkEventEmailJobData {
     company?: string;
   }>;
   scheduledFor?: string;
+  senderEmail?: string;
+  senderName?: string;
 }

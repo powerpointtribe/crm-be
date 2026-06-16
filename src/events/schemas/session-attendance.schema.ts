@@ -45,8 +45,9 @@ export class SessionAttendance {
   @Prop({ type: Types.ObjectId, ref: 'EventRegistration', required: true })
   registration: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Branch', required: true })
-  branch: Types.ObjectId;
+  // Optional: global events (isGlobal) are not scoped to a branch.
+  @Prop({ type: Types.ObjectId, ref: 'Branch', required: false })
+  branch?: Types.ObjectId;
 
   // Optional member reference (for member attendees)
   @Prop({ type: Types.ObjectId, ref: 'Member' })

@@ -8,6 +8,7 @@ import {
   PartnerInquiryJobData,
   EventReminderJobData,
   BulkEventEmailJobData,
+  PortalInviteJobData,
 } from '../../common/interfaces/queue-job.interface';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { ConfigService } from '@nestjs/config';
@@ -65,6 +66,31 @@ export class EventEmailProcessor {
     } catch (error) {
       this.logger.error(
         `Failed to send registration confirmation: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Process LMS portal invite emails (set-password link after acceptance)
+   */
+  @Process(JobType.PORTAL_INVITE)
+  async handlePortalInvite(job: Job<PortalInviteJobData>) {
+    this.logger.log(`Processing portal invite for: ${job.data.email}`);
+    try {
+      await this.notificationsService.sendPortalInvite({
+        email: job.data.email,
+        firstName: job.data.firstName,
+        eventTitle: job.data.eventTitle,
+        setupUrl: job.data.setupUrl,
+        senderEmail: job.data.senderEmail,
+        senderName: job.data.senderName,
+      });
+      this.logger.log(`Portal invite sent successfully to ${job.data.email}`);
+      return { success: true, email: job.data.email };
+    } catch (error) {
+      this.logger.error(
+        `Failed to send portal invite: ${(error as Error).message}`,
       );
       throw error;
     }
@@ -188,6 +214,12 @@ export class EventEmailProcessor {
       let sent = 0;
       let failed = 0;
 
+      // Use the event's configured sender when available (avoids falling back
+      // to the default from-address). Plain-text messages (facilitator
+      // announcements) are wrapped in the branded shell; HTML messages (admin
+      // bulk email) are sent through unchanged.
+      const isHtml = /<[a-z][\s\S]*>/i.test(message || '');
+
       // Process in batches of 50
       const batchSize = 50;
       for (let i = 0; i < registrations.length; i += batchSize) {
@@ -210,11 +242,29 @@ export class EventEmailProcessor {
               });
             }
 
-            await this.notificationsService['emailProvider'].sendEmail({
-              to: reg.email,
-              subject: subject,
-              html: personalizedMessage,
-            });
+            if (isHtml) {
+              const from = job.data.senderEmail
+                ? job.data.senderName
+                  ? `${job.data.senderName} <${job.data.senderEmail}>`
+                  : job.data.senderEmail
+                : undefined;
+              await this.notificationsService['emailProvider'].sendEmail({
+                to: reg.email,
+                subject: subject,
+                html: personalizedMessage,
+                from,
+              });
+            } else {
+              await this.notificationsService.sendEventAnnouncement({
+                email: reg.email,
+                firstName: reg.firstName,
+                subject,
+                message: personalizedMessage,
+                eventTitle: job.data.eventTitle,
+                senderEmail: job.data.senderEmail,
+                senderName: job.data.senderName,
+              });
+            }
 
             return reg.email;
           }),

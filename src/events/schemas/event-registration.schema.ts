@@ -108,6 +108,18 @@ export class EventRegistration {
   @Prop({ type: Date })
   applicationSubmittedAt?: Date;
 
+  // Admission decision — separate from `status` (registration lifecycle).
+  // Gates LMS portal access: only 'accepted' registrants get a login invite.
+  @Prop({
+    type: String,
+    enum: ['applied', 'accepted', 'rejected', 'waitlisted'],
+    default: 'applied',
+  })
+  admissionStatus: string;
+
+  @Prop({ type: Date })
+  acceptedAt?: Date;
+
   // Legacy check-in code (preserved from old PRO-/ENT- format)
   @Prop({ trim: true })
   legacyCheckInCode?: string;

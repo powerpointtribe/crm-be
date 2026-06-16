@@ -845,6 +845,87 @@ export class NotificationsService {
     });
   }
 
+  async sendPortalInvite(data: {
+    email: string;
+    firstName?: string;
+    eventTitle: string;
+    setupUrl: string;
+    senderEmail?: string;
+    senderName?: string;
+  }): Promise<void> {
+    const name = data.firstName || 'there';
+    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e7e4de;border-radius:12px;overflow:hidden;">
+  <div style="background:#0f2545;padding:34px 24px;text-align:center;">
+    <h1 style="margin:0;font-size:21px;font-weight:700;color:#ffffff;">You're in &mdash; welcome to ${data.eventTitle}</h1>
+  </div>
+  <div style="padding:26px 24px;">
+    <p style="font-size:15px;color:#1a1a1a;margin:0 0 16px;font-weight:500;">Hi ${name},</p>
+    <p style="font-size:15px;color:#555;margin:0 0 20px;line-height:1.6;">Congratulations &mdash; you've been accepted. Set your password to access the learning portal, view your modules, and join your live sessions.</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${data.setupUrl}" style="display:inline-block;background:#c8a04a;color:#0f2545;font-size:15px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:8px;">Set your password &rarr;</a>
+    </div>
+    <p style="font-size:12px;color:#888;line-height:1.5;margin:0 0 4px;">Or paste this link into your browser:</p>
+    <p style="font-size:12px;color:#0f2545;word-break:break-all;margin:0;">${data.setupUrl}</p>
+    <p style="font-size:12px;color:#999;margin:18px 0 0;">This link is unique to you and expires in 14 days. If you didn't expect this, you can ignore it.</p>
+  </div>
+</div>`;
+
+    await this.emailProvider.sendEmail({
+      to: data.email,
+      subject: `Set your password — ${data.eventTitle}`,
+      html,
+      from: this.buildSenderFrom(
+        data.senderEmail,
+        data.senderName,
+        data.eventTitle,
+      ),
+    });
+  }
+
+  /**
+   * Facilitator announcement / broadcast to an event's attendees. The body is
+   * author-written (plain text); we wrap it in the branded shell and preserve
+   * line breaks. Sent from the event's configured sender when available.
+   */
+  async sendEventAnnouncement(data: {
+    email: string;
+    firstName?: string;
+    subject: string;
+    message: string;
+    eventTitle: string;
+    senderEmail?: string;
+    senderName?: string;
+  }): Promise<void> {
+    const name = data.firstName || 'there';
+    const safe = (s: string) =>
+      String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    const bodyHtml = safe(data.message).replace(/\r?\n/g, '<br/>');
+
+    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e7e4de;border-radius:12px;overflow:hidden;">
+  <div style="background:#0f2545;padding:30px 24px;text-align:center;">
+    <h1 style="margin:0;font-size:19px;font-weight:700;color:#ffffff;">${safe(data.eventTitle)}</h1>
+  </div>
+  <div style="padding:26px 24px;">
+    <p style="font-size:15px;color:#1a1a1a;margin:0 0 16px;font-weight:500;">Hi ${safe(name)},</p>
+    <div style="font-size:15px;color:#444;line-height:1.65;">${bodyHtml}</div>
+  </div>
+</div>`;
+
+    await this.emailProvider.sendEmail({
+      to: data.email,
+      subject: data.subject,
+      html,
+      from: this.buildSenderFrom(
+        data.senderEmail,
+        data.senderName,
+        data.eventTitle,
+      ),
+    });
+  }
+
   async sendPartnerInquiryConfirmation(data: {
     email: string;
     name: string;

@@ -36,6 +36,7 @@ import { BranchesModule } from '../branches/branches.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { QueueName } from '../common/interfaces/queue-job.interface';
 import { EventEmailProcessor } from '../queue/processors/event-email.processor';
+import { PortalModule } from '../portal/portal.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { EventEmailProcessor } from '../queue/processors/event-email.processor';
     forwardRef(() => MembersModule),
     forwardRef(() => BranchesModule),
     NotificationsModule,
+    PortalModule,
   ],
   controllers: [EventsController, EventsAdminController],
   providers: [EventsService, EventEmailProcessor, EventReminderScheduler],
