@@ -265,6 +265,63 @@ export class LmsService {
     return { success: true };
   }
 
+  /** Facilitator review of all learner responses to a lesson's quiz. */
+  async getQuizResponses(lessonId: string) {
+    const quiz = await this.quizModel
+      .findOne({ lesson: new Types.ObjectId(lessonId) })
+      .lean();
+    if (!quiz) return { quiz: null, attempts: [] };
+
+    const attempts = await this.quizAttemptModel
+      .find({ quiz: quiz._id })
+      .populate('registration', 'attendeeInfo')
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const questions = quiz.questions || [];
+    const format = (q: any, resp: any): string => {
+      const type = q.type || 'multiple_choice';
+      if (type === 'checkboxes') {
+        const arr = Array.isArray(resp) ? resp : [];
+        return (
+          arr
+            .map((idx: number) => q.options?.[idx])
+            .filter((v: any) => v != null)
+            .join(', ') || '—'
+        );
+      }
+      if (type === 'multiple_choice' || type === 'dropdown') {
+        return typeof resp === 'number' && resp >= 0
+          ? q.options?.[resp] ?? '—'
+          : '—';
+      }
+      return resp === '' || resp == null ? '—' : String(resp);
+    };
+
+    return {
+      quiz: {
+        id: quiz._id,
+        title: quiz.title,
+        passingScore: quiz.passingScore,
+      },
+      attempts: attempts.map((a: any) => ({
+        name: `${a.registration?.attendeeInfo?.firstName || ''} ${
+          a.registration?.attendeeInfo?.lastName || ''
+        }`.trim(),
+        email: a.registration?.attendeeInfo?.email,
+        score: a.score,
+        passed: a.passed,
+        gradedTotal: a.total,
+        submittedAt: a.updatedAt,
+        answers: questions.map((q, i) => ({
+          prompt: q.prompt,
+          type: q.type || 'multiple_choice',
+          value: format(q, (a.responses || [])[i]),
+        })),
+      })),
+    };
+  }
+
   // ===================== FACILITATOR: assignments =====================
 
   async listAssignments(eventId: string) {

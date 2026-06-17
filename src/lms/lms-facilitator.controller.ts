@@ -141,6 +141,12 @@ export class LmsFacilitatorController {
     return this.lms.deleteQuiz(lessonId);
   }
 
+  @Get('lessons/:lessonId/quiz/responses')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  getQuizResponses(@Param('lessonId') lessonId: string) {
+    return this.lms.getQuizResponses(lessonId);
+  }
+
   // ── Assignments (event-scoped; :eventId keeps the committee guard happy) ───
 
   @Get('events/:eventId/assignments')
