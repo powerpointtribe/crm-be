@@ -213,6 +213,8 @@ export class EventsController {
     return {
       success: true,
       message: `You've been successfully registered, ${registration.attendeeInfo.firstName}! We look forward to seeing you.`,
+      registrationId: registration._id,
+      applicationToken: registration.applicationToken,
     };
   }
 
