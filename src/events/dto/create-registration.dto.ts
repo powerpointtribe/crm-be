@@ -2,6 +2,7 @@ import {
   IsNotEmpty,
   IsString,
   IsEnum,
+  IsIn,
   IsOptional,
   ValidateNested,
   IsMongoId,
@@ -186,4 +187,20 @@ export class RegistrationSearchDto {
   @IsOptional()
   @IsEnum(AttendeeType)
   attendeeType?: AttendeeType;
+
+  @ApiPropertyOptional({
+    description: 'Filter by admission decision',
+    enum: ['applied', 'accepted', 'rejected', 'waitlisted'],
+  })
+  @IsOptional()
+  @IsIn(['applied', 'accepted', 'rejected', 'waitlisted'])
+  admissionStatus?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by whether the application form was submitted',
+    enum: ['yes', 'no'],
+  })
+  @IsOptional()
+  @IsIn(['yes', 'no'])
+  applicationSubmitted?: string;
 }

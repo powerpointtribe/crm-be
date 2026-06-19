@@ -490,6 +490,20 @@ export class EventsController {
     return this.eventsService.getRegistrations(id, query);
   }
 
+  @Get(':id/registrations/:regId/next')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  async getNextRegistration(
+    @Param('id') id: string,
+    @Param('regId') regId: string,
+    @Query('applied') applied?: 'yes' | 'no' | 'any',
+  ) {
+    return this.eventsService.getNextRegistration(
+      id,
+      regId,
+      applied === 'yes' || applied === 'any' ? applied : 'no',
+    );
+  }
+
   @Get(':id/registrations/:regId')
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
   async getRegistration(

@@ -284,6 +284,37 @@ export class EventsService {
     return createPaginatedResult(data, total, page, limit);
   }
 
+  /**
+   * The next registrant after `currentRegId` (by registration order). Defaults
+   * to the next one who has NOT submitted their application; pass applied='yes'
+   * for the next who has, or 'any' to ignore application status.
+   */
+  async getNextRegistration(
+    eventId: string,
+    currentRegId: string,
+    applied: 'yes' | 'no' | 'any' = 'no',
+  ): Promise<{ nextId: string | null }> {
+    const current = await this.registrationModel
+      .findById(currentRegId)
+      .select('registeredAt');
+    if (!current) throw new NotFoundException('Registration not found');
+
+    const filter: FilterQuery<EventRegistrationDocument> = {
+      event: new Types.ObjectId(eventId),
+      _id: { $ne: current._id },
+      registeredAt: { $lt: current.registeredAt },
+    };
+    if (applied === 'yes') filter.applicationSubmittedAt = { $ne: null };
+    else if (applied === 'no')
+      filter.applicationSubmittedAt = { $in: [null, undefined] };
+
+    const next = await this.registrationModel
+      .findOne(filter)
+      .sort({ registeredAt: -1 })
+      .select('_id');
+    return { nextId: next ? String(next._id) : null };
+  }
+
   async findById(id: string): Promise<EventDocument> {
     const event = await this.eventModel
       .findById(id)
@@ -561,7 +592,15 @@ export class EventsService {
       throw new NotFoundException(`Event with ID ${eventId} not found`);
     }
 
-    const { page = 1, limit = 10, search, status, attendeeType } = searchDto;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      status,
+      attendeeType,
+      admissionStatus,
+      applicationSubmitted,
+    } = searchDto;
 
     const filter: FilterQuery<EventRegistrationDocument> = {
       event: event._id,
@@ -582,6 +621,17 @@ export class EventsService {
 
     if (attendeeType) {
       filter.attendeeType = attendeeType;
+    }
+
+    if (admissionStatus) {
+      filter.admissionStatus = admissionStatus;
+    }
+
+    // Whether the application form was actually submitted.
+    if (applicationSubmitted === 'yes') {
+      filter.applicationSubmittedAt = { $ne: null };
+    } else if (applicationSubmitted === 'no') {
+      filter.applicationSubmittedAt = { $in: [null, undefined] };
     }
 
     const skip = (page - 1) * limit;
