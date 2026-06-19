@@ -52,6 +52,12 @@ export class LmsFacilitatorController {
     return this.lms.getEngagement(eventId);
   }
 
+  @Get('events/:eventId/overview')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  overview(@Param('eventId') eventId: string) {
+    return this.lms.getEventOverview(eventId);
+  }
+
   @Post('events/:eventId/modules')
   @RequirePermission(EventsPermission.UPDATE_EVENT)
   createModule(

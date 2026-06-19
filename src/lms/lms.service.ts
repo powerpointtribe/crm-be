@@ -1279,6 +1279,126 @@ export class LmsService {
     };
   }
 
+  // ===================== FACILITATOR: event overview =====================
+
+  /** Headline stats across the event funnel + learning activity (rates). */
+  async getEventOverview(eventId: string) {
+    await this.assertEvent(eventId);
+    const eventOid = new Types.ObjectId(eventId);
+    const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
+
+    const [
+      totalReg,
+      appliedCount,
+      admissionAgg,
+      lessonCount,
+      sessionCount,
+      assignmentCount,
+      acceptedRegs,
+      progresses,
+      attendances,
+      submissions,
+    ] = await Promise.all([
+      this.registrationModel.countDocuments({ event: eventOid }),
+      this.registrationModel.countDocuments({
+        event: eventOid,
+        applicationSubmittedAt: { $ne: null },
+      }),
+      this.registrationModel.aggregate([
+        { $match: { event: eventOid } },
+        { $group: { _id: '$admissionStatus', n: { $sum: 1 } } },
+      ]),
+      this.lessonModel.countDocuments({ event: eventOid, status: 'published' }),
+      this.sessionModel.countDocuments({ event: eventOid }),
+      this.assignmentModel.countDocuments({
+        event: eventOid,
+        status: 'published',
+      }),
+      this.registrationModel
+        .find({ event: eventOid, admissionStatus: 'accepted' })
+        .select('_id')
+        .lean(),
+      this.progressModel
+        .find({ event: eventOid })
+        .select('registration status reflection')
+        .lean(),
+      this.attendanceModel
+        .find({ event: eventOid, status: { $in: ['present', 'late'] } })
+        .select('registration')
+        .lean(),
+      this.submissionModel.find({ event: eventOid }).select('grade').lean(),
+    ]);
+
+    const admissions = { pending: 0, accepted: 0, rejected: 0, waitlisted: 0 };
+    for (const a of admissionAgg as any[]) {
+      if (a._id === 'accepted') admissions.accepted = a.n;
+      else if (a._id === 'rejected') admissions.rejected = a.n;
+      else if (a._id === 'waitlisted') admissions.waitlisted = a.n;
+      else admissions.pending += a.n; // 'applied' or null/undefined
+    }
+
+    const acceptedIds = new Set(acceptedRegs.map((r) => String(r._id)));
+    const acceptedCount = acceptedIds.size;
+
+    const completedByReg: Record<string, number> = {};
+    let reflectionsTotal = 0;
+    for (const p of progresses) {
+      const k = String(p.registration);
+      if (p.status === 'completed' && acceptedIds.has(k))
+        completedByReg[k] = (completedByReg[k] || 0) + 1;
+      if (p.reflection && p.reflection.trim() && acceptedIds.has(k))
+        reflectionsTotal += 1;
+    }
+    const presentByReg: Record<string, number> = {};
+    for (const a of attendances) {
+      const k = String(a.registration);
+      if (acceptedIds.has(k)) presentByReg[k] = (presentByReg[k] || 0) + 1;
+    }
+
+    let progressSum = 0;
+    let completedAll = 0;
+    let attendanceSum = 0;
+    for (const id of acceptedIds) {
+      const done = completedByReg[id] || 0;
+      progressSum += pct(done, lessonCount);
+      if (lessonCount > 0 && done >= lessonCount) completedAll += 1;
+      attendanceSum += pct(presentByReg[id] || 0, sessionCount);
+    }
+
+    return {
+      registrations: {
+        total: totalReg,
+        applied: appliedCount,
+        notApplied: totalReg - appliedCount,
+        appliedRate: pct(appliedCount, totalReg),
+      },
+      admissions: {
+        ...admissions,
+        acceptedRate: pct(admissions.accepted, totalReg),
+      },
+      course: {
+        lessons: lessonCount,
+        avgProgress: acceptedCount ? Math.round(progressSum / acceptedCount) : 0,
+        completedAll,
+        completionRate: pct(completedAll, acceptedCount),
+      },
+      attendance: {
+        sessions: sessionCount,
+        avgAttendance: acceptedCount
+          ? Math.round(attendanceSum / acceptedCount)
+          : 0,
+      },
+      assignments: {
+        total: assignmentCount,
+        submissions: submissions.length,
+        graded: submissions.filter((s) => s.grade !== null && s.grade !== undefined)
+          .length,
+      },
+      reflections: reflectionsTotal,
+      acceptedCount,
+    };
+  }
+
   // ===================== FACILITATOR: engagement analytics =====================
 
   async getEngagement(eventId: string) {
