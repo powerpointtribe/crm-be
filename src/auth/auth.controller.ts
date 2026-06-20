@@ -49,7 +49,10 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current member profile' })
   @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
   async getProfile(@CurrentUser() user: any) {
-    const profile = await this.authService.getProfile(user.sub);
+    // JwtStrategy.validate() returns the member document, so the id lives on
+    // `_id` (not `sub`, which only exists on the raw JWT payload).
+    const memberId = user._id?.toString() ?? user.sub;
+    const profile = await this.authService.getProfile(memberId);
     return ResponseUtil.success(profile, 'Profile retrieved successfully');
   }
 
@@ -62,7 +65,8 @@ export class AuthController {
     description: 'Permissions retrieved successfully',
   })
   async getPermissions(@CurrentUser() user: any) {
-    const permissions = await this.authService.getPermissionsSummary(user.sub);
+    const memberId = user._id?.toString() ?? user.sub;
+    const permissions = await this.authService.getPermissionsSummary(memberId);
     return ResponseUtil.success(
       permissions,
       'Permissions retrieved successfully',
@@ -78,7 +82,8 @@ export class AuthController {
     description: 'Accessible modules retrieved successfully',
   })
   async getAccessibleModules(@CurrentUser() user: any) {
-    const profile = await this.authService.getProfile(user.sub);
+    const memberId = user._id?.toString() ?? user.sub;
+    const profile = await this.authService.getProfile(memberId);
     return ResponseUtil.success(
       { modules: profile.accessibleModules },
       'Accessible modules retrieved successfully',
