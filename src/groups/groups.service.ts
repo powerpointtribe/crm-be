@@ -128,13 +128,19 @@ export class GroupsService {
     }
   }
 
-  async findAll(
+  /**
+   * Shared filter/sort builder used by both the flat and grouped listings so
+   * the two stay in lock-step (same branch scoping, search, type and leadership
+   * filters).
+   */
+  private buildGroupFilter(
     searchDto: GroupSearchDto,
     branchFilterContext?: BranchFilterContext,
-  ): Promise<PaginatedResult<GroupDocument>> {
+  ): {
+    filterQuery: FilterQuery<GroupDocument>;
+    sortQuery: Record<string, 1 | -1>;
+  } {
     const {
-      page = 1,
-      limit = 10,
       search,
       sortBy = 'createdAt',
       sortOrder = 'desc',
@@ -147,7 +153,6 @@ export class GroupsService {
       branchId,
     } = searchDto;
 
-    const skip = (page - 1) * limit;
     let filterQuery: FilterQuery<GroupDocument> = { isActive };
 
     // Apply branch filtering based on user permissions
@@ -204,8 +209,20 @@ export class GroupsService {
       filterQuery.maxCapacity = { $gt: 0 }; // Only groups with defined capacity
     }
 
-    // Build sort query
     const sortQuery = QueryBuilder.buildSortQuery(sortBy, sortOrder);
+    return { filterQuery, sortQuery };
+  }
+
+  async findAll(
+    searchDto: GroupSearchDto,
+    branchFilterContext?: BranchFilterContext,
+  ): Promise<PaginatedResult<GroupDocument>> {
+    const { page = 1, limit = 10 } = searchDto;
+    const skip = (page - 1) * limit;
+    const { filterQuery, sortQuery } = this.buildGroupFilter(
+      searchDto,
+      branchFilterContext,
+    );
 
     // Execute queries with lean() optimization
     // NOTE: Removed heavy 'members' population from list query for performance
@@ -228,6 +245,108 @@ export class GroupsService {
     ]);
 
     return createPaginatedResult(groups, total, page, limit);
+  }
+
+  /**
+   * Listing variant that merges groups sharing the same name across campuses
+   * into a single row. Each merged row carries a `campuses[]` array so the UI
+   * can show every campus leader together, tagged with the campus name
+   * (e.g. "Majemu (Anthony), Oghenekaro (Ikorodu)").
+   *
+   * Group counts are small (districts/units/ministries per branch), so we load
+   * the full filtered set and merge in memory — this keeps name-merging correct
+   * regardless of pagination, then paginate the merged rows.
+   */
+  async findAllGrouped(
+    searchDto: GroupSearchDto,
+    branchFilterContext?: BranchFilterContext,
+  ): Promise<PaginatedResult<any>> {
+    const { page = 1, limit = 10 } = searchDto;
+    const { filterQuery } = this.buildGroupFilter(
+      searchDto,
+      branchFilterContext,
+    );
+
+    const all = await this.groupModel
+      .find(filterQuery)
+      .select(
+        '_id name type description branch districtPastor unitHead assistantUnitHead ministryDirector currentMemberCount maxCapacity isActive',
+      )
+      .populate('districtPastor', 'firstName lastName')
+      .populate('unitHead', 'firstName lastName')
+      .populate('ministryDirector', 'firstName lastName')
+      .populate('branch', 'name')
+      .lean()
+      .exec();
+
+    const leaderFor = (
+      g: any,
+    ): { name: string | null; title: string | null } => {
+      let m: any = null;
+      let title: string | null = null;
+      if (g.type === GroupType.DISTRICT) {
+        m = g.districtPastor;
+        title = 'District Pastor';
+      } else if (g.type === GroupType.UNIT) {
+        m = g.unitHead;
+        title = 'Unit Head';
+      } else if (g.type === GroupType.MINISTRY) {
+        m = g.ministryDirector;
+        title = 'Ministry Director';
+      }
+      const name =
+        m && (m.firstName || m.lastName)
+          ? `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim()
+          : null;
+      return { name, title: name ? title : null };
+    };
+
+    const map = new Map<string, any>();
+    for (const g of all as any[]) {
+      const key = `${g.type}::${(g.name || '').trim().toLowerCase()}`;
+      let entry = map.get(key);
+      if (!entry) {
+        entry = {
+          _id: key,
+          name: g.name,
+          type: g.type,
+          description: g.description,
+          totalMembers: 0,
+          isActive: false,
+          campusCount: 0,
+          campuses: [],
+        };
+        map.set(key, entry);
+      }
+      const leader = leaderFor(g);
+      entry.totalMembers += g.currentMemberCount || 0;
+      entry.isActive = entry.isActive || !!g.isActive;
+      if (!entry.description && g.description) entry.description = g.description;
+      entry.campuses.push({
+        groupId: g._id,
+        branchId: g.branch?._id ?? g.branch ?? null,
+        branchName: g.branch?.name ?? null,
+        leaderName: leader.name,
+        leaderTitle: leader.title,
+        memberCount: g.currentMemberCount || 0,
+        maxCapacity: g.maxCapacity || 0,
+        isActive: !!g.isActive,
+      });
+    }
+
+    const merged = Array.from(map.values()).map((e) => {
+      e.campuses.sort((a: any, b: any) =>
+        (a.branchName || '').localeCompare(b.branchName || ''),
+      );
+      e.campusCount = e.campuses.length;
+      return e;
+    });
+    merged.sort((a, b) => a.name.localeCompare(b.name));
+
+    const total = merged.length;
+    const skip = (page - 1) * limit;
+    const pageItems = merged.slice(skip, skip + limit);
+    return createPaginatedResult(pageItems, total, page, limit);
   }
 
   async findById(id: string): Promise<GroupDocument | null> {

@@ -48,4 +48,12 @@ export class GroupSearchDto extends SearchDto {
   @IsOptional()
   @IsBoolean()
   nearCapacity?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Merge groups that share the same name across campuses into a single row, listing each campus leader together',
+  })
+  @IsOptional()
+  @IsBoolean()
+  groupByName?: boolean;
 }

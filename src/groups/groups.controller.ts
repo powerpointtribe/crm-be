@@ -103,7 +103,9 @@ export class GroupsController {
       };
     }
 
-    const groups = await this.groupsService.findAll(searchDto, branchFilterContext);
+    const groups = searchDto.groupByName
+      ? await this.groupsService.findAllGrouped(searchDto, branchFilterContext)
+      : await this.groupsService.findAll(searchDto, branchFilterContext);
     return ResponseUtil.success(groups, 'Groups retrieved successfully');
   }
 

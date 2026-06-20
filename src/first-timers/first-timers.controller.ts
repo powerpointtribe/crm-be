@@ -439,9 +439,18 @@ export class FirstTimersController {
     status: 200,
     description: 'First-timer stats retrieved successfully',
   })
-  async getFirstTimerStats(@CurrentUser() user: any) {
-    const branchId = await this.getUserBranchId(user);
-    const stats = await this.firstTimersService.getFirstTimerStats(branchId);
+  async getFirstTimerStats(
+    @CurrentUser() user: any,
+    @Query('branchId') branchId?: string,
+  ) {
+    // getUserBranchId returns the user's own branch, or undefined if they can
+    // view all branches. Non view-all users are always locked to their own
+    // branch; the optional branchId query param is only honored for users who
+    // can view all branches (e.g. switching the campus on the dashboard).
+    const userBranchId = await this.getUserBranchId(user);
+    const effectiveBranchId = userBranchId ?? (branchId || undefined);
+    const stats =
+      await this.firstTimersService.getFirstTimerStats(effectiveBranchId);
     return ResponseUtil.success(
       stats,
       'First-timer stats retrieved successfully',
