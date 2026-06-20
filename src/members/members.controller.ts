@@ -21,6 +21,7 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { BulkImportMasterDto, BulkImportMasterResultDto } from './dto/bulk-import-master.dto';
+import { BulkDeleteDto } from './dto/bulk-delete.dto';
 import { Member, MemberDocument } from './schemas/member.schema';
 import { UserRole } from '../common/enums/user-roles.enums';
 import { PermissionGuard } from '../roles/guards/permission.guard';
@@ -362,6 +363,21 @@ export class MembersController {
   })
   async remove(@Param('id') id: string, @Request() req) {
     return this.membersService.remove(id);
+  }
+
+  @Post('bulk-delete')
+  @RequirePermission(MembersPermission.DELETE_MEMBER)
+  @AuditLog({
+    action: AuditAction.MEMBER_DELETED,
+    entityType: AuditEntity.MEMBER,
+    description: 'Bulk deleted members',
+    severity: 'high',
+  })
+  async bulkRemove(@Body() bulkDeleteDto: BulkDeleteDto, @Request() req) {
+    // Guard against self-deletion in a bulk action.
+    const currentUserId = req.user?._id?.toString();
+    const ids = bulkDeleteDto.ids.filter((id) => id !== currentUserId);
+    return this.membersService.bulkRemove(ids);
   }
 
   @Patch(':id/assign-role')

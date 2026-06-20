@@ -1649,6 +1649,20 @@ export class MembersService {
     }
   }
 
+  /**
+   * Delete many members in a single operation. Returns how many were requested
+   * vs. actually removed (ids that no longer exist are simply skipped).
+   */
+  async bulkRemove(
+    ids: string[],
+  ): Promise<{ requested: number; deleted: number }> {
+    const uniqueIds = Array.from(new Set(ids));
+    const result = await this.memberModel.deleteMany({
+      _id: { $in: uniqueIds },
+    });
+    return { requested: uniqueIds.length, deleted: result.deletedCount ?? 0 };
+  }
+
   async searchMembers(query: string): Promise<MemberDocument[]> {
     const searchRegex = new RegExp(query, 'i');
 
