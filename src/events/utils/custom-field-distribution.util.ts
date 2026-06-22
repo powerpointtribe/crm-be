@@ -25,6 +25,86 @@ type RegistrationLike = {
 /** Candidate keys for the "school / university" field. */
 export const SCHOOL_FIELD_KEYS = ['university', 'school'];
 
+/**
+ * Canonical school names keyed by the lowercased response. Folds common
+ * abbreviations and shorthand (e.g. "unilag", "oau", "ui") into the full
+ * institution name so analytics group them together regardless of how each
+ * registrant typed it. Grouping is already case-insensitive (see
+ * buildDistribution), so these only need to cover genuine synonyms, not casing.
+ *
+ * Keep the canonical values in sync with cmit/src/data/schools.js so the
+ * searchable dropdown on the registration form and these analytics agree.
+ */
+export const SCHOOL_ALIASES: Record<string, string> = {
+  // Federal universities
+  ui: 'University of Ibadan',
+  'uni ibadan': 'University of Ibadan',
+  unilag: 'University of Lagos',
+  'uni lagos': 'University of Lagos',
+  oau: 'Obafemi Awolowo University',
+  ife: 'Obafemi Awolowo University',
+  'great ife': 'Obafemi Awolowo University',
+  unn: 'University of Nigeria, Nsukka',
+  nsukka: 'University of Nigeria, Nsukka',
+  abu: 'Ahmadu Bello University',
+  'abu zaria': 'Ahmadu Bello University',
+  uniben: 'University of Benin',
+  unilorin: 'University of Ilorin',
+  unijos: 'University of Jos',
+  uniuyo: 'University of Uyo',
+  uniport: 'University of Port Harcourt',
+  uniph: 'University of Port Harcourt',
+  unical: 'University of Calabar',
+  buk: 'Bayero University, Kano',
+  bayero: 'Bayero University, Kano',
+  uniabuja: 'University of Abuja',
+  unimaid: 'University of Maiduguri',
+  udus: 'Usmanu Danfodiyo University, Sokoto',
+  futa: 'Federal University of Technology, Akure',
+  futo: 'Federal University of Technology, Owerri',
+  futminna: 'Federal University of Technology, Minna',
+  'fut minna': 'Federal University of Technology, Minna',
+  funaab: 'Federal University of Agriculture, Abeokuta',
+  unizik: 'Nnamdi Azikiwe University',
+  nau: 'Nnamdi Azikiwe University',
+  fuoye: 'Federal University, Oye-Ekiti',
+  mouau: 'Michael Okpara University of Agriculture, Umudike',
+  fupre: 'Federal University of Petroleum Resources, Effurun',
+  nda: 'Nigerian Defence Academy',
+  // State universities
+  lasu: 'Lagos State University',
+  eksu: 'Ekiti State University',
+  rsu: 'Rivers State University',
+  rust: 'Rivers State University',
+  lautech: 'Ladoke Akintola University of Technology',
+  oou: 'Olabisi Onabanjo University',
+  esut: 'Enugu State University of Science and Technology',
+  delsu: 'Delta State University',
+  aau: 'Ambrose Alli University',
+  kwasu: 'Kwara State University',
+  imsu: 'Imo State University',
+  absu: 'Abia State University',
+  bsu: 'Benue State University',
+  kasu: 'Kaduna State University',
+  ebsu: 'Ebonyi State University',
+  tasued: 'Tai Solarin University of Education',
+  // Private universities
+  cu: 'Covenant University',
+  covenant: 'Covenant University',
+  babcock: 'Babcock University',
+  bowen: 'Bowen University',
+  abuad: 'Afe Babalola University, Ado-Ekiti',
+  landmark: 'Landmark University',
+  run: "Redeemer's University",
+  redeemers: "Redeemer's University",
+  pau: 'Pan-Atlantic University',
+  aun: 'American University of Nigeria',
+  // Polytechnics / colleges (frequently abbreviated)
+  yabatech: 'Yaba College of Technology',
+  auchipoly: 'Auchi Polytechnic',
+  kadpoly: 'Kaduna Polytechnic',
+};
+
 /** Candidate keys for the "how did you hear about us" field. */
 export const HEARD_ABOUT_FIELD_KEYS = [
   'howDidYouHear',

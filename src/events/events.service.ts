@@ -98,6 +98,7 @@ import {
 import {
   buildDistribution,
   SCHOOL_FIELD_KEYS,
+  SCHOOL_ALIASES,
   HEARD_ABOUT_FIELD_KEYS,
   HEARD_ABOUT_ALIASES,
 } from './utils/custom-field-distribution.util';
@@ -1881,6 +1882,7 @@ export class EventsService {
     const schoolDistribution = buildDistribution(
       cfrRegistrations,
       SCHOOL_FIELD_KEYS,
+      SCHOOL_ALIASES,
     ).distribution;
     const heardAboutDistribution = buildDistribution(
       cfrRegistrations,

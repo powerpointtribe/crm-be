@@ -51,6 +51,7 @@ import {
 import {
   buildDistribution,
   SCHOOL_FIELD_KEYS,
+  SCHOOL_ALIASES,
   HEARD_ABOUT_FIELD_KEYS,
   HEARD_ABOUT_ALIASES,
 } from '../events/utils/custom-field-distribution.util';
@@ -1408,7 +1409,7 @@ export class LmsService {
       reflections: reflectionsTotal,
       acceptedCount,
       demographics: {
-        school: buildDistribution(cfrRegs, SCHOOL_FIELD_KEYS),
+        school: buildDistribution(cfrRegs, SCHOOL_FIELD_KEYS, SCHOOL_ALIASES),
         heardAbout: buildDistribution(
           cfrRegs,
           HEARD_ABOUT_FIELD_KEYS,
