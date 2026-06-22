@@ -96,6 +96,12 @@ import {
   MemberEngagementAnalyticsDto,
 } from './dto/event-analytics.dto';
 import {
+  buildDistribution,
+  SCHOOL_FIELD_KEYS,
+  HEARD_ABOUT_FIELD_KEYS,
+  HEARD_ABOUT_ALIASES,
+} from './utils/custom-field-distribution.util';
+import {
   PaginatedResult,
   createPaginatedResult,
 } from '../common/utils/pagination.util';
@@ -1866,6 +1872,22 @@ export class EventsService {
         ? Math.round((attendedRegistrations / activeRegistrations) * 100)
         : 0;
 
+    // Aggregate the custom-field responses we surface on dashboards: school
+    // distribution and "how did you hear about us".
+    const cfrRegistrations = await this.registrationModel
+      .find({ event: event._id })
+      .select('customFieldResponses')
+      .lean();
+    const schoolDistribution = buildDistribution(
+      cfrRegistrations,
+      SCHOOL_FIELD_KEYS,
+    ).distribution;
+    const heardAboutDistribution = buildDistribution(
+      cfrRegistrations,
+      HEARD_ABOUT_FIELD_KEYS,
+      HEARD_ABOUT_ALIASES,
+    ).distribution;
+
     return {
       totalRegistrations,
       confirmedRegistrations,
@@ -1878,7 +1900,14 @@ export class EventsService {
       visitorRegistrations,
       conversionRate,
       registrationsByDay,
-      registrationsBySource: [], // Can be enhanced with source tracking
+      // "Source" mirrors the referral breakdown so the existing field carries
+      // real data rather than a placeholder.
+      registrationsBySource: heardAboutDistribution.map((d) => ({
+        source: d.value,
+        count: d.count,
+      })),
+      schoolDistribution,
+      heardAboutDistribution,
     };
   }
 

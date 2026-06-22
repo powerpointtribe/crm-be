@@ -88,6 +88,18 @@ export class RegistrationAnalyticsDto {
 
   @ApiProperty({ type: [Object] })
   registrationsBySource: { source: string; count: number }[];
+
+  @ApiProperty({
+    type: [Object],
+    description: 'School / university distribution, ranked by count',
+  })
+  schoolDistribution: { value: string; count: number }[];
+
+  @ApiProperty({
+    type: [Object],
+    description: '"How did you hear about us" distribution, ranked by count',
+  })
+  heardAboutDistribution: { value: string; count: number }[];
 }
 
 // Session analytics for training events

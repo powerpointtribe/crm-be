@@ -48,6 +48,12 @@ import {
   UpdateModuleDto,
   UpsertQuizDto,
 } from './dto/lms.dto';
+import {
+  buildDistribution,
+  SCHOOL_FIELD_KEYS,
+  HEARD_ABOUT_FIELD_KEYS,
+  HEARD_ABOUT_ALIASES,
+} from '../events/utils/custom-field-distribution.util';
 
 @Injectable()
 export class LmsService {
@@ -1298,6 +1304,7 @@ export class LmsService {
       progresses,
       attendances,
       submissions,
+      cfrRegs,
     ] = await Promise.all([
       this.registrationModel.countDocuments({ event: eventOid }),
       this.registrationModel.countDocuments({
@@ -1327,6 +1334,10 @@ export class LmsService {
         .select('registration')
         .lean(),
       this.submissionModel.find({ event: eventOid }).select('grade').lean(),
+      this.registrationModel
+        .find({ event: eventOid })
+        .select('customFieldResponses')
+        .lean(),
     ]);
 
     const admissions = { pending: 0, accepted: 0, rejected: 0, waitlisted: 0 };
@@ -1396,6 +1407,14 @@ export class LmsService {
       },
       reflections: reflectionsTotal,
       acceptedCount,
+      demographics: {
+        school: buildDistribution(cfrRegs, SCHOOL_FIELD_KEYS),
+        heardAbout: buildDistribution(
+          cfrRegs,
+          HEARD_ABOUT_FIELD_KEYS,
+          HEARD_ABOUT_ALIASES,
+        ),
+      },
     };
   }
 
