@@ -97,11 +97,18 @@ export class RolesSeederService {
         let permissionIds: Types.ObjectId[] = [];
 
         if (roleConfig.permissions.includes('*')) {
-          // Super admin gets all permissions
+          // Super admin gets all permissions (minus excluded non-view ones)
           const allPermissions = await this.permissionModel.find({
             isActive: true,
           });
-          permissionIds = allPermissions.map((p) => p._id);
+          const excludePrefixes = roleConfig.excludePermissions || [];
+          const filtered = excludePrefixes.length > 0
+            ? allPermissions.filter((p) => {
+                const matchesExclude = excludePrefixes.some((prefix) => p.name.startsWith(prefix));
+                return !matchesExclude || this.isViewPermission(p.name);
+              })
+            : allPermissions;
+          permissionIds = filtered.map((p) => p._id);
         } else if (roleConfig.permissions.includes('view:*')) {
           // Roles with view:* get all view/export permissions plus any additional specific permissions
           const allPermissions = await this.permissionModel.find({

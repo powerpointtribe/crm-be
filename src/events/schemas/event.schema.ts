@@ -438,6 +438,13 @@ export class Event {
   @Prop({ type: Number, default: 0 })
   certifiedCount: number; // Number of attendees who received certification
 
+  // Testimony Form
+  @Prop({ type: Boolean, default: false })
+  testimonyFormEnabled!: boolean;
+
+  @Prop({ type: Number, default: 0 })
+  testimonyCount!: number;
+
   // Timestamps
   @Prop({ type: Date })
   createdAt: Date;

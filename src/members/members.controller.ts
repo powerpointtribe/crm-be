@@ -250,7 +250,10 @@ export class MembersController {
     let permissions: string[] = [];
     if (roleId) {
       const permResult =
-        await this.userPermissionsService.getUserPermissions(roleId);
+        await this.userPermissionsService.getUserPermissions(
+          roleId,
+          memberObj.membershipStatus,
+        );
       permissions = permResult.permissions;
     }
 

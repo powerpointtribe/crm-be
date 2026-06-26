@@ -22,6 +22,7 @@ export interface DefaultRoleConfig {
   isSystemRole: boolean;
   colorCode?: string;
   permissions: string[]; // Permission names. Special values: '*' = all, 'view:*' = all view permissions
+  excludePermissions?: string[]; // Permission prefixes to exclude from wildcard expansion (e.g. 'finance:' excludes all finance except view)
 }
 
 export const DEFAULT_ROLES: DefaultRoleConfig[] = [
@@ -35,6 +36,7 @@ export const DEFAULT_ROLES: DefaultRoleConfig[] = [
     isSystemRole: true,
     colorCode: '#EF4444',
     permissions: ['*'], // All permissions (will be handled specially in seeder)
+    excludePermissions: ['finance:'], // Exclude non-view finance permissions; view finance permissions still included
   },
   {
     name: 'Admin',

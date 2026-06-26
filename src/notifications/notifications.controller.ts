@@ -32,11 +32,13 @@ export class NotificationsController {
     const userId = user._id?.toString() || user.id?.toString();
     const roleId = user.role?._id?.toString() || user.role?.toString();
     const branchId = user.branch?._id?.toString() || user.branch?.toString();
+    const isSystemRole = user.role?.isSystemRole === true;
 
     const notifications = await this.userNotificationsService.getUserNotifications(
       userId,
       roleId,
       branchId,
+      isSystemRole,
     );
 
     return {
@@ -54,11 +56,13 @@ export class NotificationsController {
     const userId = user._id?.toString() || user.id?.toString();
     const roleId = user.role?._id?.toString() || user.role?.toString();
     const branchId = user.branch?._id?.toString() || user.branch?.toString();
+    const isSystemRole = user.role?.isSystemRole === true;
 
     const count = await this.userNotificationsService.getNotificationCount(
       userId,
       roleId,
       branchId,
+      isSystemRole,
     );
 
     return {

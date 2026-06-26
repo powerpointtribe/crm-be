@@ -820,4 +820,63 @@ export class EventsController {
   ) {
     return this.eventsService.deletePartner(id, partnerId);
   }
+
+  // ========== TESTIMONY ENDPOINTS ==========
+
+  @Get('public/:slug/testimony-form')
+  @Public()
+  async getTestimonyFormInfo(@Param('slug') slug: string) {
+    return this.eventsService.getTestimonyFormInfo(slug);
+  }
+
+  @Post('public/:slug/testimonies')
+  @Public()
+  async submitTestimony(
+    @Param('slug') slug: string,
+    @Body()
+    body: {
+      fullName: string;
+      email?: string;
+      phone?: string;
+      testimony: string;
+      title?: string;
+      isAnonymous?: boolean;
+    },
+  ) {
+    return this.eventsService.submitTestimony(slug, body);
+  }
+
+  @Post(':id/testimony-form/enable')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async enableTestimonyForm(@Param('id') id: string) {
+    return this.eventsService.enableTestimonyForm(id);
+  }
+
+  @Post(':id/testimony-form/disable')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async disableTestimonyForm(@Param('id') id: string) {
+    return this.eventsService.disableTestimonyForm(id);
+  }
+
+  @Get(':id/testimonies')
+  @RequirePermission(EventsPermission.VIEW_EVENTS)
+  async getTestimonies(
+    @Param('id') id: string,
+    @Query() query: { page?: number; limit?: number; search?: string },
+  ) {
+    return this.eventsService.getTestimonies(id, query);
+  }
+
+  @Patch('testimonies/:testimonyId/toggle-featured')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async toggleTestimonyFeatured(@Param('testimonyId') testimonyId: string) {
+    return this.eventsService.toggleTestimonyFeatured(testimonyId);
+  }
+
+  @Delete('testimonies/:testimonyId')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async deleteTestimony(@Param('testimonyId') testimonyId: string) {
+    await this.eventsService.deleteTestimony(testimonyId);
+    return { message: 'Testimony deleted successfully' };
+  }
 }

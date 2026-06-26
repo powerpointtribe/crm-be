@@ -52,6 +52,7 @@ export class UserNotificationsService {
     userId: string,
     roleId: string,
     branchId?: string,
+    isSystemRole?: boolean,
   ): Promise<UserNotificationsResponse> {
     // Get dismissed notification IDs for this user
     const dismissedNotifications = await this.notificationDismissalModel
@@ -96,62 +97,66 @@ export class UserNotificationsService {
       }
     }
 
-    // Check if user has permission to receive birthday notifications
-    try {
-      const hasPreBirthdayPermission = await this.userPermissionsService.hasPermission(
-        roleId,
-        NotificationsPermission.RECEIVE_PRE_BIRTHDAY_NOTIFICATION,
-      );
+    // System-wide notifications are skipped for system roles (e.g. Super Admin)
+    // unless the user is specifically assigned to receive them
+    if (!isSystemRole) {
+      // Check if user has permission to receive birthday notifications
+      try {
+        const hasPreBirthdayPermission = await this.userPermissionsService.hasPermission(
+          roleId,
+          NotificationsPermission.RECEIVE_PRE_BIRTHDAY_NOTIFICATION,
+        );
 
-      if (hasPreBirthdayPermission) {
-        const upcomingBirthdays = await this.membersService.getBirthdaysInDays(3, branchId);
+        if (hasPreBirthdayPermission) {
+          const upcomingBirthdays = await this.membersService.getBirthdaysInDays(3, branchId);
 
-        for (const member of upcomingBirthdays) {
-          const notificationId = `bday-${member._id.toString()}`;
-          if (!dismissedIds.has(notificationId)) {
-            counts.upcomingBirthdays++;
-            items.push({
-              id: notificationId,
-              type: 'birthday_upcoming',
-              title: 'Upcoming Birthday',
-              description: `${member.firstName} ${member.lastName} has a birthday in 3 days`,
-              createdAt: new Date(),
-              data: {
-                memberId: member._id.toString(),
-                firstName: member.firstName,
-                lastName: member.lastName,
-                dateOfBirth: member.dateOfBirth,
-              },
-            });
+          for (const member of upcomingBirthdays) {
+            const notificationId = `bday-${member._id.toString()}`;
+            if (!dismissedIds.has(notificationId)) {
+              counts.upcomingBirthdays++;
+              items.push({
+                id: notificationId,
+                type: 'birthday_upcoming',
+                title: 'Upcoming Birthday',
+                description: `${member.firstName} ${member.lastName} has a birthday in 3 days`,
+                createdAt: new Date(),
+                data: {
+                  memberId: member._id.toString(),
+                  firstName: member.firstName,
+                  lastName: member.lastName,
+                  dateOfBirth: member.dateOfBirth,
+                },
+              });
+            }
           }
         }
+      } catch (error) {
+        this.logger.warn(`Failed to check birthday permission: ${error.message}`);
       }
-    } catch (error) {
-      this.logger.warn(`Failed to check birthday permission: ${error.message}`);
-    }
 
-    // Get first-timers ready for integration (for users with permission to view)
-    const readyForIntegration = await this.getReadyForIntegration(branchId);
+      // Get first-timers ready for integration (for users with permission to view)
+      const readyForIntegration = await this.getReadyForIntegration(branchId);
 
-    for (const ft of readyForIntegration) {
-      const ftId = (ft as any)._id?.toString() || '';
-      const notificationId = `rfi-${ftId}`;
-      if (!dismissedIds.has(notificationId)) {
-        counts.readyForIntegration++;
-        items.push({
-          id: notificationId,
-          type: 'ready_for_integration',
-          title: 'Ready for Integration',
-          description: `${ft.firstName} ${ft.lastName} is ready for integration`,
-          createdAt: ft.readyForIntegrationDate || ft.updatedAt,
-          data: {
-            firstTimerId: ftId,
-            firstName: ft.firstName,
-            lastName: ft.lastName,
-            phone: ft.phone,
-            email: ft.email,
-          },
-        });
+      for (const ft of readyForIntegration) {
+        const ftId = (ft as any)._id?.toString() || '';
+        const notificationId = `rfi-${ftId}`;
+        if (!dismissedIds.has(notificationId)) {
+          counts.readyForIntegration++;
+          items.push({
+            id: notificationId,
+            type: 'ready_for_integration',
+            title: 'Ready for Integration',
+            description: `${ft.firstName} ${ft.lastName} is ready for integration`,
+            createdAt: ft.readyForIntegrationDate || ft.updatedAt,
+            data: {
+              firstTimerId: ftId,
+              firstName: ft.firstName,
+              lastName: ft.lastName,
+              phone: ft.phone,
+              email: ft.email,
+            },
+          });
+        }
       }
     }
 
@@ -207,29 +212,31 @@ export class UserNotificationsService {
     }
 
     // Get members who joined groups where the user is a leader (last 30 days)
-    const membersJoinedYourGroups = await this.getMembersJoinedYourGroups(userId);
+    if (!isSystemRole) {
+      const membersJoinedYourGroups = await this.getMembersJoinedYourGroups(userId);
 
-    for (const activity of membersJoinedYourGroups) {
-      const activityId = (activity as any)._id?.toString() || '';
-      const notificationId = `mjg-${activityId}`;
-      if (!dismissedIds.has(notificationId)) {
-        counts.membersJoinedYourGroups++;
-        const groupName = (activity as any).groupName || 'your group';
-        const memberName = (activity as any).memberName || 'A member';
-        items.push({
-          id: notificationId,
-          type: 'member_joined_your_group',
-          title: 'New Member Joined',
-          description: `${memberName} has joined ${groupName}`,
-          createdAt: activity.activityDate || activity.createdAt,
-          data: {
-            activityId,
-            memberId: activity.member?.toString(),
-            groupId: activity.toUnit?.toString() || activity.toDistrict?.toString(),
-            groupName,
-            memberName,
-          },
-        });
+      for (const activity of membersJoinedYourGroups) {
+        const activityId = (activity as any)._id?.toString() || '';
+        const notificationId = `mjg-${activityId}`;
+        if (!dismissedIds.has(notificationId)) {
+          counts.membersJoinedYourGroups++;
+          const groupName = (activity as any).groupName || 'your group';
+          const memberName = (activity as any).memberName || 'A member';
+          items.push({
+            id: notificationId,
+            type: 'member_joined_your_group',
+            title: 'New Member Joined',
+            description: `${memberName} has joined ${groupName}`,
+            createdAt: activity.activityDate || activity.createdAt,
+            data: {
+              activityId,
+              memberId: activity.member?.toString(),
+              groupId: activity.toUnit?.toString() || activity.toDistrict?.toString(),
+              groupName,
+              memberName,
+            },
+          });
+        }
       }
     }
 
@@ -251,8 +258,9 @@ export class UserNotificationsService {
     userId: string,
     roleId: string,
     branchId?: string,
+    isSystemRole?: boolean,
   ): Promise<number> {
-    const notifications = await this.getUserNotifications(userId, roleId, branchId);
+    const notifications = await this.getUserNotifications(userId, roleId, branchId, isSystemRole);
     return notifications.totalCount;
   }
 

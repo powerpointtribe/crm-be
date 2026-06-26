@@ -582,11 +582,14 @@ export class FinanceService {
   /**
    * Get dashboard statistics
    */
-  async getStatistics(branchId?: string): Promise<any> {
+  async getStatistics(branchId?: string, requestorId?: string): Promise<any> {
     const filter: any = {};
     // Validate branchId is a valid 24-character hex string before using it
     if (branchId && /^[a-fA-F0-9]{24}$/.test(branchId)) {
       filter.branch = new Types.ObjectId(branchId);
+    }
+    if (requestorId && /^[a-fA-F0-9]{24}$/.test(requestorId)) {
+      filter.requestor = new Types.ObjectId(requestorId);
     }
 
     const [

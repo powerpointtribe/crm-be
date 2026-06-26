@@ -26,6 +26,10 @@ import {
   AccountabilityEntry,
   AccountabilityEntrySchema,
 } from './schemas/accountability-entry.schema';
+import {
+  Testimony,
+  TestimonySchema,
+} from './schemas/testimony.schema';
 import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { CommonModule } from '../common/common.module';
 import { RolesModule } from '../roles/roles.module';
@@ -47,6 +51,7 @@ import { PortalModule } from '../portal/portal.module';
       { name: SessionAttendance.name, schema: SessionAttendanceSchema },
       { name: EventPartner.name, schema: EventPartnerSchema },
       { name: AccountabilityEntry.name, schema: AccountabilityEntrySchema },
+      { name: Testimony.name, schema: TestimonySchema },
       { name: Member.name, schema: MemberSchema },
     ]),
     BullModule.registerQueue({

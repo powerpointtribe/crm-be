@@ -40,6 +40,10 @@ import {
   AccountabilityEntryDocument,
 } from './schemas/accountability-entry.schema';
 import {
+  Testimony,
+  TestimonyDocument,
+} from './schemas/testimony.schema';
+import {
   RecordAccountabilityDto,
   AccountabilityQueryDto,
 } from './dto/accountability.dto';
@@ -133,6 +137,8 @@ export class EventsService {
     private partnerModel: Model<EventPartnerDocument>,
     @InjectModel(AccountabilityEntry.name)
     private accountabilityModel: Model<AccountabilityEntryDocument>,
+    @InjectModel(Testimony.name)
+    private testimonyModel: Model<TestimonyDocument>,
     @InjectModel(Member.name)
     private memberModel: Model<MemberDocument>,
     private branchAccessService: BranchAccessService,
@@ -4420,6 +4426,122 @@ export class EventsService {
         totalFollowerGrowth,
         weeksTracked: [...new Set(entries.map((e) => e.week))].length,
       },
+    };
+  }
+
+  // ========== TESTIMONY OPERATIONS ==========
+
+  async enableTestimonyForm(eventId: string): Promise<EventDocument> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+    event.testimonyFormEnabled = true;
+    await event.save();
+    return event;
+  }
+
+  async disableTestimonyForm(eventId: string): Promise<EventDocument> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+    event.testimonyFormEnabled = false;
+    await event.save();
+    return event;
+  }
+
+  async submitTestimony(
+    slug: string,
+    data: { fullName: string; email?: string; phone?: string; testimony: string; title?: string; isAnonymous?: boolean },
+  ): Promise<TestimonyDocument> {
+    const event = await this.eventModel.findOne({ registrationSlug: slug });
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+    if (!event.testimonyFormEnabled) {
+      throw new BadRequestException('Testimony form is not enabled for this event');
+    }
+    const testimony = await this.testimonyModel.create({
+      event: event._id,
+      fullName: data.isAnonymous ? 'Anonymous' : data.fullName,
+      email: data.email,
+      phone: data.phone,
+      testimony: data.testimony,
+      title: data.title,
+      isAnonymous: data.isAnonymous || false,
+    });
+    await this.eventModel.updateOne(
+      { _id: event._id },
+      { $inc: { testimonyCount: 1 } },
+    );
+    return testimony;
+  }
+
+  async getTestimonies(
+    eventId: string,
+    query: { page?: number; limit?: number; search?: string },
+  ): Promise<{ data: TestimonyDocument[]; total: number; page: number; limit: number }> {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const skip = (page - 1) * limit;
+    const filter: FilterQuery<TestimonyDocument> = { event: new Types.ObjectId(eventId) };
+    if (query.search) {
+      filter.$or = [
+        { fullName: { $regex: query.search, $options: 'i' } },
+        { testimony: { $regex: query.search, $options: 'i' } },
+        { title: { $regex: query.search, $options: 'i' } },
+      ];
+    }
+    const [data, total] = await Promise.all([
+      this.testimonyModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.testimonyModel.countDocuments(filter),
+    ]);
+    return { data, total, page, limit };
+  }
+
+  async toggleTestimonyFeatured(testimonyId: string): Promise<TestimonyDocument> {
+    const testimony = await this.testimonyModel.findById(testimonyId);
+    if (!testimony) {
+      throw new NotFoundException('Testimony not found');
+    }
+    testimony.isFeatured = !testimony.isFeatured;
+    await testimony.save();
+    return testimony;
+  }
+
+  async deleteTestimony(testimonyId: string): Promise<void> {
+    const testimony = await this.testimonyModel.findById(testimonyId);
+    if (!testimony) {
+      throw new NotFoundException('Testimony not found');
+    }
+    await this.eventModel.updateOne(
+      { _id: testimony.event },
+      { $inc: { testimonyCount: -1 } },
+    );
+    await this.testimonyModel.deleteOne({ _id: testimonyId });
+  }
+
+  async getTestimonyFormInfo(slug: string): Promise<{ event: { title: string; bannerImage?: string; description?: string }; enabled: boolean }> {
+    const event = await this.eventModel
+      .findOne({ registrationSlug: slug })
+      .select('title bannerImage description testimonyFormEnabled')
+      .exec();
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+    return {
+      event: {
+        title: event.title,
+        bannerImage: event.bannerImage,
+        description: event.description,
+      },
+      enabled: event.testimonyFormEnabled,
     };
   }
 }

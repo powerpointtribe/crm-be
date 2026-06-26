@@ -23,6 +23,7 @@ import { FinanceService } from './finance.service';
 import { ExpenseCategoryService } from './expense-category.service';
 import { FormFieldConfigService } from './form-field-config.service';
 import { FinancePermission } from './permissions';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
 import { CreateRequisitionDto } from './dto/create-requisition.dto';
 import { UpdateRequisitionDto } from './dto/update-requisition.dto';
 import { ApproveRequisitionDto } from './dto/approve-requisition.dto';
@@ -49,6 +50,7 @@ export class FinanceController {
     private readonly financeService: FinanceService,
     private readonly expenseCategoryService: ExpenseCategoryService,
     private readonly formFieldConfigService: FormFieldConfigService,
+    private readonly userPermissionsService: UserPermissionsService,
   ) {}
 
   /**
@@ -65,6 +67,28 @@ export class FinanceController {
       : user.branch?.toString();
     console.log('getBranchId:', { branchType: typeof user.branch, branchId, rawBranch: user.branch });
     return branchId || '';
+  }
+
+  private async resolveUserPermissions(user: any): Promise<string[]> {
+    let permissions: string[] = [];
+    const roleId = user.role?._id || user.role;
+    if (roleId) {
+      const result = await this.userPermissionsService.getUserPermissions(roleId);
+      permissions = result.permissions;
+    }
+    if (user.additionalRoles?.length > 0) {
+      for (const addRole of user.additionalRoles) {
+        try {
+          const addRoleId = addRole._id || addRole;
+          const addPerms = await this.userPermissionsService.getUserPermissions(addRoleId);
+          permissions.push(...addPerms.permissions);
+        } catch {
+          // Skip inactive/deleted roles
+        }
+      }
+      permissions = [...new Set(permissions)];
+    }
+    return permissions;
   }
 
   // ============== Requisition Endpoints ==============
@@ -214,11 +238,18 @@ export class FinanceController {
   @RequireAnyPermission(
     FinancePermission.VIEW_FINANCE_DASHBOARD,
     FinancePermission.VIEW_REQUISITIONS,
+    FinancePermission.VIEW_MY_REQUISITIONS,
+    FinancePermission.CREATE_REQUISITION,
   )
   @ApiOperation({ summary: 'Get finance dashboard statistics' })
   async getDashboardStatistics(@Req() req: any) {
-    const branchId = req.user?.branch?.toString();
-    const result = await this.financeService.getStatistics(branchId);
+    const branchId = this.getBranchId(req.user);
+    const userPermissions = await this.resolveUserPermissions(req.user);
+    const canViewAll =
+      userPermissions.includes(FinancePermission.VIEW_REQUISITIONS) ||
+      userPermissions.includes(FinancePermission.VIEW_FINANCE_DASHBOARD);
+    const requestorId = canViewAll ? undefined : req.user?._id?.toString();
+    const result = await this.financeService.getStatistics(branchId, requestorId);
     return ResponseUtil.success(result, 'Statistics retrieved successfully');
   }
 
