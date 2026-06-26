@@ -245,9 +245,13 @@ export class FinanceController {
   async getDashboardStatistics(@Req() req: any) {
     const branchId = this.getBranchId(req.user);
     const userPermissions = await this.resolveUserPermissions(req.user);
-    const canViewAll =
-      userPermissions.includes(FinancePermission.VIEW_REQUISITIONS) ||
-      userPermissions.includes(FinancePermission.VIEW_FINANCE_DASHBOARD);
+    // Branch/global summary requires the explicit "view all requisitions"
+    // permission. VIEW_FINANCE_DASHBOARD only grants access to the dashboard
+    // page — on its own (e.g. an LXL/member with finance:view-my-requisitions)
+    // the cards must be scoped to the current user's own requisitions.
+    const canViewAll = userPermissions.includes(
+      FinancePermission.VIEW_REQUISITIONS,
+    );
     const requestorId = canViewAll ? undefined : req.user?._id?.toString();
     const result = await this.financeService.getStatistics(branchId, requestorId);
     return ResponseUtil.success(result, 'Statistics retrieved successfully');
