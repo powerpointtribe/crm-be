@@ -118,7 +118,13 @@ export class EventsController {
       const scopedEventIds = currentMember.scopedEventIds?.length
         ? currentMember.scopedEventIds
         : undefined;
-      return await this.eventsService.findAll(query, branchFilterContext, scopedEventIds);
+
+      // Scoped event IDs override branch filtering — the explicit list IS the access control
+      return await this.eventsService.findAll(
+        query,
+        scopedEventIds ? undefined : branchFilterContext,
+        scopedEventIds,
+      );
     } catch (error) {
       throw new BadRequestException('Failed to fetch events');
     }
