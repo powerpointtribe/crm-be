@@ -23,6 +23,7 @@ export interface DefaultRoleConfig {
   colorCode?: string;
   permissions: string[]; // Permission names. Special values: '*' = all, 'view:*' = all view permissions
   excludePermissions?: string[]; // Permission prefixes to exclude from wildcard expansion (e.g. 'finance:' excludes all finance except view)
+  excludeExactPermissions?: string[]; // Exact permission names to exclude even if they pass the view filter
 }
 
 export const DEFAULT_ROLES: DefaultRoleConfig[] = [
@@ -36,7 +37,8 @@ export const DEFAULT_ROLES: DefaultRoleConfig[] = [
     isSystemRole: true,
     colorCode: '#EF4444',
     permissions: ['*'], // All permissions (will be handled specially in seeder)
-    excludePermissions: ['finance:'], // Exclude non-view finance permissions; view finance permissions still included
+    excludePermissions: ['finance:'], // Exclude non-view finance permissions; only scoped view permissions (e.g. view-my-requisitions) are kept
+    excludeExactPermissions: ['finance:view-requisitions', 'finance:view-dashboard', 'finance:view-reports'], // Also exclude these broad-access view permissions
   },
   {
     name: 'Admin',

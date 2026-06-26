@@ -102,8 +102,10 @@ export class RolesSeederService {
             isActive: true,
           });
           const excludePrefixes = roleConfig.excludePermissions || [];
-          const filtered = excludePrefixes.length > 0
+          const excludeExact = new Set(roleConfig.excludeExactPermissions || []);
+          const filtered = (excludePrefixes.length > 0 || excludeExact.size > 0)
             ? allPermissions.filter((p) => {
+                if (excludeExact.has(p.name)) return false;
                 const matchesExclude = excludePrefixes.some((prefix) => p.name.startsWith(prefix));
                 return !matchesExclude || this.isViewPermission(p.name);
               })
