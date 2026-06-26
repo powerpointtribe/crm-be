@@ -203,6 +203,7 @@ export class EventsService {
   async findAll(
     searchDto: EventSearchDto,
     branchFilterContext?: BranchFilterContext,
+    scopedEventIds?: Types.ObjectId[],
   ): Promise<PaginatedResult<EventDocument>> {
     const {
       page = 1,
@@ -270,6 +271,11 @@ export class EventsService {
     // Tag filter
     if (tag) {
       filter.tags = tag;
+    }
+
+    // Scoped event access — restrict to specific events when set
+    if (scopedEventIds?.length) {
+      filter._id = { $in: scopedEventIds };
     }
 
     const skip = (page - 1) * limit;

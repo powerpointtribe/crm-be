@@ -758,12 +758,14 @@ export class NotificationsService {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'Africa/Lagos',
     });
 
     const formattedTime = eventDate.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Africa/Lagos',
     });
 
     const cfr = data.customFieldResponses;

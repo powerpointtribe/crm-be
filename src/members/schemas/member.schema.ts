@@ -95,6 +95,10 @@ export class Member {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Role' }], default: [] })
   additionalRoles: Types.ObjectId[];
 
+  // Scoped event access — when non-empty, limits events:view to only these events
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Event' }], default: [] })
+  scopedEventIds!: Types.ObjectId[];
+
   // ADDRESS INFORMATION
   @Prop({
     type: {

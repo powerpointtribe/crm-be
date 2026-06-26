@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Patch,
   Param,
@@ -405,6 +406,21 @@ export class MembersController {
     @Param('roleId') roleId: string,
   ) {
     return this.membersService.removeRole(id, roleId);
+  }
+
+  @Get(':id/scoped-events')
+  @RequirePermission(MembersPermission.UPDATE_MEMBER_ROLES)
+  async getScopedEvents(@Param('id') id: string) {
+    return this.membersService.getScopedEvents(id);
+  }
+
+  @Put(':id/scoped-events')
+  @RequirePermission(MembersPermission.UPDATE_MEMBER_ROLES)
+  async setScopedEvents(
+    @Param('id') id: string,
+    @Body() body: { eventIds: string[] },
+  ) {
+    return this.membersService.setScopedEvents(id, body.eventIds);
   }
 
   @Patch(':id/assign-unit')

@@ -115,7 +115,10 @@ export class EventsController {
         };
       }
 
-      return await this.eventsService.findAll(query, branchFilterContext);
+      const scopedEventIds = currentMember.scopedEventIds?.length
+        ? currentMember.scopedEventIds
+        : undefined;
+      return await this.eventsService.findAll(query, branchFilterContext, scopedEventIds);
     } catch (error) {
       throw new BadRequestException('Failed to fetch events');
     }

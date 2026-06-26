@@ -903,6 +903,36 @@ export class MembersService {
     return updated;
   }
 
+  async getScopedEvents(memberId: string): Promise<Types.ObjectId[]> {
+    const member = await this.memberModel
+      .findById(memberId)
+      .select('scopedEventIds')
+      .exec();
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+    return member.scopedEventIds || [];
+  }
+
+  async setScopedEvents(
+    memberId: string,
+    eventIds: string[],
+  ): Promise<MemberDocument> {
+    const member = await this.memberModel.findById(memberId);
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    member.scopedEventIds = eventIds.map((id) => new Types.ObjectId(id));
+    await member.save();
+
+    const updated = await this.findById(memberId);
+    if (!updated) {
+      throw new NotFoundException('Member not found after update');
+    }
+    return updated;
+  }
+
   async update(
     id: string,
     updateMemberDto: UpdateMemberDto,
