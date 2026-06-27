@@ -879,4 +879,71 @@ export class EventsController {
     await this.eventsService.deleteTestimony(testimonyId);
     return { message: 'Testimony deleted successfully' };
   }
+
+  // ==================== Feedback Endpoints ====================
+
+  @Get('public/:slug/feedback-form')
+  @Public()
+  async getFeedbackFormInfo(@Param('slug') slug: string) {
+    return this.eventsService.getFeedbackFormInfo(slug);
+  }
+
+  @Post('public/:slug/feedbacks')
+  @Public()
+  async submitFeedback(
+    @Param('slug') slug: string,
+    @Body()
+    body: {
+      fullName: string;
+      email?: string;
+      rating?: number;
+      message: string;
+      isAnonymous?: boolean;
+    },
+  ) {
+    return this.eventsService.submitFeedback(slug, body);
+  }
+
+  @Post(':id/feedback-form/enable')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async enableFeedbackForm(@Param('id') id: string) {
+    return this.eventsService.enableFeedbackForm(id);
+  }
+
+  @Post(':id/feedback-form/disable')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async disableFeedbackForm(@Param('id') id: string) {
+    return this.eventsService.disableFeedbackForm(id);
+  }
+
+  @Get(':id/feedbacks')
+  @RequirePermission(EventsPermission.VIEW_EVENTS)
+  async getFeedbacks(
+    @Param('id') id: string,
+    @Query() query: { page?: number; limit?: number; search?: string },
+  ) {
+    return this.eventsService.getFeedbacks(id, query);
+  }
+
+  @Delete('feedbacks/:feedbackId')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async deleteFeedback(@Param('feedbackId') feedbackId: string) {
+    await this.eventsService.deleteFeedback(feedbackId);
+    return { message: 'Feedback deleted successfully' };
+  }
+
+  @Post(':id/feedback-form/link')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async linkFeedbackForm(
+    @Param('id') id: string,
+    @Body('formId') formId: string,
+  ) {
+    return this.eventsService.linkFeedbackForm(id, formId);
+  }
+
+  @Post(':id/feedback-form/unlink')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async unlinkFeedbackForm(@Param('id') id: string) {
+    return this.eventsService.unlinkFeedbackForm(id);
+  }
 }

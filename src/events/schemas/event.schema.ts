@@ -445,6 +445,16 @@ export class Event {
   @Prop({ type: Number, default: 0 })
   testimonyCount!: number;
 
+  // Feedback Form
+  @Prop({ type: Boolean, default: false })
+  feedbackFormEnabled!: boolean;
+
+  @Prop({ type: Number, default: 0 })
+  feedbackCount!: number;
+
+  @Prop({ type: Types.ObjectId, ref: 'FormTemplate' })
+  feedbackFormId?: Types.ObjectId;
+
   // Timestamps
   @Prop({ type: Date })
   createdAt: Date;

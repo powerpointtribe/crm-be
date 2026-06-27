@@ -44,6 +44,10 @@ import {
   TestimonyDocument,
 } from './schemas/testimony.schema';
 import {
+  Feedback,
+  FeedbackDocument,
+} from './schemas/feedback.schema';
+import {
   RecordAccountabilityDto,
   AccountabilityQueryDto,
 } from './dto/accountability.dto';
@@ -139,6 +143,8 @@ export class EventsService {
     private accountabilityModel: Model<AccountabilityEntryDocument>,
     @InjectModel(Testimony.name)
     private testimonyModel: Model<TestimonyDocument>,
+    @InjectModel(Feedback.name)
+    private feedbackModel: Model<FeedbackDocument>,
     @InjectModel(Member.name)
     private memberModel: Model<MemberDocument>,
     private branchAccessService: BranchAccessService,
@@ -4543,5 +4549,132 @@ export class EventsService {
       },
       enabled: event.testimonyFormEnabled,
     };
+  }
+
+  // ==================== Feedback ====================
+
+  async enableFeedbackForm(eventId: string): Promise<EventDocument> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    event.feedbackFormEnabled = true;
+    await event.save();
+    return event;
+  }
+
+  async disableFeedbackForm(eventId: string): Promise<EventDocument> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    event.feedbackFormEnabled = false;
+    await event.save();
+    return event;
+  }
+
+  async submitFeedback(
+    slug: string,
+    data: {
+      fullName: string;
+      email?: string;
+      rating?: number;
+      message: string;
+      isAnonymous?: boolean;
+    },
+  ): Promise<FeedbackDocument> {
+    const event = await this.eventModel.findOne({ registrationSlug: slug });
+    if (!event) throw new NotFoundException('Event not found');
+    if (!event.feedbackFormEnabled) {
+      throw new BadRequestException('Feedback form is not enabled for this event');
+    }
+    const feedback = await this.feedbackModel.create({
+      event: event._id,
+      fullName: data.isAnonymous ? 'Anonymous' : data.fullName,
+      email: data.email,
+      rating: data.rating,
+      message: data.message,
+      isAnonymous: data.isAnonymous || false,
+    });
+    await this.eventModel.updateOne(
+      { _id: event._id },
+      { $inc: { feedbackCount: 1 } },
+    );
+    return feedback;
+  }
+
+  async getFeedbacks(
+    eventId: string,
+    query: { page?: number; limit?: number; search?: string },
+  ): Promise<{ data: FeedbackDocument[]; total: number; page: number; limit: number }> {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const skip = (page - 1) * limit;
+    const filter: FilterQuery<FeedbackDocument> = { event: new Types.ObjectId(eventId) };
+    if (query.search) {
+      filter.$or = [
+        { fullName: { $regex: query.search, $options: 'i' } },
+        { message: { $regex: query.search, $options: 'i' } },
+      ];
+    }
+    const [data, total] = await Promise.all([
+      this.feedbackModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.feedbackModel.countDocuments(filter),
+    ]);
+    return { data, total, page, limit };
+  }
+
+  async deleteFeedback(feedbackId: string): Promise<void> {
+    const feedback = await this.feedbackModel.findById(feedbackId);
+    if (!feedback) throw new NotFoundException('Feedback not found');
+    await this.eventModel.updateOne(
+      { _id: feedback.event },
+      { $inc: { feedbackCount: -1 } },
+    );
+    await this.feedbackModel.deleteOne({ _id: feedbackId });
+  }
+
+  async getFeedbackFormInfo(slug: string): Promise<{
+    event: { title: string; bannerImage?: string; description?: string };
+    enabled: boolean;
+    formConfig?: any;
+  }> {
+    const event = await this.eventModel
+      .findOne({ registrationSlug: slug })
+      .select('title bannerImage description feedbackFormEnabled feedbackFormId')
+      .populate('feedbackFormId')
+      .exec();
+    if (!event) throw new NotFoundException('Event not found');
+
+    const formConfig = event.feedbackFormId
+      ? (event.feedbackFormId as any)
+      : null;
+
+    return {
+      event: {
+        title: event.title,
+        bannerImage: event.bannerImage,
+        description: event.description,
+      },
+      enabled: event.feedbackFormEnabled,
+      formConfig: formConfig?.isActive ? formConfig : null,
+    };
+  }
+
+  async linkFeedbackForm(eventId: string, formId: string): Promise<EventDocument> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    event.feedbackFormId = new Types.ObjectId(formId);
+    await event.save();
+    return event;
+  }
+
+  async unlinkFeedbackForm(eventId: string): Promise<EventDocument> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    event.feedbackFormId = undefined;
+    await event.save();
+    return event;
   }
 }

@@ -21,6 +21,12 @@ export enum BulkEmailPermission {
   SCHEDULE_CAMPAIGN = 'bulk-email:schedule-campaign',
   CANCEL_CAMPAIGN = 'bulk-email:cancel-campaign',
 
+  // Form template operations
+  VIEW_FORMS = 'bulk-email:view-forms',
+  CREATE_FORM = 'bulk-email:create-form',
+  UPDATE_FORM = 'bulk-email:update-form',
+  DELETE_FORM = 'bulk-email:delete-form',
+
   // Logs and stats
   VIEW_SEND_LOGS = 'bulk-email:view-send-logs',
   PREVIEW_RECIPIENTS = 'bulk-email:preview-recipients',
@@ -73,6 +79,28 @@ export const BulkEmailPermissionMetadata = {
     path: '/bulk-email/campaigns/:id',
     method: 'DELETE',
     description: 'Delete a campaign',
+  },
+
+  // Form template permissions
+  [BulkEmailPermission.VIEW_FORMS]: {
+    path: '/bulk-email/forms',
+    method: 'GET',
+    description: 'View all form templates',
+  },
+  [BulkEmailPermission.CREATE_FORM]: {
+    path: '/bulk-email/forms',
+    method: 'POST',
+    description: 'Create a new form template',
+  },
+  [BulkEmailPermission.UPDATE_FORM]: {
+    path: '/bulk-email/forms/:id',
+    method: 'PATCH',
+    description: 'Update a form template',
+  },
+  [BulkEmailPermission.DELETE_FORM]: {
+    path: '/bulk-email/forms/:id',
+    method: 'DELETE',
+    description: 'Delete a form template',
   },
 
   // Campaign action permissions
