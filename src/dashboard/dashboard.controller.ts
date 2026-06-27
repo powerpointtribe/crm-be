@@ -38,22 +38,59 @@ export class DashboardController {
    * Returns undefined if user can view all branches (no filtering needed).
    * Returns the user's branch ID if they are branch-scoped.
    */
-  private async getUserBranchId(user: any): Promise<string | undefined> {
+  /**
+   * Resolve all permission names granted to the user across their primary role
+   * and any additional roles.
+   */
+  private async resolveAllPermissions(user: any): Promise<string[]> {
+    const all: string[] = [];
     const roleId = user.role?._id || user.role;
-    const result = await this.userPermissionsService.getUserPermissions(roleId);
-    const allPermissions = [...result.permissions];
-
-    // Also check additional roles
+    if (roleId) {
+      try {
+        const result = await this.userPermissionsService.getUserPermissions(roleId);
+        all.push(...result.permissions);
+      } catch {}
+    }
     if (user.additionalRoles?.length > 0) {
       for (const addRole of user.additionalRoles) {
         const addRoleId = addRole._id || addRole;
         try {
           const addResult = await this.userPermissionsService.getUserPermissions(addRoleId);
-          allPermissions.push(...addResult.permissions);
+          all.push(...addResult.permissions);
         } catch {}
       }
     }
+    return [...new Set(all)];
+  }
 
+  /**
+   * Accessible modules for dashboard stat-gating, derived from the user's actual
+   * permissions (role + additional roles) rather than membershipStatus. Each
+   * permission is "module:action", so the module prefix indicates access — this
+   * keeps the dashboard counts consistent with what the user actually sees in
+   * each module (e.g. an LXL-role member who can view events gets event stats).
+   */
+  private async resolveAccessibleModules(
+    user: any,
+    fallbackUnit?: any,
+  ): Promise<string[]> {
+    const allPermissions = await this.resolveAllPermissions(user);
+    const modules = new Set<string>();
+    for (const perm of allPermissions) {
+      const moduleName = perm.split(':')[0];
+      if (moduleName) modules.add(moduleName);
+    }
+    if (modules.size === 0) {
+      // Safety net: fall back to role/membership-based modules.
+      return RoleUtils.getAccessibleModules(user, fallbackUnit).map((m) =>
+        m.toString(),
+      );
+    }
+    return Array.from(modules);
+  }
+
+  private async getUserBranchId(user: any): Promise<string | undefined> {
+    const allPermissions = await this.resolveAllPermissions(user);
     if (allPermissions.includes('branches:view-all')) {
       return undefined; // Can see all branches
     }
@@ -126,9 +163,11 @@ export class DashboardController {
       : userBranchId;     // Non-admin: use their own branch
 
     if (useScoped) {
-      // Get accessible modules from user permissions or calculate them
-      const accessibleModules = user.accessibleModules ||
-        RoleUtils.getAccessibleModules(user, req.userUnit).map(m => m.toString());
+      // Derive accessible modules from the user's actual permissions (role +
+      // additional roles), so dashboard counts match what they can view.
+      const accessibleModules =
+        user.accessibleModules ||
+        (await this.resolveAccessibleModules(user, req.userUnit));
 
       const overview = await this.dashboardService.getScopedDashboardOverview(
         user.sub,
