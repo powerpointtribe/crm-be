@@ -4533,14 +4533,24 @@ export class EventsService {
     await this.testimonyModel.deleteOne({ _id: testimonyId });
   }
 
-  async getTestimonyFormInfo(slug: string): Promise<{ event: { title: string; bannerImage?: string; description?: string }; enabled: boolean }> {
+  async getTestimonyFormInfo(slug: string): Promise<{
+    event: { title: string; bannerImage?: string; description?: string };
+    enabled: boolean;
+    formConfig?: any;
+  }> {
     const event = await this.eventModel
       .findOne({ registrationSlug: slug })
-      .select('title bannerImage description testimonyFormEnabled')
+      .select('title bannerImage description testimonyFormEnabled testimonyFormId')
+      .populate('testimonyFormId')
       .exec();
     if (!event) {
       throw new NotFoundException('Event not found');
     }
+
+    const formConfig = event.testimonyFormId
+      ? (event.testimonyFormId as any)
+      : null;
+
     return {
       event: {
         title: event.title,
@@ -4548,7 +4558,24 @@ export class EventsService {
         description: event.description,
       },
       enabled: event.testimonyFormEnabled,
+      formConfig: formConfig?.isActive ? formConfig : null,
     };
+  }
+
+  async linkTestimonyForm(eventId: string, formId: string): Promise<EventDocument> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    event.testimonyFormId = new Types.ObjectId(formId);
+    await event.save();
+    return event;
+  }
+
+  async unlinkTestimonyForm(eventId: string): Promise<EventDocument> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    event.testimonyFormId = undefined;
+    await event.save();
+    return event;
   }
 
   // ==================== Feedback ====================

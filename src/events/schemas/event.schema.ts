@@ -445,6 +445,9 @@ export class Event {
   @Prop({ type: Number, default: 0 })
   testimonyCount!: number;
 
+  @Prop({ type: Types.ObjectId, ref: 'FormTemplate' })
+  testimonyFormId?: Types.ObjectId;
+
   // Feedback Form
   @Prop({ type: Boolean, default: false })
   feedbackFormEnabled!: boolean;

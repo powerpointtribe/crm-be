@@ -880,6 +880,21 @@ export class EventsController {
     return { message: 'Testimony deleted successfully' };
   }
 
+  @Post(':id/testimony-form/link')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async linkTestimonyForm(
+    @Param('id') id: string,
+    @Body('formId') formId: string,
+  ) {
+    return this.eventsService.linkTestimonyForm(id, formId);
+  }
+
+  @Post(':id/testimony-form/unlink')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  async unlinkTestimonyForm(@Param('id') id: string) {
+    return this.eventsService.unlinkTestimonyForm(id);
+  }
+
   // ==================== Feedback Endpoints ====================
 
   @Get('public/:slug/feedback-form')
