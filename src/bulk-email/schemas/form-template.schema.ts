@@ -171,6 +171,9 @@ export class FormTemplate {
   @Prop({ default: false })
   allowAnonymous: boolean;
 
+  @Prop()
+  thumbnail?: string;
+
   @Prop({ default: false })
   isSystem: boolean;
 

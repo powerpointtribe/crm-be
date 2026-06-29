@@ -223,6 +223,13 @@ export class CreateFormTemplateDto {
   @IsBoolean()
   allowAnonymous?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Thumbnail image URL for social sharing',
+  })
+  @IsOptional()
+  @IsString()
+  thumbnail?: string;
+
   @ApiPropertyOptional({ description: 'Is form active', default: true })
   @IsOptional()
   @IsBoolean()
@@ -299,6 +306,13 @@ export class UpdateFormTemplateDto {
   @IsOptional()
   @IsBoolean()
   allowAnonymous?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Thumbnail image URL for social sharing',
+  })
+  @IsOptional()
+  @IsString()
+  thumbnail?: string;
 
   @ApiPropertyOptional({ description: 'Is form active' })
   @IsOptional()
