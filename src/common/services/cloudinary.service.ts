@@ -80,6 +80,28 @@ export class CloudinaryService {
     });
   }
 
+  getUploadSignature(folder: string = 'church-management'): {
+    signature: string;
+    timestamp: number;
+    folder: string;
+    cloudName: string;
+    apiKey: string;
+  } {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const params = { folder, timestamp };
+    const signature = cloudinary.utils.api_sign_request(
+      params,
+      this.configService.get<string>('CLOUDINARY_API_SECRET', ''),
+    ) as string;
+    return {
+      signature,
+      timestamp,
+      folder,
+      cloudName: this.configService.get<string>('CLOUDINARY_CLOUD_NAME', ''),
+      apiKey: this.configService.get<string>('CLOUDINARY_API_KEY', ''),
+    };
+  }
+
   async deleteImage(publicId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       cloudinary.uploader.destroy(publicId, (error, result) => {

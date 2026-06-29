@@ -25,8 +25,32 @@ export class UploadController {
   constructor(private readonly cloudinaryService: CloudinaryService) {}
 
   @Public()
+  @Post('sign')
+  @ApiOperation({
+    summary: 'Get a Cloudinary upload signature for direct browser upload',
+  })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        signature: { type: 'string' },
+        timestamp: { type: 'number' },
+        folder: { type: 'string' },
+        cloudName: { type: 'string' },
+        apiKey: { type: 'string' },
+      },
+    },
+  })
+  getUploadSignature() {
+    return this.cloudinaryService.getUploadSignature('church-management');
+  }
+
+  @Public()
   @Post('image')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
   @ApiOperation({ summary: 'Upload an image to Cloudinary' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
