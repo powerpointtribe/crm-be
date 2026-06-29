@@ -205,7 +205,7 @@ export class FormTemplateService {
   async getPublicFormConfig(id: string): Promise<any> {
     const form = await this.formTemplateModel
       .findById(id)
-      .select('name description fields style submitButtonText successMessage successHeading allowAnonymous isActive')
+      .select('name description fields htmlContent style submitButtonText successMessage successHeading allowAnonymous isActive')
       .lean()
       .exec();
     if (!form) {

@@ -13,7 +13,11 @@ import {
   BadRequestException,
   Headers,
   UnauthorizedException,
+  Res,
+  Header,
 } from '@nestjs/common';
+import { Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../roles/guards/permission.guard';
 import { RequirePermission } from '../roles/decorators/require-permission.decorator';
@@ -68,6 +72,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly userPermissionsService: UserPermissionsService,
+    private readonly configService: ConfigService,
   ) {}
 
   // ========== EVENT CRUD ENDPOINTS ==========
@@ -896,6 +901,52 @@ export class EventsController {
   }
 
   // ==================== Feedback Endpoints ====================
+
+  @Get('public/:slug/feedback-share')
+  @Public()
+  @Header('Content-Type', 'text/html')
+  @Header('Cache-Control', 'public, max-age=300')
+  async getFeedbackSharePage(
+    @Param('slug') slug: string,
+    @Res() res: Response,
+  ) {
+    const info = await this.eventsService.getFeedbackFormInfo(slug);
+    const frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:5173',
+    );
+    const pageUrl = `${frontendUrl}/event-feedback/${slug}`;
+    const title = `${info.event.title} — Feedback`;
+    const desc = info.formConfig?.description || 'Share your feedback with us.';
+    const image = info.formConfig?.thumbnail || info.event.bannerImage || '';
+
+    const esc = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+    res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${esc(title)}</title>
+  <meta property="og:title" content="${esc(title)}" />
+  <meta property="og:description" content="${esc(desc)}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="${esc(pageUrl)}" />
+  ${image ? `<meta property="og:image" content="${esc(image)}" />` : ''}
+  ${image ? `<meta property="og:image:width" content="1200" />` : ''}
+  ${image ? `<meta property="og:image:height" content="630" />` : ''}
+  <meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}" />
+  <meta name="twitter:title" content="${esc(title)}" />
+  <meta name="twitter:description" content="${esc(desc)}" />
+  ${image ? `<meta name="twitter:image" content="${esc(image)}" />` : ''}
+  <meta http-equiv="refresh" content="0;url=${esc(pageUrl)}" />
+</head>
+<body>
+  <p>Redirecting to <a href="${esc(pageUrl)}">${esc(title)}</a>...</p>
+  <script>window.location.replace(${JSON.stringify(pageUrl)});</script>
+</body>
+</html>`);
+  }
 
   @Get('public/:slug/feedback-form')
   @Public()
