@@ -55,6 +55,11 @@ export const FirstTimersPermissionMetadata = {
     method: 'GET',
     description: 'View specific first timer details',
   },
+  [FirstTimersPermission.EXPORT_FIRST_TIMERS]: {
+    path: '/first-timers/export',
+    method: 'GET',
+    description: 'Export first-timers data as CSV',
+  },
   [FirstTimersPermission.UPDATE_FIRST_TIMER]: {
     path: '/first-timers/:id',
     method: 'PATCH',
