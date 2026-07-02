@@ -24,6 +24,10 @@ import {
   getTemplatePreviewData,
   TemplateId,
 } from './email-templates';
+import {
+  BranchAccessService,
+  BranchFilterContext,
+} from '../common/services/branch-access.service';
 
 @Injectable()
 export class MessageDraftsService {
@@ -35,6 +39,7 @@ export class MessageDraftsService {
     @InjectModel(FirstTimer.name)
     private firstTimerModel: Model<FirstTimerDocument>,
     private notificationsService: NotificationsService,
+    private branchAccessService: BranchAccessService,
   ) {}
 
   /**
@@ -50,6 +55,7 @@ export class MessageDraftsService {
   async create(
     createDto: CreateMessageDraftDto,
     userId: string,
+    branchContext?: BranchFilterContext,
   ): Promise<MessageDraftDocument> {
     const scheduledDateTime = createDto.scheduledDate
       ? this.parseDateTime(createDto.scheduledDate, createDto.scheduledTime)
@@ -63,6 +69,16 @@ export class MessageDraftsService {
       this.generateDefaultTitle(
         createDto.scheduledDate || new Date().toISOString().split('T')[0],
       );
+
+    let branchId: Types.ObjectId | undefined;
+    if (createDto.branch) {
+      branchId = new Types.ObjectId(createDto.branch);
+    } else if (branchContext?.userBranchId) {
+      branchId =
+        typeof branchContext.userBranchId === 'string'
+          ? new Types.ObjectId(branchContext.userBranchId)
+          : branchContext.userBranchId;
+    }
 
     const draft = await this.messageDraftModel.create({
       title,
@@ -80,6 +96,7 @@ export class MessageDraftsService {
       status: 'draft',
       createdBy: userId,
       updatedBy: userId,
+      branch: branchId,
     });
 
     this.logger.log(`Message draft created: ${draft._id}`);
@@ -89,7 +106,10 @@ export class MessageDraftsService {
   /**
    * Get all message drafts with pagination
    */
-  async findAll(query: MessageDraftQueryDto): Promise<{
+  async findAll(
+    query: MessageDraftQueryDto,
+    branchContext?: BranchFilterContext,
+  ): Promise<{
     drafts: MessageDraftDocument[];
     total: number;
     page: number;
@@ -99,14 +119,23 @@ export class MessageDraftsService {
     const { page = 1, limit = 20, status } = query;
     const skip = (page - 1) * limit;
 
-    const filter: any = {};
+    let filter: any = {};
     if (status) filter.status = status;
+
+    if (branchContext) {
+      filter = this.branchAccessService.applyBranchFilter(
+        filter,
+        branchContext,
+        'branch',
+      );
+    }
 
     const [drafts, total] = await Promise.all([
       this.messageDraftModel
         .find(filter)
         .populate('createdBy', 'firstName lastName email')
         .populate('updatedBy', 'firstName lastName email')
+        .populate('branch', 'name')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -160,6 +189,8 @@ export class MessageDraftsService {
       updateData.recipientIds = updateDto.recipientIds.map(
         (rid) => new Types.ObjectId(rid),
       );
+    if (updateDto.branch !== undefined)
+      updateData.branch = new Types.ObjectId(updateDto.branch);
 
     if (updateDto.scheduledDate !== undefined) {
       updateData.scheduledDate = new Date(updateDto.scheduledDate);
@@ -317,14 +348,23 @@ export class MessageDraftsService {
     try {
       let firstTimers: FirstTimerDocument[];
 
+      const recipientFilter: any = {
+        email: { $exists: true, $ne: null },
+      };
+
+      if (draft.branch) {
+        const branchId = draft.branch.toString();
+        recipientFilter.branch = {
+          $in: [draft.branch, branchId],
+        };
+      }
+
       if (draft.recipientMode === 'individual' && draft.recipientIds?.length) {
-        // Individual mode: fetch specific first-timers
         firstTimers = await this.firstTimerModel.find({
+          ...recipientFilter,
           _id: { $in: draft.recipientIds },
-          email: { $exists: true, $ne: null },
         });
       } else {
-        // By-date mode: find first-timers from the scheduled date
         if (!draft.scheduledDate) {
           throw new BadRequestException(
             'No service date set for by_date recipient mode',
@@ -336,8 +376,8 @@ export class MessageDraftsService {
         endOfDay.setHours(23, 59, 59, 999);
 
         firstTimers = await this.firstTimerModel.find({
+          ...recipientFilter,
           dateOfVisit: { $gte: startOfDay, $lte: endOfDay },
-          email: { $exists: true, $ne: null },
         });
       }
 
@@ -380,12 +420,21 @@ export class MessageDraftsService {
         }
       }
 
+      const recipientsList = firstTimers
+        .filter((ft) => ft.email)
+        .map((ft) => ({
+          firstName: ft.firstName,
+          lastName: ft.lastName,
+          email: ft.email,
+        }));
+
       await this.messageDraftModel.findByIdAndUpdate(draft._id, {
         status: failedCount === 0 ? 'sent' : 'failed',
         sentAt: new Date(),
         recipientCount: firstTimers.length,
         successCount,
         failedCount,
+        recipients: recipientsList,
         failureReason:
           failedCount > 0
             ? `${failedCount} out of ${firstTimers.length} emails failed`

@@ -32,13 +32,18 @@ import { RequirePermission } from '../roles/decorators/require-permission.decora
 import { FirstTimersPermission } from './permissions';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
+import { BranchFilterContext } from '../common/services/branch-access.service';
 
 @ApiTags('Message Drafts')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('first-timers/message-drafts')
 export class MessageDraftsController {
-  constructor(private readonly messageDraftsService: MessageDraftsService) {}
+  constructor(
+    private readonly messageDraftsService: MessageDraftsService,
+    private readonly userPermissionsService: UserPermissionsService,
+  ) {}
 
   // ── Static routes MUST be above /:id routes ──
 
@@ -80,15 +85,20 @@ export class MessageDraftsController {
     @Body() createDto: CreateMessageDraftDto,
     @CurrentUser() user: any,
   ) {
-    const draft = await this.messageDraftsService.create(createDto, user?.id);
+    const branchContext = await this.buildBranchFilterContext(user);
+    const draft = await this.messageDraftsService.create(createDto, user?.id, branchContext);
     return ResponseUtil.success(draft, 'Message draft created successfully');
   }
 
   @Get()
   @RequirePermission(FirstTimersPermission.VIEW_FIRST_TIMERS)
   @ApiOperation({ summary: 'Get all message drafts with pagination' })
-  async findAll(@Query() query: MessageDraftQueryDto) {
-    const result = await this.messageDraftsService.findAll(query);
+  async findAll(
+    @Query() query: MessageDraftQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    const branchContext = await this.buildBranchFilterContext(user);
+    const result = await this.messageDraftsService.findAll(query, branchContext);
     return ResponseUtil.success(result, 'Message drafts retrieved successfully');
   }
 
@@ -131,5 +141,22 @@ export class MessageDraftsController {
   async sendNow(@Param('id') id: string) {
     await this.messageDraftsService.sendNow(id);
     return ResponseUtil.success(null, 'Message draft sent successfully');
+  }
+
+  private async buildBranchFilterContext(
+    user: any,
+  ): Promise<BranchFilterContext | undefined> {
+    if (!user) return undefined;
+
+    const userPermissions =
+      await this.userPermissionsService.getUserPermissions(
+        user.role?._id || user.role,
+      );
+
+    return {
+      userPermissions: userPermissions.permissions,
+      userBranchId: user.branch?._id || user.branch || user.branchId,
+      selectedBranchId: undefined,
+    };
   }
 }

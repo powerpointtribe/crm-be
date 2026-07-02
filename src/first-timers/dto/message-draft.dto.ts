@@ -79,6 +79,13 @@ export class CreateMessageDraftDto {
   @IsMongoId({ each: true })
   @IsOptional()
   recipientIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Branch ID to scope recipients (auto-set from user if not provided)',
+  })
+  @IsMongoId()
+  @IsOptional()
+  branch?: string;
 }
 
 export class UpdateMessageDraftDto {
@@ -124,6 +131,11 @@ export class UpdateMessageDraftDto {
   @IsMongoId({ each: true })
   @IsOptional()
   recipientIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Branch ID to scope recipients' })
+  @IsMongoId()
+  @IsOptional()
+  branch?: string;
 }
 
 export class MessageDraftQueryDto {

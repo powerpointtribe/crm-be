@@ -57,6 +57,25 @@ export class MessageDraft {
   @Prop({ type: [Types.ObjectId], ref: 'FirstTimer' })
   recipientIds?: Types.ObjectId[];
 
+  @Prop({ type: Types.ObjectId, ref: 'Branch' })
+  branch?: Types.ObjectId;
+
+  @Prop({
+    type: [
+      {
+        firstName: String,
+        lastName: String,
+        email: String,
+      },
+    ],
+    default: undefined,
+  })
+  recipients?: Array<{
+    firstName: string;
+    lastName: string;
+    email: string;
+  }>;
+
   createdAt: Date;
   updatedAt: Date;
 }
