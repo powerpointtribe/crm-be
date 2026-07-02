@@ -15,6 +15,7 @@ import { LmsService } from './lms.service';
 import {
   AssistantDto,
   SaveReflectionDto,
+  SessionHeartbeatDto,
   SetLessonProgressDto,
   SubmitAssignmentDto,
   SubmitQuizDto,
@@ -81,6 +82,17 @@ export class LmsStudentController {
     @Param('sessionId') sessionId: string,
   ) {
     return this.lms.checkIn(account, sessionId);
+  }
+
+  // Watch-time heartbeat from the embedded YouTube live player. Accumulates
+  // minutes watched and updates attendance status live.
+  @Post('me/sessions/:sessionId/heartbeat')
+  sessionHeartbeat(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Param('sessionId') sessionId: string,
+    @Body() dto: SessionHeartbeatDto,
+  ) {
+    return this.lms.recordWatchHeartbeat(account, sessionId, dto);
   }
 
   @Get('me/certificate')

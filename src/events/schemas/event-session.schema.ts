@@ -197,6 +197,34 @@ export class EventSession {
   @Prop({ trim: true })
   notes?: string;
 
+  // Recording (YouTube VOD) — populated automatically after the live session
+  // ends. `available` flips true when detected; `notifiedAt` guards the
+  // facilitator email; the published* fields link the replay lesson once the
+  // facilitator publishes it into a module.
+  @Prop({
+    type: {
+      available: { type: Boolean, default: false },
+      url: { type: String },
+      videoId: { type: String },
+      endedAt: { type: Date },
+      notifiedAt: { type: Date },
+      publishedLessonId: { type: Types.ObjectId, ref: 'Lesson' },
+      publishedModuleId: { type: Types.ObjectId, ref: 'CourseModule' },
+      publishedAt: { type: Date },
+    },
+    default: {},
+  })
+  recording?: {
+    available: boolean;
+    url?: string;
+    videoId?: string;
+    endedAt?: Date;
+    notifiedAt?: Date;
+    publishedLessonId?: Types.ObjectId;
+    publishedModuleId?: Types.ObjectId;
+    publishedAt?: Date;
+  };
+
   // Timestamps
   @Prop({ type: Date })
   createdAt: Date;

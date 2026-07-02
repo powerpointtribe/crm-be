@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model, Types } from 'mongoose';
 import { randomBytes } from 'crypto';
 import {
@@ -37,8 +39,10 @@ import {
   SessionAttendanceDocument,
 } from '../events/schemas/session-attendance.schema';
 import { PortalAccountDocument } from '../portal/schemas/portal-account.schema';
+import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { AiService } from '../ai/ai.service';
-import { ZoomService } from '../zoom/zoom.service';
+import { YoutubeService } from '../youtube/youtube.service';
+import { EmailProvider } from '../notifications/providers/email.provider';
 import {
   CreateAssignmentDto,
   CreateLessonDto,
@@ -74,7 +78,7 @@ export class LmsService {
     @InjectModel(Submission.name)
     private readonly submissionModel: Model<SubmissionDocument>,
     private readonly aiService: AiService,
-    private readonly zoomService: ZoomService,
+    private readonly youtubeService: YoutubeService,
     @InjectModel(Event.name)
     private readonly eventModel: Model<EventDocument>,
     @InjectModel(EventRegistration.name)
@@ -83,7 +87,12 @@ export class LmsService {
     private readonly sessionModel: Model<EventSessionDocument>,
     @InjectModel(SessionAttendance.name)
     private readonly attendanceModel: Model<SessionAttendanceDocument>,
+    @InjectModel(Member.name)
+    private readonly memberModel: Model<MemberDocument>,
+    private readonly emailProvider: EmailProvider,
   ) {}
+
+  private readonly logger = new Logger(LmsService.name);
 
   // ===================== FACILITATOR (content authoring) =====================
 
@@ -1147,6 +1156,7 @@ export class LmsService {
     return {
       sessions: sessions.map((s) => {
         const a = bySession[String(s._id)];
+        const joinLink = s.location?.virtualLink || '';
         return {
           id: s._id,
           title: s.title,
@@ -1156,11 +1166,18 @@ export class LmsService {
           startTime: s.startTime,
           endTime: s.endTime,
           status: s.status,
-          joinLink: s.location?.virtualLink || '',
+          joinLink,
+          // Parsed YouTube id lets the portal embed the stream and track
+          // watch-time attendance in-page.
+          youtubeVideoId: YoutubeService.extractVideoId(joinLink) || '',
           isVirtual: !!s.location?.isVirtual,
           myAttendance: a
-            ? { status: a.status, checkInTime: a.checkInTime }
-            : { status: 'absent' },
+            ? {
+                status: a.status,
+                checkInTime: a.checkInTime,
+                attendedMinutes: Math.round(a.attendedMinutes || 0),
+              }
+            : { status: 'absent', attendedMinutes: 0 },
         };
       }),
     };
@@ -1195,94 +1212,337 @@ export class LmsService {
     return { success: true, status: 'present' };
   }
 
-  // ===================== FACILITATOR: Zoom auto-attendance =====================
+  // ===================== YouTube live-session attendance =======================
+  //
+  //  YouTube live viewers are anonymous — there is no participant report like
+  //  Zoom's. Instead the trainee portal embeds the stream and pings this
+  //  service with watch-time heartbeats; we accumulate `attendedMinutes` per
+  //  registrant and derive status from it. `recordWatchHeartbeat` runs live
+  //  (immediate feedback); `finalizeSessionAttendance` recomputes the final
+  //  present/late/absent after the session for the facilitator.
 
-  private parseZoomMeetingId(url?: string): string | null {
-    if (!url) return null;
-    // e.g. https://us02web.zoom.us/j/1234567890?pwd=...
-    const m = url.match(/\/j\/(\d+)/);
-    return m ? m[1] : null;
+  // Minimum minutes watched to count as attended.
+  private readonly PRESENT_THRESHOLD_MINUTES = 10;
+  // A single heartbeat can never credit more than this many seconds (anti-spoof).
+  private readonly MAX_HEARTBEAT_SECONDS = 120;
+
+  /** Combine a session's date (Date) + startTime ("HH:mm") into a Date. */
+  private sessionStart(session: EventSessionDocument): Date | null {
+    if (!session.date) return null;
+    const start = new Date(session.date);
+    const m = /^(\d{1,2}):(\d{2})/.exec(session.startTime || '');
+    if (m) start.setHours(Number(m[1]), Number(m[2]), 0, 0);
+    return start;
+  }
+
+  /** Was `joinedAt` after the session's late-arrival grace window? */
+  private isLateJoin(
+    session: EventSessionDocument,
+    joinedAt?: Date | null,
+  ): boolean {
+    const start = this.sessionStart(session);
+    if (!start || !joinedAt) return false;
+    const graceMin = session.attendanceConfig?.lateArrivalThresholdMinutes ?? 15;
+    return joinedAt.getTime() > start.getTime() + graceMin * 60_000;
+  }
+
+  private deriveStatus(
+    minutes: number,
+    late: boolean,
+    finalize: boolean,
+  ): 'present' | 'late' | 'absent' {
+    if (minutes >= this.PRESENT_THRESHOLD_MINUTES) {
+      return late ? 'late' : 'present';
+    }
+    // Below the watch threshold: while live, show 'late' ("counting…"); once
+    // finalized, too little watch time means absent.
+    return finalize ? 'absent' : 'late';
   }
 
   /**
-   * Pull a session's Zoom meeting participants (report API) and mark attendance
-   * for matched (by email) accepted registrants. present if >= 5 min, else late.
+   * Record a watch-time heartbeat from a trainee watching the embedded live
+   * stream. Accumulates minutes and updates their attendance status live.
    */
-  async syncZoomAttendance(eventId: string, sessionId: string) {
+  async recordWatchHeartbeat(
+    account: PortalAccountDocument,
+    sessionId: string,
+    dto: { seconds?: number },
+  ) {
+    const session = await this.sessionModel.findById(sessionId);
+    if (!session) throw new NotFoundException('Session not found');
+
+    const registration = await this.registrationModel.findOne({
+      event: session.event,
+      'attendeeInfo.email': account.email,
+      admissionStatus: 'accepted',
+    });
+    if (!registration) throw new ForbiddenException('Not enrolled.');
+
+    const seconds = Math.max(
+      0,
+      Math.min(this.MAX_HEARTBEAT_SECONDS, Math.round(Number(dto.seconds) || 0)),
+    );
+
+    const existing = await this.attendanceModel.findOne({
+      session: session._id,
+      registration: registration._id,
+    });
+    const now = new Date();
+    const joinedAt = existing?.checkInTime || now;
+    const attendedMinutes = (existing?.attendedMinutes || 0) + seconds / 60;
+    const late = this.isLateJoin(session, joinedAt);
+    const status = this.deriveStatus(attendedMinutes, late, false);
+
+    await this.attendanceModel.updateOne(
+      { session: session._id, registration: registration._id },
+      {
+        $set: {
+          event: session.event,
+          status,
+          attendedMinutes,
+          lateByMinutes: late
+            ? Math.max(
+                0,
+                Math.round(
+                  (joinedAt.getTime() -
+                    (this.sessionStart(session)?.getTime() ??
+                      joinedAt.getTime())) /
+                    60_000,
+                ),
+              )
+            : 0,
+        },
+        $setOnInsert: {
+          session: session._id,
+          registration: registration._id,
+          checkInTime: now,
+        },
+      },
+      { upsert: true },
+    );
+
+    return { status, attendedMinutes: Math.round(attendedMinutes) };
+  }
+
+  /**
+   * Recompute final attendance for a session from accumulated watch-time.
+   * Below the threshold becomes 'absent'. Facilitator-triggered (post-session).
+   */
+  async finalizeSessionAttendance(eventId: string, sessionId: string) {
     const session = await this.sessionModel.findOne({
       _id: new Types.ObjectId(sessionId),
       event: new Types.ObjectId(eventId),
     });
     if (!session) throw new NotFoundException('Session not found');
 
-    const meetingId = this.parseZoomMeetingId(session.location?.virtualLink);
-    if (!meetingId) {
+    const rows = await this.attendanceModel.find({ session: session._id });
+    const counts = { present: 0, late: 0, absent: 0 };
+    for (const row of rows) {
+      const late = this.isLateJoin(session, row.checkInTime);
+      const status = this.deriveStatus(row.attendedMinutes || 0, late, true);
+      counts[status] += 1;
+      if (status !== row.status) {
+        row.status = status as any;
+        await row.save();
+      }
+    }
+    return { total: rows.length, ...counts };
+  }
+
+  /** Current live status of a session's YouTube broadcast (for the portal). */
+  async getSessionLiveStatus(eventId: string, sessionId: string) {
+    const session = await this.sessionModel.findOne({
+      _id: new Types.ObjectId(sessionId),
+      event: new Types.ObjectId(eventId),
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    return this.youtubeService.getLiveStatus(session.location?.virtualLink || '');
+  }
+
+  // ===================== YouTube session recordings ============================
+  //
+  //  After a live session ends, YouTube keeps the VOD at the same watch URL. We
+  //  detect the end (poll videos.list → actualEndTime), email the facilitator
+  //  the link once, and let them publish it into a module as a replay lesson.
+
+  /** Facilitator notification emails: event organizer + committee, then the
+   *  event contact email as a fallback. */
+  private async resolveFacilitatorEmails(
+    event: EventDocument,
+  ): Promise<string[]> {
+    const memberIds: Types.ObjectId[] = [];
+    if (event.organizer) memberIds.push(event.organizer as Types.ObjectId);
+    for (const c of event.committee || []) {
+      if (c?.member) memberIds.push(c.member as Types.ObjectId);
+    }
+    const emails = new Set<string>();
+    if (memberIds.length) {
+      const members = await this.memberModel
+        .find({ _id: { $in: memberIds } })
+        .select('email')
+        .lean();
+      for (const m of members) if (m.email) emails.add(m.email);
+    }
+    if (event.contactEmail) emails.add(event.contactEmail);
+    return [...emails];
+  }
+
+  private recordingEmailHtml(title: string, url: string): string {
+    const dash = process.env.FACILITATOR_DASHBOARD_URL;
+    const cta = dash
+      ? `<p><a href="${dash}/sessions">Open the facilitator dashboard</a> to publish it into a module.</p>`
+      : `<p>Open the facilitator dashboard → <strong>Sessions</strong> to publish it into a module.</p>`;
+    return `
+      <div style="font-family:system-ui,-apple-system,sans-serif;line-height:1.6;color:#18216C">
+        <h2 style="color:#18216C">Your session recording is ready</h2>
+        <p><strong>${title}</strong> has finished and the recording is available:</p>
+        <p><a href="${url}">${url}</a></p>
+        ${cta}
+      </div>`;
+  }
+
+  /** Manual trigger: check a single session for a ready recording + notify. */
+  async checkAndNotifyRecording(sessionId: string) {
+    const session = await this.sessionModel.findById(sessionId);
+    if (!session) throw new NotFoundException('Session not found');
+    return this.checkAndNotifyRecordingDoc(session);
+  }
+
+  /** Idempotent core: mark recording available + email facilitator once. */
+  private async checkAndNotifyRecordingDoc(session: EventSessionDocument) {
+    const videoId = YoutubeService.extractVideoId(session.location?.virtualLink);
+    if (!videoId) return { ready: false, reason: 'no-youtube-link' };
+    if (session.recording?.notifiedAt) {
+      return { ready: true, alreadyNotified: true, url: session.recording.url };
+    }
+
+    const status = await this.youtubeService.getLiveStatus(videoId);
+    if (status.state !== 'ended') return { ready: false, state: status.state };
+
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    session.recording = {
+      ...(session.recording || { available: false }),
+      available: true,
+      url,
+      videoId,
+      endedAt: status.actualEndTime
+        ? new Date(status.actualEndTime)
+        : new Date(),
+    };
+
+    try {
+      const event = await this.eventModel.findById(session.event);
+      const recipients = event
+        ? await this.resolveFacilitatorEmails(event)
+        : [];
+      if (recipients.length) {
+        await this.emailProvider.sendEmail({
+          to: recipients,
+          subject: `Recording ready: ${session.title}`,
+          html: this.recordingEmailHtml(session.title, url),
+        });
+        session.recording.notifiedAt = new Date();
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Recording email failed for session ${session._id}: ${(err as Error).message}`,
+      );
+    }
+
+    await session.save();
+    return { ready: true, url };
+  }
+
+  /** Every 10 min: check past, un-notified virtual sessions for a ready recording. */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async pollSessionRecordings() {
+    if (!this.youtubeService.isConfigured) return;
+    const sessions = await this.sessionModel
+      .find({
+        date: { $lte: new Date() },
+        'location.isVirtual': true,
+        'location.virtualLink': { $regex: 'youtu', $options: 'i' },
+        'recording.notifiedAt': { $exists: false },
+      })
+      .limit(50);
+    for (const s of sessions) {
+      try {
+        await this.checkAndNotifyRecordingDoc(s);
+      } catch (err) {
+        this.logger.warn(
+          `pollSessionRecordings ${s._id} failed: ${(err as Error).message}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Publish a session's recording into a module as a published video lesson so
+   * trainees can watch the replay under that module's resources.
+   */
+  async publishSessionRecording(
+    eventId: string,
+    sessionId: string,
+    dto: { moduleId: string; title?: string },
+  ) {
+    const session = await this.sessionModel.findOne({
+      _id: new Types.ObjectId(sessionId),
+      event: new Types.ObjectId(eventId),
+    });
+    if (!session) throw new NotFoundException('Session not found');
+
+    const videoId = YoutubeService.extractVideoId(session.location?.virtualLink);
+    const url =
+      session.recording?.url ||
+      (videoId ? `https://www.youtube.com/watch?v=${videoId}` : '');
+    if (!url) {
       throw new BadRequestException(
-        'This session has no standard Zoom meeting link (https://zoom.us/j/<id>). Set one, then sync.',
+        'No recording available for this session yet.',
       );
     }
 
-    const participants =
-      await this.zoomService.getPastMeetingParticipants(meetingId);
+    const mod = await this.moduleModel.findOne({
+      _id: new Types.ObjectId(dto.moduleId),
+      event: session.event,
+    });
+    if (!mod) throw new NotFoundException('Module not found for this event.');
 
-    const regs = await this.registrationModel
-      .find({ event: session.event, admissionStatus: 'accepted' })
-      .select('attendeeInfo')
-      .lean();
-    const byEmail = new Map<string, Types.ObjectId>();
-    for (const r of regs) {
-      const e = (r.attendeeInfo?.email || '').toLowerCase();
-      if (e) byEmail.set(e, r._id);
-    }
-
-    // Aggregate total duration + earliest join per participant email.
-    const durBySec: Record<string, number> = {};
-    const earliestJoin: Record<string, string> = {};
-    for (const p of participants) {
-      const e = (p.user_email || '').toLowerCase();
-      if (!e) continue;
-      durBySec[e] = (durBySec[e] || 0) + (p.duration || 0);
-      if (p.join_time && (!earliestJoin[e] || p.join_time < earliestJoin[e])) {
-        earliestJoin[e] = p.join_time;
-      }
-    }
-
-    const PRESENT_THRESHOLD_SEC = 5 * 60;
-    let marked = 0;
-    const matched = new Set<string>();
-    const unmatched: Array<{ email: string; minutes: number }> = [];
-
-    for (const [email, sec] of Object.entries(durBySec)) {
-      const regId = byEmail.get(email);
-      if (!regId) {
-        unmatched.push({ email, minutes: Math.round(sec / 60) });
-        continue;
-      }
-      matched.add(email);
-      const status = sec >= PRESENT_THRESHOLD_SEC ? 'present' : 'late';
-      await this.attendanceModel.updateOne(
-        { session: session._id, registration: regId },
+    const order = await this.lessonModel.countDocuments({ module: mod._id });
+    const title = (dto.title || `Session recording — ${session.title}`).trim();
+    const lesson = await this.lessonModel.create({
+      event: session.event,
+      module: mod._id,
+      title,
+      summary: 'Replay of the live session.',
+      content: `<p>Watch the session replay:</p><p><a href="${url}" target="_blank" rel="noopener">${url}</a></p>`,
+      order,
+      resources: [
         {
-          $set: {
-            event: session.event,
-            status,
-            checkInTime: earliestJoin[email]
-              ? new Date(earliestJoin[email])
-              : new Date(),
-          },
-          $setOnInsert: { session: session._id, registration: regId },
+          id: randomBytes(6).toString('hex'),
+          title: 'Session recording (video)',
+          type: 'video',
+          url,
         },
-        { upsert: true },
-      );
-      marked += 1;
-    }
+      ],
+      status: 'published',
+    });
+
+    session.recording = {
+      ...(session.recording || { available: true, url }),
+      available: true,
+      url,
+      publishedLessonId: lesson._id,
+      publishedModuleId: mod._id,
+      publishedAt: new Date(),
+    };
+    await session.save();
 
     return {
-      meetingId,
-      totalParticipants: participants.length,
-      matched: matched.size,
-      marked,
-      unmatched,
+      published: true,
+      lessonId: lesson._id,
+      moduleId: mod._id,
+      moduleTitle: mod.title,
+      url,
     };
   }
 

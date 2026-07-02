@@ -33,10 +33,12 @@ import {
   SessionAttendance,
   SessionAttendanceSchema,
 } from '../events/schemas/session-attendance.schema';
+import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { AuthModule } from '../auth/auth.module';
 import { RolesModule } from '../roles/roles.module';
 import { AiModule } from '../ai/ai.module';
-import { ZoomModule } from '../zoom/zoom.module';
+import { YoutubeModule } from '../youtube/youtube.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { CommitteeScopeGuard } from './guards/committee-scope.guard';
 
 @Module({
@@ -54,11 +56,13 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
       { name: EventRegistration.name, schema: EventRegistrationSchema },
       { name: EventSession.name, schema: EventSessionSchema },
       { name: SessionAttendance.name, schema: SessionAttendanceSchema },
+      { name: Member.name, schema: MemberSchema },
     ]),
     forwardRef(() => AuthModule),
     RolesModule,
     AiModule,
-    ZoomModule,
+    YoutubeModule,
+    NotificationsModule,
   ],
   controllers: [LmsFacilitatorController, LmsStudentController],
   providers: [LmsService, CommitteeScopeGuard],

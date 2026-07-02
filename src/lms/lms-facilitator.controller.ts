@@ -23,6 +23,7 @@ import {
   CreateModuleDto,
   GenerateCourseDto,
   GradeSubmissionDto,
+  PublishRecordingDto,
   ReorderDto,
   UpdateAssignmentDto,
   UpdateLessonDto,
@@ -217,14 +218,45 @@ export class LmsFacilitatorController {
     return this.lms.applyCourseDraft(eventId, dto.modules);
   }
 
-  // ── Zoom auto-attendance ──────────────────────────────────────────────────
+  // ── YouTube live-session attendance ───────────────────────────────────────
 
-  @Post('events/:eventId/sessions/:sessionId/sync-zoom-attendance')
+  // Finalize watch-time attendance after a session (below-threshold → absent).
+  @Post('events/:eventId/sessions/:sessionId/finalize-attendance')
   @RequirePermission(EventsPermission.CHECK_IN)
-  syncZoomAttendance(
+  finalizeAttendance(
     @Param('eventId') eventId: string,
     @Param('sessionId') sessionId: string,
   ) {
-    return this.lms.syncZoomAttendance(eventId, sessionId);
+    return this.lms.finalizeSessionAttendance(eventId, sessionId);
+  }
+
+  // Live status of the session's YouTube broadcast (LIVE badge / viewer count).
+  @Get('events/:eventId/sessions/:sessionId/live-status')
+  @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
+  sessionLiveStatus(
+    @Param('eventId') eventId: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.lms.getSessionLiveStatus(eventId, sessionId);
+  }
+
+  // ── Session recordings ────────────────────────────────────────────────────
+
+  // Check whether the session's recording is ready (and notify facilitators).
+  @Post('events/:eventId/sessions/:sessionId/check-recording')
+  @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
+  checkRecording(@Param('sessionId') sessionId: string) {
+    return this.lms.checkAndNotifyRecording(sessionId);
+  }
+
+  // Publish the recording into a module as a replay video lesson.
+  @Post('events/:eventId/sessions/:sessionId/publish-recording')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  publishRecording(
+    @Param('eventId') eventId: string,
+    @Param('sessionId') sessionId: string,
+    @Body() dto: PublishRecordingDto,
+  ) {
+    return this.lms.publishSessionRecording(eventId, sessionId, dto);
   }
 }

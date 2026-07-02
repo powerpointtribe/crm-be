@@ -352,3 +352,24 @@ export class SaveReflectionDto {
   @IsString()
   content: string;
 }
+
+export class SessionHeartbeatDto {
+  // Seconds watched since the previous heartbeat. Server-capped as an
+  // anti-spoof measure — see LmsService.MAX_HEARTBEAT_SECONDS.
+  @ApiPropertyOptional({ description: 'Seconds watched since last heartbeat.' })
+  @IsOptional()
+  @IsNumber()
+  seconds?: number;
+}
+
+export class PublishRecordingDto {
+  @ApiProperty({ description: 'Module to publish the recording lesson under.' })
+  @IsString()
+  @IsNotEmpty()
+  moduleId: string;
+
+  @ApiPropertyOptional({ description: 'Optional lesson title override.' })
+  @IsOptional()
+  @IsString()
+  title?: string;
+}
