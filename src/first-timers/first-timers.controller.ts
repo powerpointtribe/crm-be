@@ -15,7 +15,10 @@ import {
   BadRequestException,
   ConflictException,
   Request,
+  Res,
+  Header,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
 import {
@@ -756,6 +759,34 @@ export class FirstTimersController {
     const branchId = await this.getUserBranchId(user);
     const count = await this.firstTimersService.getReadyForIntegrationCount(branchId);
     return ResponseUtil.success({ count }, 'Ready for integration count retrieved successfully');
+  }
+
+  @Get('export')
+  @RequirePermission(FirstTimersPermission.EXPORT_FIRST_TIMERS)
+  @ApiOperation({ summary: 'Export first-timers as CSV with selectable fields' })
+  @ApiQuery({ name: 'fields', required: false, description: 'Comma-separated field names to include' })
+  @ApiResponse({ status: 200, description: 'CSV file downloaded' })
+  async exportFirstTimers(
+    @Query() searchDto: FirstTimerSearchDto,
+    @Query('fields') fields: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const branchFilterContext = await this.buildBranchFilterContext(user);
+    const selectedFields = fields
+      ? fields.split(',').map((f) => f.trim()).filter(Boolean)
+      : [];
+
+    const csv = await this.firstTimersService.exportForCSV(
+      searchDto,
+      selectedFields,
+      branchFilterContext,
+    );
+
+    const filename = `first-timers-export-${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
   }
 
   @Get(':id')

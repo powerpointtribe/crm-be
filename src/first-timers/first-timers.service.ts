@@ -140,6 +140,156 @@ export class FirstTimersService {
     return firstTimer.save();
   }
 
+  async exportForCSV(
+    searchDto: FirstTimerSearchDto,
+    fields: string[],
+    branchFilterContext?: BranchFilterContext,
+  ): Promise<string> {
+    const allFields = [
+      'firstName', 'lastName', 'phone', 'email', 'gender', 'dateOfBirth',
+      'occupation', 'maritalStatus', 'address', 'dateOfVisit', 'howDidYouHear',
+      'visitorType', 'status', 'stage', 'interestedInJoining',
+      'integrationStage', 'converted', 'notes', 'previousChurch',
+      'totalVisits', 'callReportsCount', 'followUpCount',
+      'branch', 'assignedTo', 'followUpPerson', 'giaLeader',
+      'readyForIntegration', 'isArchived', 'createdAt', 'updatedAt',
+    ];
+
+    const selectedFields = fields.length > 0
+      ? fields.filter((f) => allFields.includes(f))
+      : allFields;
+
+    if (selectedFields.length === 0) {
+      throw new BadRequestException('No valid fields specified for export');
+    }
+
+    const {
+      search, status, assignedTo, visitDateFrom, visitDateTo,
+      converted, needsFollowUp, visitorType, howDidYouHear,
+      branchId, excludeReadyForIntegration, dateRange,
+      sortBy = 'dateOfVisit', sortOrder = 'desc',
+    } = searchDto;
+
+    let filterQuery: FilterQuery<FirstTimerDocument> = { isActive: true };
+
+    if (excludeReadyForIntegration) {
+      filterQuery.readyForIntegration = { $ne: true };
+    }
+
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date();
+      let fromDate: Date;
+      switch (dateRange) {
+        case '7days': fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+        case '30days': fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+        case '3months': fromDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); break;
+        default: fromDate = new Date(0);
+      }
+      filterQuery.dateOfVisit = { $gte: fromDate };
+    }
+
+    if (branchFilterContext) {
+      const effectiveContext: BranchFilterContext = {
+        ...branchFilterContext,
+        selectedBranchId: branchId || branchFilterContext.selectedBranchId,
+      };
+      filterQuery = this.branchAccessService.applyBranchFilter(
+        filterQuery, effectiveContext, 'branch',
+      );
+    }
+
+    if (search) {
+      const searchQuery = QueryBuilder.buildSearchQuery(search, [
+        'firstName', 'lastName', 'phone', 'email', 'invitedBy',
+      ]);
+      Object.assign(filterQuery, searchQuery);
+    }
+
+    if (status) filterQuery.status = status;
+    if (assignedTo) filterQuery.assignedTo = assignedTo;
+    if (converted !== undefined) filterQuery.converted = converted;
+    if (visitorType) filterQuery.visitorType = visitorType;
+    if (howDidYouHear) filterQuery.howDidYouHear = howDidYouHear;
+
+    if (visitDateFrom || visitDateTo) {
+      const startDate = visitDateFrom ? new Date(visitDateFrom) : undefined;
+      const endDate = visitDateTo ? new Date(visitDateTo + 'T23:59:59.999Z') : undefined;
+      const dateQuery = QueryBuilder.buildDateRangeQuery(startDate, endDate, 'dateOfVisit');
+      Object.assign(filterQuery, dateQuery);
+    }
+
+    if (needsFollowUp) {
+      filterQuery.$or = [
+        { status: EngagementStatus.NEW },
+        { nextFollowUpDate: { $lte: new Date() }, status: { $nin: [EngagementStatus.CLOSED] } },
+      ];
+    }
+
+    const sortQuery = QueryBuilder.buildSortQuery(sortBy, sortOrder);
+    if (!('createdAt' in sortQuery)) {
+      sortQuery.createdAt = -1;
+    }
+
+    const records = await this.firstTimerModel
+      .find(filterQuery)
+      .populate('assignedTo', 'firstName lastName')
+      .populate('followUpPerson', 'firstName lastName')
+      .populate('giaLeader', 'firstName lastName')
+      .populate('branch', 'name')
+      .sort(sortQuery)
+      .lean()
+      .exec();
+
+    const escapeCSV = (val: any): string => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const formatField = (record: any, field: string): string => {
+      const val = record[field];
+      if (val === null || val === undefined) return '';
+      switch (field) {
+        case 'address':
+          if (typeof val === 'object') {
+            return [val.street, val.city, val.state, val.country].filter(Boolean).join(', ');
+          }
+          return String(val);
+        case 'assignedTo':
+        case 'followUpPerson':
+        case 'giaLeader':
+          if (typeof val === 'object' && val.firstName) {
+            return `${val.firstName} ${val.lastName || ''}`.trim();
+          }
+          return String(val);
+        case 'branch':
+          if (typeof val === 'object' && val.name) return val.name;
+          return String(val);
+        case 'dateOfVisit':
+        case 'createdAt':
+        case 'updatedAt':
+          return val instanceof Date ? val.toISOString().split('T')[0] : String(val).split('T')[0];
+        case 'converted':
+        case 'readyForIntegration':
+        case 'isArchived':
+          return val ? 'Yes' : 'No';
+        default:
+          if (Array.isArray(val)) return val.join('; ');
+          return String(val);
+      }
+    };
+
+    const headerRow = selectedFields.map(escapeCSV).join(',');
+    const dataRows = records.map((record) =>
+      selectedFields.map((field) => escapeCSV(formatField(record, field))).join(','),
+    );
+
+    return [headerRow, ...dataRows].join('\n');
+  }
+
   async findAll(
     searchDto: FirstTimerSearchDto,
     branchFilterContext?: BranchFilterContext,
