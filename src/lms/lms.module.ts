@@ -39,6 +39,7 @@ import { RolesModule } from '../roles/roles.module';
 import { AiModule } from '../ai/ai.module';
 import { YoutubeModule } from '../youtube/youtube.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { EmailTemplateSharedModule } from '../bulk-email/email-template-shared.module';
 import { CommitteeScopeGuard } from './guards/committee-scope.guard';
 
 @Module({
@@ -63,6 +64,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
     AiModule,
     YoutubeModule,
     NotificationsModule,
+    EmailTemplateSharedModule,
   ],
   controllers: [LmsFacilitatorController, LmsStudentController],
   providers: [LmsService, CommitteeScopeGuard],

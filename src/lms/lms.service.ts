@@ -43,6 +43,7 @@ import { Member, MemberDocument } from '../members/schemas/member.schema';
 import { AiService } from '../ai/ai.service';
 import { YoutubeService } from '../youtube/youtube.service';
 import { EmailProvider } from '../notifications/providers/email.provider';
+import { EmailTemplateResolverService } from '../bulk-email/email-template-resolver.service';
 import {
   CreateAssignmentDto,
   CreateLessonDto,
@@ -90,6 +91,7 @@ export class LmsService {
     @InjectModel(Member.name)
     private readonly memberModel: Model<MemberDocument>,
     private readonly emailProvider: EmailProvider,
+    private readonly templateResolver: EmailTemplateResolverService,
   ) {}
 
   private readonly logger = new Logger(LmsService.name);
@@ -251,7 +253,7 @@ export class LmsService {
         prompt: q.prompt,
         type,
         options: isChoice ? q.options || [] : [],
-        correctIndex: type === 'checkboxes' ? 0 : q.correctIndex ?? 0,
+        correctIndex: type === 'checkboxes' ? 0 : (q.correctIndex ?? 0),
         correctIndexes: type === 'checkboxes' ? q.correctIndexes || [] : [],
         required: q.required !== false,
         points: q.points ?? 1,
@@ -308,7 +310,7 @@ export class LmsService {
       }
       if (type === 'multiple_choice' || type === 'dropdown') {
         return typeof resp === 'number' && resp >= 0
-          ? q.options?.[resp] ?? '—'
+          ? (q.options?.[resp] ?? '—')
           : '—';
       }
       return resp === '' || resp == null ? '—' : String(resp);
@@ -726,7 +728,10 @@ export class LmsService {
   // ===================== STUDENT (portal) =====================
 
   /** Resolve the learner's accepted registration for an event slug. */
-  private async resolveLearner(account: PortalAccountDocument, eventSlug?: string) {
+  private async resolveLearner(
+    account: PortalAccountDocument,
+    eventSlug?: string,
+  ) {
     const eventFilter: any = {};
     if (eventSlug) eventFilter.registrationSlug = eventSlug;
     const event = await this.eventModel.findOne(
@@ -815,7 +820,11 @@ export class LmsService {
       ),
     ]);
     return {
-      event: { id: event._id, title: event.title, slug: event.registrationSlug },
+      event: {
+        id: event._id,
+        title: event.title,
+        slug: event.registrationSlug,
+      },
       modules: modules.map((m) => {
         const meta = map[String(m._id)] || {
           total: 0,
@@ -1117,7 +1126,9 @@ export class LmsService {
     const times = completed
       .filter((c) => completedSet.has(String(c.lesson)) && c.completedAt)
       .map((c) => new Date(c.completedAt as Date).getTime());
-    const completedAt = times.length ? new Date(Math.max(...times)) : new Date();
+    const completedAt = times.length
+      ? new Date(Math.max(...times))
+      : new Date();
 
     const name = `${registration.attendeeInfo?.firstName || ''} ${
       registration.attendeeInfo?.lastName || ''
@@ -1242,7 +1253,8 @@ export class LmsService {
   ): boolean {
     const start = this.sessionStart(session);
     if (!start || !joinedAt) return false;
-    const graceMin = session.attendanceConfig?.lateArrivalThresholdMinutes ?? 15;
+    const graceMin =
+      session.attendanceConfig?.lateArrivalThresholdMinutes ?? 15;
     return joinedAt.getTime() > start.getTime() + graceMin * 60_000;
   }
 
@@ -1280,7 +1292,10 @@ export class LmsService {
 
     const seconds = Math.max(
       0,
-      Math.min(this.MAX_HEARTBEAT_SECONDS, Math.round(Number(dto.seconds) || 0)),
+      Math.min(
+        this.MAX_HEARTBEAT_SECONDS,
+        Math.round(Number(dto.seconds) || 0),
+      ),
     );
 
     const existing = await this.attendanceModel.findOne({
@@ -1356,7 +1371,9 @@ export class LmsService {
       event: new Types.ObjectId(eventId),
     });
     if (!session) throw new NotFoundException('Session not found');
-    return this.youtubeService.getLiveStatus(session.location?.virtualLink || '');
+    return this.youtubeService.getLiveStatus(
+      session.location?.virtualLink || '',
+    );
   }
 
   // ===================== YouTube session recordings ============================
@@ -1365,40 +1382,53 @@ export class LmsService {
   //  detect the end (poll videos.list → actualEndTime), email the facilitator
   //  the link once, and let them publish it into a module as a replay lesson.
 
-  /** Facilitator notification emails: event organizer + committee, then the
-   *  event contact email as a fallback. */
-  private async resolveFacilitatorEmails(
+  /** Facilitator notification recipients: event organizer + committee (with
+   *  first names), then the event contact email as a fallback. */
+  private async resolveFacilitatorRecipients(
     event: EventDocument,
-  ): Promise<string[]> {
+  ): Promise<Array<{ email: string; firstName: string }>> {
     const memberIds: Types.ObjectId[] = [];
     if (event.organizer) memberIds.push(event.organizer as Types.ObjectId);
     for (const c of event.committee || []) {
       if (c?.member) memberIds.push(c.member as Types.ObjectId);
     }
-    const emails = new Set<string>();
+    const byEmail = new Map<string, string>();
     if (memberIds.length) {
       const members = await this.memberModel
         .find({ _id: { $in: memberIds } })
-        .select('email')
+        .select('email firstName')
         .lean();
-      for (const m of members) if (m.email) emails.add(m.email);
+      for (const m of members) {
+        if (m.email) byEmail.set(m.email, m.firstName || 'there');
+      }
     }
-    if (event.contactEmail) emails.add(event.contactEmail);
-    return [...emails];
+    if (event.contactEmail && !byEmail.has(event.contactEmail)) {
+      byEmail.set(event.contactEmail, 'there');
+    }
+    return [...byEmail].map(([email, firstName]) => ({ email, firstName }));
   }
 
-  private recordingEmailHtml(title: string, url: string): string {
-    const dash = process.env.FACILITATOR_DASHBOARD_URL;
-    const cta = dash
-      ? `<p><a href="${dash}/sessions">Open the facilitator dashboard</a> to publish it into a module.</p>`
-      : `<p>Open the facilitator dashboard → <strong>Sessions</strong> to publish it into a module.</p>`;
-    return `
-      <div style="font-family:system-ui,-apple-system,sans-serif;line-height:1.6;color:#18216C">
-        <h2 style="color:#18216C">Your session recording is ready</h2>
-        <p><strong>${title}</strong> has finished and the recording is available:</p>
-        <p><a href="${url}">${url}</a></p>
-        ${cta}
-      </div>`;
+  /** Facilitator dashboard sessions URL for email CTAs. */
+  private dashboardUrl(event?: EventDocument): string {
+    const appBase = event?.registrationSettings?.applicationBaseUrl;
+    const base =
+      process.env.FACILITATOR_DASHBOARD_URL ||
+      (appBase
+        ? `${appBase.replace(/\/+$/, '')}/facilitator`
+        : process.env.FRONTEND_URL || '');
+    return base ? `${base.replace(/\/+$/, '')}/sessions` : '';
+  }
+
+  /** Learner portal URL for a lesson (replay deep-link). */
+  private portalLessonUrl(
+    event: EventDocument,
+    lessonId: Types.ObjectId,
+  ): string {
+    const base =
+      event.registrationSettings?.applicationBaseUrl?.replace(/\/+$/, '') ||
+      process.env.FRONTEND_URL ||
+      '';
+    return base ? `${base}/portal/lessons/${lessonId}` : '';
   }
 
   /** Manual trigger: check a single session for a ready recording + notify. */
@@ -1410,7 +1440,9 @@ export class LmsService {
 
   /** Idempotent core: mark recording available + email facilitator once. */
   private async checkAndNotifyRecordingDoc(session: EventSessionDocument) {
-    const videoId = YoutubeService.extractVideoId(session.location?.virtualLink);
+    const videoId = YoutubeService.extractVideoId(
+      session.location?.virtualLink,
+    );
     if (!videoId) return { ready: false, reason: 'no-youtube-link' };
     if (session.recording?.notifiedAt) {
       return { ready: true, alreadyNotified: true, url: session.recording.url };
@@ -1433,19 +1465,35 @@ export class LmsService {
     try {
       const event = await this.eventModel.findById(session.event);
       const recipients = event
-        ? await this.resolveFacilitatorEmails(event)
+        ? await this.resolveFacilitatorRecipients(event)
         : [];
-      if (recipients.length) {
-        await this.emailProvider.sendEmail({
-          to: recipients,
-          subject: `Recording ready: ${session.title}`,
-          html: this.recordingEmailHtml(session.title, url),
-        });
-        session.recording.notifiedAt = new Date();
+      const dashboardUrl = this.dashboardUrl(event || undefined);
+      const year = String(new Date().getFullYear());
+      let sent = 0;
+      for (const r of recipients) {
+        try {
+          const { subject, html } = await this.templateResolver.resolveTemplate(
+            'events.session-recording-ready',
+            {
+              firstName: r.firstName,
+              sessionTitle: session.title,
+              recordingUrl: url,
+              dashboardUrl,
+              year,
+            },
+          );
+          await this.emailProvider.sendEmail({ to: r.email, subject, html });
+          sent += 1;
+        } catch (e) {
+          this.logger.warn(
+            `Recording email to ${r.email} failed: ${(e as Error).message}`,
+          );
+        }
       }
+      if (sent) session.recording.notifiedAt = new Date();
     } catch (err) {
       this.logger.warn(
-        `Recording email failed for session ${session._id}: ${(err as Error).message}`,
+        `Recording notify failed for session ${session._id}: ${(err as Error).message}`,
       );
     }
 
@@ -1491,7 +1539,9 @@ export class LmsService {
     });
     if (!session) throw new NotFoundException('Session not found');
 
-    const videoId = YoutubeService.extractVideoId(session.location?.virtualLink);
+    const videoId = YoutubeService.extractVideoId(
+      session.location?.virtualLink,
+    );
     const url =
       session.recording?.url ||
       (videoId ? `https://www.youtube.com/watch?v=${videoId}` : '');
@@ -1537,6 +1587,14 @@ export class LmsService {
     };
     await session.save();
 
+    // Notify trainees the replay is available (background — don't block publish).
+    void this.notifyStudentsRecordingAvailable(
+      String(session.event),
+      session.title,
+      mod.title,
+      lesson._id,
+    );
+
     return {
       published: true,
       lessonId: lesson._id,
@@ -1544,6 +1602,79 @@ export class LmsService {
       moduleTitle: mod.title,
       url,
     };
+  }
+
+  /**
+   * Email accepted trainees that a session replay is now available in a module.
+   * Runs in the background; sends in small batches to avoid overwhelming the
+   * email provider.
+   */
+  private async notifyStudentsRecordingAvailable(
+    eventId: string,
+    sessionTitle: string,
+    moduleTitle: string,
+    lessonId: Types.ObjectId,
+  ) {
+    try {
+      const event = await this.eventModel.findById(eventId);
+      if (!event) return;
+      const watchUrl = this.portalLessonUrl(event, lessonId);
+      const year = String(new Date().getFullYear());
+      const regs = await this.registrationModel
+        .find({ event: event._id, admissionStatus: 'accepted' })
+        .select('attendeeInfo')
+        .lean();
+
+      const recipients = regs
+        .map((r) => ({
+          email: r.attendeeInfo?.email,
+          firstName: r.attendeeInfo?.firstName || 'there',
+        }))
+        .filter((r) => !!r.email) as Array<{
+        email: string;
+        firstName: string;
+      }>;
+
+      const BATCH = 20;
+      let sent = 0;
+      for (let i = 0; i < recipients.length; i += BATCH) {
+        const slice = recipients.slice(i, i + BATCH);
+        await Promise.all(
+          slice.map(async (r) => {
+            try {
+              const { subject, html } =
+                await this.templateResolver.resolveTemplate(
+                  'events.session-recording-available',
+                  {
+                    firstName: r.firstName,
+                    sessionTitle,
+                    moduleTitle,
+                    watchUrl,
+                    year,
+                  },
+                );
+              await this.emailProvider.sendEmail({
+                to: r.email,
+                subject,
+                html,
+              });
+              sent += 1;
+            } catch (e) {
+              this.logger.warn(
+                `Replay email to ${r.email} failed: ${(e as Error).message}`,
+              );
+            }
+          }),
+        );
+      }
+      this.logger.log(
+        `Replay notification: emailed ${sent}/${recipients.length} trainees for "${sessionTitle}".`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `notifyStudentsRecordingAvailable failed: ${(err as Error).message}`,
+      );
+    }
   }
 
   // ===================== FACILITATOR: event overview =====================
@@ -1650,7 +1781,9 @@ export class LmsService {
       },
       course: {
         lessons: lessonCount,
-        avgProgress: acceptedCount ? Math.round(progressSum / acceptedCount) : 0,
+        avgProgress: acceptedCount
+          ? Math.round(progressSum / acceptedCount)
+          : 0,
         completedAll,
         completionRate: pct(completedAll, acceptedCount),
       },
@@ -1663,8 +1796,9 @@ export class LmsService {
       assignments: {
         total: assignmentCount,
         submissions: submissions.length,
-        graded: submissions.filter((s) => s.grade !== null && s.grade !== undefined)
-          .length,
+        graded: submissions.filter(
+          (s) => s.grade !== null && s.grade !== undefined,
+        ).length,
       },
       reflections: reflectionsTotal,
       acceptedCount,
@@ -1690,7 +1824,10 @@ export class LmsService {
         this.registrationModel
           .find({ event: eventOid, admissionStatus: 'accepted' })
           .lean(),
-        this.lessonModel.countDocuments({ event: eventOid, status: 'published' }),
+        this.lessonModel.countDocuments({
+          event: eventOid,
+          status: 'published',
+        }),
         this.sessionModel.countDocuments({ event: eventOid }),
         this.progressModel.find({ event: eventOid }).lean(),
         this.attendanceModel

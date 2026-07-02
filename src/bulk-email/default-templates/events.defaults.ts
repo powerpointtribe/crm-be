@@ -1,4 +1,7 @@
-import { TemplateCategory, TemplateModule } from '../schemas/email-template.schema';
+import {
+  TemplateCategory,
+  TemplateModule,
+} from '../schemas/email-template.schema';
 import { TemplateDefinition } from './index';
 
 export const eventsDefaults: TemplateDefinition[] = [
@@ -50,13 +53,42 @@ export const eventsDefaults: TemplateDefinition[] = [
   </div>
 </div>`,
     variableDefinitions: [
-      { name: 'firstName', description: 'Attendee first name', sampleValue: 'John' },
-      { name: 'eventTitle', description: 'Event title', sampleValue: 'LBS Conference 2026' },
-      { name: 'checkInCodeHtml', description: 'Check-in code digits HTML (auto-generated)', sampleValue: '<td style="background:#0D7770;color:#fff;font-size:28px;width:52px;height:64px;text-align:center;border-radius:10px;">1</td>' },
-      { name: 'formattedDate', description: 'Formatted event date', sampleValue: 'Saturday, May 30, 2026' },
-      { name: 'formattedTime', description: 'Formatted event time', sampleValue: '10:00 AM' },
-      { name: 'locationHtml', description: 'Location row HTML (auto-generated, optional)', sampleValue: '' },
-      { name: 'trackHtml', description: 'Track row HTML (auto-generated, optional)', sampleValue: '' },
+      {
+        name: 'firstName',
+        description: 'Attendee first name',
+        sampleValue: 'John',
+      },
+      {
+        name: 'eventTitle',
+        description: 'Event title',
+        sampleValue: 'LBS Conference 2026',
+      },
+      {
+        name: 'checkInCodeHtml',
+        description: 'Check-in code digits HTML (auto-generated)',
+        sampleValue:
+          '<td style="background:#0D7770;color:#fff;font-size:28px;width:52px;height:64px;text-align:center;border-radius:10px;">1</td>',
+      },
+      {
+        name: 'formattedDate',
+        description: 'Formatted event date',
+        sampleValue: 'Saturday, May 30, 2026',
+      },
+      {
+        name: 'formattedTime',
+        description: 'Formatted event time',
+        sampleValue: '10:00 AM',
+      },
+      {
+        name: 'locationHtml',
+        description: 'Location row HTML (auto-generated, optional)',
+        sampleValue: '',
+      },
+      {
+        name: 'trackHtml',
+        description: 'Track row HTML (auto-generated, optional)',
+        sampleValue: '',
+      },
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },
@@ -102,18 +134,66 @@ export const eventsDefaults: TemplateDefinition[] = [
   </div>
 </div>`,
     variableDefinitions: [
-      { name: 'firstName', description: 'Attendee first name', sampleValue: 'John' },
-      { name: 'eventTitle', description: 'Event title', sampleValue: 'LBS Conference 2026' },
-      { name: 'reminderTitle', description: 'Reminder title (e.g., Tomorrow, 3 Days Left)', sampleValue: 'Tomorrow' },
-      { name: 'headerSubtext', description: 'Header subtext', sampleValue: 'Final check before the big day' },
-      { name: 'headerColor', description: 'Header background color', sampleValue: '#B91C1C' },
-      { name: 'daysText', description: 'Days description', sampleValue: 'tomorrow' },
-      { name: 'formattedDate', description: 'Formatted event date', sampleValue: 'Saturday, May 30, 2026' },
-      { name: 'formattedTime', description: 'Formatted event time', sampleValue: '10:00 AM' },
-      { name: 'locationHtml', description: 'Location HTML (auto-generated)', sampleValue: '' },
-      { name: 'checkInCodeHtml', description: 'Check-in code HTML (auto-generated)', sampleValue: '' },
-      { name: 'checklistHtml', description: 'Checklist HTML (auto-generated)', sampleValue: '' },
-      { name: 'seeYouText', description: 'See you text (tomorrow/soon)', sampleValue: 'tomorrow' },
+      {
+        name: 'firstName',
+        description: 'Attendee first name',
+        sampleValue: 'John',
+      },
+      {
+        name: 'eventTitle',
+        description: 'Event title',
+        sampleValue: 'LBS Conference 2026',
+      },
+      {
+        name: 'reminderTitle',
+        description: 'Reminder title (e.g., Tomorrow, 3 Days Left)',
+        sampleValue: 'Tomorrow',
+      },
+      {
+        name: 'headerSubtext',
+        description: 'Header subtext',
+        sampleValue: 'Final check before the big day',
+      },
+      {
+        name: 'headerColor',
+        description: 'Header background color',
+        sampleValue: '#B91C1C',
+      },
+      {
+        name: 'daysText',
+        description: 'Days description',
+        sampleValue: 'tomorrow',
+      },
+      {
+        name: 'formattedDate',
+        description: 'Formatted event date',
+        sampleValue: 'Saturday, May 30, 2026',
+      },
+      {
+        name: 'formattedTime',
+        description: 'Formatted event time',
+        sampleValue: '10:00 AM',
+      },
+      {
+        name: 'locationHtml',
+        description: 'Location HTML (auto-generated)',
+        sampleValue: '',
+      },
+      {
+        name: 'checkInCodeHtml',
+        description: 'Check-in code HTML (auto-generated)',
+        sampleValue: '',
+      },
+      {
+        name: 'checklistHtml',
+        description: 'Checklist HTML (auto-generated)',
+        sampleValue: '',
+      },
+      {
+        name: 'seeYouText',
+        description: 'See you text (tomorrow/soon)',
+        sampleValue: 'tomorrow',
+      },
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },
@@ -146,8 +226,16 @@ export const eventsDefaults: TemplateDefinition[] = [
 </div>`,
     variableDefinitions: [
       { name: 'name', description: 'Partner name', sampleValue: 'John Doe' },
-      { name: 'eventTitle', description: 'Event title', sampleValue: 'LBS Conference 2026' },
-      { name: 'companyText', description: 'Company text (auto-generated, optional)', sampleValue: ' on behalf of Acme Corp' },
+      {
+        name: 'eventTitle',
+        description: 'Event title',
+        sampleValue: 'LBS Conference 2026',
+      },
+      {
+        name: 'companyText',
+        description: 'Company text (auto-generated, optional)',
+        sampleValue: ' on behalf of Acme Corp',
+      },
     ],
   },
   {
@@ -188,14 +276,47 @@ export const eventsDefaults: TemplateDefinition[] = [
   </div>
 </div>`,
     variableDefinitions: [
-      { name: 'partnerName', description: 'Partner name', sampleValue: 'John Doe' },
-      { name: 'partnerEmail', description: 'Partner email', sampleValue: 'john@acme.com' },
-      { name: 'eventTitle', description: 'Event title', sampleValue: 'LBS Conference 2026' },
-      { name: 'companyText', description: 'Company text (auto-generated)', sampleValue: ' (Acme Corp)' },
-      { name: 'partnerCompanyHtml', description: 'Company row HTML (auto-generated)', sampleValue: '' },
-      { name: 'partnerPhoneHtml', description: 'Phone row HTML (auto-generated)', sampleValue: '' },
-      { name: 'interestDetailsHtml', description: 'Interest details HTML (auto-generated)', sampleValue: '' },
-      { name: 'viewUrl', description: 'Dashboard URL to view inquiry', sampleValue: 'https://pptcrm.powerpointtribe.org/events/partners?id=123' },
+      {
+        name: 'partnerName',
+        description: 'Partner name',
+        sampleValue: 'John Doe',
+      },
+      {
+        name: 'partnerEmail',
+        description: 'Partner email',
+        sampleValue: 'john@acme.com',
+      },
+      {
+        name: 'eventTitle',
+        description: 'Event title',
+        sampleValue: 'LBS Conference 2026',
+      },
+      {
+        name: 'companyText',
+        description: 'Company text (auto-generated)',
+        sampleValue: ' (Acme Corp)',
+      },
+      {
+        name: 'partnerCompanyHtml',
+        description: 'Company row HTML (auto-generated)',
+        sampleValue: '',
+      },
+      {
+        name: 'partnerPhoneHtml',
+        description: 'Phone row HTML (auto-generated)',
+        sampleValue: '',
+      },
+      {
+        name: 'interestDetailsHtml',
+        description: 'Interest details HTML (auto-generated)',
+        sampleValue: '',
+      },
+      {
+        name: 'viewUrl',
+        description: 'Dashboard URL to view inquiry',
+        sampleValue:
+          'https://pptcrm.powerpointtribe.org/events/partners?id=123',
+      },
     ],
   },
   {
@@ -207,7 +328,7 @@ export const eventsDefaults: TemplateDefinition[] = [
     name: 'CMIT Registration Welcome',
     module: TemplateModule.EVENTS,
     category: TemplateCategory.WELCOME,
-    subject: 'You\'re invited to CMIT, {{firstName}}',
+    subject: "You're invited to CMIT, {{firstName}}",
     htmlContent: `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -408,8 +529,112 @@ export const eventsDefaults: TemplateDefinition[] = [
 </body>
 </html>`,
     variableDefinitions: [
-      { name: 'firstName', description: 'Registrant first name', sampleValue: 'Adaeze' },
-      { name: 'applicationUrl', description: 'Per-registrant application form link', sampleValue: 'https://cmithub.org/apply/abc123' },
+      {
+        name: 'firstName',
+        description: 'Registrant first name',
+        sampleValue: 'Adaeze',
+      },
+      {
+        name: 'applicationUrl',
+        description: 'Per-registrant application form link',
+        sampleValue: 'https://cmithub.org/apply/abc123',
+      },
+      { name: 'year', description: 'Current year', sampleValue: '2026' },
+    ],
+  },
+  {
+    slug: 'events.session-recording-ready',
+    name: 'Session Recording Ready (Facilitator)',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.EVENT,
+    subject: 'Recording ready — {{sessionTitle}}',
+    htmlContent: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e8eaf0;border-radius:16px;overflow:hidden;">
+  <div style="background:#18216C;padding:30px 30px 26px;">
+    <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C9A227;">CMIT &middot; Session recording</p>
+    <h1 style="margin:10px 0 0;font-size:21px;font-weight:700;color:#ffffff;line-height:1.3;">The recording is ready</h1>
+  </div>
+  <div style="padding:28px 30px;">
+    <p style="margin:0 0 16px;font-size:15px;color:#1a2340;">Hi {{firstName}},</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#525a72;line-height:1.6;"><strong style="color:#1a2340;">{{sessionTitle}}</strong> has finished and its replay is now available. Publish it to a module so your trainees can watch it back.</p>
+    <div style="text-align:center;margin:0 0 22px;">
+      <a href="{{dashboardUrl}}" style="display:inline-block;background:#C9A227;color:#18216C;font-size:14px;font-weight:700;text-decoration:none;padding:14px 30px;border-radius:999px;">Publish the recording &rarr;</a>
+    </div>
+    <p style="margin:0;font-size:13px;color:#8a90a6;line-height:1.6;text-align:center;">Prefer to preview it first? <a href="{{recordingUrl}}" style="color:#18216C;font-weight:600;">Watch on YouTube</a></p>
+  </div>
+  <div style="padding:20px 30px;border-top:1px solid #f0f1f6;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#a2a7ba;font-weight:600;">CMIT &mdash; Campus Ministers in Training</p>
+    <p style="margin:5px 0 0;font-size:11px;color:#c2c6d4;">A vision of Dami Oguntunde Teaching Ministries</p>
+  </div>
+</div>`,
+    variableDefinitions: [
+      {
+        name: 'firstName',
+        description: 'Facilitator first name',
+        sampleValue: 'Dami',
+      },
+      {
+        name: 'sessionTitle',
+        description: 'Session title',
+        sampleValue: 'Week 1 — The History of Campus Ministry',
+      },
+      {
+        name: 'dashboardUrl',
+        description: 'Facilitator dashboard sessions link',
+        sampleValue: 'https://cmithub.org/facilitator/sessions',
+      },
+      {
+        name: 'recordingUrl',
+        description: 'YouTube recording link',
+        sampleValue: 'https://www.youtube.com/watch?v=4O048K5OHUQ',
+      },
+      { name: 'year', description: 'Current year', sampleValue: '2026' },
+    ],
+  },
+  {
+    slug: 'events.session-recording-available',
+    name: 'Session Recording Available (Student)',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.EVENT,
+    subject: 'Watch the replay — {{sessionTitle}}',
+    htmlContent: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e8eaf0;border-radius:16px;overflow:hidden;">
+  <div style="background:#18216C;padding:30px 30px 26px;">
+    <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C9A227;">CMIT &middot; Replay available</p>
+    <h1 style="margin:10px 0 0;font-size:21px;font-weight:700;color:#ffffff;line-height:1.3;">Watch the session replay</h1>
+  </div>
+  <div style="padding:28px 30px;">
+    <p style="margin:0 0 16px;font-size:15px;color:#1a2340;">Hi {{firstName}},</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#525a72;line-height:1.6;">The replay of <strong style="color:#1a2340;">{{sessionTitle}}</strong> is now available in <strong style="color:#1a2340;">{{moduleTitle}}</strong>. Missed it live, or want to review? Watch it back anytime in your portal.</p>
+    <div style="text-align:center;margin:0 0 22px;">
+      <a href="{{watchUrl}}" style="display:inline-block;background:#C9A227;color:#18216C;font-size:14px;font-weight:700;text-decoration:none;padding:14px 30px;border-radius:999px;">Watch the replay &rarr;</a>
+    </div>
+    <p style="margin:0;font-size:13px;color:#8a90a6;line-height:1.6;text-align:center;">You'll also find it under <strong style="color:#525a72;">{{moduleTitle}}</strong> in your learning portal.</p>
+  </div>
+  <div style="padding:20px 30px;border-top:1px solid #f0f1f6;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#a2a7ba;font-weight:600;">CMIT &mdash; Campus Ministers in Training</p>
+    <p style="margin:5px 0 0;font-size:11px;color:#c2c6d4;">A vision of Dami Oguntunde Teaching Ministries</p>
+  </div>
+</div>`,
+    variableDefinitions: [
+      {
+        name: 'firstName',
+        description: 'Student first name',
+        sampleValue: 'Adaeze',
+      },
+      {
+        name: 'sessionTitle',
+        description: 'Session title',
+        sampleValue: 'Week 1 — The History of Campus Ministry',
+      },
+      {
+        name: 'moduleTitle',
+        description: 'Module the recording was published to',
+        sampleValue: 'Module 1 — Foundations',
+      },
+      {
+        name: 'watchUrl',
+        description: 'Portal lesson link for the replay',
+        sampleValue: 'https://cmithub.org/portal/lessons/abc123',
+      },
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },
