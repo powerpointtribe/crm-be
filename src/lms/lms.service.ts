@@ -1514,7 +1514,7 @@ export class LmsService {
       module: mod._id,
       title,
       summary: 'Replay of the live session.',
-      content: `<p>Watch the session replay:</p><p><a href="${url}" target="_blank" rel="noopener">${url}</a></p>`,
+      content: `<p>Watch the session replay above. If it doesn’t load, <a href="${url}" target="_blank" rel="noopener">open it on YouTube</a>.</p>`,
       order,
       resources: [
         {
