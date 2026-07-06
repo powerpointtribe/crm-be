@@ -626,4 +626,23 @@ export class ServiceReportsService {
     const stats = await this.getPdfComparisonStats(report.date, branchId);
     return this.pdfService.generatePdf(report, stats);
   }
+
+  async getDistinctSeriesNames(
+    branchFilterContext?: BranchFilterContext,
+  ): Promise<string[]> {
+    let filter: any = {
+      isActive: true,
+      seriesName: { $exists: true, $nin: [null, ''] },
+    };
+
+    if (branchFilterContext) {
+      filter = this.branchAccessService.applyBranchFilter(
+        filter,
+        branchFilterContext,
+      );
+    }
+
+    const names = await this.serviceReportModel.distinct('seriesName', filter);
+    return names.filter(Boolean).sort();
+  }
 }

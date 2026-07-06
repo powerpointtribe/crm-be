@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Post,
   UploadedFile,
@@ -16,13 +17,17 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CloudinaryService } from '../common/services/cloudinary.service';
+import { StorageService } from '../common/services/storage.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Upload')
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly cloudinaryService: CloudinaryService) {}
+  constructor(
+    private readonly storage: StorageService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @Public()
   @Post('sign')
@@ -97,7 +102,7 @@ export class UploadController {
     }
 
     try {
-      const imageUrl = await this.cloudinaryService.uploadImage(
+      const imageUrl = await this.storage.uploadImage(
         file,
         'first-timers/profile-photos',
       );
@@ -113,7 +118,9 @@ export class UploadController {
   @ApiBearerAuth()
   @Post('document')
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload a document (PDF, slides, docs) to Cloudinary' })
+  @ApiOperation({
+    summary: 'Upload a document (PDF, slides, docs) to Cloudinary',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -149,7 +156,7 @@ export class UploadController {
     }
 
     try {
-      const result = await this.cloudinaryService.uploadFile(
+      const result = await this.storage.uploadFile(
         file,
         'lms/documents',
         'raw',
@@ -190,14 +197,38 @@ export class UploadController {
     }
 
     try {
-      const result = await this.cloudinaryService.uploadFile(
-        file,
-        'lms/videos',
-        'video',
-      );
+      const result = await this.storage.uploadFile(file, 'lms/videos', 'video');
       return result;
     } catch (error) {
       throw new BadRequestException('Failed to upload media');
     }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post('presign')
+  @ApiOperation({
+    summary:
+      'Get a presigned URL for a direct browser → storage upload (R2 only). ' +
+      'Falls back with 503 when R2 is not the active provider.',
+  })
+  async presignUpload(
+    @Body()
+    body: {
+      folder?: string;
+      filename?: string;
+      contentType?: string;
+    },
+  ) {
+    if (!this.storage.supportsPresignedUpload) {
+      throw new BadRequestException(
+        'Presigned uploads require Cloudflare R2 to be configured.',
+      );
+    }
+    return this.storage.createPresignedUpload(
+      body?.folder || 'church-management',
+      body?.filename || 'file',
+      body?.contentType || 'application/octet-stream',
+    );
   }
 }

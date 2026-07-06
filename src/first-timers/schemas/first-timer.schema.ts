@@ -92,6 +92,9 @@ export class FirstTimer {
   @Prop({ type: Types.ObjectId, ref: 'Member' })
   invitedByMember?: Types.ObjectId;
 
+  @Prop({ trim: true })
+  schoolName?: string;
+
   @Prop({
     type: String,
     enum: Object.values(EngagementStatus),

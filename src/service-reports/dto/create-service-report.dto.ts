@@ -97,6 +97,16 @@ export class CreateServiceReportDto {
   numberOfFirstTimers: number;
 
   @ApiPropertyOptional({
+    description: 'Name of the series (when tag is new series or continuation)',
+    example: 'Discipleship Series',
+    maxLength: 200,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  seriesName?: string;
+
+  @ApiPropertyOptional({
     description: 'Additional notes about the service',
     example: 'Great atmosphere, baptism ceremony included',
     maxLength: 1000,

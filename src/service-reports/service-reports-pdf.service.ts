@@ -29,6 +29,7 @@ export class ServiceReportsPdfService {
     sunday_after_saturday_outreach: 'Sunday after Saturday Outreach',
     themed_service: 'Themed Service',
     beginning_of_new_series: 'Beginning of New Series',
+    continuation_of_series: 'Continuation of Series',
     celebration_service: 'Celebration Service',
     sunday_after_viral_post: 'Sunday after Viral Post',
     others: 'Others',

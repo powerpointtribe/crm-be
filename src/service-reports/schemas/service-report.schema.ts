@@ -8,6 +8,7 @@ export enum ServiceTag {
   SUNDAY_AFTER_SATURDAY_OUTREACH = 'sunday_after_saturday_outreach',
   THEMED_SERVICE = 'themed_service',
   BEGINNING_OF_NEW_SERIES = 'beginning_of_new_series',
+  CONTINUATION_OF_SERIES = 'continuation_of_series',
   CELEBRATION_SERVICE = 'celebration_service',
   SUNDAY_AFTER_VIRAL_POST = 'sunday_after_viral_post',
   OTHERS = 'others',
@@ -44,6 +45,9 @@ export class ServiceReport {
 
   @Prop({ type: Types.ObjectId, ref: 'Member', required: true })
   reportedBy: Types.ObjectId;
+
+  @Prop({ trim: true })
+  seriesName?: string;
 
   @Prop({ trim: true })
   notes?: string;

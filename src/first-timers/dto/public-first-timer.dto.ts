@@ -144,6 +144,11 @@ export class PublicCreateFirstTimerDto {
   @IsString()
   invitedBy?: string;
 
+  @ApiPropertyOptional({ description: 'Name of school/university (for students)' })
+  @IsOptional()
+  @IsString()
+  schoolName?: string;
+
   @ApiPropertyOptional({
     description: 'How did they hear about the church',
     enum: [

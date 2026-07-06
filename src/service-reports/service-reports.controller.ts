@@ -274,6 +274,28 @@ export class ServiceReportsController {
     );
   }
 
+  @Get('series-names')
+  @RequirePermission(ServiceReportsPermission.VIEW_REPORTS)
+  @ApiOperation({ summary: 'Get distinct series names for autocomplete' })
+  async getSeriesNames(@CurrentUser() user: any) {
+    let branchFilterContext: BranchFilterContext | undefined;
+    if (user.role) {
+      const userPermissions =
+        await this.userPermissionsService.getUserPermissions(
+          user.role._id || user.role,
+        );
+      branchFilterContext = {
+        userPermissions: userPermissions.permissions,
+        userBranchId: user.branch?._id || user.branch,
+      };
+    }
+    const names =
+      await this.serviceReportsService.getDistinctSeriesNames(
+        branchFilterContext,
+      );
+    return ResponseUtil.success(names, 'Series names retrieved successfully');
+  }
+
   @Get(':id')
   @RequirePermission(ServiceReportsPermission.VIEW_REPORT_DETAILS)
   @ApiOperation({ summary: 'Get service report by ID' })

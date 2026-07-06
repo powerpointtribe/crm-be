@@ -167,6 +167,11 @@ export class CreateFirstTimerDto {
   @IsMongoId()
   invitedByMember?: string;
 
+  @ApiPropertyOptional({ description: 'Name of school/university (for students)' })
+  @IsOptional()
+  @IsString()
+  schoolName?: string;
+
   @ApiPropertyOptional({ description: 'Member ID to assign follow-up to' })
   @IsOptional()
   @IsMongoId()
