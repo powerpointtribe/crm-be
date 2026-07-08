@@ -1376,6 +1376,91 @@ export class LmsService {
     );
   }
 
+  // ===================== Application reminders =================================
+  //
+  //  Nudge registrants who started but haven't submitted their application.
+  //  One reminder per registrant per interval (APPLICATION_REMINDER_INTERVAL_DAYS,
+  //  default 4 days), capped at APPLICATION_REMINDER_MAX (default 6). The first
+  //  reminder fires `interval` days after they registered. Set
+  //  APPLICATION_REMINDER_ENABLED=false to switch it off.
+
+  @Cron(CronExpression.EVERY_DAY_AT_9AM)
+  async sendApplicationReminders() {
+    if (process.env.APPLICATION_REMINDER_ENABLED === 'false') return;
+    const intervalDays =
+      Number(process.env.APPLICATION_REMINDER_INTERVAL_DAYS) || 4;
+    const maxReminders = Number(process.env.APPLICATION_REMINDER_MAX) || 6;
+    const cutoff = new Date(Date.now() - intervalDays * 86_400_000);
+
+    // Events whose application flow is active (have a base URL to build links).
+    const events = await this.eventModel
+      .find({
+        'registrationSettings.applicationBaseUrl': { $exists: true, $ne: '' },
+      })
+      .select('registrationSettings')
+      .lean();
+    if (!events.length) return;
+    const baseByEvent = new Map(
+      events.map((e) => [
+        String(e._id),
+        e.registrationSettings?.applicationBaseUrl,
+      ]),
+    );
+
+    // Not yet submitted, has a token, and due for a reminder: either never
+    // reminded (and registered before the cutoff) or last reminded before it.
+    const regs = await this.registrationModel
+      .find({
+        event: { $in: events.map((e) => e._id) },
+        applicationToken: { $exists: true, $ne: null },
+        $and: [
+          {
+            $or: [
+              { applicationSubmittedAt: { $exists: false } },
+              { applicationSubmittedAt: null },
+            ],
+          },
+          {
+            $or: [
+              { applicationReminderSentAt: { $lte: cutoff } },
+              { applicationReminderSentAt: null, createdAt: { $lte: cutoff } },
+            ],
+          },
+        ],
+      })
+      .limit(500);
+
+    const year = String(new Date().getFullYear());
+    let sent = 0;
+    for (const reg of regs) {
+      if ((reg.applicationReminderCount || 0) >= maxReminders) continue;
+      const email = reg.attendeeInfo?.email;
+      const base = baseByEvent.get(String(reg.event));
+      if (!email || !base) continue;
+      const applicationUrl = `${base.replace(/\/+$/, '')}/apply/${reg.applicationToken}`;
+      try {
+        const { subject, html } = await this.templateResolver.resolveTemplate(
+          'events.application-reminder',
+          {
+            firstName: reg.attendeeInfo?.firstName || 'there',
+            applicationUrl,
+            year,
+          },
+        );
+        await this.emailProvider.sendEmail({ to: email, subject, html });
+        reg.applicationReminderSentAt = new Date();
+        reg.applicationReminderCount = (reg.applicationReminderCount || 0) + 1;
+        await reg.save();
+        sent += 1;
+      } catch (e) {
+        this.logger.warn(
+          `Application reminder to ${email} failed: ${(e as Error).message}`,
+        );
+      }
+    }
+    if (sent) this.logger.log(`Application reminders sent: ${sent}`);
+  }
+
   // ===================== YouTube session recordings ============================
   //
   //  After a live session ends, YouTube keeps the VOD at the same watch URL. We

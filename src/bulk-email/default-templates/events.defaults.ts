@@ -638,4 +638,42 @@ export const eventsDefaults: TemplateDefinition[] = [
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },
+  {
+    slug: 'events.application-reminder',
+    name: 'Application Reminder (Incomplete)',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.REMINDER,
+    subject: 'Finish your CMIT application',
+    htmlContent: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e8eaf0;border-radius:16px;overflow:hidden;">
+  <div style="background:#18216C;padding:30px 30px 26px;">
+    <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C9A227;">CMIT &middot; Application</p>
+    <h1 style="margin:10px 0 0;font-size:21px;font-weight:700;color:#ffffff;line-height:1.3;">You're almost there</h1>
+  </div>
+  <div style="padding:28px 30px;">
+    <p style="margin:0 0 16px;font-size:15px;color:#1a2340;">Hi {{firstName}},</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#525a72;line-height:1.6;">You registered for CMIT but haven't finished your application yet. It only takes a few minutes &mdash; and applications are reviewed on a rolling basis, so it's best to complete yours soon.</p>
+    <div style="text-align:center;margin:0 0 22px;">
+      <a href="{{applicationUrl}}" style="display:inline-block;background:#C9A227;color:#18216C;font-size:14px;font-weight:700;text-decoration:none;padding:14px 30px;border-radius:999px;">Finish my application &rarr;</a>
+    </div>
+    <p style="margin:0;font-size:13px;color:#8a90a6;line-height:1.6;text-align:center;">Your progress is saved to your personal link &mdash; just pick up where you left off.</p>
+  </div>
+  <div style="padding:20px 30px;border-top:1px solid #f0f1f6;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#a2a7ba;font-weight:600;">CMIT &mdash; Campus Ministers in Training</p>
+    <p style="margin:5px 0 0;font-size:11px;color:#c2c6d4;">A vision of Dami Oguntunde Teaching Ministries</p>
+  </div>
+</div>`,
+    variableDefinitions: [
+      {
+        name: 'firstName',
+        description: 'Registrant first name',
+        sampleValue: 'Adaeze',
+      },
+      {
+        name: 'applicationUrl',
+        description: 'Per-registrant application form link',
+        sampleValue: 'https://cmithub.org/apply/abc123',
+      },
+      { name: 'year', description: 'Current year', sampleValue: '2026' },
+    ],
+  },
 ];

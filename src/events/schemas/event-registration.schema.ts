@@ -108,6 +108,14 @@ export class EventRegistration {
   @Prop({ type: Date })
   applicationSubmittedAt?: Date;
 
+  // Tracks the "finish your application" reminder emails sent to registrants
+  // who haven't submitted yet. Drives the recurring reminder scheduler.
+  @Prop({ type: Date })
+  applicationReminderSentAt?: Date;
+
+  @Prop({ type: Number, default: 0 })
+  applicationReminderCount?: number;
+
   // Admission decision — separate from `status` (registration lifecycle).
   // Gates LMS portal access: only 'accepted' registrants get a login invite.
   @Prop({
