@@ -676,4 +676,530 @@ export const eventsDefaults: TemplateDefinition[] = [
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },
+  {
+    slug: 'events.cmit-partner-update',
+    name: 'CMIT Partner Progress Update',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.EVENT,
+    subject: 'CMIT Partner Update — {{subject}}',
+    htmlContent: `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>CMIT — Partner Progress Update</title>
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Serif+Display:ital@0;1&display=swap');
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    img { border: 0; display: block; }
+    a { text-decoration: none; }
+
+    body {
+      background: #EAECF4;
+      font-family: 'DM Sans', Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #2C2C3E;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .pre {
+      display: none; max-height: 0; overflow: hidden; mso-hide: all;
+      font-size: 1px; color: #EAECF4; line-height: 1px;
+    }
+
+    .shell {
+      max-width: 600px;
+      margin: 28px auto;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(24,33,108,0.10);
+    }
+
+    .hd {
+      background: #18216C;
+      border-radius: 12px 12px 0 0;
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .hd-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .hd-tag {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.40);
+    }
+
+    .hd-pill {
+      background: rgba(212,175,55,0.15);
+      border: 1px solid rgba(212,175,55,0.40);
+      color: #D4AF37;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 100px;
+    }
+
+    .hd-logo {
+      width: 200px;
+      height: auto;
+      display: block;
+    }
+
+    .hd-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.38);
+      white-space: nowrap;
+    }
+
+    .hd-rule {
+      width: 36px;
+      height: 2px;
+      background: #D4AF37;
+      margin: 20px auto 0;
+      border-radius: 2px;
+    }
+
+    .bd {
+      background: #fff;
+      padding: 36px 40px 32px;
+    }
+
+    .g-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #D4AF37;
+      margin-bottom: 6px;
+    }
+
+    .g-head {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 24px;
+      color: #18216C;
+      line-height: 1.3;
+      margin-bottom: 20px;
+    }
+
+    .p {
+      font-size: 14px;
+      line-height: 1.75;
+      color: #4A4A63;
+      margin-bottom: 14px;
+    }
+
+    .p:last-of-type { margin-bottom: 0; }
+
+    .rule {
+      border: none;
+      border-top: 1px solid #EDEEF5;
+      margin: 28px 0;
+    }
+
+    .sec-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #18216C;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sec-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #EDEEF5;
+    }
+
+    .stats {
+      display: flex;
+      border: 1px solid #EDEEF5;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 20px 0 28px;
+    }
+
+    .stat {
+      flex: 1;
+      padding: 16px 12px;
+      text-align: center;
+      border-right: 1px solid #EDEEF5;
+    }
+
+    .stat:last-child { border-right: none; }
+
+    .stat-n {
+      font-size: 24px;
+      font-weight: 700;
+      color: #18216C;
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+
+    .stat-n sup {
+      font-size: 13px;
+      color: #D4AF37;
+      font-weight: 700;
+      vertical-align: super;
+    }
+
+    .stat-l {
+      font-size: 10px;
+      color: #9898B0;
+      margin-top: 4px;
+      letter-spacing: 0.3px;
+      font-weight: 500;
+    }
+
+    .ms-list { list-style: none; }
+
+    .ms {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid #F4F4FA;
+    }
+
+    .ms:last-child { border-bottom: none; padding-bottom: 0; }
+    .ms:first-child { padding-top: 0; }
+
+    .ms-icon {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      background: #18216C;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    .ms-text {
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: #4A4A63;
+    }
+
+    .ms-text strong { color: #18216C; font-weight: 600; }
+    .ms-text a { color: #18216C; text-decoration: underline; text-underline-offset: 2px; }
+
+    .pull {
+      border-left: 2px solid #D4AF37;
+      padding: 12px 18px;
+      margin: 24px 0;
+      background: #FAFAFA;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .pull p {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 15px;
+      font-style: italic;
+      color: #18216C;
+      line-height: 1.65;
+    }
+
+    .needs {
+      background: #F8F9FD;
+      border-radius: 8px;
+      padding: 4px 18px;
+      margin: 14px 0;
+    }
+
+    .need {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid #EDEEF5;
+      font-size: 13px;
+      color: #4A4A63;
+    }
+
+    .need:last-child { border-bottom: none; }
+
+    .need-dot {
+      width: 5px;
+      height: 5px;
+      background: #D4AF37;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .cta {
+      background: #18216C;
+      border-radius: 10px;
+      padding: 28px 32px;
+      margin: 24px 0;
+      text-align: center;
+    }
+
+    .cta-ey {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #D4AF37;
+      margin-bottom: 8px;
+    }
+
+    .cta-h {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 20px;
+      color: #fff;
+      margin-bottom: 10px;
+      line-height: 1.3;
+    }
+
+    .cta-p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.65);
+      line-height: 1.75;
+    }
+
+    .cta-p strong { color: #D4AF37; font-weight: 600; }
+
+    .bank {
+      border: 1px solid #E8D98A;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 18px 0;
+    }
+
+    .bank-hd {
+      background: #D4AF37;
+      padding: 8px 18px;
+    }
+
+    .bank-hd span {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #18216C;
+    }
+
+    .bank-bd { padding: 2px 18px 6px; }
+
+    .bank-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #F5EDBA;
+    }
+
+    .bank-row:last-child { border-bottom: none; }
+
+    .brl { font-size: 11px; color: #AAA; font-weight: 500; }
+
+    .brv { font-size: 13px; font-weight: 600; color: #18216C; }
+
+    .brv.acct { font-size: 18px; font-weight: 700; letter-spacing: 2px; }
+
+    .contact {
+      background: #F8F9FD;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 18px 0;
+    }
+
+    .contact-ey {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #18216C;
+      margin-bottom: 10px;
+    }
+
+    .cr {
+      font-size: 13px;
+      color: #4A4A63;
+      margin-bottom: 5px;
+      line-height: 1.5;
+    }
+
+    .cr:last-child { margin-bottom: 0; }
+
+    .cr span { color: #B0B0C8; margin-right: 5px; font-size: 12px; }
+    .cr a { color: #18216C; font-weight: 500; }
+
+    .sig {
+      margin-top: 28px;
+      padding-top: 22px;
+      border-top: 1px solid #EDEEF5;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+
+    .sig-cl { font-size: 13px; color: #9898B0; margin-bottom: 12px; }
+
+    .sig-name {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 18px;
+      color: #18216C;
+    }
+
+    .sig-title { font-size: 11.5px; color: #9898B0; margin-top: 3px; line-height: 1.5; }
+
+    .sig-shield { width: 36px; height: auto; opacity: 0.9; }
+
+    .ft {
+      background: #18216C;
+      padding: 22px 40px;
+      text-align: center;
+    }
+
+    .ft-links { margin-bottom: 12px; }
+
+    .ft-links a {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      margin: 0 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .ft-links a:hover { color: #D4AF37; }
+
+    .ft-rule {
+      width: 28px;
+      height: 1px;
+      background: rgba(212,175,55,0.3);
+      margin: 12px auto;
+    }
+
+    .ft-info {
+      font-size: 11.5px;
+      color: rgba(255,255,255,0.50);
+      margin-bottom: 3px;
+    }
+
+    .ft-info a { color: rgba(255,255,255,0.55); }
+
+    .ft-legal {
+      font-size: 10px;
+      color: rgba(255,255,255,0.22);
+      margin-top: 12px;
+      line-height: 1.8;
+    }
+
+    .ft-legal a { color: rgba(255,255,255,0.22); text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      .shell { margin: 0; border-radius: 0; box-shadow: none; }
+      .hd { padding: 20px 24px !important; border-radius: 0 !important; gap: 14px !important; }
+      .bd, .ft { padding-left: 24px !important; padding-right: 24px !important; }
+      .hd-logo { width: 160px !important; }
+      .stats { flex-direction: column; }
+      .stat { border-right: none; border-bottom: 1px solid #EDEEF5; }
+      .stat:last-child { border-bottom: none; }
+      .sig { flex-direction: column; align-items: flex-start; gap: 14px; }
+      .bank-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="pre">{{preheader}}</div>
+
+  <div class="shell">
+
+    <!-- HEADER -->
+    <div class="hd">
+      <div>
+        <div class="hd-tag">CMIT &middot; Campus Ministers in Training</div>
+        <div style="font-family:'DM Serif Display',Georgia,serif;font-size:18px;color:#fff;margin-top:6px;">Partner Update</div>
+      </div>
+    </div>
+
+    <!-- BODY -->
+    <div class="bd">
+
+      <div class="hd-meta">
+        <span class="hd-tag" style="color:#9898B0;">Partner Communication</span>
+        <span class="hd-pill">Cohort 01</span>
+      </div>
+
+      <!-- Greeting -->
+      <div class="g-label">Dear Partner</div>
+      <h2 class="g-head">{{name}},</h2>
+
+      <!-- Dynamic message body -->
+      {{messageBody}}
+
+      <!-- Signature -->
+      <div class="sig">
+        <div class="sig-left">
+          <p class="sig-cl">With gratitude,</p>
+          <p class="sig-name">The CMIT Team</p>
+          <p class="sig-title">A vision of Dami Oguntunde Teaching Ministries</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div class="ft">
+      <div class="ft-links">
+        <a href="https://cmithub.org">Website</a>
+        <a href="mailto:info@cmithub.org">Email</a>
+      </div>
+      <div class="ft-rule"></div>
+      <p class="ft-info">CMIT &mdash; Campus Ministers in Training</p>
+      <p class="ft-info">A vision of Dami Oguntunde Teaching Ministries</p>
+      <p class="ft-legal">&copy; {{year}} Dami Oguntunde Teaching Ministries. All rights reserved.</p>
+    </div>
+
+  </div>
+</body>
+</html>`,
+    variableDefinitions: [
+      {
+        name: 'name',
+        description: 'Partner name (auto-replaced per recipient)',
+        sampleValue: 'Pastor Ayomide Arowele',
+      },
+      {
+        name: 'messageBody',
+        description:
+          'Main email content HTML — use the CSS classes (.p, .rule, .sec-label, .stats, .stat, .ms-list, .ms, .pull, .needs, .need, .cta, .bank, .contact) for rich formatting',
+        sampleValue:
+          '<p class="p">Thank you for your partnership with CMIT. Here is your latest update.</p>',
+      },
+      {
+        name: 'preheader',
+        description: 'Hidden preview text shown in inbox',
+        sampleValue: 'CMIT Progress Update — Cohort 1 launches 1 August 2026.',
+      },
+      { name: 'year', description: 'Current year', sampleValue: '2026' },
+    ],
+  },
 ];

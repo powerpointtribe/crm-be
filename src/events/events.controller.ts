@@ -58,6 +58,7 @@ import {
   UpdatePartnerDetailsDto,
   QueryPartnersDto,
   ContactPartnerDto,
+  BulkPartnerEmailDto,
 } from './dto/partner.dto';
 import {
   EventAnalyticsQueryDto,
@@ -815,6 +816,23 @@ export class EventsController {
     @Body() dto: UpdatePartnerDetailsDto,
   ) {
     return this.eventsService.updatePartnerDetails(id, partnerId, dto);
+  }
+
+  @Post(':id/partners/bulk-email')
+  @RequirePermission(EventsPermission.SEND_EMAILS)
+  async sendBulkPartnerEmail(
+    @Param('id') id: string,
+    @Body() bulkEmailDto: BulkPartnerEmailDto,
+  ) {
+    const result = await this.eventsService.sendBulkEmailToPartners(
+      id,
+      bulkEmailDto,
+    );
+    return {
+      success: true,
+      message: `Email queued for ${result.recipientCount} partner(s).`,
+      ...result,
+    };
   }
 
   @Delete(':id/partners/:partnerId')
