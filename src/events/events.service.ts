@@ -3890,6 +3890,8 @@ export class EventsService {
           company: p.company,
         })),
         scheduledFor: bulkEmailDto.scheduledFor,
+        senderEmail: event.registrationSettings?.senderEmail,
+        senderName: event.registrationSettings?.senderName,
       },
       {
         delay: bulkEmailDto.scheduledFor

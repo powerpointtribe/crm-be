@@ -311,9 +311,21 @@ export class EventEmailProcessor {
     );
 
     try {
-      const { subject, message, partners = [] } = job.data;
+      const {
+        subject,
+        message,
+        partners = [],
+        senderEmail,
+        senderName,
+      } = job.data;
       let sent = 0;
       let failed = 0;
+
+      const from = senderEmail
+        ? senderName
+          ? `${senderName} <${senderEmail}>`
+          : senderEmail
+        : undefined;
 
       // Process in batches of 50
       const batchSize = 50;
@@ -332,6 +344,7 @@ export class EventEmailProcessor {
               to: partner.email,
               subject: subject,
               html: personalizedMessage,
+              from,
             });
 
             return partner.email;
