@@ -73,9 +73,35 @@ export class PortalService {
   }
 
   /**
+   * Ensure a PortalAccount exists for this registration WITHOUT emailing a
+   * set-password invite. Called on acceptance — the invite is now sent
+   * separately, manually, by an admin on a chosen day.
+   */
+  async ensureAccount(
+    registration: EventRegistrationDocument,
+  ): Promise<{ email: string | null }> {
+    const email = (registration.attendeeInfo?.email || '')
+      .trim()
+      .toLowerCase();
+    if (!email) return { email: null };
+
+    const existing = await this.accountModel.findOne({ email });
+    if (!existing) {
+      await new this.accountModel({
+        email,
+        firstName: registration.attendeeInfo?.firstName,
+        lastName: registration.attendeeInfo?.lastName,
+        status: PortalAccountStatus.INVITED,
+      }).save();
+    }
+    return { email };
+  }
+
+  /**
    * Ensure a PortalAccount exists for this registration, (re)issue a setup
-   * token and email the invite link. Called when a registration is accepted,
-   * and when a learner asks to (re)set their password.
+   * token and email the invite link. Called when an admin manually sends the
+   * set-password invite (individually or to all accepted), and when a learner
+   * asks to (re)set their password.
    */
   async provisionAndInvite(
     registration: EventRegistrationDocument,

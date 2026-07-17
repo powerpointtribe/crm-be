@@ -116,6 +116,15 @@ export class EventRegistration {
   @Prop({ type: Number, default: 0 })
   applicationReminderCount?: number;
 
+  // Unique CMIT student ID, assigned when the admission letter is issued
+  // (e.g. "CMIT/C1/0007"). Shown on the admission letter and for support.
+  @Prop({ trim: true })
+  studentId?: string;
+
+  // Set when the admission letter PDF has been emailed (guards re-sends).
+  @Prop({ type: Date })
+  admissionLetterSentAt?: Date;
+
   // Admission decision — separate from `status` (registration lifecycle).
   // Gates LMS portal access: only 'accepted' registrants get a login invite.
   @Prop({

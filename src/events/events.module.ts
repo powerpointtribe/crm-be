@@ -45,6 +45,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { QueueName } from '../common/interfaces/queue-job.interface';
 import { EventEmailProcessor } from '../queue/processors/event-email.processor';
 import { PortalModule } from '../portal/portal.module';
+import { LmsModule } from '../lms/lms.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { PortalModule } from '../portal/portal.module';
     forwardRef(() => BranchesModule),
     NotificationsModule,
     PortalModule,
+    forwardRef(() => LmsModule),
   ],
   controllers: [EventsController, EventsAdminController],
   providers: [EventsService, EventEmailProcessor, EventReminderScheduler],

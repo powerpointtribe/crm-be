@@ -4,6 +4,8 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { InjectModel } from '@nestjs/mongoose';
@@ -124,6 +126,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { QueueName, JobType } from '../common/interfaces/queue-job.interface';
 import { PortalService } from '../portal/portal.service';
+import { LmsService } from '../lms/lms.service';
 
 @Injectable()
 export class EventsService {
@@ -152,6 +155,8 @@ export class EventsService {
     @InjectQueue(QueueName.EMAIL_NOTIFICATIONS)
     private emailQueue: Queue,
     private portalService: PortalService,
+    @Inject(forwardRef(() => LmsService))
+    private lmsService: LmsService,
   ) {}
 
   // ========== EVENT CRUD OPERATIONS ==========
@@ -761,8 +766,11 @@ export class EventsService {
   }
 
   /**
-   * Set a registrant's admission decision. Accepting provisions an LMS portal
-   * account and emails a set-password invite link. Admin/facilitator action.
+   * Set a registrant's admission decision. Accepting IS admission: it
+   * provisions an LMS portal account (without emailing) and immediately sends
+   * the personalized admission letter (PDF + brochure) for CMIT. The
+   * set-password invite is decoupled — an admin sends it later, manually, via
+   * `sendPortalInvite` / `sendPortalInvitesToAllAccepted`.
    */
   async setAdmission(
     eventId: string,
@@ -771,7 +779,7 @@ export class EventsService {
   ): Promise<{
     success: true;
     admissionStatus: string;
-    invitedEmail: string | null;
+    admissionLetterSentTo: string | null;
   }> {
     const event = await this.eventModel.findById(eventId);
     if (!event) {
@@ -791,16 +799,82 @@ export class EventsService {
     }
     await registration.save();
 
-    let invitedEmail: string | null = null;
+    let admissionLetterSentTo: string | null = null;
     if (admissionStatus === 'accepted') {
-      const { sentTo } = await this.portalService.provisionAndInvite(
-        registration,
-        event,
-      );
-      invitedEmail = sentTo;
+      // Ensure the portal account exists, but do NOT email the invite yet.
+      await this.portalService.ensureAccount(registration);
+      // Send the admission letter (idempotent; CMIT-only inside the method).
+      try {
+        const res = await this.lmsService.sendAdmissionLetterForRegistration(
+          registration,
+          event,
+        );
+        if (res.sent) {
+          admissionLetterSentTo = registration.attendeeInfo?.email ?? null;
+        }
+      } catch (e) {
+        this.logger.warn(
+          `Admission letter on accept failed for ${registration.attendeeInfo?.email}: ${(e as Error).message}`,
+        );
+      }
     }
 
-    return { success: true, admissionStatus, invitedEmail };
+    return { success: true, admissionStatus, admissionLetterSentTo };
+  }
+
+  /**
+   * Manually (re)issue the set-password invite for one accepted registration.
+   * Admin action — typically on the programme's kickoff day.
+   */
+  async sendPortalInvite(
+    eventId: string,
+    registrationId: string,
+  ): Promise<{ sentTo: string | null }> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    const registration = await this.registrationModel.findOne({
+      _id: registrationId,
+      event: new Types.ObjectId(eventId),
+    });
+    if (!registration) throw new NotFoundException('Registration not found');
+    if (registration.admissionStatus !== 'accepted') {
+      throw new BadRequestException(
+        'Only accepted registrants can be sent a password-setup invite.',
+      );
+    }
+    return this.portalService.provisionAndInvite(registration, event);
+  }
+
+  /**
+   * Manually send the set-password invite to every accepted registration for an
+   * event. Admin action — the "open the portal for everyone" button.
+   */
+  async sendPortalInvitesToAllAccepted(
+    eventId: string,
+  ): Promise<{ sent: number; failed: number; total: number }> {
+    const event = await this.eventModel.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    const regs = await this.registrationModel.find({
+      event: new Types.ObjectId(eventId),
+      admissionStatus: 'accepted',
+    });
+    let sent = 0;
+    let failed = 0;
+    for (const reg of regs) {
+      try {
+        const { sentTo } = await this.portalService.provisionAndInvite(
+          reg,
+          event,
+        );
+        sentTo ? (sent += 1) : (failed += 1);
+      } catch (e) {
+        failed += 1;
+        this.logger.warn(
+          `Portal invite failed for ${reg.attendeeInfo?.email}: ${(e as Error).message}`,
+        );
+      }
+    }
+    return { sent, failed, total: regs.length };
   }
 
   async createRegistration(

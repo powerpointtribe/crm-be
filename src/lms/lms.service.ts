@@ -44,6 +44,7 @@ import { AiService } from '../ai/ai.service';
 import { YoutubeService } from '../youtube/youtube.service';
 import { EmailProvider } from '../notifications/providers/email.provider';
 import { EmailTemplateResolverService } from '../bulk-email/email-template-resolver.service';
+import { buildAdmissionLetterPdf } from '../events/utils/admission-letter.pdf';
 import {
   CreateAssignmentDto,
   CreateLessonDto,
@@ -1459,6 +1460,162 @@ export class LmsService {
       }
     }
     if (sent) this.logger.log(`Application reminders sent: ${sent}`);
+  }
+
+  // ===================== Admission letters ====================================
+  //
+  //  Emails every newly-admitted (admissionStatus 'accepted') CMIT registrant a
+  //  personalized PDF admission letter with a unique Student ID. Idempotent via
+  //  `admissionLetterSentAt`, so it covers every admission path (any place that
+  //  sets 'accepted') without double-sending. Toggle with
+  //  ADMISSION_LETTER_ENABLED=false.
+
+  private nextStudentSeq = new Map<string, number>();
+
+  private async assignStudentId(eventOid: Types.ObjectId): Promise<string> {
+    const key = String(eventOid);
+    const year = new Date().getFullYear();
+    let seq = this.nextStudentSeq.get(key);
+    if (seq === undefined) {
+      const last = await this.registrationModel
+        .findOne({ event: eventOid, studentId: { $regex: /^CMIT-\d{4}-/ } })
+        .sort({ studentId: -1 })
+        .select('studentId')
+        .lean();
+      const m = last?.studentId?.match(/(\d+)\s*$/);
+      seq = m ? parseInt(m[1], 10) : 0;
+    }
+    seq += 1;
+    this.nextStudentSeq.set(key, seq);
+    // Format: CMIT-<year>-<zero-padded id> (e.g. CMIT-2026-0007)
+    return `CMIT-${year}-${String(seq).padStart(4, '0')}`;
+  }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async sendAdmissionLetters() {
+    if (process.env.ADMISSION_LETTER_ENABLED === 'false') return;
+
+    // Scope to CMIT event(s) — the letter content is CMIT-specific.
+    const events = await this.eventModel
+      .find({
+        $or: [
+          { registrationSlug: 'cmit-cohort-1' },
+          { name: /campus ministers in training|CMIT/i },
+        ],
+      })
+      .select('registrationSettings')
+      .lean();
+    if (!events.length) return;
+    const eventIds = events.map((e) => e._id);
+
+    const regs = await this.registrationModel
+      .find({
+        event: { $in: eventIds },
+        admissionStatus: 'accepted',
+        $or: [
+          { admissionLetterSentAt: { $exists: false } },
+          { admissionLetterSentAt: null },
+        ],
+      })
+      .limit(300);
+
+    let sent = 0;
+    for (const reg of regs) {
+      const res = await this.sendAdmissionLetterForRegistration(reg).catch(
+        (e) => {
+          this.logger.warn(
+            `Admission letter to ${reg.attendeeInfo?.email} failed: ${(e as Error).message}`,
+          );
+          return { sent: false as const };
+        },
+      );
+      if (res.sent) sent += 1;
+    }
+    if (sent) this.logger.log(`Admission letters sent: ${sent}`);
+  }
+
+  /** True when an event's admission letter content applies (CMIT-specific). */
+  private isCmitEvent(event: {
+    registrationSlug?: string;
+    name?: string;
+    title?: string;
+  }): boolean {
+    if (event?.registrationSlug === 'cmit-cohort-1') return true;
+    return /campus ministers in training|CMIT/i.test(
+      `${event?.name || ''} ${event?.title || ''}`,
+    );
+  }
+
+  /**
+   * Build + email the personalized CMIT admission letter (PDF) for a single
+   * accepted registration, assigning a Student ID if needed. Idempotent via
+   * `admissionLetterSentAt`. Called on acceptance and by the safety-net cron.
+   * Returns whether an email was actually sent (with a reason when skipped).
+   */
+  async sendAdmissionLetterForRegistration(
+    reg: EventRegistrationDocument,
+    event?: EventDocument,
+  ): Promise<{ sent: boolean; reason?: string }> {
+    const email = reg.attendeeInfo?.email;
+    if (!email) return { sent: false, reason: 'no-email' };
+    if (reg.admissionLetterSentAt) return { sent: false, reason: 'already-sent' };
+
+    const ev =
+      event ||
+      (await this.eventModel
+        .findById(reg.event)
+        .select('registrationSlug name title registrationSettings')
+        .lean());
+    if (!ev) return { sent: false, reason: 'no-event' };
+    if (!this.isCmitEvent(ev)) return { sent: false, reason: 'not-cmit' };
+
+    if (!reg.studentId) {
+      reg.studentId = await this.assignStudentId(reg.event as Types.ObjectId);
+    }
+
+    const firstName = reg.attendeeInfo?.firstName || '';
+    const lastName = reg.attendeeInfo?.lastName || '';
+    const studentName = [firstName, lastName].filter(Boolean).join(' ');
+    const issueDate = new Date().toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const pdf = await buildAdmissionLetterPdf({
+      studentName,
+      studentId: reg.studentId,
+      issueDate,
+    });
+
+    const cfg = (ev as EventDocument).registrationSettings;
+    const from =
+      cfg?.senderEmail && cfg?.senderName
+        ? `${cfg.senderName} <${cfg.senderEmail}>`
+        : cfg?.senderEmail;
+
+    const { subject, html } = await this.templateResolver.resolveTemplate(
+      'events.admission-letter',
+      { firstName, lastName, year: String(new Date().getFullYear()) },
+    );
+
+    await this.emailProvider.sendEmail({
+      to: email,
+      subject,
+      html,
+      ...(from ? { from } : {}),
+      attachments: [
+        {
+          filename: `CMIT_Admission_Letter_${reg.studentId.replace(/[^A-Za-z0-9]+/g, '-')}.pdf`,
+          content: pdf,
+          contentType: 'application/pdf',
+        },
+      ],
+    });
+
+    reg.admissionLetterSentAt = new Date();
+    await reg.save();
+    return { sent: true };
   }
 
   // ===================== YouTube session recordings ============================

@@ -537,8 +537,8 @@ export class EventsController {
     const result = await this.eventsService.setAdmission(id, regId, 'accepted');
     return {
       ...result,
-      message: result.invitedEmail
-        ? `Accepted. Portal invite sent to ${result.invitedEmail}.`
+      message: result.admissionLetterSentTo
+        ? `Accepted. Admission letter emailed to ${result.admissionLetterSentTo}.`
         : 'Accepted.',
     };
   }
@@ -550,6 +550,37 @@ export class EventsController {
     @Param('regId') regId: string,
   ) {
     return this.eventsService.setAdmission(id, regId, 'rejected');
+  }
+
+  // Manually (re)send the set-password invite to one accepted registrant.
+  @Post(':id/registrations/:regId/send-invite')
+  @RequirePermission(EventsPermission.UPDATE_REGISTRATION)
+  async sendPortalInvite(
+    @Param('id') id: string,
+    @Param('regId') regId: string,
+  ) {
+    const { sentTo } = await this.eventsService.sendPortalInvite(id, regId);
+    return {
+      success: !!sentTo,
+      sentTo,
+      message: sentTo
+        ? `Password-setup invite sent to ${sentTo}.`
+        : 'No email address on file for this registrant.',
+    };
+  }
+
+  // Manually send the set-password invite to every accepted registrant.
+  @Post(':id/portal-invites/send-all-accepted')
+  @RequirePermission(EventsPermission.UPDATE_REGISTRATION)
+  async sendPortalInvitesToAllAccepted(@Param('id') id: string) {
+    const res = await this.eventsService.sendPortalInvitesToAllAccepted(id);
+    return {
+      success: true,
+      ...res,
+      message: `Password-setup invites sent to ${res.sent} of ${res.total} accepted registrant(s)${
+        res.failed ? `, ${res.failed} failed` : ''
+      }.`,
+    };
   }
 
   // Facilitator announcement / broadcast to an event's attendees. Queues one

@@ -187,6 +187,11 @@ export class EmailProvider {
     from?: string;
     cc?: string[];
     bcc?: string[];
+    attachments?: Array<{
+      filename: string;
+      content: Buffer | string; // Buffer or base64 string
+      contentType?: string;
+    }>;
   }): Promise<any> {
     if (this.emailProvider === 'sendgrid') {
       return this.sendEmailWithSendGrid(options);
@@ -257,8 +262,7 @@ export class EmailProvider {
     const recipients = Array.isArray(options.to) ? options.to : [options.to];
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
-    const fromEmail =
-      options.from || `The Powerpoint Tribe <${defaultSender}>`;
+    const fromEmail = options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[SendGrid] Attempting to send email to: ${recipients.join(', ')}`,
@@ -309,8 +313,7 @@ export class EmailProvider {
     const recipients = Array.isArray(options.to) ? options.to : [options.to];
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
-    const fromEmail =
-      options.from || `The Powerpoint Tribe <${defaultSender}>`;
+    const fromEmail = options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[Nodemailer] Attempting to send email to: ${recipients.join(', ')}`,
@@ -381,6 +384,11 @@ export class EmailProvider {
     subject: string;
     html: string;
     from?: string;
+    attachments?: Array<{
+      filename: string;
+      content: Buffer | string;
+      contentType?: string;
+    }>;
   }): Promise<any> {
     const recipients = Array.isArray(options.to) ? options.to : [options.to];
     const defaultSender =
@@ -399,6 +407,16 @@ export class EmailProvider {
     this.logger.log(`Subject: ${options.subject}`);
     this.logger.log(`From: ${fromName} <${fromAddress}>`);
 
+    const attachments = options.attachments?.length
+      ? options.attachments.map((a) => ({
+          name: a.filename,
+          mime_type: a.contentType || 'application/octet-stream',
+          content: Buffer.isBuffer(a.content)
+            ? a.content.toString('base64')
+            : a.content,
+        }))
+      : undefined;
+
     const payload = {
       from: { address: fromAddress, name: fromName },
       to: recipients.map((email) => ({
@@ -406,6 +424,7 @@ export class EmailProvider {
       })),
       subject: options.subject,
       htmlbody: options.html,
+      ...(attachments ? { attachments } : {}),
     };
 
     try {
@@ -438,8 +457,7 @@ export class EmailProvider {
     const recipients = Array.isArray(options.to) ? options.to : [options.to];
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
-    const fromEmail =
-      options.from || `The Powerpoint Tribe <${defaultSender}>`;
+    const fromEmail = options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[ZeptoMail SMTP] Attempting to send email to: ${recipients.join(', ')}`,
@@ -528,8 +546,7 @@ export class EmailProvider {
   }): Promise<any> {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
-    const fromEmail =
-      options.from || `The Powerpoint Tribe <${defaultSender}>`;
+    const fromEmail = options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     const emails = options.recipients.map((recipient) => ({
       to: recipient.email,
@@ -561,8 +578,7 @@ export class EmailProvider {
   }): Promise<any> {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
-    const fromEmail =
-      options.from || `The Powerpoint Tribe <${defaultSender}>`;
+    const fromEmail = options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[Nodemailer] Sending bulk email to ${options.recipients.length} recipients`,
@@ -635,8 +651,7 @@ export class EmailProvider {
   }): Promise<any> {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
-    const fromEmail =
-      options.from || `The Powerpoint Tribe <${defaultSender}>`;
+    const fromEmail = options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[Zeptomail] Sending bulk email to ${options.recipients.length} recipients`,
@@ -704,8 +719,7 @@ export class EmailProvider {
   }): Promise<any> {
     const defaultSender =
       this.configService.get<string>('SENDER_EMAIL') || 'hello@comtrova.com';
-    const fromEmail =
-      options.from || `The Powerpoint Tribe <${defaultSender}>`;
+    const fromEmail = options.from || `The Powerpoint Tribe <${defaultSender}>`;
 
     this.logger.log(
       `[ZeptoMail SMTP] Sending bulk email to ${options.recipients.length} recipients`,

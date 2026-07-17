@@ -43,6 +43,7 @@
     "@bull-board/api": "^6.13.0",
     "@bull-board/express": "^6.13.0",
     "@bull-board/ui": "^6.13.0",
+    "@expo-google-fonts/manrope": "^0.4.2",
     "@nestjs/bull": "^11.0.3",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/common": "^11.0.1",

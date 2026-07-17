@@ -1202,4 +1202,49 @@ export const eventsDefaults: TemplateDefinition[] = [
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },
+  {
+    slug: 'events.admission-letter',
+    name: 'Admission Letter (Accepted)',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.EVENT,
+    subject: 'Welcome to CMIT Cohort 1 — Your Admission Letter Attached',
+    htmlContent: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:540px;margin:0 auto;background:#ffffff;border:1px solid #e8eaf0;border-radius:16px;overflow:hidden;">
+  <div style="background:#18216C;padding:30px 32px 26px;">
+    <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#C9A227;">CMIT Cohort 1 &middot; Admission</p>
+    <h1 style="margin:10px 0 0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">Congratulations &mdash; you're in!</h1>
+  </div>
+  <div style="padding:28px 32px;">
+    <p style="margin:0 0 16px;font-size:15px;color:#1a2340;">Dear {{firstName}} {{lastName}},</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#525a72;line-height:1.65;">Congratulations! You have been formally admitted into the maiden cohort of the Campus Ministers in Training (CMIT) initiative.</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#525a72;line-height:1.65;">Please find your official <strong style="color:#1a2340;">admission letter attached</strong>, containing your unique Student ID, programme schedule, and next steps to activate your account.</p>
+    <p style="margin:0 0 22px;font-size:15px;color:#525a72;line-height:1.65;">We're delighted to have you join us on this journey and look forward to an enriching five weeks together.</p>
+    <div style="border:1px solid #eef0f4;background:#fafbfd;border-radius:12px;padding:18px 20px;margin:0 0 22px;text-align:center;">
+      <p style="margin:0 0 12px;font-size:14px;color:#525a72;line-height:1.6;">Get to know the programme in full &mdash; the five-week curriculum, what you'll gain, and more:</p>
+      <a href="https://drive.usercontent.google.com/download?id=1WovJz3KhtoGDq3lfuyuWPgxvox7kxneK&export=download&confirm=t" style="display:inline-block;background:#C9A227;color:#18216C;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:999px;">Download the programme brochure (PDF) &rarr;</a>
+    </div>
+    <div style="border:1px solid #eef0f4;border-radius:12px;padding:16px 18px;margin:0 0 8px;">
+      <p style="margin:0 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#8a90a6;">For any enquiries, reach out</p>
+      <p style="margin:0;font-size:14px;color:#333;line-height:1.7;"><strong style="color:#18216C;">Email:</strong> cmithub@gmail.com<br/><strong style="color:#18216C;">Phone:</strong> +234 813 697 1500</p>
+    </div>
+  </div>
+  <div style="padding:20px 32px;border-top:1px solid #f0f1f6;">
+    <p style="margin:0;font-size:14px;color:#525a72;">Yours faithfully,</p>
+    <p style="margin:8px 0 0;font-size:14px;font-weight:700;color:#18216C;">Pastor Nonso Orji</p>
+    <p style="margin:2px 0 0;font-size:12px;color:#a2a7ba;">Administration Lead &middot; Campus Ministers in Training (CMIT)</p>
+  </div>
+</div>`,
+    variableDefinitions: [
+      {
+        name: 'firstName',
+        description: 'Admitted student first name',
+        sampleValue: 'Adaeze',
+      },
+      {
+        name: 'lastName',
+        description: 'Admitted student last name',
+        sampleValue: 'Okafor',
+      },
+      { name: 'year', description: 'Current year', sampleValue: '2026' },
+    ],
+  },
 ];

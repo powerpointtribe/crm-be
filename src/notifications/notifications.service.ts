@@ -856,19 +856,34 @@ export class NotificationsService {
     senderName?: string;
   }): Promise<void> {
     const name = data.firstName || 'there';
-    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e7e4de;border-radius:12px;overflow:hidden;">
-  <div style="background:#0f2545;padding:34px 24px;text-align:center;">
-    <h1 style="margin:0;font-size:21px;font-weight:700;color:#ffffff;">You're in &mdash; welcome to ${data.eventTitle}</h1>
-  </div>
-  <div style="padding:26px 24px;">
-    <p style="font-size:15px;color:#1a1a1a;margin:0 0 16px;font-weight:500;">Hi ${name},</p>
-    <p style="font-size:15px;color:#555;margin:0 0 20px;line-height:1.6;">Congratulations &mdash; you've been accepted. Set your password to access the learning portal, view your modules, and join your live sessions.</p>
-    <div style="text-align:center;margin:24px 0;">
-      <a href="${data.setupUrl}" style="display:inline-block;background:#c8a04a;color:#0f2545;font-size:15px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:8px;">Set your password &rarr;</a>
+    const safe = (s: string) =>
+      String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    const title = safe(data.eventTitle);
+    const html = `<div style="background:#eef0fa;padding:28px 12px;">
+  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(12,18,64,0.08);">
+    <div style="background:#18216c;padding:36px 28px 30px;text-align:center;">
+      <div style="display:inline-block;background:rgba(212,175,55,0.16);color:#e8cf7f;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;padding:6px 14px;border-radius:999px;">Your portal is ready</div>
+      <h1 style="margin:16px 0 0;font-size:22px;line-height:1.3;font-weight:800;color:#ffffff;">Set your password</h1>
+      <p style="margin:6px 0 0;font-size:13px;color:#aab2e0;">${title}</p>
     </div>
-    <p style="font-size:12px;color:#888;line-height:1.5;margin:0 0 4px;">Or paste this link into your browser:</p>
-    <p style="font-size:12px;color:#0f2545;word-break:break-all;margin:0;">${data.setupUrl}</p>
-    <p style="font-size:12px;color:#999;margin:18px 0 0;">This link is unique to you and expires in 14 days. If you didn't expect this, you can ignore it.</p>
+    <div style="padding:30px 28px;">
+      <p style="font-size:15px;color:#18216c;margin:0 0 14px;font-weight:600;">Hi ${safe(name)},</p>
+      <p style="font-size:15px;color:#4b5170;margin:0 0 22px;line-height:1.65;">It's time to activate your learning portal. Set your password below to sign in, open your modules, track your progress and join your live sessions.</p>
+      <div style="text-align:center;margin:26px 0;">
+        <a href="${data.setupUrl}" style="display:inline-block;background:#d4af37;color:#18216c;font-size:15px;font-weight:800;text-decoration:none;padding:15px 38px;border-radius:10px;box-shadow:0 4px 12px rgba(212,175,55,0.35);">Set your password &rarr;</a>
+      </div>
+      <table role="presentation" width="100%" style="margin:24px 0 0;border-top:1px solid #eef0fa;"><tr><td style="padding-top:18px;">
+        <p style="font-size:12px;color:#9aa0bd;line-height:1.5;margin:0 0 4px;font-weight:600;">Button not working? Paste this link into your browser:</p>
+        <p style="font-size:12px;color:#2f3a9c;word-break:break-all;margin:0;">${data.setupUrl}</p>
+      </td></tr></table>
+      <p style="font-size:12px;color:#9aa0bd;margin:20px 0 0;line-height:1.6;">🔒 This link is unique to you and expires in 14 days. If you weren't expecting it, you can safely ignore this email.</p>
+    </div>
+    <div style="background:#f7f8fc;padding:16px 28px;text-align:center;border-top:1px solid #eef0fa;">
+      <p style="margin:0;font-size:11px;color:#9aa0bd;">${title}</p>
+    </div>
   </div>
 </div>`;
 
