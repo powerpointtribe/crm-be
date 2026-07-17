@@ -50,6 +50,15 @@ import { LmsModule } from './lms/lms.module';
         ssl: true,
         tls: true,
         tlsInsecure: false,
+        // Bound the connection pool so a single instance can't exhaust the
+        // cluster's connection limit, and fail fast instead of hanging when
+        // the cluster is slow/unreachable (prevents 15s+ "no-response" hangs).
+        maxPoolSize: Number(configService.get('MONGO_MAX_POOL_SIZE') ?? 20),
+        minPoolSize: 2,
+        maxIdleTimeMS: 60_000, // reclaim idle sockets after 60s
+        serverSelectionTimeoutMS: 8_000, // give up finding a server in 8s
+        socketTimeoutMS: 45_000, // abort a stuck operation after 45s
+        waitQueueTimeoutMS: 10_000, // don't wait forever for a pooled connection
       }),
     }),
 

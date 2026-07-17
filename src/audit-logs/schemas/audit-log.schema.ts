@@ -117,3 +117,18 @@ AuditLogSchema.index({ success: 1, timestamp: -1 });
 // Compound indexes for common queries
 AuditLogSchema.index({ entityType: 1, action: 1, timestamp: -1 });
 AuditLogSchema.index({ performedBy: 1, entityType: 1, timestamp: -1 });
+
+// TTL: auto-expire old audit logs so the collection can't grow unbounded.
+// Every CRUD across the app is logged here, so this is a high-write collection;
+// capping retention keeps its size — and the cluster's write/scan load — in
+// check. Retention defaults to 180 days; override with AUDIT_LOG_TTL_DAYS.
+// (Indexed on createdAt, which has no other index, to avoid a key conflict with
+// the existing `timestamp` indexes.)
+const AUDIT_LOG_TTL_DAYS = Math.max(
+  1,
+  Number(process.env.AUDIT_LOG_TTL_DAYS ?? 180),
+);
+AuditLogSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: AUDIT_LOG_TTL_DAYS * 24 * 60 * 60 },
+);
