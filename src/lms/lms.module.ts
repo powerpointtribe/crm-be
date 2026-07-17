@@ -33,6 +33,10 @@ import {
   SessionAttendance,
   SessionAttendanceSchema,
 } from '../events/schemas/session-attendance.schema';
+import {
+  EventAnnouncement,
+  EventAnnouncementSchema,
+} from '../events/schemas/event-announcement.schema';
 import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { AuthModule } from '../auth/auth.module';
 import { RolesModule } from '../roles/roles.module';
@@ -57,6 +61,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
       { name: EventRegistration.name, schema: EventRegistrationSchema },
       { name: EventSession.name, schema: EventSessionSchema },
       { name: SessionAttendance.name, schema: SessionAttendanceSchema },
+      { name: EventAnnouncement.name, schema: EventAnnouncementSchema },
       { name: Member.name, schema: MemberSchema },
     ]),
     forwardRef(() => AuthModule),

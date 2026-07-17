@@ -23,6 +23,10 @@ import {
   AttendeeType,
 } from './schemas/event-registration.schema';
 import {
+  EventAnnouncement,
+  EventAnnouncementDocument,
+} from './schemas/event-announcement.schema';
+import {
   EventSession,
   EventSessionDocument,
   SessionStatus,
@@ -136,6 +140,8 @@ export class EventsService {
     @InjectModel(Event.name) private eventModel: Model<EventDocument>,
     @InjectModel(EventRegistration.name)
     private registrationModel: Model<EventRegistrationDocument>,
+    @InjectModel(EventAnnouncement.name)
+    private announcementModel: Model<EventAnnouncementDocument>,
     @InjectModel(EventSession.name)
     private sessionModel: Model<EventSessionDocument>,
     @InjectModel(SessionAttendance.name)
@@ -4060,6 +4066,26 @@ export class EventsService {
     this.logger.log(
       `Bulk email queued for ${registrations.length} registrations for event ${event.title}`,
     );
+
+    // Also persist it as an in-app notification for the learner portal (bell +
+    // Updates tab). Non-fatal if it fails — the email is the primary channel.
+    try {
+      await this.announcementModel.create({
+        event: event._id,
+        subject: bulkEmailDto.subject,
+        message: bulkEmailDto.message,
+        audience:
+          bulkEmailDto.registrationIds &&
+          bulkEmailDto.registrationIds.length > 0
+            ? 'accepted'
+            : 'all',
+        senderName: event.registrationSettings?.senderName,
+      });
+    } catch (e) {
+      this.logger.warn(
+        `Failed to persist announcement notification: ${(e as Error).message}`,
+      );
+    }
 
     return {
       jobId: job.id.toString(),

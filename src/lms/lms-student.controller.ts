@@ -141,6 +141,21 @@ export class LmsStudentController {
     });
   }
 
+  @Get('me/notifications')
+  getNotifications(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Query('eventSlug') eventSlug?: string,
+  ) {
+    return this.lms.getNotifications(account, eventSlug);
+  }
+
+  @Post('me/notifications/read')
+  markNotificationsRead(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+  ) {
+    return this.lms.markNotificationsRead(account);
+  }
+
   @Post('me/assistant')
   askAssistant(
     @CurrentPortalAccount() account: PortalAccountDocument,

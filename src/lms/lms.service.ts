@@ -31,6 +31,10 @@ import {
   EventRegistrationDocument,
 } from '../events/schemas/event-registration.schema';
 import {
+  EventAnnouncement,
+  EventAnnouncementDocument,
+} from '../events/schemas/event-announcement.schema';
+import {
   EventSession,
   EventSessionDocument,
 } from '../events/schemas/event-session.schema';
@@ -85,6 +89,8 @@ export class LmsService {
     private readonly eventModel: Model<EventDocument>,
     @InjectModel(EventRegistration.name)
     private readonly registrationModel: Model<EventRegistrationDocument>,
+    @InjectModel(EventAnnouncement.name)
+    private readonly announcementModel: Model<EventAnnouncementDocument>,
     @InjectModel(EventSession.name)
     private readonly sessionModel: Model<EventSessionDocument>,
     @InjectModel(SessionAttendance.name)
@@ -751,6 +757,44 @@ export class LmsService {
       );
     }
     return { event, registration };
+  }
+
+  /**
+   * Learner notifications = the event's persisted announcements, newest first,
+   * each flagged read/unread against the account's `notificationsReadAt`.
+   */
+  async getNotifications(account: PortalAccountDocument, eventSlug?: string) {
+    const { event } = await this.resolveLearner(account, eventSlug);
+    const list = await this.announcementModel
+      .find({ event: event._id })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    const readAt = account.notificationsReadAt
+      ? new Date(account.notificationsReadAt).getTime()
+      : 0;
+
+    const items = list.map((a) => {
+      const createdAt = (a as any).createdAt as Date;
+      return {
+        id: String(a._id),
+        subject: a.subject,
+        message: a.message,
+        senderName: a.senderName || event.title,
+        createdAt,
+        read: new Date(createdAt).getTime() <= readAt,
+      };
+    });
+
+    return { items, unread: items.filter((i) => !i.read).length };
+  }
+
+  /** Mark all of the learner's notifications as read (bell → 0). */
+  async markNotificationsRead(account: PortalAccountDocument) {
+    account.notificationsReadAt = new Date();
+    await account.save();
+    return { success: true as const };
   }
 
   /**

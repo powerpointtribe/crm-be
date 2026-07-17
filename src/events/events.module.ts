@@ -34,6 +34,10 @@ import {
   Feedback,
   FeedbackSchema,
 } from './schemas/feedback.schema';
+import {
+  EventAnnouncement,
+  EventAnnouncementSchema,
+} from './schemas/event-announcement.schema';
 import { Member, MemberSchema } from '../members/schemas/member.schema';
 import { CommonModule } from '../common/common.module';
 import { RolesModule } from '../roles/roles.module';
@@ -59,6 +63,7 @@ import { LmsModule } from '../lms/lms.module';
       { name: Testimony.name, schema: TestimonySchema },
       { name: Feedback.name, schema: FeedbackSchema },
       { name: Member.name, schema: MemberSchema },
+      { name: EventAnnouncement.name, schema: EventAnnouncementSchema },
     ]),
     BullModule.registerQueue({
       name: QueueName.EMAIL_NOTIFICATIONS,

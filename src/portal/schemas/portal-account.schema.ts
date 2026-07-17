@@ -46,6 +46,11 @@ export class PortalAccount {
 
   @Prop({ type: Date })
   lastLoginAt?: Date;
+
+  // When the learner last opened their notifications. Anything newer counts as
+  // unread for the portal bell.
+  @Prop({ type: Date })
+  notificationsReadAt?: Date;
 }
 
 export const PortalAccountSchema = SchemaFactory.createForClass(PortalAccount);
