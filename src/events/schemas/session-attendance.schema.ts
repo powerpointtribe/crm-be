@@ -68,9 +68,24 @@ export class SessionAttendance {
   @Prop({ type: Date })
   checkOutTime?: Date;
 
-  // Duration tracking (in minutes)
+  // Duration tracking (in minutes). `attendedMinutes` is total watch-time
+  // (live + replay); `liveMinutes` is only the portion watched during the
+  // session's live window. Live attendance (status present/late) is derived
+  // from liveMinutes; "watched" attendance from the total.
   @Prop({ type: Number })
   attendedMinutes?: number;
+
+  @Prop({ type: Number, default: 0 })
+  liveMinutes: number;
+
+  // True once total watch-time passes the threshold — the learner engaged with
+  // the session content, whether live or via the replay.
+  @Prop({ type: Boolean, default: false })
+  watched: boolean;
+
+  // Number of separate viewing sessions (views) — a session engagement metric.
+  @Prop({ type: Number, default: 0 })
+  watchCount: number;
 
   // Late arrival tracking
   @Prop({ type: Number, default: 0 })

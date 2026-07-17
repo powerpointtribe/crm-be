@@ -675,6 +675,7 @@ export class LmsService {
           instructions: a.instructions,
           dueDate: a.dueDate,
           maxScore: a.maxScore,
+          lessonId: a.lesson || null,
           submission: s
             ? {
                 text: s.text || '',
@@ -1266,6 +1267,7 @@ export class LmsService {
     ]);
     const bySession: Record<string, any> = {};
     for (const a of attendance) bySession[String(a.session)] = a;
+    const now = new Date();
 
     return {
       sessions: sessions.map((s) => {
@@ -1289,13 +1291,28 @@ export class LmsService {
           presentThresholdMinutes: this.presentThresholdFor(
             s as unknown as EventSessionDocument,
           ),
+          // Whether the session's live window is open right now — decides
+          // whether watching counts as live or replay ("watched") attendance.
+          isLiveNow: this.isWithinLiveWindow(
+            s as unknown as EventSessionDocument,
+            now,
+          ),
           myAttendance: a
             ? {
-                status: a.status,
+                status: a.status, // live attendance
                 checkInTime: a.checkInTime,
                 attendedMinutes: Math.round(a.attendedMinutes || 0),
+                liveMinutes: Math.round(a.liveMinutes || 0),
+                watched: !!a.watched,
+                watchCount: a.watchCount || 0,
               }
-            : { status: 'absent', attendedMinutes: 0 },
+            : {
+                status: 'absent',
+                attendedMinutes: 0,
+                liveMinutes: 0,
+                watched: false,
+                watchCount: 0,
+              },
         };
       }),
     };
@@ -1332,6 +1349,31 @@ export class LmsService {
     return start;
   }
 
+  /** Session's scheduled end (date + endTime), or null if no end time. */
+  private sessionEnd(session: EventSessionDocument): Date | null {
+    if (!session.date) return null;
+    const m = /^(\d{1,2}):(\d{2})/.exec(session.endTime || '');
+    if (!m) return null;
+    const end = new Date(session.date);
+    end.setHours(Number(m[1]), Number(m[2]), 0, 0);
+    return end;
+  }
+
+  /**
+   * Is `at` inside the session's live broadcast window? Watch-time within the
+   * scheduled start→end (10 min early grace, 30 min late grace) counts as LIVE
+   * attendance; anything outside is a replay ("watched") view only.
+   */
+  private isWithinLiveWindow(session: EventSessionDocument, at: Date): boolean {
+    const start = this.sessionStart(session);
+    if (!start) return false;
+    const end = this.sessionEnd(session);
+    const openFrom = start.getTime() - 10 * 60_000;
+    const openTo =
+      (end ? end.getTime() : start.getTime() + 3 * 3_600_000) + 30 * 60_000;
+    return at.getTime() >= openFrom && at.getTime() <= openTo;
+  }
+
   /** Was `joinedAt` after the session's late-arrival grace window? */
   private isLateJoin(
     session: EventSessionDocument,
@@ -1347,15 +1389,16 @@ export class LmsService {
   private deriveStatus(
     minutes: number,
     late: boolean,
-    finalize: boolean,
     thresholdMinutes: number,
   ): 'present' | 'late' | 'absent' {
-    if (minutes >= thresholdMinutes) {
-      return late ? 'late' : 'present';
-    }
-    // Below the watch threshold: while live, show 'late' ("counting…"); once
-    // finalized, too little watch time means absent.
-    return finalize ? 'absent' : 'late';
+    // Attendance is only recorded once the watch-time threshold is reached.
+    // Below it the learner has NOT attended yet — 'absent' whether the session
+    // is still live or being finalized (no "counting counts as present").
+    if (minutes < thresholdMinutes) return 'absent';
+    // At/above threshold: attended. 'late' only if they joined after the
+    // session's late-arrival grace window (e.g. watching a replay long after
+    // the scheduled start); otherwise 'present'.
+    return late ? 'late' : 'present';
   }
 
   /**
@@ -1365,7 +1408,7 @@ export class LmsService {
   async recordWatchHeartbeat(
     account: PortalAccountDocument,
     sessionId: string,
-    dto: { seconds?: number },
+    dto: { seconds?: number; newView?: boolean },
   ) {
     const session = await this.sessionModel.findById(sessionId);
     if (!session) throw new NotFoundException('Session not found');
@@ -1391,10 +1434,19 @@ export class LmsService {
     });
     const now = new Date();
     const joinedAt = existing?.checkInTime || now;
-    const attendedMinutes = (existing?.attendedMinutes || 0) + seconds / 60;
-    const late = this.isLateJoin(session, joinedAt);
+    const isLive = this.isWithinLiveWindow(session, now);
     const threshold = this.presentThresholdFor(session);
-    const status = this.deriveStatus(attendedMinutes, late, false, threshold);
+
+    // Total watch-time (live + replay) and the live-only portion.
+    const attendedMinutes = (existing?.attendedMinutes || 0) + seconds / 60;
+    const liveMinutes =
+      (existing?.liveMinutes || 0) + (isLive ? seconds / 60 : 0);
+
+    // LIVE attendance (present/late/absent) is derived from LIVE minutes;
+    // "watched" from total watch-time.
+    const late = this.isLateJoin(session, joinedAt);
+    const status = this.deriveStatus(liveMinutes, late, threshold);
+    const watched = attendedMinutes >= threshold;
 
     await this.attendanceModel.updateOne(
       { session: session._id, registration: registration._id },
@@ -1403,18 +1455,22 @@ export class LmsService {
           event: session.event,
           status,
           attendedMinutes,
-          lateByMinutes: late
-            ? Math.max(
-                0,
-                Math.round(
-                  (joinedAt.getTime() -
-                    (this.sessionStart(session)?.getTime() ??
-                      joinedAt.getTime())) /
-                    60_000,
-                ),
-              )
-            : 0,
+          liveMinutes,
+          watched,
+          lateByMinutes:
+            late && liveMinutes >= threshold
+              ? Math.max(
+                  0,
+                  Math.round(
+                    (joinedAt.getTime() -
+                      (this.sessionStart(session)?.getTime() ??
+                        joinedAt.getTime())) /
+                      60_000,
+                  ),
+                )
+              : 0,
         },
+        ...(dto.newView ? { $inc: { watchCount: 1 } } : {}),
         $setOnInsert: {
           session: session._id,
           registration: registration._id,
@@ -1424,7 +1480,16 @@ export class LmsService {
       { upsert: true },
     );
 
-    return { status, attendedMinutes: Math.round(attendedMinutes) };
+    const watchCount = (existing?.watchCount || 0) + (dto.newView ? 1 : 0);
+    return {
+      status, // live attendance status
+      attendedMinutes: Math.round(attendedMinutes),
+      liveMinutes: Math.round(liveMinutes),
+      watched,
+      watchCount,
+      isLive,
+      thresholdMinutes: threshold,
+    };
   }
 
   /**
@@ -1441,21 +1506,23 @@ export class LmsService {
     const rows = await this.attendanceModel.find({ session: session._id });
     const threshold = this.presentThresholdFor(session);
     const counts = { present: 0, late: 0, absent: 0 };
+    let watched = 0; // reached threshold via any watch-time (live or replay)
+    let views = 0; // total viewing sessions across all learners
     for (const row of rows) {
       const late = this.isLateJoin(session, row.checkInTime);
-      const status = this.deriveStatus(
-        row.attendedMinutes || 0,
-        late,
-        true,
-        threshold,
-      );
+      // Live attendance is derived from LIVE minutes only.
+      const status = this.deriveStatus(row.liveMinutes || 0, late, threshold);
+      const didWatch = (row.attendedMinutes || 0) >= threshold;
       counts[status] += 1;
-      if (status !== row.status) {
+      if (didWatch) watched += 1;
+      views += row.watchCount || 0;
+      if (status !== row.status || didWatch !== row.watched) {
         row.status = status as any;
+        row.watched = didWatch;
         await row.save();
       }
     }
-    return { total: rows.length, ...counts };
+    return { total: rows.length, ...counts, watched, views };
   }
 
   /** Current live status of a session's YouTube broadcast (for the portal). */

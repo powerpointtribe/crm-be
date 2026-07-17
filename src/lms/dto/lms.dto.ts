@@ -370,6 +370,13 @@ export class SessionHeartbeatDto {
   @IsOptional()
   @IsNumber()
   seconds?: number;
+
+  // Sent true on the first heartbeat of a fresh viewing session (player mount),
+  // so the server can increment the view count.
+  @ApiPropertyOptional({ description: 'First beat of a new viewing session.' })
+  @IsOptional()
+  @IsBoolean()
+  newView?: boolean;
 }
 
 export class PublishRecordingDto {
