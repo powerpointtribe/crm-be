@@ -57,6 +57,12 @@ export class EventSession {
   @Prop({ type: Types.ObjectId, ref: 'Branch', required: false })
   branch?: Types.ObjectId;
 
+  // Optional link to the course module this session belongs to. When set, the
+  // learner portal surfaces "Join live session" inside that module until the
+  // recording is published (which then replaces it). Not a completion metric.
+  @Prop({ type: Types.ObjectId, ref: 'CourseModule' })
+  moduleId?: Types.ObjectId;
+
   // Session Details
   @Prop({ required: true, trim: true })
   title: string;

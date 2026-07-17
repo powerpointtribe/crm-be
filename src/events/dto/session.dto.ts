@@ -142,6 +142,12 @@ export class CreateSessionDto {
   @IsMongoId()
   event: string;
 
+  // Optional module this session belongs to (surfaces "Join live" in-module).
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsMongoId()
+  moduleId?: string;
+
   @ApiProperty()
   @IsString()
   title: string;

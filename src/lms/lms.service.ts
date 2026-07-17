@@ -872,7 +872,12 @@ export class LmsService {
         .sort({ order: 1 })
         .lean(),
       this.lessonModel
-        .find({ event: eventOid, status: 'published' })
+        .find({
+          event: eventOid,
+          status: 'published',
+          // Session recordings / opt-out lessons don't gate completion.
+          excludeFromCompletion: { $ne: true },
+        })
         .select('_id module')
         .lean(),
       this.progressModel
@@ -912,7 +917,7 @@ export class LmsService {
       account,
       eventSlug,
     );
-    const [lessons, { modules, map }] = await Promise.all([
+    const [lessons, { modules, map }, sessions] = await Promise.all([
       this.lessonModel
         .find({ event: event._id, status: 'published' })
         .sort({ order: 1 })
@@ -922,7 +927,36 @@ export class LmsService {
         event._id as Types.ObjectId,
         registration._id as Types.ObjectId,
       ),
+      this.sessionModel
+        .find({ event: event._id, moduleId: { $ne: null } })
+        .select('title date startTime endTime location recording moduleId')
+        .lean(),
     ]);
+
+    // One linked session per module — surfaces "Join live" until its recording
+    // is published (which then replaces it with the recording lesson).
+    const now = new Date();
+    const sessionByModule: Record<string, any> = {};
+    for (const s of sessions) {
+      if (!s.moduleId) continue;
+      const mid = String(s.moduleId);
+      if (sessionByModule[mid]) continue;
+      const joinLink = s.location?.virtualLink || '';
+      sessionByModule[mid] = {
+        id: s._id,
+        title: s.title,
+        date: s.date,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        youtubeVideoId: YoutubeService.extractVideoId(joinLink) || '',
+        isLiveNow: this.isWithinLiveWindow(
+          s as unknown as EventSessionDocument,
+          now,
+        ),
+        recordingPublished: !!s.recording?.available,
+      };
+    }
+
     return {
       event: {
         id: event._id,
@@ -945,6 +979,8 @@ export class LmsService {
           completed: meta.complete,
           lessonsCompleted: meta.done,
           lessonCount: meta.total,
+          // Linked live session (shown until its recording is published).
+          session: sessionByModule[String(m._id)] || null,
           lessons: lessons
             .filter((l) => String(l.module) === String(m._id))
             .map((l) => ({
@@ -955,6 +991,9 @@ export class LmsService {
               durationMinutes: l.durationMinutes,
               resourceCount: (l.resources || []).length,
               headerImageUrl: l.headerImageUrl || null,
+              isSessionRecording: !!l.isSessionRecording,
+              // Recordings/optional lessons don't count toward completion.
+              countsForCompletion: !l.excludeFromCompletion,
             })),
         };
       }),
@@ -1977,6 +2016,9 @@ export class LmsService {
           url,
         },
       ],
+      // Recordings show under the module but never count toward completion.
+      isSessionRecording: true,
+      excludeFromCompletion: true,
       status: 'published',
     });
 

@@ -39,6 +39,17 @@ export class Lesson {
   @Prop({ trim: true })
   footerImageUrl?: string;
 
+  // A lesson created from a published session recording. It appears in the
+  // module but is NOT part of the completion criteria (watching a replay is
+  // optional — attendance is tracked separately on the session itself).
+  @Prop({ type: Boolean, default: false })
+  isSessionRecording?: boolean;
+
+  // When true, this lesson is excluded from module/course completion math
+  // (set for session recordings; reserved for other optional content).
+  @Prop({ type: Boolean, default: false })
+  excludeFromCompletion?: boolean;
+
   @Prop({ type: Number, default: 0 })
   order: number;
 
