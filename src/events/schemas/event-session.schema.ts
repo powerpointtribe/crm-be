@@ -174,6 +174,9 @@ export class EventSession {
       isRequired: { type: Boolean, default: true },
       allowLateArrival: { type: Boolean, default: true },
       lateArrivalThresholdMinutes: { type: Number, default: 15 },
+      // Minutes of watch-time needed to be marked attended (0/undefined =>
+      // fall back to the ATTENDANCE_PRESENT_THRESHOLD_MINUTES env / 10).
+      presentThresholdMinutes: { type: Number },
     },
     default: { isRequired: true, allowLateArrival: true, lateArrivalThresholdMinutes: 15 },
   })
@@ -181,6 +184,7 @@ export class EventSession {
     isRequired: boolean;
     allowLateArrival: boolean;
     lateArrivalThresholdMinutes: number;
+    presentThresholdMinutes?: number;
   };
 
   // Denormalized Counts

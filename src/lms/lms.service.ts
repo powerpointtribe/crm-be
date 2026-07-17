@@ -200,6 +200,8 @@ export class LmsService {
       title: dto.title,
       summary: dto.summary,
       content: dto.content,
+      headerImageUrl: dto.headerImageUrl,
+      footerImageUrl: dto.footerImageUrl,
       order,
       durationMinutes: dto.durationMinutes,
       resources,
@@ -798,6 +800,62 @@ export class LmsService {
   }
 
   /**
+   * Full learner profile for the portal profile page — joins the portal account
+   * with the accepted registration (Student ID, cohort, contact details, the
+   * headshot they registered with, and progress at a glance).
+   */
+  async getStudentProfile(account: PortalAccountDocument, eventSlug?: string) {
+    const { event, registration } = await this.resolveLearner(
+      account,
+      eventSlug,
+    );
+    const info = registration.attendeeInfo || ({} as any);
+    const cfr: any = registration.customFieldResponses;
+    const cf = (k: string) =>
+      (cfr && typeof cfr.get === 'function' ? cfr.get(k) : cfr?.[k]) || null;
+
+    // Course progress at a glance (accepted learner, published lessons only).
+    const modules = await this.moduleModel
+      .find({ event: event._id, status: 'published' })
+      .select('_id')
+      .lean();
+    const moduleIds = modules.map((m) => m._id);
+    const totalLessons = moduleIds.length
+      ? await this.lessonModel.countDocuments({
+          module: { $in: moduleIds },
+          status: 'published',
+        })
+      : 0;
+    const completedLessons = await this.progressModel.countDocuments({
+      registration: registration._id,
+      status: 'completed',
+    });
+
+    return {
+      firstName: info.firstName || account.firstName || '',
+      lastName: info.lastName || account.lastName || '',
+      email: account.email,
+      phone: info.phone || null,
+      gender: info.gender || null,
+      studentId: registration.studentId || null,
+      school: cf('university'),
+      headshotUrl: cf('headshotUrl'),
+      cohort: event.title,
+      admissionStatus: registration.admissionStatus,
+      acceptedAt: registration.acceptedAt || null,
+      registeredAt: registration.registeredAt || null,
+      accountStatus: account.status,
+      progress: {
+        totalLessons,
+        completedLessons,
+        percent: totalLessons
+          ? Math.round((completedLessons / totalLessons) * 100)
+          : 0,
+      },
+    };
+  }
+
+  /**
    * Sequential gating: a published module is unlocked only when the preceding
    * published module is fully completed by the learner. Returns the ordered
    * published modules plus a per-module map of { total, done, complete, locked }.
@@ -1227,6 +1285,10 @@ export class LmsService {
           // watch-time attendance in-page.
           youtubeVideoId: YoutubeService.extractVideoId(joinLink) || '',
           isVirtual: !!s.location?.isVirtual,
+          // Minutes of watch-time required to be marked attended (for the UI).
+          presentThresholdMinutes: this.presentThresholdFor(
+            s as unknown as EventSessionDocument,
+          ),
           myAttendance: a
             ? {
                 status: a.status,
@@ -1239,35 +1301,6 @@ export class LmsService {
     };
   }
 
-  async checkIn(account: PortalAccountDocument, sessionId: string) {
-    const session = await this.sessionModel.findById(sessionId);
-    if (!session) throw new NotFoundException('Session not found');
-
-    const registration = await this.registrationModel.findOne({
-      event: session.event,
-      'attendeeInfo.email': account.email,
-      admissionStatus: 'accepted',
-    });
-    if (!registration) throw new ForbiddenException('Not enrolled.');
-
-    await this.attendanceModel.updateOne(
-      { session: session._id, registration: registration._id },
-      {
-        $set: {
-          event: session.event,
-          status: 'present',
-          checkInTime: new Date(),
-        },
-        $setOnInsert: {
-          session: session._id,
-          registration: registration._id,
-        },
-      },
-      { upsert: true },
-    );
-    return { success: true, status: 'present' };
-  }
-
   // ===================== YouTube live-session attendance =======================
   //
   //  YouTube live viewers are anonymous — there is no participant report like
@@ -1277,10 +1310,18 @@ export class LmsService {
   //  (immediate feedback); `finalizeSessionAttendance` recomputes the final
   //  present/late/absent after the session for the facilitator.
 
-  // Minimum minutes watched to count as attended.
-  private readonly PRESENT_THRESHOLD_MINUTES = 10;
   // A single heartbeat can never credit more than this many seconds (anti-spoof).
   private readonly MAX_HEARTBEAT_SECONDS = 120;
+
+  // Minimum minutes of watch-time to count as attended. Resolved per session:
+  // the session's own attendanceConfig.presentThresholdMinutes wins, then the
+  // ATTENDANCE_PRESENT_THRESHOLD_MINUTES env default, then 10.
+  private presentThresholdFor(session: EventSessionDocument): number {
+    const perSession = session.attendanceConfig?.presentThresholdMinutes;
+    if (perSession && perSession > 0) return perSession;
+    const env = Number(process.env.ATTENDANCE_PRESENT_THRESHOLD_MINUTES);
+    return env > 0 ? env : 10;
+  }
 
   /** Combine a session's date (Date) + startTime ("HH:mm") into a Date. */
   private sessionStart(session: EventSessionDocument): Date | null {
@@ -1307,8 +1348,9 @@ export class LmsService {
     minutes: number,
     late: boolean,
     finalize: boolean,
+    thresholdMinutes: number,
   ): 'present' | 'late' | 'absent' {
-    if (minutes >= this.PRESENT_THRESHOLD_MINUTES) {
+    if (minutes >= thresholdMinutes) {
       return late ? 'late' : 'present';
     }
     // Below the watch threshold: while live, show 'late' ("counting…"); once
@@ -1351,7 +1393,8 @@ export class LmsService {
     const joinedAt = existing?.checkInTime || now;
     const attendedMinutes = (existing?.attendedMinutes || 0) + seconds / 60;
     const late = this.isLateJoin(session, joinedAt);
-    const status = this.deriveStatus(attendedMinutes, late, false);
+    const threshold = this.presentThresholdFor(session);
+    const status = this.deriveStatus(attendedMinutes, late, false, threshold);
 
     await this.attendanceModel.updateOne(
       { session: session._id, registration: registration._id },
@@ -1396,10 +1439,16 @@ export class LmsService {
     if (!session) throw new NotFoundException('Session not found');
 
     const rows = await this.attendanceModel.find({ session: session._id });
+    const threshold = this.presentThresholdFor(session);
     const counts = { present: 0, late: 0, absent: 0 };
     for (const row of rows) {
       const late = this.isLateJoin(session, row.checkInTime);
-      const status = this.deriveStatus(row.attendedMinutes || 0, late, true);
+      const status = this.deriveStatus(
+        row.attendedMinutes || 0,
+        late,
+        true,
+        threshold,
+      );
       counts[status] += 1;
       if (status !== row.status) {
         row.status = status as any;

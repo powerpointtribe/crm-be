@@ -65,6 +65,16 @@ export class CreateLessonDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  headerImageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  footerImageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsNumber()
   order?: number;
 

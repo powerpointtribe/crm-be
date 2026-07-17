@@ -1,3 +1,4 @@
+import 'dotenv/config'; // load .env into process.env before the @Module decorator evaluates (so CRONS_ENABLED is readable here)
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -62,8 +63,14 @@ import { LmsModule } from './lms/lms.module';
       }),
     }),
 
-    // Scheduling
-    ScheduleModule.forRoot(),
+    // Scheduling — global kill-switch. Set CRONS_ENABLED=false to disable ALL
+    // cron jobs (e.g. when running a local backend against the prod DB, so it
+    // can't fire real reminder/notification emails or duplicate scheduled work
+    // the deployed prod backend already runs). Without ScheduleModule the
+    // @Cron() handlers are never wired up.
+    ...(process.env.CRONS_ENABLED === 'false'
+      ? []
+      : [ScheduleModule.forRoot()]),
 
     // Rate limiting
     ThrottlerModule.forRoot([

@@ -76,13 +76,9 @@ export class LmsStudentController {
     return this.lms.getSessions(account, eventSlug);
   }
 
-  @Post('me/sessions/:sessionId/check-in')
-  checkIn(
-    @CurrentPortalAccount() account: PortalAccountDocument,
-    @Param('sessionId') sessionId: string,
-  ) {
-    return this.lms.checkIn(account, sessionId);
-  }
+  // NOTE: no student self check-in. Attendance is derived solely from
+  // watch-time on the embedded player (below) — learners cannot mark their own
+  // attendance.
 
   // Watch-time heartbeat from the embedded YouTube live player. Accumulates
   // minutes watched and updates attendance status live.
@@ -139,6 +135,14 @@ export class LmsStudentController {
       fileUrl: dto.fileUrl,
       fileName: dto.fileName,
     });
+  }
+
+  @Get('me/profile')
+  getProfile(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Query('eventSlug') eventSlug?: string,
+  ) {
+    return this.lms.getStudentProfile(account, eventSlug);
   }
 
   @Get('me/notifications')

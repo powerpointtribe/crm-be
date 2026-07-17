@@ -30,6 +30,15 @@ export class Lesson {
   @Prop()
   content?: string;
 
+  // Optional banner images shown at a fixed aspect (object-cover) above the
+  // content (header) and below it (footer). Body images are embedded inside
+  // `content` as structured blocks.
+  @Prop({ trim: true })
+  headerImageUrl?: string;
+
+  @Prop({ trim: true })
+  footerImageUrl?: string;
+
   @Prop({ type: Number, default: 0 })
   order: number;
 
