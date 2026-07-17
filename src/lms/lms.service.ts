@@ -954,6 +954,7 @@ export class LmsService {
               order: l.order,
               durationMinutes: l.durationMinutes,
               resourceCount: (l.resources || []).length,
+              headerImageUrl: l.headerImageUrl || null,
             })),
         };
       }),

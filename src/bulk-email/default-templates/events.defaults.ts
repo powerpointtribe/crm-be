@@ -1218,6 +1218,14 @@ export const eventsDefaults: TemplateDefinition[] = [
     <p style="margin:0 0 16px;font-size:15px;color:#525a72;line-height:1.65;">Congratulations! You have been formally admitted into the maiden cohort of the Campus Ministers in Training (CMIT) initiative.</p>
     <p style="margin:0 0 16px;font-size:15px;color:#525a72;line-height:1.65;">Please find your official <strong style="color:#1a2340;">admission letter attached</strong>, containing your unique Student ID, programme schedule, and next steps to activate your account.</p>
     <p style="margin:0 0 22px;font-size:15px;color:#525a72;line-height:1.65;">We're delighted to have you join us on this journey and look forward to an enriching five weeks together.</p>
+    <div style="border:1px solid #dfe3ee;background:#f4f6fc;border-radius:12px;padding:18px 20px;margin:0 0 22px;">
+      <p style="margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#18216C;">Onboarding</p>
+      <table role="presentation" width="100%" style="border-collapse:collapse;font-size:14px;color:#333;line-height:1.6;">
+        <tr><td style="padding:3px 0;color:#8a90a6;width:120px;vertical-align:top;">Date</td><td style="padding:3px 0;color:#1a2340;font-weight:600;">25 August 2026</td></tr>
+        <tr><td style="padding:3px 0;color:#8a90a6;vertical-align:top;">Time</td><td style="padding:3px 0;color:#1a2340;font-weight:600;">7:00 PM (WAT)</td></tr>
+        <tr><td style="padding:3px 0;color:#8a90a6;vertical-align:top;">Link</td><td style="padding:3px 0;color:#1a2340;font-weight:600;">TBA &mdash; we'll share the joining link before the session</td></tr>
+      </table>
+    </div>
     <div style="border:1px solid #eef0f4;background:#fafbfd;border-radius:12px;padding:18px 20px;margin:0 0 22px;text-align:center;">
       <p style="margin:0 0 12px;font-size:14px;color:#525a72;line-height:1.6;">Get to know the programme in full &mdash; the five-week curriculum, what you'll gain, and more:</p>
       <a href="https://drive.usercontent.google.com/download?id=1WovJz3KhtoGDq3lfuyuWPgxvox7kxneK&export=download&confirm=t" style="display:inline-block;background:#C9A227;color:#18216C;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:999px;">Download the programme brochure (PDF) &rarr;</a>
