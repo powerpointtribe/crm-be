@@ -110,7 +110,11 @@ export class UploadController {
         url: imageUrl,
       };
     } catch (error) {
-      throw new BadRequestException('Failed to upload image');
+      // Surface the real cause (e.g. "cloud_name is disabled") instead of a
+      // generic message, so upload failures are diagnosable.
+      const err = error as { message?: string; error?: { message?: string } };
+      const reason = err?.message || err?.error?.message || 'unknown error';
+      throw new BadRequestException(`Failed to upload image: ${reason}`);
     }
   }
 
