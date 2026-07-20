@@ -1224,7 +1224,7 @@ export const eventsDefaults: TemplateDefinition[] = [
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
           <td width="46" valign="middle"><span style="display:inline-block;width:42px;height:42px;line-height:42px;text-align:center;border-radius:11px;background:#25D366;color:#ffffff;font-size:19px;">&#128172;</span></td>
           <td valign="middle" style="padding-left:12px;">
-            <div style="font-size:15px;font-weight:700;color:#18216C;">Join the CMIT community</div>
+            <div style="font-size:15px;font-weight:700;color:#18216C;">Click to Join the CMIT Community</div>
             <div style="font-size:13px;color:#8a90a6;line-height:1.5;">Meet your cohort &amp; get updates on WhatsApp.</div>
           </td>
           <td width="16" valign="middle" align="right"><span style="color:#c3c8db;font-size:20px;">&rsaquo;</span></td>
