@@ -199,21 +199,40 @@ EventRegistrationSchema.pre('save', async function (next) {
       if (eventDoc?.checkInCodePrefix) prefix = eventDoc.checkInCodePrefix;
     } catch {}
 
-    const lastReg = await Model.findOne({
+    // Highest existing number for this prefix — computed NUMERICALLY. A plain
+    // `.sort({ checkInCode: -1 })` is lexicographic, so once codes pass 999 it
+    // wrongly ranks "PREFIX-999" above "PREFIX-1000" and regenerates an
+    // existing code, violating the unique {event, checkInCode} index (500).
+    const codes: Array<{ checkInCode?: string }> = await Model.find({
       event: this.event,
       checkInCode: new RegExp(`^${prefix}-\\d+$`),
     })
-      .sort({ checkInCode: -1 })
       .select('checkInCode')
       .lean();
 
-    let nextNum = 1;
-    if (lastReg?.checkInCode) {
-      const match = lastReg.checkInCode.match(/(\d+)$/);
-      if (match) nextNum = parseInt(match[1], 10) + 1;
+    let maxNum = 0;
+    for (const r of codes) {
+      const m = r.checkInCode?.match(/(\d+)$/);
+      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
     }
 
-    this.checkInCode = `${prefix}-${String(nextNum).padStart(3, '0')}`;
+    // Walk forward to the first free code (guards against races / gaps).
+    let nextNum = maxNum + 1;
+    for (let i = 0; i < 100 && !this.checkInCode; i++) {
+      const candidate = `${prefix}-${String(nextNum).padStart(3, '0')}`;
+      const exists = await Model.exists({
+        event: this.event,
+        checkInCode: candidate,
+      });
+      if (!exists) {
+        this.checkInCode = candidate;
+      } else {
+        nextNum += 1;
+      }
+    }
+    if (!this.checkInCode) {
+      this.checkInCode = `${prefix}-${String(nextNum).padStart(3, '0')}-${crypto.randomBytes(2).toString('hex')}`;
+    }
   }
   next();
 });
