@@ -1235,7 +1235,7 @@ export const eventsDefaults: TemplateDefinition[] = [
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
           <td width="46" valign="middle"><span style="display:inline-block;width:42px;height:42px;line-height:42px;text-align:center;border-radius:11px;background:#18216C;color:#ffffff;font-size:14px;">&#9654;</span></td>
           <td valign="middle" style="padding-left:12px;">
-            <div style="font-size:15px;font-weight:700;color:#18216C;">Join your onboarding</div>
+            <div style="font-size:15px;font-weight:700;color:#18216C;">Click to Join Your Onboarding</div>
             <div style="font-size:13px;color:#8a90a6;line-height:1.5;">Live on Sat, 25 July 2026 &middot; 7:00&nbsp;PM (WAT) &mdash; on the CMIT site.</div>
           </td>
           <td width="16" valign="middle" align="right"><span style="color:#c3c8db;font-size:20px;">&rsaquo;</span></td>
@@ -1246,7 +1246,7 @@ export const eventsDefaults: TemplateDefinition[] = [
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
           <td width="46" valign="middle"><span style="display:inline-block;width:42px;height:42px;line-height:42px;text-align:center;border-radius:11px;background:#C9A227;color:#18216C;font-size:17px;">&#8595;</span></td>
           <td valign="middle" style="padding-left:12px;">
-            <div style="font-size:15px;font-weight:700;color:#18216C;">Programme brochure</div>
+            <div style="font-size:15px;font-weight:700;color:#18216C;">Click to Download the Programme Brochure</div>
             <div style="font-size:13px;color:#8a90a6;line-height:1.5;">The full five-week curriculum &amp; what you'll gain (PDF).</div>
           </td>
           <td width="16" valign="middle" align="right"><span style="color:#c3c8db;font-size:20px;">&rsaquo;</span></td>
