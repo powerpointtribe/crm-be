@@ -187,6 +187,7 @@ export class EmailProvider {
     from?: string;
     cc?: string[];
     bcc?: string[];
+    replyTo?: string;
     attachments?: Array<{
       filename: string;
       content: Buffer | string; // Buffer or base64 string
@@ -385,6 +386,7 @@ export class EmailProvider {
     html: string;
     from?: string;
     cc?: string[];
+    replyTo?: string;
     attachments?: Array<{
       filename: string;
       content: Buffer | string;
@@ -419,6 +421,18 @@ export class EmailProvider {
       : undefined;
 
     const ccList = (options.cc || []).filter(Boolean);
+
+    // Reply-To: an explicit option wins. Otherwise, emails sent from a CMIT
+    // address (@cmithub.*) route replies to the CMIT inbox — CMIT is the only
+    // event using that sender domain, so other events are unaffected and keep
+    // the default (reply goes to the sender address).
+    const senderDomain = fromAddress.split('@')[1]?.toLowerCase() || '';
+    const replyToAddress =
+      options.replyTo ||
+      (/(^|\.)cmithub\.(org|com)$/.test(senderDomain)
+        ? 'cmithub@gmail.com'
+        : undefined);
+
     const payload = {
       from: { address: fromAddress, name: fromName },
       to: recipients.map((email) => ({
@@ -427,6 +441,7 @@ export class EmailProvider {
       ...(ccList.length
         ? { cc: ccList.map((email) => ({ email_address: { address: email } })) }
         : {}),
+      ...(replyToAddress ? { reply_to: [{ address: replyToAddress }] } : {}),
       subject: options.subject,
       htmlbody: options.html,
       ...(attachments ? { attachments } : {}),
@@ -458,6 +473,7 @@ export class EmailProvider {
     from?: string;
     cc?: string[];
     bcc?: string[];
+    replyTo?: string;
   }): Promise<any> {
     const recipients = Array.isArray(options.to) ? options.to : [options.to];
     const defaultSender =

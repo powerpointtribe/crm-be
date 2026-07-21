@@ -1616,6 +1616,18 @@ export class LmsService {
         e.registrationSettings?.applicationBaseUrl,
       ]),
     );
+    // Per-event sender so reminders are branded like the event's other emails
+    // (and, for CMIT, replies route to the CMIT inbox via the provider default).
+    const fromByEvent = new Map(
+      events.map((e) => {
+        const s = e.registrationSettings;
+        const from =
+          s?.senderEmail && s?.senderName
+            ? `${s.senderName} <${s.senderEmail}>`
+            : s?.senderEmail;
+        return [String(e._id), from];
+      }),
+    );
 
     // Not yet submitted, has a token, and due for a reminder: either never
     // reminded (and registered before the cutoff) or last reminded before it.
@@ -1657,7 +1669,13 @@ export class LmsService {
             year,
           },
         );
-        await this.emailProvider.sendEmail({ to: email, subject, html });
+        const from = fromByEvent.get(String(reg.event));
+        await this.emailProvider.sendEmail({
+          to: email,
+          subject,
+          html,
+          ...(from ? { from } : {}),
+        });
         reg.applicationReminderSentAt = new Date();
         reg.applicationReminderCount = (reg.applicationReminderCount || 0) + 1;
         await reg.save();
