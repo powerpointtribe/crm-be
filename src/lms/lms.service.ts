@@ -1667,10 +1667,14 @@ export class LmsService {
   //  Emails every newly-admitted (admissionStatus 'accepted') CMIT registrant a
   //  personalized PDF admission letter with a unique Student ID. Idempotent via
   //  `admissionLetterSentAt`, so it covers every admission path (any place that
-  //  sets 'accepted') without double-sending. Toggle with
-  //  ADMISSION_LETTER_ENABLED=false.
+  //  sets 'accepted') without double-sending. Toggle with the
+  //  AUTO_ADMISSION_ENABLED constant below.
 
   private nextStudentSeq = new Map<string, number>();
+
+  // Auto-admission config (hardcoded constants, not env-driven).
+  private readonly AUTO_ADMISSION_ENABLED = true;
+  private readonly ADMISSION_LETTER_CC = ['cmithub@gmail.com'];
 
   private async assignStudentId(eventOid: Types.ObjectId): Promise<string> {
     const key = String(eventOid);
@@ -1691,9 +1695,15 @@ export class LmsService {
     return `CMIT-${year}-${String(seq).padStart(4, '0')}`;
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  // Auto-admit: every 15 minutes, admit + email the admission letter to every
+  // CMIT registrant who has COMPLETED their application but hasn't been sent one
+  // yet. `sendAdmissionLetterForRegistration` sets admissionStatus=accepted,
+  // assigns a Student ID, emails the letter (CC admin) and stamps
+  // `admissionLetterSentAt` — so this is idempotent and never double-sends.
+  // Disable with the AUTO_ADMISSION_ENABLED constant.
+  @Cron('0 */15 * * * *')
   async sendAdmissionLetters() {
-    if (process.env.ADMISSION_LETTER_ENABLED === 'false') return;
+    if (!this.AUTO_ADMISSION_ENABLED) return;
 
     // Scope to CMIT event(s) — the letter content is CMIT-specific.
     const events = await this.eventModel
@@ -1711,11 +1721,14 @@ export class LmsService {
     const regs = await this.registrationModel
       .find({
         event: { $in: eventIds },
-        admissionStatus: 'accepted',
+        // Completed the application form…
+        applicationSubmittedAt: { $ne: null },
+        // …and not yet sent an admission letter.
         $or: [
           { admissionLetterSentAt: { $exists: false } },
           { admissionLetterSentAt: null },
         ],
+        'attendeeInfo.email': { $ne: null },
       })
       .limit(300);
 
@@ -1731,7 +1744,7 @@ export class LmsService {
       );
       if (res.sent) sent += 1;
     }
-    if (sent) this.logger.log(`Admission letters sent: ${sent}`);
+    if (sent) this.logger.log(`Auto-admitted + sent admission letters: ${sent}`);
   }
 
   /** True when an event's admission letter content applies (CMIT-specific). */
@@ -1773,6 +1786,15 @@ export class LmsService {
       reg.studentId = await this.assignStudentId(reg.event as Types.ObjectId);
     }
 
+    // Step 1 — ACCEPT first, and persist it (with the Student ID) BEFORE the
+    // letter goes out. This way a transient email failure never loses the
+    // admission; the next run just retries the letter.
+    if (reg.admissionStatus !== 'accepted' || reg.isModified('studentId')) {
+      reg.admissionStatus = 'accepted';
+      if (!reg.acceptedAt) reg.acceptedAt = new Date();
+      await reg.save();
+    }
+
     const firstName = reg.attendeeInfo?.firstName || '';
     const lastName = reg.attendeeInfo?.lastName || '';
     const studentName = [firstName, lastName].filter(Boolean).join(' ');
@@ -1801,6 +1823,9 @@ export class LmsService {
 
     await this.emailProvider.sendEmail({
       to: email,
+      ...(this.ADMISSION_LETTER_CC.length
+        ? { cc: this.ADMISSION_LETTER_CC }
+        : {}),
       subject,
       html,
       ...(from ? { from } : {}),

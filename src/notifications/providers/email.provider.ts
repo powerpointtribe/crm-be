@@ -384,6 +384,7 @@ export class EmailProvider {
     subject: string;
     html: string;
     from?: string;
+    cc?: string[];
     attachments?: Array<{
       filename: string;
       content: Buffer | string;
@@ -417,11 +418,15 @@ export class EmailProvider {
         }))
       : undefined;
 
+    const ccList = (options.cc || []).filter(Boolean);
     const payload = {
       from: { address: fromAddress, name: fromName },
       to: recipients.map((email) => ({
         email_address: { address: email },
       })),
+      ...(ccList.length
+        ? { cc: ccList.map((email) => ({ email_address: { address: email } })) }
+        : {}),
       subject: options.subject,
       htmlbody: options.html,
       ...(attachments ? { attachments } : {}),
