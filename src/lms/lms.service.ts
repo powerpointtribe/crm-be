@@ -1468,19 +1468,37 @@ export class LmsService {
       ),
     );
 
-    const existing = await this.attendanceModel.findOne({
-      session: session._id,
-      registration: registration._id,
-    });
     const now = new Date();
-    const joinedAt = existing?.checkInTime || now;
     const isLive = this.isWithinLiveWindow(session, now);
     const threshold = this.presentThresholdFor(session);
+    const incMin = seconds / 60;
 
-    // Total watch-time (live + replay) and the live-only portion.
-    const attendedMinutes = (existing?.attendedMinutes || 0) + seconds / 60;
-    const liveMinutes =
-      (existing?.liveMinutes || 0) + (isLive ? seconds / 60 : 0);
+    // Single atomic upsert — accumulate the counters with $inc (no read-first),
+    // so a heartbeat is one write regardless of concurrency. Derived fields
+    // (status/watched) are computed from the returned totals and only persisted
+    // when they actually change (≈once per learner, at the threshold crossing).
+    const doc = await this.attendanceModel.findOneAndUpdate(
+      { session: session._id, registration: registration._id },
+      {
+        $inc: {
+          attendedMinutes: incMin,
+          liveMinutes: isLive ? incMin : 0,
+          ...(dto.newView ? { watchCount: 1 } : {}),
+        },
+        $setOnInsert: {
+          event: session.event,
+          session: session._id,
+          registration: registration._id,
+          checkInTime: now,
+        },
+      },
+      { upsert: true, new: true },
+    );
+
+    const attendedMinutes = doc?.attendedMinutes || 0;
+    const liveMinutes = doc?.liveMinutes || 0;
+    const watchCount = doc?.watchCount || 0;
+    const joinedAt = doc?.checkInTime || now;
 
     // LIVE attendance (present/late/absent) is derived from LIVE minutes;
     // "watched" from total watch-time.
@@ -1488,39 +1506,30 @@ export class LmsService {
     const status = this.deriveStatus(liveMinutes, late, threshold);
     const watched = attendedMinutes >= threshold;
 
-    await this.attendanceModel.updateOne(
-      { session: session._id, registration: registration._id },
-      {
-        $set: {
-          event: session.event,
-          status,
-          attendedMinutes,
-          liveMinutes,
-          watched,
-          lateByMinutes:
-            late && liveMinutes >= threshold
-              ? Math.max(
-                  0,
-                  Math.round(
-                    (joinedAt.getTime() -
-                      (this.sessionStart(session)?.getTime() ??
-                        joinedAt.getTime())) /
-                      60_000,
-                  ),
-                )
-              : 0,
+    if (doc && (doc.status !== status || doc.watched !== watched)) {
+      await this.attendanceModel.updateOne(
+        { _id: doc._id },
+        {
+          $set: {
+            status,
+            watched,
+            lateByMinutes:
+              late && liveMinutes >= threshold
+                ? Math.max(
+                    0,
+                    Math.round(
+                      (joinedAt.getTime() -
+                        (this.sessionStart(session)?.getTime() ??
+                          joinedAt.getTime())) /
+                        60_000,
+                    ),
+                  )
+                : 0,
+          },
         },
-        ...(dto.newView ? { $inc: { watchCount: 1 } } : {}),
-        $setOnInsert: {
-          session: session._id,
-          registration: registration._id,
-          checkInTime: now,
-        },
-      },
-      { upsert: true },
-    );
+      );
+    }
 
-    const watchCount = (existing?.watchCount || 0) + (dto.newView ? 1 : 0);
     return {
       status, // live attendance status
       attendedMinutes: Math.round(attendedMinutes),

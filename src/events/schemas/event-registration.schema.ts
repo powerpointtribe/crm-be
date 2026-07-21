@@ -199,22 +199,26 @@ EventRegistrationSchema.pre('save', async function (next) {
       if (eventDoc?.checkInCodePrefix) prefix = eventDoc.checkInCodePrefix;
     } catch {}
 
-    // Highest existing number for this prefix — computed NUMERICALLY. A plain
+    // Highest existing number for this prefix — computed NUMERICALLY via an
+    // indexed aggregation ($max of the numeric suffix). A plain
     // `.sort({ checkInCode: -1 })` is lexicographic, so once codes pass 999 it
-    // wrongly ranks "PREFIX-999" above "PREFIX-1000" and regenerates an
-    // existing code, violating the unique {event, checkInCode} index (500).
-    const codes: Array<{ checkInCode?: string }> = await Model.find({
-      event: this.event,
-      checkInCode: new RegExp(`^${prefix}-\\d+$`),
-    })
-      .select('checkInCode')
-      .lean();
-
-    let maxNum = 0;
-    for (const r of codes) {
-      const m = r.checkInCode?.match(/(\d+)$/);
-      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-    }
+    // wrongly ranks "PREFIX-999" above "PREFIX-1000" and regenerates an existing
+    // code, violating the unique {event, checkInCode} index (500). Using $max
+    // (instead of loading every code) keeps this O(index) as the roster grows.
+    const agg: Array<{ max?: number }> = await Model.aggregate([
+      { $match: { event: this.event, checkInCode: new RegExp(`^${prefix}-\\d+$`) } },
+      {
+        $project: {
+          n: {
+            $toInt: {
+              $arrayElemAt: [{ $split: ['$checkInCode', '-'] }, -1],
+            },
+          },
+        },
+      },
+      { $group: { _id: null, max: { $max: '$n' } } },
+    ]);
+    const maxNum = agg[0]?.max || 0;
 
     // Walk forward to the first free code (guards against races / gaps).
     let nextNum = maxNum + 1;
