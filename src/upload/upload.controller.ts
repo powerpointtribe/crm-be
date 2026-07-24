@@ -29,6 +29,25 @@ export class UploadController {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
+  /**
+   * Sanitize a caller-supplied storage folder. Callers pass a context path so
+   * uploads are organised (e.g. 'cmit/lessons', 'powerpoint/first-timers').
+   * Only [a-z0-9/_-] survive, dots are stripped (no traversal), depth is capped;
+   * falls back when nothing usable is given. Safe for the public image endpoint.
+   */
+  private sanitizeFolder(raw: string | undefined, fallback: string): string {
+    const cleaned = (raw || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9/_-]+/g, '-')
+      .replace(/\/{2,}/g, '/')
+      .replace(/^[/-]+|[/-]+$/g, '')
+      .split('/')
+      .filter(Boolean)
+      .slice(0, 4)
+      .join('/');
+    return cleaned || fallback;
+  }
+
   @Public()
   @Post('sign')
   @ApiOperation({
@@ -82,7 +101,10 @@ export class UploadController {
       },
     },
   })
-  async uploadImage(@UploadedFile() file: Express.Multer.File) {
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
@@ -104,7 +126,7 @@ export class UploadController {
     try {
       const imageUrl = await this.storage.uploadImage(
         file,
-        'first-timers/profile-photos',
+        this.sanitizeFolder(folder, 'powerpoint/uploads'),
       );
       return {
         url: imageUrl,
@@ -132,7 +154,10 @@ export class UploadController {
       properties: { file: { type: 'string', format: 'binary' } },
     },
   })
-  async uploadDocument(@UploadedFile() file: Express.Multer.File) {
+  async uploadDocument(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
@@ -162,7 +187,7 @@ export class UploadController {
     try {
       const result = await this.storage.uploadFile(
         file,
-        'lms/documents',
+        this.sanitizeFolder(folder, 'powerpoint/documents'),
         'raw',
       );
       return result;
@@ -183,7 +208,10 @@ export class UploadController {
       properties: { file: { type: 'string', format: 'binary' } },
     },
   })
-  async uploadVideo(@UploadedFile() file: Express.Multer.File) {
+  async uploadVideo(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
@@ -201,7 +229,11 @@ export class UploadController {
     }
 
     try {
-      const result = await this.storage.uploadFile(file, 'lms/videos', 'video');
+      const result = await this.storage.uploadFile(
+        file,
+        this.sanitizeFolder(folder, 'powerpoint/videos'),
+        'video',
+      );
       return result;
     } catch (error) {
       throw new BadRequestException('Failed to upload media');
