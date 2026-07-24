@@ -11,7 +11,14 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomBytes } from 'crypto';
-import sharp from 'sharp';
+import type { Sharp } from 'sharp';
+// sharp is CommonJS at runtime (module.exports = fn) with ESM-style types. A
+// default import compiles to `sharp.default` (undefined → "not a function")
+// unless esModuleInterop is on — but enabling that globally breaks other
+// `import * as x` CommonJS callables (e.g. compression). Requiring it here keeps
+// the fix local and interop-independent.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const sharp = require('sharp') as (input?: Buffer) => Sharp;
 
 /**
  * Cloudflare R2 storage (S3-compatible). Drop-in replacement for

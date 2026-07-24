@@ -41,7 +41,9 @@ export class AuditInterceptor implements NestInterceptor {
     }
 
     const request = context.switchToHttp().getRequest<Request>();
-    const user = request?.user;
+    // `user` is attached at runtime by auth middleware; cast defensively so the
+    // build never fails if the Express Request augmentation isn't in scope.
+    const user = (request as Request & { user?: any })?.user;
     const method = request.method;
     const url = request.url;
     const userAgent = request.headers['user-agent'];
