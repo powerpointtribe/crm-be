@@ -54,7 +54,7 @@ export class UploadController {
   @Public()
   @Post('image')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }),
+    FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }),
   )
   @ApiOperation({ summary: 'Upload an image to Cloudinary' })
   @ApiConsumes('multipart/form-data')
@@ -95,10 +95,10 @@ export class UploadController {
       );
     }
 
-    // Validate file size (5MB max)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    // Validate file size (10MB max)
+    const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
-      throw new BadRequestException('File size must be less than 5MB');
+      throw new BadRequestException('File size must be less than 10MB');
     }
 
     try {

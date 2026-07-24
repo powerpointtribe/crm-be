@@ -101,8 +101,10 @@ export class R2StorageService {
   ): Promise<string> {
     const optimized = await sharp(file.buffer)
       .rotate() // honour EXIF orientation
-      .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 82 })
+      // Fit within 1600×1600 (keeps lesson banners/hero images crisp on desktop
+      // while still bounding huge originals). mozjpeg gives better quality/size.
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 90, mozjpeg: true })
       .toBuffer();
     const base = file.originalname.replace(/\.[^.]+$/, '') || 'image';
     const key = this.buildKey(folder, `${base}.jpg`);
