@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { eventsDefaults } from '../bulk-email/default-templates/events.defaults';
 import { Model, Types } from 'mongoose';
 import { randomBytes } from 'crypto';
 import {
@@ -1703,6 +1704,89 @@ export class LmsService {
   private readonly AUTO_ADMISSION_ENABLED = true;
   private readonly ADMISSION_LETTER_CC = ['cmithub@gmail.com'];
 
+  // Build the per-event "From" string so an event's emails are branded with its
+  // own sender (for CMIT that's info@cmithub.org, which also routes replies to
+  // the CMIT inbox via the email provider's reply-to default).
+  private senderFromEvent(ev?: {
+    registrationSettings?: { senderEmail?: string; senderName?: string };
+  } | null): string | undefined {
+    const s = ev?.registrationSettings;
+    if (!s?.senderEmail) return undefined;
+    return s.senderName ? `${s.senderName} <${s.senderEmail}>` : s.senderEmail;
+  }
+
+  // ── CMIT Cohort 1 onboarding reminders (one-off, event on Fri 25 July 2026) ─
+  // Sends a reminder template to EVERYONE registered for the CMIT event, from
+  // the CMIT sender (replies route to the CMIT inbox via the provider default).
+  private async sendOnboardingReminderToAll(slug: string): Promise<void> {
+    const tpl = eventsDefaults.find((t) => t.slug === slug);
+    if (!tpl) {
+      this.logger.warn(`Onboarding reminder template not found: ${slug}`);
+      return;
+    }
+    const ev = await this.eventModel.findOne({
+      registrationSlug: 'cmit-cohort-1',
+    });
+    if (!ev) {
+      this.logger.warn('CMIT event not found — skipping onboarding reminder');
+      return;
+    }
+    const from = this.senderFromEvent(ev);
+    const regs = await this.registrationModel
+      .find({ event: ev._id, 'attendeeInfo.email': { $exists: true, $ne: null } })
+      .select('attendeeInfo')
+      .lean();
+    const emails = [
+      ...new Set(
+        regs
+          .map((r) => (r.attendeeInfo?.email || '').trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    this.logger.log(`Onboarding reminder ${slug}: ${emails.length} recipients`);
+    let sent = 0;
+    let failed = 0;
+    for (const to of emails) {
+      try {
+        await this.emailProvider.sendEmail({
+          to,
+          subject: tpl.subject,
+          html: tpl.htmlContent,
+          ...(from ? { from } : {}),
+        });
+        sent += 1;
+      } catch (e) {
+        failed += 1;
+        this.logger.warn(
+          `Onboarding reminder ${slug} → ${to} failed: ${(e as Error).message}`,
+        );
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    this.logger.log(`Onboarding reminder ${slug} done: sent ${sent}, failed ${failed}`);
+  }
+
+  // Reminder 2 — Fri 25 July 2026, 8:00 AM WAT (morning of the event).
+  @Cron('0 0 8 25 7 *', { timeZone: 'Africa/Lagos' })
+  async onboardingReminderTwo() {
+    if (new Date().getFullYear() !== 2026) return;
+    await this.sendOnboardingReminderToAll('events.onboarding-reminder-2');
+  }
+
+  // Reminder 3 — Fri 25 July 2026, 6:00 PM WAT (1 hour before, 7:00 PM start).
+  @Cron('0 0 18 25 7 *', { timeZone: 'Africa/Lagos' })
+  async onboardingReminderThree() {
+    if (new Date().getFullYear() !== 2026) return;
+    await this.sendOnboardingReminderToAll('events.onboarding-reminder-3');
+  }
+
+  // Reminder 4 — Fri 25 July 2026, 6:50 PM WAT (10 minutes before start).
+  @Cron('0 50 18 25 7 *', { timeZone: 'Africa/Lagos' })
+  async onboardingReminderFour() {
+    if (new Date().getFullYear() !== 2026) return;
+    await this.sendOnboardingReminderToAll('events.onboarding-reminder-4');
+  }
+
   private async assignStudentId(eventOid: Types.ObjectId): Promise<string> {
     const key = String(eventOid);
     const year = new Date().getFullYear();
@@ -1976,7 +2060,13 @@ export class LmsService {
               year,
             },
           );
-          await this.emailProvider.sendEmail({ to: r.email, subject, html });
+          const from = this.senderFromEvent(event);
+          await this.emailProvider.sendEmail({
+            to: r.email,
+            subject,
+            html,
+            ...(from ? { from } : {}),
+          });
           sent += 1;
         } catch (e) {
           this.logger.warn(
@@ -2150,10 +2240,12 @@ export class LmsService {
                     year,
                   },
                 );
+              const from = this.senderFromEvent(event);
               await this.emailProvider.sendEmail({
                 to: r.email,
                 subject,
                 html,
+                ...(from ? { from } : {}),
               });
               sent += 1;
             } catch (e) {

@@ -1280,4 +1280,143 @@ export const eventsDefaults: TemplateDefinition[] = [
       { name: 'year', description: 'Current year', sampleValue: '2026' },
     ],
   },
+  {
+    slug: 'events.onboarding-reminder-1',
+    name: 'Onboarding Reminder 1 — Tomorrow (day before, ~10am)',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.EVENT,
+    subject:
+      'Join Us Tomorrow: CMIT Cohort 1 Onboarding – Everyone Is Welcome!',
+    htmlContent: `<div style="background:#f3f4f9;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #ebecf4;">
+    <tr><td style="padding:26px 34px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td valign="middle"><img src="https://res.cloudinary.com/djybfw5sy/image/upload/v1782209870/Asset_3_2_gny3wl.png" alt="CMIT" width="34" height="42" style="display:block;border:0;outline:none;"></td>
+        <td align="right" valign="middle" style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#9aa0b8;">Cohort 1 Onboarding</td>
+      </tr></table>
+      <div style="height:3px;width:30px;background:#C9A227;border-radius:3px;margin:14px 0 0;"></div>
+    </td></tr>
+    <tr><td style="padding:20px 34px 30px;">
+      <p style="margin:0 0 7px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#C9A227;">Tomorrow &middot; Fri 25 July &middot; 7:00 PM</p>
+      <h1 style="margin:0 0 15px;font-size:22px;line-height:1.32;font-weight:800;color:#18216C;">Join us tomorrow &mdash; everyone's welcome</h1>
+      <p style="margin:0 0 13px;font-size:15px;line-height:1.65;color:#474e66;">You're invited to the CMIT Cohort 1 Onboarding, happening tomorrow, <strong style="color:#20264a;">Friday 25th July at 7:00 PM</strong>. Whether you've already applied, just started, or you're only hearing about CMIT today, it's open to everyone.</p>
+      <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#474e66;">If you're curious about the programme and want to know if it's for you, this is the perfect place to start.</p>
+      <a href="https://cmithub.org/onboarding" style="display:inline-block;background:#18216C;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;">Join the onboarding &rarr;</a>
+      <p style="margin:26px 0 9px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#9aa0b8;">What to expect</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">What CMIT is and why it exists</td></tr>
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">An overview of the 5-week journey</td></tr>
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">A walkthrough of the platform and application</td></tr>
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">Meet the leadership and community team</td></tr>
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">Live Q&amp;A &mdash; bring your questions</td></tr>
+      </table>
+      <p style="margin:18px 0 0;font-size:14px;line-height:1.65;color:#6a7089;">Know someone who'd benefit? Invite them along &mdash; they can join from <a href="https://cmithub.org/register" style="color:#18216C;font-weight:600;text-decoration:none;">cmithub.org/register</a>.</p>
+      <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#474e66;">See you tomorrow at 7:00 PM,<br><strong style="color:#18216C;">The CMIT Team</strong></p>
+    </td></tr>
+    <tr><td style="padding:15px 34px;border-top:1px solid #f0f1f6;">
+      <p style="margin:0;font-size:11px;letter-spacing:0.3px;color:#a7abbe;">A vision of Dami Oguntunde Teaching Ministries</p>
+    </td></tr>
+  </table>
+</div>`,
+    variableDefinitions: [],
+  },
+  {
+    slug: 'events.onboarding-reminder-2',
+    name: 'Onboarding Reminder 2 — Today (morning of, ~8am)',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.EVENT,
+    subject: 'We Go Live Today at 7:00 PM – CMIT Onboarding',
+    htmlContent: `<div style="background:#f3f4f9;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #ebecf4;">
+    <tr><td style="padding:26px 34px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td valign="middle"><img src="https://res.cloudinary.com/djybfw5sy/image/upload/v1782209870/Asset_3_2_gny3wl.png" alt="CMIT" width="34" height="42" style="display:block;border:0;outline:none;"></td>
+        <td align="right" valign="middle" style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#9aa0b8;">Cohort 1 Onboarding</td>
+      </tr></table>
+      <div style="height:3px;width:30px;background:#C9A227;border-radius:3px;margin:14px 0 0;"></div>
+    </td></tr>
+    <tr><td style="padding:20px 34px 30px;">
+      <p style="margin:0 0 7px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#C9A227;">Today &middot; Fri 25 July &middot; 7:00 PM</p>
+      <h1 style="margin:0 0 15px;font-size:22px;line-height:1.32;font-weight:800;color:#18216C;">We go live today at 7:00 PM</h1>
+      <p style="margin:0 0 13px;font-size:15px;line-height:1.65;color:#474e66;">A quick reminder that the CMIT Cohort 1 Onboarding is happening <strong style="color:#20264a;">today at 7:00 PM</strong>.</p>
+      <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#474e66;">Whether you've completed your application, are still registering, or you're just discovering CMIT, you're welcome to join us.</p>
+      <a href="https://cmithub.org/onboarding" style="display:inline-block;background:#18216C;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;">Join the onboarding &rarr;</a>
+      <p style="margin:26px 0 9px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#9aa0b8;">In this session</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">Learn what CMIT is about</td></tr>
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">Get an overview of the 5-week programme</td></tr>
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">Meet the team</td></tr>
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">Ask your questions live</td></tr>
+        <tr><td width="16" valign="top" style="color:#C9A227;font-size:14px;line-height:1.7;">&bull;</td><td style="font-size:14px;line-height:1.7;color:#474e66;">See how to complete your registration if you haven't</td></tr>
+      </table>
+      <p style="margin:18px 0 0;font-size:14px;line-height:1.65;color:#6a7089;">Know someone who should be there? It's not too late &mdash; they can join from <a href="https://cmithub.org/register" style="color:#18216C;font-weight:600;text-decoration:none;">cmithub.org/register</a>.</p>
+      <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#474e66;">We look forward to welcoming you at 7:00 PM,<br><strong style="color:#18216C;">The CMIT Team</strong></p>
+    </td></tr>
+    <tr><td style="padding:15px 34px;border-top:1px solid #f0f1f6;">
+      <p style="margin:0;font-size:11px;letter-spacing:0.3px;color:#a7abbe;">A vision of Dami Oguntunde Teaching Ministries</p>
+    </td></tr>
+  </table>
+</div>`,
+    variableDefinitions: [],
+  },
+  {
+    slug: 'events.onboarding-reminder-3',
+    name: 'Onboarding Reminder 3 — Live in 1 hour',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.EVENT,
+    subject: "We're Live in 1 Hour!",
+    htmlContent: `<div style="background:#f3f4f9;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #ebecf4;">
+    <tr><td style="padding:26px 34px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td valign="middle"><img src="https://res.cloudinary.com/djybfw5sy/image/upload/v1782209870/Asset_3_2_gny3wl.png" alt="CMIT" width="34" height="42" style="display:block;border:0;outline:none;"></td>
+        <td align="right" valign="middle" style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#9aa0b8;">Cohort 1 Onboarding</td>
+      </tr></table>
+      <div style="height:3px;width:30px;background:#C9A227;border-radius:3px;margin:14px 0 0;"></div>
+    </td></tr>
+    <tr><td style="padding:20px 34px 30px;">
+      <p style="margin:0 0 7px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#C9A227;">Starts in 1 hour &middot; 7:00 PM</p>
+      <h1 style="margin:0 0 15px;font-size:22px;line-height:1.32;font-weight:800;color:#18216C;">We're live in 1 hour</h1>
+      <p style="margin:0 0 13px;font-size:15px;line-height:1.65;color:#474e66;">Join us at <strong style="color:#20264a;">7:00 PM</strong> for the CMIT Cohort 1 Onboarding.</p>
+      <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#474e66;">If you've registered &mdash; or you're just hearing about CMIT for the first time &mdash; you're welcome. Come learn what CMIT is about, what to expect, and get all your questions answered.</p>
+      <a href="https://cmithub.org/onboarding" style="display:inline-block;background:#18216C;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;">Join the onboarding &rarr;</a>
+      <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:#474e66;">See you at 7:00 PM,<br><strong style="color:#18216C;">The CMIT Team</strong></p>
+    </td></tr>
+    <tr><td style="padding:15px 34px;border-top:1px solid #f0f1f6;">
+      <p style="margin:0;font-size:11px;letter-spacing:0.3px;color:#a7abbe;">A vision of Dami Oguntunde Teaching Ministries</p>
+    </td></tr>
+  </table>
+</div>`,
+    variableDefinitions: [],
+  },
+  {
+    slug: 'events.onboarding-reminder-4',
+    name: 'Onboarding Reminder 4 — Live now (10 mins after start)',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.EVENT,
+    subject: "We're Live Now! Join the CMIT Onboarding",
+    htmlContent: `<div style="background:#f3f4f9;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #ebecf4;">
+    <tr><td style="padding:26px 34px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td valign="middle"><img src="https://res.cloudinary.com/djybfw5sy/image/upload/v1782209870/Asset_3_2_gny3wl.png" alt="CMIT" width="34" height="42" style="display:block;border:0;outline:none;"></td>
+        <td align="right" valign="middle" style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#9aa0b8;">Cohort 1 Onboarding</td>
+      </tr></table>
+      <div style="height:3px;width:30px;background:#C9A227;border-radius:3px;margin:14px 0 0;"></div>
+    </td></tr>
+    <tr><td style="padding:20px 34px 30px;">
+      <p style="margin:0 0 7px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#C9A227;">Live now &middot; 7:00 PM</p>
+      <h1 style="margin:0 0 15px;font-size:22px;line-height:1.32;font-weight:800;color:#18216C;">We're live now &mdash; join us</h1>
+      <p style="margin:0 0 13px;font-size:15px;line-height:1.65;color:#474e66;">The CMIT Cohort 1 Onboarding has just begun, and it's <strong style="color:#20264a;">not too late to join us</strong>.</p>
+      <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#474e66;">Whether you've already applied or you're just discovering CMIT today, you're welcome. Come learn what CMIT is all about, what to expect, and how to get started.</p>
+      <a href="https://cmithub.org/onboarding" style="display:inline-block;background:#18216C;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;">Join the onboarding now &rarr;</a>
+      <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:#474e66;">See you inside,<br><strong style="color:#18216C;">The CMIT Team</strong></p>
+    </td></tr>
+    <tr><td style="padding:15px 34px;border-top:1px solid #f0f1f6;">
+      <p style="margin:0;font-size:11px;letter-spacing:0.3px;color:#a7abbe;">A vision of Dami Oguntunde Teaching Ministries</p>
+    </td></tr>
+  </table>
+</div>`,
+    variableDefinitions: [],
+  },
 ];
