@@ -1297,9 +1297,9 @@ export const eventsDefaults: TemplateDefinition[] = [
       <div style="height:3px;width:30px;background:#C9A227;border-radius:3px;margin:14px 0 0;"></div>
     </td></tr>
     <tr><td style="padding:20px 34px 30px;">
-      <p style="margin:0 0 7px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#C9A227;">Tomorrow &middot; Fri 25 July &middot; 7:00 PM</p>
+      <p style="margin:0 0 7px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#C9A227;">Tomorrow &middot; Sat 25 July &middot; 7:00 PM</p>
       <h1 style="margin:0 0 15px;font-size:22px;line-height:1.32;font-weight:800;color:#18216C;">Join us tomorrow &mdash; everyone's welcome</h1>
-      <p style="margin:0 0 13px;font-size:15px;line-height:1.65;color:#474e66;">You're invited to the CMIT Cohort 1 Onboarding, happening tomorrow, <strong style="color:#20264a;">Friday 25th July at 7:00 PM</strong>. Whether you've already applied, just started, or you're only hearing about CMIT today, it's open to everyone.</p>
+      <p style="margin:0 0 13px;font-size:15px;line-height:1.65;color:#474e66;">You're invited to the CMIT Cohort 1 Onboarding, happening tomorrow, <strong style="color:#20264a;">Saturday 25th July at 7:00 PM</strong>. Whether you've already applied, just started, or you're only hearing about CMIT today, it's open to everyone.</p>
       <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#474e66;">If you're curious about the programme and want to know if it's for you, this is the perfect place to start.</p>
       <a href="https://cmithub.org/onboarding" style="display:inline-block;background:#18216C;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;">Join the onboarding &rarr;</a>
       <p style="margin:26px 0 9px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#9aa0b8;">What to expect</p>
@@ -1336,7 +1336,7 @@ export const eventsDefaults: TemplateDefinition[] = [
       <div style="height:3px;width:30px;background:#C9A227;border-radius:3px;margin:14px 0 0;"></div>
     </td></tr>
     <tr><td style="padding:20px 34px 30px;">
-      <p style="margin:0 0 7px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#C9A227;">Today &middot; Fri 25 July &middot; 7:00 PM</p>
+      <p style="margin:0 0 7px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#C9A227;">Today &middot; Sat 25 July &middot; 7:00 PM</p>
       <h1 style="margin:0 0 15px;font-size:22px;line-height:1.32;font-weight:800;color:#18216C;">We go live today at 7:00 PM</h1>
       <p style="margin:0 0 13px;font-size:15px;line-height:1.65;color:#474e66;">A quick reminder that the CMIT Cohort 1 Onboarding is happening <strong style="color:#20264a;">today at 7:00 PM</strong>.</p>
       <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#474e66;">Whether you've completed your application, are still registering, or you're just discovering CMIT, you're welcome to join us.</p>

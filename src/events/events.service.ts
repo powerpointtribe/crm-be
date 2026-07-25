@@ -4099,6 +4099,56 @@ export class EventsService {
     };
   }
 
+  /** List an event's announcements (facilitator history), newest first. */
+  async listAnnouncements(eventId: string) {
+    const event = await this.findById(eventId);
+    const items = await this.announcementModel
+      .find({ event: event._id })
+      .sort({ createdAt: -1 })
+      .lean();
+    return {
+      items: items.map((a) => ({
+        id: String(a._id),
+        subject: a.subject,
+        message: a.message,
+        audience: a.audience,
+        senderName: a.senderName,
+        createdAt: (a as any).createdAt,
+        updatedAt: (a as any).updatedAt,
+      })),
+    };
+  }
+
+  /** Edit an announcement's subject/message (updates the learners' Updates). */
+  async updateAnnouncement(
+    eventId: string,
+    announcementId: string,
+    dto: { subject?: string; message?: string },
+  ) {
+    const event = await this.findById(eventId);
+    const update: Record<string, string> = {};
+    if (dto.subject !== undefined) update.subject = dto.subject;
+    if (dto.message !== undefined) update.message = dto.message;
+    const updated = await this.announcementModel.findOneAndUpdate(
+      { _id: announcementId, event: event._id },
+      { $set: update },
+      { new: true },
+    );
+    if (!updated) throw new NotFoundException('Announcement not found');
+    return { success: true };
+  }
+
+  /** Delete an announcement (also removes it from learners' Updates). */
+  async deleteAnnouncement(eventId: string, announcementId: string) {
+    const event = await this.findById(eventId);
+    const res = await this.announcementModel.deleteOne({
+      _id: announcementId,
+      event: event._id,
+    });
+    if (!res.deletedCount) throw new NotFoundException('Announcement not found');
+    return { success: true };
+  }
+
   /**
    * Export registrations in specified format (CSV, Excel, PDF)
    */

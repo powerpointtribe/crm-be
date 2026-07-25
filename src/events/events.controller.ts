@@ -616,6 +616,34 @@ export class EventsController {
     };
   }
 
+  // List all announcements posted for an event (facilitator history).
+  @Get(':id/announcements')
+  @RequirePermission(EventsPermission.SEND_EMAILS)
+  listAnnouncements(@Param('id') id: string) {
+    return this.eventsService.listAnnouncements(id);
+  }
+
+  // Edit a posted announcement's subject/message.
+  @Patch(':id/announcements/:announcementId')
+  @RequirePermission(EventsPermission.SEND_EMAILS)
+  updateAnnouncement(
+    @Param('id') id: string,
+    @Param('announcementId') announcementId: string,
+    @Body() body: { subject?: string; message?: string },
+  ) {
+    return this.eventsService.updateAnnouncement(id, announcementId, body);
+  }
+
+  // Delete a posted announcement (removes it from learners' Updates too).
+  @Delete(':id/announcements/:announcementId')
+  @RequirePermission(EventsPermission.SEND_EMAILS)
+  deleteAnnouncement(
+    @Param('id') id: string,
+    @Param('announcementId') announcementId: string,
+  ) {
+    return this.eventsService.deleteAnnouncement(id, announcementId);
+  }
+
   @Post(':id/registrations/:regId/regenerate-application-link')
   @RequirePermission(EventsPermission.UPDATE_REGISTRATION)
   async regenerateApplicationLink(

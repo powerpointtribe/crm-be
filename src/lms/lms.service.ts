@@ -1744,7 +1744,7 @@ export class LmsService {
     return s.senderName ? `${s.senderName} <${s.senderEmail}>` : s.senderEmail;
   }
 
-  // ── CMIT Cohort 1 onboarding reminders (one-off, event on Fri 25 July 2026) ─
+  // ── CMIT Cohort 1 onboarding reminders (one-off, event on Sat 25 July 2026) ─
   // Sends a reminder template to EVERYONE registered for the CMIT event, from
   // the CMIT sender (replies route to the CMIT inbox via the provider default).
   private async sendOnboardingReminderToAll(slug: string): Promise<void> {
@@ -1795,21 +1795,21 @@ export class LmsService {
     this.logger.log(`Onboarding reminder ${slug} done: sent ${sent}, failed ${failed}`);
   }
 
-  // Reminder 2 — Fri 25 July 2026, 8:00 AM WAT (morning of the event).
+  // Reminder 2 — Sat 25 July 2026, 8:00 AM WAT (morning of the event).
   @Cron('0 0 8 25 7 *', { timeZone: 'Africa/Lagos' })
   async onboardingReminderTwo() {
     if (new Date().getFullYear() !== 2026) return;
     await this.sendOnboardingReminderToAll('events.onboarding-reminder-2');
   }
 
-  // Reminder 3 — Fri 25 July 2026, 6:00 PM WAT (1 hour before, 7:00 PM start).
+  // Reminder 3 — Sat 25 July 2026, 6:00 PM WAT (1 hour before, 7:00 PM start).
   @Cron('0 0 18 25 7 *', { timeZone: 'Africa/Lagos' })
   async onboardingReminderThree() {
     if (new Date().getFullYear() !== 2026) return;
     await this.sendOnboardingReminderToAll('events.onboarding-reminder-3');
   }
 
-  // Reminder 4 — Fri 25 July 2026, 6:50 PM WAT (10 minutes before start).
+  // Reminder 4 — Sat 25 July 2026, 6:50 PM WAT (10 minutes before start).
   @Cron('0 50 18 25 7 *', { timeZone: 'Africa/Lagos' })
   async onboardingReminderFour() {
     if (new Date().getFullYear() !== 2026) return;
