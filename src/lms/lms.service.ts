@@ -768,7 +768,10 @@ export class LmsService {
    * each flagged read/unread against the account's `notificationsReadAt`.
    */
   async getNotifications(account: PortalAccountDocument, eventSlug?: string) {
-    const { event } = await this.resolveLearner(account, eventSlug);
+    const { event, registration } = await this.resolveLearner(
+      account,
+      eventSlug,
+    );
     const list = await this.announcementModel
       .find({ event: event._id })
       .sort({ createdAt: -1 })
@@ -779,12 +782,20 @@ export class LmsService {
       ? new Date(account.notificationsReadAt).getTime()
       : 0;
 
+    // Personalize {{firstName}}/{{lastName}}/{{email}} for the viewing student.
+    const info = registration?.attendeeInfo || ({} as any);
+    const vars = {
+      firstName: info.firstName || account.firstName || 'there',
+      lastName: info.lastName || account.lastName || '',
+      email: info.email || account.email || '',
+    };
+
     const items = list.map((a) => {
       const createdAt = (a as any).createdAt as Date;
       return {
         id: String(a._id),
-        subject: a.subject,
-        message: a.message,
+        subject: this.personalizeText(a.subject, vars),
+        message: this.personalizeText(a.message, vars),
         senderName: a.senderName || event.title,
         createdAt,
         read: new Date(createdAt).getTime() <= readAt,
@@ -792,6 +803,23 @@ export class LmsService {
     });
 
     return { items, unread: items.filter((i) => !i.read).length };
+  }
+
+  /** Substitute {{firstName}} / {{lastName}} / {{name}} / {{email}} tags with
+   *  the viewing student's own details (case/underscore/space tolerant). */
+  private personalizeText(
+    text: string,
+    v: { firstName: string; lastName: string; email: string },
+  ): string {
+    if (!text) return text;
+    return text
+      .replace(/\{\{\s*first[\s_]*name\s*\}\}/gi, v.firstName)
+      .replace(/\{\{\s*last[\s_]*name\s*\}\}/gi, v.lastName)
+      .replace(
+        /\{\{\s*(?:full[\s_]*name|name)\s*\}\}/gi,
+        `${v.firstName} ${v.lastName}`.trim(),
+      )
+      .replace(/\{\{\s*email\s*\}\}/gi, v.email);
   }
 
   /** Mark all of the learner's notifications as read (bell → 0). */

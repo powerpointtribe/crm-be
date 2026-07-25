@@ -583,9 +583,10 @@ export class EventsController {
     };
   }
 
-  // Facilitator announcement / broadcast to an event's attendees. Queues one
-  // branded email per recipient. Omit registrationIds to email everyone; pass
-  // registrationIds (e.g. accepted attendees) to target a subset.
+  // Facilitator announcement to an event's attendees. IN-APP ONLY — it appears
+  // in the learner portal bell / Updates tab (personalized per student), and is
+  // NOT emailed. Placeholders like {{firstName}} are substituted when each
+  // student views it.
   @Post(':id/announcements')
   @RequirePermission(EventsPermission.SEND_EMAILS)
   async sendAnnouncement(
@@ -598,15 +599,19 @@ export class EventsController {
       scheduledFor?: string;
     },
   ) {
-    const result = await this.eventsService.sendBulkEmailToRegistrants(id, {
-      subject: body.subject,
-      message: body.message,
-      registrationIds: body.registrationIds,
-      scheduledFor: body.scheduledFor,
-    });
+    const result = await this.eventsService.sendBulkEmailToRegistrants(
+      id,
+      {
+        subject: body.subject,
+        message: body.message,
+        registrationIds: body.registrationIds,
+        scheduledFor: body.scheduledFor,
+      },
+      true, // in-app only — no email
+    );
     return {
       success: true,
-      message: `Announcement queued for ${result.recipientCount} recipient(s).`,
+      message: `Announcement posted to ${result.recipientCount} student(s).`,
       ...result,
     };
   }

@@ -114,6 +114,8 @@ export class R2StorageService {
         Key: key,
         Body: optimized,
         ContentType: 'image/jpeg',
+        // Unique, content-hashed keys → safe to cache forever at the CDN edge.
+        CacheControl: 'public, max-age=31536000, immutable',
       }),
     );
     return this.publicUrl(key);
@@ -141,6 +143,7 @@ export class R2StorageService {
         Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,
+        CacheControl: 'public, max-age=31536000, immutable',
         ...(opts.asAttachment
           ? {
               ContentDisposition: `attachment; filename="${file.originalname.replace(/"/g, '')}"`,
@@ -180,6 +183,7 @@ export class R2StorageService {
         Bucket: this.bucket,
         Key: key,
         ContentType: contentType,
+        CacheControl: 'public, max-age=31536000, immutable',
       }),
       { expiresIn: 600 },
     );

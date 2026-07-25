@@ -4002,7 +4002,10 @@ export class EventsService {
       registrationIds?: string[];
       scheduledFor?: string;
     },
-  ): Promise<{ jobId: string; recipientCount: number }> {
+    // In-app-only (facilitator announcements): persist the notification for the
+    // learner portal bell/Updates, but DO NOT send an email.
+    inAppOnly = false,
+  ): Promise<{ jobId: string | null; recipientCount: number }> {
     // Verify event exists and user has access
     const event = await this.findById(eventId);
 
@@ -4036,8 +4039,10 @@ export class EventsService {
       );
     }
 
-    // Queue bulk email job
-    const job = await this.emailQueue.add(
+    // Queue the bulk email — skipped entirely for in-app-only announcements.
+    let job: any = null;
+    if (!inAppOnly)
+      job = await this.emailQueue.add(
       'bulk-registration-email',
       {
         eventId: event._id.toString(),
@@ -4063,9 +4068,10 @@ export class EventsService {
       },
     );
 
-    this.logger.log(
-      `Bulk email queued for ${registrations.length} registrations for event ${event.title}`,
-    );
+    if (job)
+      this.logger.log(
+        `Bulk email queued for ${registrations.length} registrations for event ${event.title}`,
+      );
 
     // Also persist it as an in-app notification for the learner portal (bell +
     // Updates tab). Non-fatal if it fails — the email is the primary channel.
@@ -4088,7 +4094,7 @@ export class EventsService {
     }
 
     return {
-      jobId: job.id.toString(),
+      jobId: job ? job.id.toString() : null,
       recipientCount: registrations.length,
     };
   }
