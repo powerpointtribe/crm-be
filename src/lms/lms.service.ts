@@ -906,6 +906,7 @@ export class LmsService {
           status: 'published',
           // Session recordings / opt-out lessons don't gate completion.
           excludeFromCompletion: { $ne: true },
+          isSessionRecording: { $ne: true },
         })
         .select('_id module')
         .lean(),
@@ -1022,7 +1023,7 @@ export class LmsService {
               headerImageUrl: l.headerImageUrl || null,
               isSessionRecording: !!l.isSessionRecording,
               // Recordings/optional lessons don't count toward completion.
-              countsForCompletion: !l.excludeFromCompletion,
+              countsForCompletion: !l.excludeFromCompletion && !l.isSessionRecording,
             })),
         };
       }),
