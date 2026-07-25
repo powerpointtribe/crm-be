@@ -1748,6 +1748,18 @@ export class LmsService {
   // Sends a reminder template to EVERYONE registered for the CMIT event, from
   // the CMIT sender (replies route to the CMIT inbox via the provider default).
   private async sendOnboardingReminderToAll(slug: string): Promise<void> {
+    // PAUSED by default after the 2026-07 Gmail 4.7.28 rate-limit incident on
+    // cmithub.org (a low-reputation domain). This kill-switch is scoped to the
+    // CMIT reminder campaign only — it does NOT affect powerpointtribe.org mail,
+    // CMIT admission letters, or any other cron. To resume, set
+    // ONBOARDING_REMINDERS_ENABLED=true and restart, ideally ramping the domain
+    // gradually (see scripts/send-onboarding-blast.ts --gmail-rate).
+    if (process.env.ONBOARDING_REMINDERS_ENABLED !== 'true') {
+      this.logger.warn(
+        `Onboarding reminder ${slug} skipped — ONBOARDING_REMINDERS_ENABLED is not 'true' (campaign paused)`,
+      );
+      return;
+    }
     const tpl = eventsDefaults.find((t) => t.slug === slug);
     if (!tpl) {
       this.logger.warn(`Onboarding reminder template not found: ${slug}`);
@@ -1775,22 +1787,42 @@ export class LmsService {
     this.logger.log(`Onboarding reminder ${slug}: ${emails.length} recipients`);
     let sent = 0;
     let failed = 0;
+    // cmithub.org has low sending reputation — throttle Gmail recipients hard
+    // (Gmail enforces per-sending-domain rate limits) and back off exponentially
+    // on transient/rate failures. These pace values match the blast script.
+    const gmailDelayMs = 12_000; // ~300 emails/hour to Gmail
+    const otherDelayMs = 3_600; // ~1000 emails/hour to other providers
     for (const to of emails) {
-      try {
-        await this.emailProvider.sendEmail({
-          to,
-          subject: tpl.subject,
-          html: tpl.htmlContent,
-          ...(from ? { from } : {}),
-        });
-        sent += 1;
-      } catch (e) {
-        failed += 1;
-        this.logger.warn(
-          `Onboarding reminder ${slug} → ${to} failed: ${(e as Error).message}`,
-        );
+      const isGmail = /@(gmail|googlemail)\.com$/i.test(to);
+      let ok = false;
+      for (let attempt = 1; attempt <= 4 && !ok; attempt++) {
+        try {
+          await this.emailProvider.sendEmail({
+            to,
+            subject: tpl.subject,
+            html: tpl.htmlContent,
+            ...(from ? { from } : {}),
+          });
+          ok = true;
+        } catch (e) {
+          const msg = (e as Error).message || '';
+          // Permanent (unverified sender/invalid recipient) or exhausted credit,
+          // or last attempt → give up on this recipient.
+          if (/not verified|invalid|credit/i.test(msg) || attempt === 4) {
+            this.logger.warn(
+              `Onboarding reminder ${slug} → ${to} failed: ${msg}`,
+            );
+            break;
+          }
+          const isRate = /rate|too many|429|throttl|temporar|4\.7\.\d+|defer/i.test(msg);
+          await new Promise((r) =>
+            setTimeout(r, (isRate ? 30_000 : 2_000) * 2 ** (attempt - 1)),
+          );
+        }
       }
-      await new Promise((r) => setTimeout(r, 250));
+      if (ok) sent += 1;
+      else failed += 1;
+      await new Promise((r) => setTimeout(r, isGmail ? gmailDelayMs : otherDelayMs));
     }
     this.logger.log(`Onboarding reminder ${slug} done: sent ${sent}, failed ${failed}`);
   }
