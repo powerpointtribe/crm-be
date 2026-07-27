@@ -139,10 +139,10 @@ export class PublicCreateFirstTimerDto {
   @IsString()
   profilePhotoUrl?: string;
 
-  @ApiProperty({ description: 'Name of person who invited them' })
-  @IsNotEmpty({ message: 'Please specify who invited you' })
+  @ApiPropertyOptional({ description: 'Name of person who invited them' })
+  @IsOptional()
   @IsString()
-  invitedBy: string;
+  invitedBy?: string;
 
   @ApiPropertyOptional({ description: 'Name of school/university (for students)' })
   @IsOptional()
