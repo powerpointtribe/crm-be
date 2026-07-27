@@ -91,13 +91,13 @@ export class PublicCreateFirstTimerDto {
   @Type(() => PublicAddressDto)
   address?: PublicAddressDto;
 
-  @ApiPropertyOptional({ description: 'Date of birth (month and day only)', example: '01-15' })
-  @IsOptional()
+  @ApiProperty({ description: 'Date of birth (month and day only)', example: '01-15' })
+  @IsNotEmpty({ message: 'Date of birth is required' })
   @IsString()
   @Matches(/^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/, {
     message: 'dateOfBirth must be in MM-DD format (month and day only)',
   })
-  dateOfBirth?: string;
+  dateOfBirth: string;
 
   @ApiPropertyOptional({
     description: 'Gender',
@@ -129,20 +129,20 @@ export class PublicCreateFirstTimerDto {
     other?: string;
   };
 
-  @ApiPropertyOptional({ description: 'What they enjoyed about the service' })
-  @IsOptional()
+  @ApiProperty({ description: 'What they enjoyed about the service' })
+  @IsNotEmpty({ message: 'Service experience is required' })
   @IsString()
-  serviceExperience?: string;
+  serviceExperience: string;
 
   @ApiPropertyOptional({ description: 'Profile photo URL' })
   @IsOptional()
   @IsString()
   profilePhotoUrl?: string;
 
-  @ApiPropertyOptional({ description: 'Name of person who invited them' })
-  @IsOptional()
+  @ApiProperty({ description: 'Name of person who invited them' })
+  @IsNotEmpty({ message: 'Please specify who invited you' })
   @IsString()
-  invitedBy?: string;
+  invitedBy: string;
 
   @ApiPropertyOptional({ description: 'Name of school/university (for students)' })
   @IsOptional()

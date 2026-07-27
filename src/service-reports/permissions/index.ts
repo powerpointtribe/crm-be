@@ -18,6 +18,7 @@ export enum ServiceReportsPermission {
 
   // UPDATE operations
   UPDATE_REPORT = 'service-reports:update',
+  UPDATE_ANY_REPORT = 'service-reports:update-any',
   APPROVE_REPORT = 'service-reports:approve',
   REJECT_REPORT = 'service-reports:reject',
 

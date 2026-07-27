@@ -137,6 +137,11 @@ export class EventRegistration {
   @Prop({ type: Date })
   acceptedAt?: Date;
 
+  // Set when the set-password (login) invite has been sent — guards the
+  // auto-invite cron (sent ~15 min after acceptance) against re-sending.
+  @Prop({ type: Date })
+  portalInviteSentAt?: Date;
+
   // Legacy check-in code (preserved from old PRO-/ENT- format)
   @Prop({ trim: true })
   legacyCheckInCode?: string;

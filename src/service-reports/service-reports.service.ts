@@ -28,6 +28,8 @@ import {
   BranchAccessService,
   BranchFilterContext,
 } from '../common/services/branch-access.service';
+import { UserPermissionsService } from '../roles/services/user-permissions.service';
+import { ServiceReportsPermission } from './permissions';
 
 @Injectable()
 export class ServiceReportsService {
@@ -38,6 +40,7 @@ export class ServiceReportsService {
     private serviceReportModel: Model<ServiceReportDocument>,
     private pdfService: ServiceReportsPdfService,
     private branchAccessService: BranchAccessService,
+    private userPermissionsService: UserPermissionsService,
   ) {}
 
   async create(
@@ -226,19 +229,26 @@ export class ServiceReportsService {
   async update(
     id: string,
     updateServiceReportDto: UpdateServiceReportDto,
-    userId: string,
+    user: any,
   ): Promise<ServiceReportDocument> {
     const report = await this.findById(id);
 
-    // Check if user has permission to update this report
+    const userId = user._id?.toString() || user.toString();
     const reportedByIdString = typeof report.reportedBy === 'object' && report.reportedBy._id
       ? report.reportedBy._id.toString()
       : report.reportedBy.toString();
 
-    if (reportedByIdString !== userId.toString()) {
-      throw new ForbiddenException(
-        'You can only update reports that you created',
-      );
+    if (reportedByIdString !== userId) {
+      const roleId = user.role?._id || user.role;
+      const canUpdateAny = roleId
+        ? await this.userPermissionsService.hasPermission(roleId, ServiceReportsPermission.UPDATE_ANY_REPORT)
+        : false;
+
+      if (!canUpdateAny) {
+        throw new ForbiddenException(
+          'You can only update reports that you created',
+        );
+      }
     }
 
     // Validate attendance numbers if provided

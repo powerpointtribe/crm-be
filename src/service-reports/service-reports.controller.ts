@@ -340,7 +340,7 @@ export class ServiceReportsController {
     const report = await this.serviceReportsService.update(
       id,
       updateServiceReportDto,
-      user._id,
+      user,
     );
     return ResponseUtil.success(report, 'Service report updated successfully');
   }

@@ -8,6 +8,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery } from 'mongoose';
 import {
@@ -881,6 +882,56 @@ export class EventsService {
       }
     }
     return { sent, failed, total: regs.length };
+  }
+
+  // Auto-send the set-password (login) invite ~15 minutes after a registrant is
+  // accepted. Idempotent via `portalInviteSentAt`; scoped to CMIT; batch-capped
+  // so it can never mass-blast cmithub.org (protects the domain's sending
+  // reputation after the 2026-07 Gmail rate-limit incident). Existing accepted
+  // registrants are backfilled as already-invited, so only NEW acceptances here.
+  private readonly PORTAL_INVITE_DELAY_MS = 15 * 60 * 1000;
+  private readonly PORTAL_INVITE_BATCH = 40;
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async autoSendDuePortalInvites(): Promise<void> {
+    const event = await this.eventModel.findOne({
+      registrationSlug: 'cmit-cohort-1',
+    });
+    if (!event) return;
+
+    const cutoff = new Date(Date.now() - this.PORTAL_INVITE_DELAY_MS);
+    const due = await this.registrationModel
+      .find({
+        event: event._id,
+        admissionStatus: 'accepted',
+        acceptedAt: { $ne: null, $lte: cutoff },
+        $or: [
+          { portalInviteSentAt: { $exists: false } },
+          { portalInviteSentAt: null },
+        ],
+      })
+      .limit(this.PORTAL_INVITE_BATCH);
+    if (!due.length) return;
+
+    let sent = 0;
+    for (const reg of due) {
+      try {
+        const { sentTo } = await this.portalService.provisionAndInvite(
+          reg,
+          event,
+        );
+        reg.portalInviteSentAt = new Date();
+        await reg.save();
+        if (sentTo) sent += 1;
+      } catch (e) {
+        this.logger.warn(
+          `Auto portal invite failed for ${reg.attendeeInfo?.email}: ${(e as Error).message}`,
+        );
+      }
+    }
+    if (sent) {
+      this.logger.log(`Auto-sent ${sent} portal invite(s) 15min post-accept`);
+    }
   }
 
   async createRegistration(

@@ -2530,11 +2530,14 @@ export class FirstTimersService {
         serviceMap.set(service, {
           service,
           'Friend/Colleague': 0,
-          'Others': 0,
-          'Outreach': 0,
-          'Social Media': 0,
-          'Special Programs': 0,
           'Family': 0,
+          'Social Media': 0,
+          'Outreach': 0,
+          'Special Programs': 0,
+          'Advertisement': 0,
+          'Walk-in/Passerby': 0,
+          'Media': 0,
+          'Other': 0,
         });
       }
       const entry = serviceMap.get(service);
@@ -2548,11 +2551,18 @@ export class FirstTimersService {
       { $sort: { count: -1 } },
     ]);
 
-    const trafficSummary = trafficSourceSummary.map((item) => ({
-      name: this.mapHowDidYouHear(item._id),
-      value: item.count,
-      percentage: totalFirstTimers > 0 ? (item.count / totalFirstTimers) * 100 : 0,
-    }));
+    const consolidatedMap = new Map<string, number>();
+    trafficSourceSummary.forEach((item) => {
+      const label = this.mapHowDidYouHear(item._id);
+      consolidatedMap.set(label, (consolidatedMap.get(label) || 0) + item.count);
+    });
+    const trafficSummary = Array.from(consolidatedMap.entries())
+      .map(([name, value]) => ({
+        name,
+        value,
+        percentage: totalFirstTimers > 0 ? (value / totalFirstTimers) * 100 : 0,
+      }))
+      .sort((a, b) => b.value - a.value);
 
     // Join Us Choices by Service
     const joinUsChoicesByService = await this.firstTimerModel.aggregate([
@@ -2594,6 +2604,19 @@ export class FirstTimersService {
       { name: 'No', value: noCount, percentage: totalFirstTimers > 0 ? (noCount / totalFirstTimers) * 100 : 0 },
     ];
 
+    // Service Experience Summary (what visitors enjoyed)
+    const serviceExperienceSummary = await this.firstTimerModel.aggregate([
+      { $match: { ...dateFilter, serviceExperience: { $exists: true, $ne: '' } } },
+      { $group: { _id: '$serviceExperience', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+    const totalWithExperience = serviceExperienceSummary.reduce((sum, item) => sum + item.count, 0);
+    const experienceSummary = serviceExperienceSummary.map((item) => ({
+      name: item._id,
+      value: item.count,
+      percentage: totalWithExperience > 0 ? (item.count / totalWithExperience) * 100 : 0,
+    }));
+
     // 2nd Timer Retention (based on follow-ups with visitNumber = 2)
     const secondTimerData = await this.calculateRetentionByVisitNumber(firstTimers, 2);
 
@@ -2606,6 +2629,7 @@ export class FirstTimersService {
       trafficSourceSummary: trafficSummary,
       joinUsChoicesByService: Array.from(joinUsMap.values()),
       joinUsChoicesSummary: joinUsSummary,
+      serviceExperienceSummary: experienceSummary,
       secondTimerRetention: secondTimerData,
       thirdTimerRetention: thirdTimerData,
     };
@@ -2618,16 +2642,71 @@ export class FirstTimersService {
     const mapping: Record<string, string> = {
       friend: 'Friend/Colleague',
       family: 'Family',
-      advertisement: 'Others',
+      advertisement: 'Advertisement',
       online: 'Social Media',
       event: 'Special Programs',
-      walkby: 'Others',
+      walkby: 'Walk-in/Passerby',
       website: 'Social Media',
       social_media: 'Social Media',
-      other: 'Others',
+      other: 'Other',
       outreach: 'Outreach',
+      church_outreach: 'Outreach',
+      community_outreach: 'Outreach',
+      campus_outreach: 'Outreach',
+      evangelism_program: 'Outreach',
+      street_evangelism: 'Outreach',
+      neighborhood_evangelism: 'Outreach',
+      door_to_door: 'Outreach',
+      market_evangelism: 'Outreach',
+      crusade: 'Special Programs',
+      conference: 'Special Programs',
+      special_program: 'Special Programs',
+      guest_speaker: 'Special Programs',
+      musical_concert: 'Special Programs',
+      drama_presentation: 'Special Programs',
+      youth_program: 'Special Programs',
+      children_program: 'Special Programs',
+      women_program: 'Special Programs',
+      men_program: 'Special Programs',
+      singles_program: 'Special Programs',
+      couples_program: 'Special Programs',
+      christmas_service: 'Special Programs',
+      easter_service: 'Special Programs',
+      new_year_service: 'Special Programs',
+      thanksgiving_service: 'Special Programs',
+      wedding_invitation: 'Special Programs',
+      funeral_service: 'Special Programs',
+      baby_dedication: 'Special Programs',
+      radio: 'Media',
+      television: 'Media',
+      podcast: 'Media',
+      youtube: 'Social Media',
+      facebook: 'Social Media',
+      instagram: 'Social Media',
+      twitter: 'Social Media',
+      whatsapp: 'Social Media',
+      invitation_card: 'Advertisement',
+      flyer: 'Advertisement',
+      banner: 'Advertisement',
+      billboard: 'Advertisement',
+      newspaper: 'Media',
+      magazine: 'Media',
+      google_search: 'Social Media',
+      church_website: 'Social Media',
+      online_service: 'Social Media',
+      live_stream: 'Social Media',
+      church_app: 'Social Media',
+      community_service: 'Outreach',
+      charity_work: 'Outreach',
+      hospital_ministry: 'Outreach',
+      prison_ministry: 'Outreach',
+      school_ministry: 'Outreach',
+      workplace_ministry: 'Outreach',
+      business_network: 'Friend/Colleague',
+      professional_network: 'Friend/Colleague',
+      alumni_network: 'Friend/Colleague',
     };
-    return mapping[source] || 'Others';
+    return mapping[source] || 'Other';
   }
 
   /**

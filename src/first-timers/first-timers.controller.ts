@@ -294,8 +294,6 @@ export class FirstTimersController {
       // Convert public DTO to internal DTO and add metadata
       // Extract only the relevant properties and ignore the ones that should be handled internally
       const {
-        dateOfBirth,
-        occupation,
         serviceType,
         status,
         converted,
@@ -318,7 +316,7 @@ export class FirstTimersController {
 
       const internalDto: CreateFirstTimerDto = {
         ...relevantData,
-        dateOfVisit: new Date().toISOString().split('T')[0], // Set to today
+        dateOfVisit: new Date().toISOString().split('T')[0],
         interestedInJoining: validInterestedInJoining,
         notes: createFirstTimerDto.notes
           ? `[PUBLIC DOMAIN] ${createFirstTimerDto.notes}`
