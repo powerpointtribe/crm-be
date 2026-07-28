@@ -242,6 +242,17 @@ export class LmsFacilitatorController {
     return this.lms.finalizeSessionAttendance(eventId, sessionId);
   }
 
+  // Pull attendance from Zoom's participant report for a session and mark
+  // present/late/absent. Returns a summary + any unmatched Zoom participants.
+  @Post('events/:eventId/sessions/:sessionId/sync-zoom-attendance')
+  @RequirePermission(EventsPermission.CHECK_IN)
+  syncZoomAttendance(
+    @Param('eventId') eventId: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.lms.syncSessionAttendanceFromZoom(eventId, sessionId);
+  }
+
   // Live status of the session's YouTube broadcast (LIVE badge / viewer count).
   @Get('events/:eventId/sessions/:sessionId/live-status')
   @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)

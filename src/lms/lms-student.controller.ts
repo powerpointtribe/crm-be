@@ -44,6 +44,16 @@ export class LmsStudentController {
     return this.lms.getLesson(account, lessonId);
   }
 
+  // Signed Meeting SDK payload to watch a session's Zoom meeting/webinar
+  // embedded in the portal (no separate Zoom login).
+  @Get('me/sessions/:sessionId/zoom-join')
+  getZoomJoin(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.lms.getZoomJoinInfo(account, sessionId);
+  }
+
   @Get('me/progress')
   getProgress(
     @CurrentPortalAccount() account: PortalAccountDocument,

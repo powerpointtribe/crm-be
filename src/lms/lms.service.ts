@@ -49,6 +49,8 @@ import { AiService } from '../ai/ai.service';
 import { YoutubeService } from '../youtube/youtube.service';
 import { EmailProvider } from '../notifications/providers/email.provider';
 import { EmailTemplateResolverService } from '../bulk-email/email-template-resolver.service';
+import { ZoomService } from '../zoom/zoom.service';
+import { PortalService } from '../portal/portal.service';
 import { buildAdmissionLetterPdf } from '../events/utils/admission-letter.pdf';
 import {
   CreateAssignmentDto,
@@ -100,6 +102,8 @@ export class LmsService {
     private readonly memberModel: Model<MemberDocument>,
     private readonly emailProvider: EmailProvider,
     private readonly templateResolver: EmailTemplateResolverService,
+    private readonly zoomService: ZoomService,
+    private readonly portalService: PortalService,
   ) {}
 
   private readonly logger = new Logger(LmsService.name);
@@ -1369,6 +1373,10 @@ export class LmsService {
           // Parsed YouTube id lets the portal embed the stream and track
           // watch-time attendance in-page.
           youtubeVideoId: YoutubeService.extractVideoId(joinLink) || '',
+          // Zoom meeting/webinar embed — when set, the portal shows the Meeting
+          // SDK player instead of YouTube (attendance from the Zoom report).
+          zoomMeetingId: s.zoomMeetingId || '',
+          zoomType: s.zoomType || 'meeting',
           isVirtual: !!s.location?.isVirtual,
           // Minutes of watch-time required to be marked attended (for the UI).
           presentThresholdMinutes: this.presentThresholdFor(
@@ -1615,6 +1623,200 @@ export class LmsService {
       }
     }
     return { total: rows.length, ...counts, watched, views };
+  }
+
+  // ===================== Zoom attendance sync ==================================
+  //
+  //  Pull a session's attendance from Zoom's past-meeting participant report.
+  //  For a recurring meeting the same `zoomMeetingId` is reused across sessions;
+  //  we resolve the occurrence whose start time is closest to the session's
+  //  scheduled start. Participant emails (reliable when the meeting uses Zoom
+  //  registration) are matched to accepted registrants; unmatched participants
+  //  are returned for the facilitator to reconcile — nothing is silently dropped.
+
+  async syncSessionAttendanceFromZoom(eventId: string, sessionId: string) {
+    await this.assertEvent(eventId);
+    if (!this.zoomService.isConfigured) {
+      throw new BadRequestException('Zoom is not configured on the server.');
+    }
+    const session = await this.sessionModel.findOne({
+      _id: sessionId,
+      event: new Types.ObjectId(eventId),
+    });
+    if (!session) throw new NotFoundException('Session not found');
+
+    const meetingId = (session.zoomMeetingId || '').replace(/\s+/g, '');
+    if (!meetingId) {
+      throw new BadRequestException(
+        'This session has no Zoom Meeting ID set. Add it on the session first.',
+      );
+    }
+
+    const kind = session.zoomType === 'webinar' ? 'webinar' : 'meeting';
+
+    // Resolve the occurrence matching this session's date (recurring meeting/
+    // webinar); fall back to the id itself for a one-off.
+    let target = meetingId;
+    let occurrence: string | null = null;
+    try {
+      const instances = await this.zoomService.getPastInstances(meetingId, kind);
+      if (instances.length) {
+        const sStart =
+          this.sessionStart(session)?.getTime() ??
+          new Date(session.date).getTime();
+        const best = instances
+          .map((i) => ({
+            uuid: i.uuid,
+            diff: Math.abs(new Date(i.start_time).getTime() - (sStart || 0)),
+          }))
+          .sort((a, b) => a.diff - b.diff)[0];
+        if (best) {
+          target = best.uuid;
+          occurrence = best.uuid;
+        }
+      }
+    } catch {
+      // No instances (one-off meeting) — use the meeting id directly.
+    }
+
+    const participants = await this.zoomService.getParticipants(target, kind);
+
+    // Aggregate total seconds + earliest join per email (participants can have
+    // multiple rows from rejoining).
+    const byEmail: Record<string, { seconds: number; firstJoin?: Date }> = {};
+    let withoutEmail = 0;
+    for (const p of participants) {
+      const email = (p.user_email || '').trim().toLowerCase();
+      if (!email) {
+        withoutEmail += 1;
+        continue;
+      }
+      const rec = (byEmail[email] ||= { seconds: 0 });
+      rec.seconds += Number(p.duration) || 0;
+      const jt = p.join_time ? new Date(p.join_time) : undefined;
+      if (jt && (!rec.firstJoin || jt < rec.firstJoin)) rec.firstJoin = jt;
+    }
+
+    // Map accepted registrants by email.
+    const regs = await this.registrationModel
+      .find({
+        event: session.event,
+        admissionStatus: 'accepted',
+        'attendeeInfo.email': { $ne: null },
+      })
+      .select('attendeeInfo')
+      .lean();
+    const regByEmail = new Map<string, any>();
+    for (const r of regs) {
+      const e = (r.attendeeInfo?.email || '').trim().toLowerCase();
+      if (e) regByEmail.set(e, r);
+    }
+
+    const threshold = this.presentThresholdFor(session);
+    const sStartMs =
+      this.sessionStart(session)?.getTime() ?? new Date(session.date).getTime();
+    let matched = 0;
+    let present = 0;
+    let late = 0;
+    const unmatched: Array<{ email: string; name?: string; minutes: number }> =
+      [];
+
+    for (const [email, agg] of Object.entries(byEmail)) {
+      const minutes = agg.seconds / 60;
+      const reg = regByEmail.get(email);
+      if (!reg) {
+        unmatched.push({ email, minutes: Math.round(minutes) });
+        continue;
+      }
+      matched += 1;
+      const isLate = this.isLateJoin(session, agg.firstJoin);
+      const status = this.deriveStatus(minutes, isLate, threshold);
+      if (status === 'present') present += 1;
+      else if (status === 'late') late += 1;
+
+      const lateBy =
+        isLate && agg.firstJoin
+          ? Math.max(
+              0,
+              Math.round((agg.firstJoin.getTime() - sStartMs) / 60_000),
+            )
+          : 0;
+
+      await this.attendanceModel.updateOne(
+        { session: session._id, registration: reg._id },
+        {
+          $set: {
+            event: session.event,
+            status,
+            attendedMinutes: Math.round(minutes),
+            liveMinutes: Math.round(minutes),
+            watched: minutes >= threshold,
+            checkInTime: agg.firstJoin,
+            lateByMinutes: lateBy,
+          },
+          $setOnInsert: { registration: reg._id },
+        },
+        { upsert: true },
+      );
+    }
+
+    session.zoomAttendanceSyncedAt = new Date();
+    await session.save();
+
+    return {
+      sessionId,
+      meetingId,
+      occurrence,
+      totalParticipants: participants.length,
+      participantsWithoutEmail: withoutEmail,
+      matched,
+      present,
+      late,
+      absentBelowThreshold: matched - present - late,
+      unmatched: unmatched.sort((a, b) => b.minutes - a.minutes),
+    };
+  }
+
+  /**
+   * SDK join info for a student to watch a session's Zoom meeting/webinar
+   * embedded in the portal — no separate Zoom login. The signature carries the
+   * student as an attendee (role 0); the frontend passes their name/email so
+   * they show up (reliably matched) in the participant report.
+   */
+  async getZoomJoinInfo(account: PortalAccountDocument, sessionId: string) {
+    if (!this.zoomService.isSdkConfigured) {
+      throw new BadRequestException('Embedded Zoom is not configured.');
+    }
+    const session = await this.sessionModel.findById(sessionId);
+    if (!session) throw new NotFoundException('Session not found');
+    const meetingNumber = (session.zoomMeetingId || '').replace(/\s+/g, '');
+    if (!meetingNumber) {
+      throw new BadRequestException('This session has no Zoom meeting set.');
+    }
+
+    const registration = await this.registrationModel.findOne({
+      event: session.event,
+      'attendeeInfo.email': account.email,
+      admissionStatus: 'accepted',
+    });
+    if (!registration) throw new ForbiddenException('Not enrolled.');
+
+    const { signature, sdkKey } = this.zoomService.generateSdkSignature(
+      meetingNumber,
+      0,
+    );
+    const name = `${registration.attendeeInfo?.firstName || ''} ${
+      registration.attendeeInfo?.lastName || ''
+    }`.trim();
+    return {
+      sdkKey,
+      signature,
+      meetingNumber,
+      password: session.zoomPasscode || '',
+      zoomType: session.zoomType || 'meeting',
+      userName: name || account.email,
+      userEmail: account.email,
+    };
   }
 
   /** Current live status of a session's YouTube broadcast (for the portal). */
@@ -2001,9 +2203,29 @@ export class LmsService {
         ? `${cfg.senderName} <${cfg.senderEmail}>`
         : cfg?.senderEmail;
 
+    // Mint a set-password link and embed it in the admission letter so a
+    // newly-admitted learner can log in immediately (no separate invite email).
+    let setupUrl = '';
+    try {
+      const res = await this.portalService.provisionSetupUrl(
+        reg,
+        ev as EventDocument,
+      );
+      setupUrl = res.setupUrl || '';
+    } catch (e) {
+      this.logger.warn(
+        `Could not mint portal setup URL for ${email}: ${(e as Error).message}`,
+      );
+    }
+
     const { subject, html } = await this.templateResolver.resolveTemplate(
       'events.admission-letter',
-      { firstName, lastName, year: String(new Date().getFullYear()) },
+      {
+        firstName,
+        lastName,
+        year: String(new Date().getFullYear()),
+        setupUrl,
+      },
     );
 
     await this.emailProvider.sendEmail({

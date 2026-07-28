@@ -101,6 +101,27 @@ export class EventSession {
   @Prop({ type: Number })
   durationMinutes?: number;
 
+  // Zoom meeting/webinar ID this session runs on (for embedded viewing via the
+  // Meeting SDK and auto-attendance via the Zoom report API). For a recurring
+  // meeting/webinar the same ID is shared across sessions; the correct
+  // occurrence is resolved by the session date at sync time.
+  @Prop({ type: String, trim: true })
+  zoomMeetingId?: string;
+
+  // Whether zoomMeetingId is a regular meeting or a webinar (webinar is used
+  // for large cohorts). Drives which Zoom report/instances endpoints are called.
+  @Prop({ type: String, enum: ['meeting', 'webinar'], default: 'meeting' })
+  zoomType?: 'meeting' | 'webinar';
+
+  // Meeting/webinar passcode — required by the embedded SDK join when the Zoom
+  // meeting has a passcode set (Zoom enables one by default).
+  @Prop({ type: String, trim: true })
+  zoomPasscode?: string;
+
+  // Set when attendance was last pulled from Zoom for this session.
+  @Prop({ type: Date })
+  zoomAttendanceSyncedAt?: Date;
+
   // Location (can be different from main event)
   @Prop({
     type: {

@@ -44,6 +44,8 @@ import { AiModule } from '../ai/ai.module';
 import { YoutubeModule } from '../youtube/youtube.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { EmailTemplateSharedModule } from '../bulk-email/email-template-shared.module';
+import { ZoomModule } from '../zoom/zoom.module';
+import { PortalModule } from '../portal/portal.module';
 import { CommitteeScopeGuard } from './guards/committee-scope.guard';
 
 @Module({
@@ -70,6 +72,8 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
     YoutubeModule,
     NotificationsModule,
     EmailTemplateSharedModule,
+    ZoomModule,
+    PortalModule,
   ],
   controllers: [LmsFacilitatorController, LmsStudentController],
   providers: [LmsService, CommitteeScopeGuard],

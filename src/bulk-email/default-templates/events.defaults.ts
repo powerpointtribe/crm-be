@@ -1218,7 +1218,12 @@ export const eventsDefaults: TemplateDefinition[] = [
     <tr><td style="padding:30px 36px 8px;">
       <p style="margin:0 0 14px;font-size:15px;color:#1a2340;">Dear {{firstName}} {{lastName}},</p>
       <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#525a72;">You've been formally admitted into the Campus Ministers in Training (CMIT) programme. Your official <strong style="color:#1a2340;">admission letter</strong> &mdash; with your unique Student ID and next steps &mdash; is attached to this email.</p>
-      <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#525a72;">Here's how to get started:</p>
+      <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#525a72;">Here's how to get started &mdash; set your password and you're straight into the platform:</p>
+
+      <a href="{{setupUrl}}" style="display:block;text-decoration:none;background:#18216C;border-radius:14px;padding:17px 16px;margin:0 0 12px;text-align:center;box-shadow:0 3px 10px rgba(24,33,108,0.25);">
+        <span style="display:block;font-size:16px;font-weight:800;color:#ffffff;">Set Your Password &amp; Log In &rarr;</span>
+        <span style="display:block;margin-top:4px;font-size:12px;color:#aab2e0;">Access your dashboard, lessons &amp; live sessions on the CMIT platform.</span>
+      </a>
 
       <a href="https://chat.whatsapp.com/EW04GgsDuOHLGWx5CNKAWi?s=cl&p=a&ilr=4" style="display:block;text-decoration:none;border:1px solid #e6e9f2;border-radius:14px;padding:14px 16px;margin:0 0 12px;background:#ffffff;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>

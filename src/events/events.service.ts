@@ -8,7 +8,6 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery } from 'mongoose';
 import {
@@ -884,15 +883,17 @@ export class EventsService {
     return { sent, failed, total: regs.length };
   }
 
-  // Auto-send the set-password (login) invite ~15 minutes after a registrant is
-  // accepted. Idempotent via `portalInviteSentAt`; scoped to CMIT; batch-capped
-  // so it can never mass-blast cmithub.org (protects the domain's sending
-  // reputation after the 2026-07 Gmail rate-limit incident). Existing accepted
-  // registrants are backfilled as already-invited, so only NEW acceptances here.
+  // Auto-send the set-password (login) invite ~15 minutes after acceptance.
+  //
+  // DISABLED — the set-password link is now embedded directly in the admission
+  // letter (see LmsService.sendAdmissionLetterForRegistration), so accepted
+  // learners can log in immediately without a separate invite email. The method
+  // is kept (no @Cron) in case a standalone invite sweep is ever needed again;
+  // the manual `sendPortalInvite` / `sendPortalInvitesToAllAccepted` remain for
+  // re-sends. Idempotent via `portalInviteSentAt`; scoped to CMIT; batch-capped.
   private readonly PORTAL_INVITE_DELAY_MS = 15 * 60 * 1000;
   private readonly PORTAL_INVITE_BATCH = 40;
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
   async autoSendDuePortalInvites(): Promise<void> {
     const event = await this.eventModel.findOne({
       registrationSlug: 'cmit-cohort-1',

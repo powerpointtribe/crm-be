@@ -103,14 +103,20 @@ export class PortalService {
    * set-password invite (individually or to all accepted), and when a learner
    * asks to (re)set their password.
    */
-  async provisionAndInvite(
+  /**
+   * Ensure a PortalAccount exists and (re)issue a set-password token, returning
+   * the set-password URL — WITHOUT sending a separate invite email. Used when
+   * the link is embedded elsewhere (e.g. inside the admission letter, so a
+   * newly-admitted learner can log in straight away).
+   */
+  async provisionSetupUrl(
     registration: EventRegistrationDocument,
     event: EventDocument,
-  ): Promise<{ sentTo: string | null }> {
+  ): Promise<{ setupUrl: string | null; email: string | null }> {
     const email = (registration.attendeeInfo?.email || '')
       .trim()
       .toLowerCase();
-    if (!email) return { sentTo: null };
+    if (!email) return { setupUrl: null, email: null };
 
     let account = await this.accountModel.findOne({ email });
     if (!account) {
@@ -128,7 +134,18 @@ export class PortalService {
     );
     await account.save();
 
-    const setupUrl = this.setupUrlFor(event, account.setupToken);
+    return { setupUrl: this.setupUrlFor(event, account.setupToken), email };
+  }
+
+  async provisionAndInvite(
+    registration: EventRegistrationDocument,
+    event: EventDocument,
+  ): Promise<{ sentTo: string | null }> {
+    const { setupUrl, email } = await this.provisionSetupUrl(
+      registration,
+      event,
+    );
+    if (!email || !setupUrl) return { sentTo: null };
 
     await this.emailQueue
       .add(JobType.PORTAL_INVITE, {

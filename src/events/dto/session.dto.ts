@@ -8,6 +8,7 @@ import {
   IsArray,
   ValidateNested,
   IsMongoId,
+  IsIn,
   Min,
   Max,
 } from 'class-validator';
@@ -229,6 +230,21 @@ export class CreateSessionDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Zoom meeting/webinar ID for this session' })
+  @IsOptional()
+  @IsString()
+  zoomMeetingId?: string;
+
+  @ApiPropertyOptional({ enum: ['meeting', 'webinar'] })
+  @IsOptional()
+  @IsIn(['meeting', 'webinar'])
+  zoomType?: 'meeting' | 'webinar';
+
+  @ApiPropertyOptional({ description: 'Zoom meeting passcode (for embedded join)' })
+  @IsOptional()
+  @IsString()
+  zoomPasscode?: string;
 }
 
 // Update Session DTO
