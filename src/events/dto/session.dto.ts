@@ -139,9 +139,12 @@ class AttendanceConfigDto {
 
 // Create Session DTO
 export class CreateSessionDto {
-  @ApiProperty()
+  // Injected from the URL param (:id) by the controller — not required in the
+  // request body. Validated as a Mongo id if a caller does send it.
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsMongoId()
-  event: string;
+  event?: string;
 
   // Optional module this session belongs to (surfaces "Join live" in-module).
   @ApiPropertyOptional()
