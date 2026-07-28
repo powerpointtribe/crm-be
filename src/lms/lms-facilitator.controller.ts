@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -49,8 +50,19 @@ export class LmsFacilitatorController {
 
   @Get('events/:eventId/engagement')
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
-  engagement(@Param('eventId') eventId: string) {
-    return this.lms.getEngagement(eventId);
+  engagement(
+    @Param('eventId') eventId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+  ) {
+    return this.lms.getEngagement(eventId, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      sortBy,
+    });
   }
 
   @Get('events/:eventId/overview')

@@ -1056,6 +1056,19 @@ export class LmsService {
       );
     }
 
+    // Count this open as a view (powers the facilitator "revisited" metric) and
+    // mark the lesson in-progress on first open. $setOnInsert leaves an existing
+    // 'completed' status untouched.
+    await this.progressModel.updateOne(
+      { registration: registration._id, lesson: lesson._id },
+      {
+        $inc: { viewCount: 1 },
+        $set: { event: lesson.event },
+        $setOnInsert: { registration: registration._id, status: 'in_progress' },
+      },
+      { upsert: true },
+    );
+
     const progress = await this.progressModel
       .findOne({ registration: registration._id, lesson: lesson._id })
       .lean();
@@ -2465,19 +2478,33 @@ export class LmsService {
 
   // ===================== FACILITATOR: engagement analytics =====================
 
-  async getEngagement(eventId: string) {
+  async getEngagement(
+    eventId: string,
+    opts: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      sortBy?: string;
+    } = {},
+  ) {
     await this.assertEvent(eventId);
     const eventOid = new Types.ObjectId(eventId);
 
-    const [regs, lessonCount, sessionCount, progresses, attendances] =
+    const page = Math.max(1, Number(opts.page) || 1);
+    const limit = Math.min(200, Math.max(1, Number(opts.limit) || 25));
+    const search = (opts.search || '').trim().toLowerCase();
+    const sortBy = opts.sortBy || 'progress';
+
+    const [regs, lessons, modules, sessionCount, progresses, attendances] =
       await Promise.all([
         this.registrationModel
           .find({ event: eventOid, admissionStatus: 'accepted' })
           .lean(),
-        this.lessonModel.countDocuments({
-          event: eventOid,
-          status: 'published',
-        }),
+        this.lessonModel
+          .find({ event: eventOid, status: 'published' })
+          .select('_id module')
+          .lean(),
+        this.moduleModel.find({ event: eventOid }).sort({ order: 1 }).lean(),
         this.sessionModel.countDocuments({ event: eventOid }),
         this.progressModel.find({ event: eventOid }).lean(),
         this.attendanceModel
@@ -2485,15 +2512,43 @@ export class LmsService {
           .lean(),
       ]);
 
+    const lessonCount = lessons.length;
+    const lessonToModule: Record<string, string> = {};
+    for (const l of lessons) lessonToModule[String(l._id)] = String(l.module);
+    const moduleTitle: Record<string, string> = {};
+    for (const m of modules)
+      moduleTitle[String(m._id)] = (m as any).title || 'Untitled module';
+
+    // Per-registration rollups + per-module revisit rollups.
     const completedByReg: Record<string, number> = {};
     const reflectionsByReg: Record<string, number> = {};
+    const startedRegs = new Set<string>();
+    const moduleViews: Record<string, number> = {};
+    const moduleRevisitOpens: Record<string, number> = {};
+    const moduleRevisitLearners: Record<string, Set<string>> = {};
+
     for (const p of progresses) {
       const k = String(p.registration);
       if (p.status === 'completed')
         completedByReg[k] = (completedByReg[k] || 0) + 1;
       if (p.reflection && p.reflection.trim())
         reflectionsByReg[k] = (reflectionsByReg[k] || 0) + 1;
+      const views = (p as any).viewCount || 0;
+      const timeSpent = (p as any).timeSpentSec || 0;
+      if (p.status !== 'not_started' || views > 0 || timeSpent > 0)
+        startedRegs.add(k);
+
+      const mod = lessonToModule[String(p.lesson)];
+      if (mod && views > 0) {
+        moduleViews[mod] = (moduleViews[mod] || 0) + views;
+        if (views >= 2) {
+          // Re-opens beyond the first view.
+          moduleRevisitOpens[mod] = (moduleRevisitOpens[mod] || 0) + (views - 1);
+          (moduleRevisitLearners[mod] ||= new Set()).add(k);
+        }
+      }
     }
+
     const presentByReg: Record<string, number> = {};
     for (const a of attendances) {
       const k = String(a.registration);
@@ -2501,8 +2556,10 @@ export class LmsService {
     }
 
     const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
+    const sum = (arr: number[]) => arr.reduce((s, n) => s + n, 0);
 
-    const learners = regs.map((r) => {
+    // Full learner list (computed over everyone, then filtered/sorted/paged).
+    let learners = regs.map((r) => {
       const k = String(r._id);
       const completed = completedByReg[k] || 0;
       const present = presentByReg[k] || 0;
@@ -2516,8 +2573,64 @@ export class LmsService {
         sessionsAttended: present,
         attendancePercent: pct(present, sessionCount),
         reflections: reflectionsByReg[k] || 0,
+        started: startedRegs.has(k),
       };
     });
+
+    // Overview — aggregates across ALL accepted learners (not just the page).
+    const startedCount = learners.filter((l) => l.started).length;
+    const completedAll =
+      lessonCount > 0
+        ? learners.filter((l) => l.lessonsCompleted >= lessonCount).length
+        : 0;
+    const overview = {
+      accepted: regs.length,
+      started: startedCount,
+      notStarted: regs.length - startedCount,
+      completedAll,
+      avgProgressPercent: learners.length
+        ? Math.round(sum(learners.map((l) => l.progressPercent)) / learners.length)
+        : 0,
+      avgAttendancePercent: learners.length
+        ? Math.round(
+            sum(learners.map((l) => l.attendancePercent)) / learners.length,
+          )
+        : 0,
+      totalReflections: sum(learners.map((l) => l.reflections)),
+      revisitedModules: modules
+        .map((m) => {
+          const id = String(m._id);
+          return {
+            moduleId: id,
+            title: moduleTitle[id],
+            totalViews: moduleViews[id] || 0,
+            revisitOpens: moduleRevisitOpens[id] || 0,
+            learnersRevisited: moduleRevisitLearners[id]?.size || 0,
+          };
+        })
+        .filter((m) => m.revisitOpens > 0)
+        .sort((a, b) => b.revisitOpens - a.revisitOpens),
+    };
+
+    // Search + sort + paginate the learner list.
+    if (search) {
+      learners = learners.filter(
+        (l) =>
+          l.name.toLowerCase().includes(search) ||
+          (l.email || '').toLowerCase().includes(search),
+      );
+    }
+    const sorters: Record<string, (a: any, b: any) => number> = {
+      progress: (a, b) => b.progressPercent - a.progressPercent,
+      attendance: (a, b) => b.attendancePercent - a.attendancePercent,
+      name: (a, b) => a.name.localeCompare(b.name),
+      reflections: (a, b) => b.reflections - a.reflections,
+    };
+    learners.sort(sorters[sortBy] || sorters.progress);
+
+    const total = learners.length;
+    const start = (page - 1) * limit;
+    const items = learners.slice(start, start + limit);
 
     return {
       totals: {
@@ -2525,7 +2638,14 @@ export class LmsService {
         lessons: lessonCount,
         sessions: sessionCount,
       },
-      learners: learners.sort((a, b) => b.progressPercent - a.progressPercent),
+      overview,
+      learners: items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
     };
   }
 }

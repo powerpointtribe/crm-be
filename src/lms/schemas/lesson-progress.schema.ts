@@ -34,6 +34,12 @@ export class LessonProgress {
   @Prop({ type: Number, default: 0 })
   timeSpentSec: number;
 
+  // Number of times the learner has opened this lesson. Incremented on each
+  // lesson fetch; powers the facilitator "modules revisited multiple times"
+  // metric. viewCount >= 2 means the lesson was re-opened.
+  @Prop({ type: Number, default: 0 })
+  viewCount: number;
+
   @Prop({ trim: true })
   reflection?: string;
 }
