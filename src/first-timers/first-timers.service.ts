@@ -2512,13 +2512,14 @@ export class FirstTimersService {
       {
         $group: {
           _id: {
+            sortKey: { $dateToString: { format: '%Y-%m-%d', date: '$dateOfVisit' } },
             date: { $dateToString: { format: '%b %d, %Y', date: '$dateOfVisit' } },
             source: '$howDidYouHear',
           },
           count: { $sum: 1 },
         },
       },
-      { $sort: { '_id.date': 1 } },
+      { $sort: { '_id.sortKey': 1 } },
     ]);
 
     // Transform traffic source by service for stacked bar chart
@@ -2570,13 +2571,14 @@ export class FirstTimersService {
       {
         $group: {
           _id: {
+            sortKey: { $dateToString: { format: '%Y-%m-%d', date: '$dateOfVisit' } },
             date: { $dateToString: { format: '%b %d, %Y', date: '$dateOfVisit' } },
             joinUs: '$interestedInJoining',
           },
           count: { $sum: 1 },
         },
       },
-      { $sort: { '_id.date': 1 } },
+      { $sort: { '_id.sortKey': 1 } },
     ]);
 
     // Transform join us choices for stacked bar chart
@@ -2722,9 +2724,6 @@ export class FirstTimersService {
     actualCount: number;
     retentionRate: number;
   }> {
-    // Group by date of visit
-    const serviceMap = new Map<string, { Yes: number; null: number }>();
-
     // Expected count: use override (e.g. 2nd timers count for 3rd visit calc) or default to Yes+Maybe
     const expectedCount = overrideExpectedCount !== undefined
       ? overrideExpectedCount
@@ -2734,20 +2733,23 @@ export class FirstTimersService {
 
     let actualCount = 0;
 
+    const serviceDateMap = new Map<string, { sortKey: string; label: string; Yes: number; null: number }>();
+
     firstTimers.forEach((ft) => {
-      const service = new Date(ft.dateOfVisit).toLocaleDateString('en-US', {
+      const d = new Date(ft.dateOfVisit);
+      const sortKey = d.toISOString().slice(0, 10);
+      const label = d.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
       });
 
-      if (!serviceMap.has(service)) {
-        serviceMap.set(service, { Yes: 0, null: 0 });
+      if (!serviceDateMap.has(sortKey)) {
+        serviceDateMap.set(sortKey, { sortKey, label, Yes: 0, null: 0 });
       }
 
-      const entry = serviceMap.get(service)!;
+      const entry = serviceDateMap.get(sortKey)!;
 
-      // Check if there's a follow-up with the specified visitNumber
       const hasVisit = ft.followUps?.some(
         (followUp: any) => followUp.visitNumber === visitNumber
       );
@@ -2762,9 +2764,11 @@ export class FirstTimersService {
 
     const retentionRate = expectedCount > 0 ? (actualCount / expectedCount) * 100 : 0;
 
+    const sortedEntries = Array.from(serviceDateMap.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
     return {
-      byService: Array.from(serviceMap.entries()).map(([service, data]) => ({
-        service,
+      byService: sortedEntries.map((data) => ({
+        service: data.label,
         Yes: data.Yes,
         null: data.null,
       })),
