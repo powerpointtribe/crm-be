@@ -1538,12 +1538,28 @@ export class EventsService {
       id: res.id || `res-${Date.now()}-${index}`,
     }));
 
-    // Calculate duration if not provided
+    // Calculate duration if not provided. Robustly parse "7:00 PM" / "7:00PM"
+    // / "19:00" — the old naive split produced NaN for AM/PM times, which
+    // Mongoose then rejected on save (500).
     let durationMinutes = dto.durationMinutes;
     if (!durationMinutes && dto.startTime && dto.endTime) {
-      const [startH, startM] = dto.startTime.split(':').map(Number);
-      const [endH, endM] = dto.endTime.split(':').map(Number);
-      durationMinutes = endH * 60 + endM - (startH * 60 + startM);
+      const toMinutes = (t: string): number | null => {
+        const m = /^\s*(\d{1,2}):(\d{2})\s*(am|pm)?/i.exec(t);
+        if (!m) return null;
+        let h = Number(m[1]);
+        const min = Number(m[2]);
+        const mer = m[3]?.toLowerCase();
+        if (mer === 'pm' && h < 12) h += 12;
+        if (mer === 'am' && h === 12) h = 0;
+        return h * 60 + min;
+      };
+      const s = toMinutes(dto.startTime);
+      const e = toMinutes(dto.endTime);
+      if (s != null && e != null) durationMinutes = e - s;
+    }
+    // Never persist a NaN/invalid duration (Mongoose casts NaN → 500).
+    if (durationMinutes != null && !Number.isFinite(durationMinutes)) {
+      durationMinutes = undefined;
     }
 
     const session = new this.sessionModel({

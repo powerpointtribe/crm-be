@@ -1431,22 +1431,35 @@ export class LmsService {
     return env > 0 ? env : 10;
   }
 
-  /** Combine a session's date (Date) + startTime ("HH:mm") into a Date. */
+  /** Parse "7:00 PM" / "7:00PM" / "19:00" → [hours24, minutes], or null. */
+  private parseHM(time?: string): [number, number] | null {
+    const m = /^\s*(\d{1,2}):(\d{2})\s*(am|pm)?/i.exec(time || '');
+    if (!m) return null;
+    let h = Number(m[1]);
+    const min = Number(m[2]);
+    const mer = m[3]?.toLowerCase();
+    if (mer === 'pm' && h < 12) h += 12;
+    if (mer === 'am' && h === 12) h = 0;
+    return [h, min];
+  }
+
+  /** Combine a session's date + startTime into a Date (AM/PM aware). */
   private sessionStart(session: EventSessionDocument): Date | null {
     if (!session.date) return null;
+    const hm = this.parseHM(session.startTime);
+    if (!hm) return null;
     const start = new Date(session.date);
-    const m = /^(\d{1,2}):(\d{2})/.exec(session.startTime || '');
-    if (m) start.setHours(Number(m[1]), Number(m[2]), 0, 0);
+    start.setHours(hm[0], hm[1], 0, 0);
     return start;
   }
 
   /** Session's scheduled end (date + endTime), or null if no end time. */
   private sessionEnd(session: EventSessionDocument): Date | null {
     if (!session.date) return null;
-    const m = /^(\d{1,2}):(\d{2})/.exec(session.endTime || '');
-    if (!m) return null;
+    const hm = this.parseHM(session.endTime);
+    if (!hm) return null;
     const end = new Date(session.date);
-    end.setHours(Number(m[1]), Number(m[2]), 0, 0);
+    end.setHours(hm[0], hm[1], 0, 0);
     return end;
   }
 
