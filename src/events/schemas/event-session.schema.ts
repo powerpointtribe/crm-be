@@ -122,6 +122,15 @@ export class EventSession {
   @Prop({ type: Date })
   zoomAttendanceSyncedAt?: Date;
 
+  // Access control. 'all' (default) = every accepted learner sees this session.
+  // 'restricted' = only the registrations in `allowedRegistrations` can see or
+  // join it (a private session for a select group).
+  @Prop({ type: String, enum: ['all', 'restricted'], default: 'all' })
+  visibility?: 'all' | 'restricted';
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'EventRegistration' }], default: [] })
+  allowedRegistrations?: Types.ObjectId[];
+
   // Location (can be different from main event)
   @Prop({
     type: {

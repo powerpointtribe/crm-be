@@ -1521,11 +1521,38 @@ export class EventsService {
 
   // ========== SESSION MANAGEMENT ==========
 
+  /** Resolve allow-list emails to registration ids for a restricted session. */
+  private async resolveAllowedRegistrations(
+    eventId: Types.ObjectId,
+    emails?: string[],
+  ): Promise<Types.ObjectId[]> {
+    if (!emails?.length) return [];
+    const esc = (e: string) => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const patterns = emails
+      .map((e) => e.trim())
+      .filter(Boolean)
+      .map((e) => new RegExp(`^${esc(e)}$`, 'i'));
+    if (!patterns.length) return [];
+    const regs = await this.registrationModel
+      .find({ event: eventId, 'attendeeInfo.email': { $in: patterns } })
+      .select('_id')
+      .lean();
+    return regs.map((r) => r._id as Types.ObjectId);
+  }
+
   async createSession(dto: CreateSessionDto): Promise<EventSessionDocument> {
     const event = await this.eventModel.findById(dto.event);
     if (!event) {
       throw new NotFoundException(`Event with ID ${dto.event} not found`);
     }
+
+    const allowedRegistrations =
+      dto.visibility === 'restricted'
+        ? await this.resolveAllowedRegistrations(
+            event._id as Types.ObjectId,
+            dto.allowedEmails,
+          )
+        : [];
 
     // Generate IDs for learning objectives and resources
     const learningObjectives = dto.learningObjectives?.map((obj, index) => ({
@@ -1569,6 +1596,8 @@ export class EventsService {
       learningObjectives,
       resources,
       durationMinutes,
+      visibility: dto.visibility === 'restricted' ? 'restricted' : 'all',
+      allowedRegistrations,
       facilitators: dto.facilitators?.map((f) => ({
         member: new Types.ObjectId(f.member),
         role: f.role,
@@ -1668,6 +1697,20 @@ export class EventsService {
         role: f.role,
       }));
     }
+
+    // Resolve allow-list emails → registration ids when visibility/allow-list
+    // is being edited. Switching to 'all' clears the list; providing emails
+    // replaces it; leaving emails out (while restricted) keeps the existing
+    // list so an edit doesn't accidentally wipe access.
+    if (dto.visibility === 'all') {
+      (dto as any).allowedRegistrations = [];
+    } else if (dto.allowedEmails !== undefined) {
+      (dto as any).allowedRegistrations = await this.resolveAllowedRegistrations(
+        session.event as Types.ObjectId,
+        dto.allowedEmails,
+      );
+    }
+    delete (dto as any).allowedEmails;
 
     Object.assign(session, dto);
     const savedSession = await session.save();

@@ -248,6 +248,19 @@ export class CreateSessionDto {
   @IsOptional()
   @IsString()
   zoomPasscode?: string;
+
+  @ApiPropertyOptional({ enum: ['all', 'restricted'] })
+  @IsOptional()
+  @IsIn(['all', 'restricted'])
+  visibility?: 'all' | 'restricted';
+
+  // Emails of the learners allowed to see a restricted session. The service
+  // resolves these to registration ids (allowedRegistrations).
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allowedEmails?: string[];
 }
 
 // Update Session DTO

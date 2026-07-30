@@ -962,7 +962,15 @@ export class LmsService {
         registration._id as Types.ObjectId,
       ),
       this.sessionModel
-        .find({ event: event._id, moduleId: { $ne: null } })
+        .find({
+          event: event._id,
+          moduleId: { $ne: null },
+          // Hide restricted sessions from learners not on the allow-list.
+          $or: [
+            { visibility: { $ne: 'restricted' } },
+            { allowedRegistrations: registration._id },
+          ],
+        })
         .select('title date startTime endTime location recording moduleId')
         .lean(),
     ]);
@@ -1347,7 +1355,14 @@ export class LmsService {
     );
     const [sessions, attendance] = await Promise.all([
       this.sessionModel
-        .find({ event: event._id })
+        .find({
+          event: event._id,
+          // Restricted sessions are visible only to allow-listed registrations.
+          $or: [
+            { visibility: { $ne: 'restricted' } },
+            { allowedRegistrations: registration._id },
+          ],
+        })
         .sort({ order: 1, date: 1 })
         .lean(),
       this.attendanceModel.find({ registration: registration._id }).lean(),
