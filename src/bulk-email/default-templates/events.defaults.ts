@@ -1286,6 +1286,71 @@ export const eventsDefaults: TemplateDefinition[] = [
     ],
   },
   {
+    slug: 'events.cmit-portal-reminder',
+    name: 'Portal Login + Saturday Class Reminder (Accepted)',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.EVENT,
+    subject: 'Log in to your CMIT portal — first live class this Saturday',
+    htmlContent: `<div style="background:#eef0fa;padding:28px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(12,18,64,0.08);">
+    <tr><td style="background:#18216C;padding:34px 36px 28px;">
+      <span style="display:inline-block;background:rgba(201,162,39,0.18);color:#e8cf7f;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:6px 13px;border-radius:999px;">CMIT Cohort 1 &middot; Your portal is live</span>
+      <h1 style="margin:16px 0 0;font-size:24px;line-height:1.28;font-weight:800;color:#ffffff;">Welcome in, {{firstName}}.</h1>
+      <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#aab2e0;">Everything for your five weeks lives in one place &mdash; log in and you're set.</p>
+    </td></tr>
+    <tr><td style="padding:28px 36px 8px;">
+      <p style="margin:0 0 18px;font-size:15px;line-height:1.65;color:#525a72;">Your learning portal is ready. Log in to set your password, access your lessons, and join every live class right inside the platform.</p>
+
+      <a href="{{setupUrl}}" style="display:block;text-decoration:none;background:#18216C;border-radius:14px;padding:17px 16px;margin:0 0 12px;text-align:center;box-shadow:0 3px 10px rgba(24,33,108,0.25);">
+        <span style="display:block;font-size:16px;font-weight:800;color:#ffffff;">Log in to the CMIT Portal &rarr;</span>
+        <span style="display:block;margin-top:4px;font-size:12px;color:#aab2e0;">Sets your password the first time, then takes you straight in.</span>
+      </a>
+
+      <a href="https://chat.whatsapp.com/EW04GgsDuOHLGWx5CNKAWi?s=cl&p=a&ilr=4" style="display:block;text-decoration:none;border:1px solid #e6e9f2;border-radius:14px;padding:14px 16px;margin:0 0 18px;background:#ffffff;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td width="46" valign="middle"><span style="display:inline-block;width:42px;height:42px;line-height:42px;text-align:center;border-radius:11px;background:#25D366;color:#ffffff;font-size:19px;">&#128172;</span></td>
+          <td valign="middle" style="padding-left:12px;">
+            <div style="font-size:15px;font-weight:700;color:#18216C;">Join the CMIT Community</div>
+            <div style="font-size:13px;color:#8a90a6;line-height:1.5;">Meet your cohort &amp; get updates on WhatsApp.</div>
+          </td>
+          <td width="16" valign="middle" align="right"><span style="color:#c3c8db;font-size:20px;">&rsaquo;</span></td>
+        </tr></table>
+      </a>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #ece7d3;border-radius:14px;background:#fbf7ea;margin:0 0 6px;">
+        <tr><td style="padding:16px 18px;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#C9A227;">Don't miss it &middot; First live class</div>
+          <div style="margin-top:6px;font-size:17px;font-weight:800;color:#18216C;">Saturday, 1 August &middot; 7:00&nbsp;PM (WAT)</div>
+          <div style="margin-top:5px;font-size:13px;line-height:1.6;color:#6a7089;">Your Week 1 live class streams <strong style="color:#20264a;">inside the portal</strong> &mdash; no separate app. Log in a few minutes early so you're ready when it goes live.</div>
+        </td></tr>
+      </table>
+
+      <div style="height:1px;background:#eef0f4;margin:22px 0;"></div>
+
+      <p style="margin:0 0 22px;font-size:13px;line-height:1.7;color:#8a90a6;">Trouble logging in? Reply to this email or reach us at <a href="mailto:cmithub@gmail.com" style="color:#18216C;font-weight:600;text-decoration:none;">cmithub@gmail.com</a>.</p>
+
+      <p style="margin:0;font-size:14px;color:#525a72;">See you Saturday,</p>
+      <p style="margin:6px 0 26px;font-size:15px;font-weight:700;color:#18216C;">The CMIT Team</p>
+    </td></tr>
+    <tr><td style="background:#f7f8fc;padding:18px 36px;text-align:center;border-top:1px solid #eef0f4;">
+      <p style="margin:0;font-size:11px;letter-spacing:0.3px;color:#a2a7ba;">A vision of Dami Oguntunde Teaching Ministries</p>
+    </td></tr>
+  </table>
+</div>`,
+    variableDefinitions: [
+      {
+        name: 'firstName',
+        description: 'Accepted student first name',
+        sampleValue: 'Adaeze',
+      },
+      {
+        name: 'setupUrl',
+        description: 'Per-recipient set-password / login link',
+        sampleValue: 'https://cmithub.org/portal/set-password?token=…',
+      },
+    ],
+  },
+  {
     slug: 'events.onboarding-reminder-1',
     name: 'Onboarding Reminder 1 — Tomorrow (day before, ~10am)',
     module: TemplateModule.EVENTS,

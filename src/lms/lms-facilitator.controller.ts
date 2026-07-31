@@ -65,6 +65,12 @@ export class LmsFacilitatorController {
     });
   }
 
+  @Get('events/:eventId/flagged-attendance')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  flaggedAttendance(@Param('eventId') eventId: string) {
+    return this.lms.getFlaggedAttendance(eventId);
+  }
+
   @Get('events/:eventId/overview')
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
   overview(@Param('eventId') eventId: string) {

@@ -2991,4 +2991,56 @@ export class LmsService {
       },
     };
   }
+
+  /**
+   * Attendance records where the platform heartbeat and the Zoom report disagree
+   * (`attendanceDiscrepancy` set) — for the facilitator to reconcile.
+   */
+  async getFlaggedAttendance(eventId: string) {
+    await this.assertEvent(eventId);
+    const eventOid = new Types.ObjectId(eventId);
+    const flagged = await this.attendanceModel
+      .find({ event: eventOid, attendanceDiscrepancy: { $ne: null } })
+      .select(
+        'registration session attendanceDiscrepancy liveMinutes zoomMinutes status',
+      )
+      .lean();
+    if (!flagged.length) return { items: [] };
+
+    const regIds = [...new Set(flagged.map((f) => String(f.registration)))];
+    const sessIds = [...new Set(flagged.map((f) => String(f.session)))];
+    const [regs, sessions] = await Promise.all([
+      this.registrationModel
+        .find({ _id: { $in: regIds } })
+        .select('attendeeInfo')
+        .lean(),
+      this.sessionModel.find({ _id: { $in: sessIds } }).select('title').lean(),
+    ]);
+    const nameById = new Map(
+      regs.map((r) => [
+        String(r._id),
+        `${r.attendeeInfo?.firstName || ''} ${r.attendeeInfo?.lastName || ''}`.trim(),
+      ]),
+    );
+    const emailById = new Map(
+      regs.map((r) => [String(r._id), r.attendeeInfo?.email || null]),
+    );
+    const titleById = new Map(
+      sessions.map((s) => [String(s._id), (s as any).title]),
+    );
+
+    return {
+      items: flagged
+        .map((f) => ({
+          student: nameById.get(String(f.registration)) || 'Unknown',
+          email: emailById.get(String(f.registration)) || null,
+          session: titleById.get(String(f.session)) || 'Session',
+          platformMinutes: Math.round((f as any).liveMinutes || 0),
+          zoomMinutes: Math.round((f as any).zoomMinutes || 0),
+          status: f.status,
+          reason: (f as any).attendanceDiscrepancy,
+        }))
+        .sort((a, b) => b.platformMinutes - a.platformMinutes),
+    };
+  }
 }
