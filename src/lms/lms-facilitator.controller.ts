@@ -259,6 +259,18 @@ export class LmsFacilitatorController {
     return this.lms.syncSessionAttendanceFromZoom(eventId, sessionId);
   }
 
+  // End the live session for students now (after ending the Zoom meeting as
+  // host) so the portal stops showing it LIVE. Body { resume: true } reopens it.
+  @Post('events/:eventId/sessions/:sessionId/end-live')
+  @RequirePermission(EventsPermission.CHECK_IN)
+  endLive(
+    @Param('eventId') eventId: string,
+    @Param('sessionId') sessionId: string,
+    @Body() body: { resume?: boolean },
+  ) {
+    return this.lms.setSessionLiveEnded(eventId, sessionId, !!body?.resume);
+  }
+
   // Live status of the session's YouTube broadcast (LIVE badge / viewer count).
   @Get('events/:eventId/sessions/:sessionId/live-status')
   @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)

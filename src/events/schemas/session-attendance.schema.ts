@@ -88,6 +88,13 @@ export class SessionAttendance {
   @Prop({ type: String })
   attendanceDiscrepancy?: string;
 
+  // Which player the learner was routed to for this session. Once Zoom nears
+  // its live capacity, new viewers are pinned to 'youtube' (the simulcast) —
+  // their attendance still comes from the heartbeat, and they're NOT expected
+  // in the Zoom report, so the sync must not flag them as a discrepancy.
+  @Prop({ type: String, enum: ['zoom', 'youtube'] })
+  watchSource?: 'zoom' | 'youtube';
+
   // True once total watch-time passes the threshold — the learner engaged with
   // the session content, whether live or via the replay.
   @Prop({ type: Boolean, default: false })

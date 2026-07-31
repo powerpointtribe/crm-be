@@ -54,6 +54,16 @@ export class LmsStudentController {
     return this.lms.getZoomJoinInfo(account, sessionId);
   }
 
+  // Which player to embed for this learner — Zoom until it nears live capacity,
+  // then the YouTube simulcast (overflow). Sticky per learner for the session.
+  @Get('me/sessions/:sessionId/watch-source')
+  getWatchSource(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.lms.getWatchSource(account, sessionId);
+  }
+
   @Get('me/progress')
   getProgress(
     @CurrentPortalAccount() account: PortalAccountDocument,

@@ -122,6 +122,12 @@ export class EventSession {
   @Prop({ type: Date })
   zoomAttendanceSyncedAt?: Date;
 
+  // Set when the facilitator ends the live session (e.g. after ending the Zoom
+  // meeting as host). From this moment the portal treats the session as ended —
+  // no longer LIVE — regardless of the scheduled end time. Cleared to reopen.
+  @Prop({ type: Date })
+  liveEndedAt?: Date;
+
   // Access control. 'all' (default) = every accepted learner sees this session.
   // 'restricted' = only the registrations in `allowedRegistrations` can see or
   // join it (a private session for a select group).

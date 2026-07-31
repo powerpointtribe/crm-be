@@ -1392,6 +1392,9 @@ export class LmsService {
           // SDK player instead of YouTube (attendance from the Zoom report).
           zoomMeetingId: s.zoomMeetingId || '',
           zoomType: s.zoomType || 'meeting',
+          // Facilitator ended the live session → portal shows it as ended even
+          // if still within the scheduled window.
+          liveEndedAt: s.liveEndedAt || null,
           isVirtual: !!s.location?.isVirtual,
           // Minutes of watch-time required to be marked attended (for the UI).
           presentThresholdMinutes: this.presentThresholdFor(
@@ -1435,6 +1438,18 @@ export class LmsService {
 
   // A single heartbeat can never credit more than this many seconds (anti-spoof).
   private readonly MAX_HEARTBEAT_SECONDS = 120;
+
+  // Live Zoom seats to fill before overflowing new viewers to the YouTube
+  // simulcast. Sits below the Zoom "Large Meeting 500" hard cap so there's
+  // headroom for the concurrency slop in the (unlocked) capacity count.
+  private readonly ZOOM_LIVE_CAPACITY = Number(
+    process.env.ZOOM_LIVE_CAPACITY || 480,
+  );
+
+  // A viewer counts as "currently in Zoom" if they were assigned Zoom and have
+  // beaten within this window (also set at assignment, so a fresh assignee
+  // counts immediately even before their first heartbeat).
+  private readonly ACTIVE_VIEWER_WINDOW_MS = 120_000;
 
   // Minimum minutes of watch-time to count as attended. Resolved per session:
   // the session's own attendanceConfig.presentThresholdMinutes wins, then the
@@ -1487,6 +1502,9 @@ export class LmsService {
   private isWithinLiveWindow(session: EventSessionDocument, at: Date): boolean {
     const start = this.sessionStart(session);
     if (!start) return false;
+    // Facilitator ended the live session early → not live from that point on.
+    const endedAt = (session as any).liveEndedAt;
+    if (endedAt && at.getTime() >= new Date(endedAt).getTime()) return false;
     const end = this.sessionEnd(session);
     const openFrom = start.getTime() - 10 * 60_000;
     const openTo =
@@ -1525,10 +1543,78 @@ export class LmsService {
    * Record a watch-time heartbeat from a trainee watching the embedded live
    * stream. Accumulates minutes and updates their attendance status live.
    */
+  /**
+   * Decide which player a learner watches this session on. Zoom fills first;
+   * once live Zoom seats reach ZOOM_LIVE_CAPACITY, new viewers overflow to the
+   * YouTube simulcast. The choice is PINNED per registration (sticky) so a
+   * viewer never bounces between players mid-session. Attendance is unaffected
+   * either way — the heartbeat is the same for both.
+   */
+  async getWatchSource(account: PortalAccountDocument, sessionId: string) {
+    const session = await this.sessionModel.findById(sessionId);
+    if (!session) throw new NotFoundException('Session not found');
+
+    const registration = await this.registrationModel.findOne({
+      event: session.event,
+      'attendeeInfo.email': account.email,
+      admissionStatus: 'accepted',
+    });
+    if (!registration) throw new ForbiddenException('Not enrolled.');
+
+    const hasZoom = !!session.zoomMeetingId;
+    const hasYoutube = !!(session as any).youtubeVideoId;
+
+    // No overflow configured (no YouTube simulcast) → whatever the session has.
+    if (!hasYoutube) return { source: hasZoom ? 'zoom' : 'none' };
+    if (!hasZoom) return { source: 'youtube' };
+
+    const now = new Date();
+
+    // Sticky: honour an existing assignment.
+    const existing = await this.attendanceModel
+      .findOne({ session: session._id, registration: registration._id })
+      .select('watchSource')
+      .lean();
+    if (existing?.watchSource) {
+      return { source: existing.watchSource };
+    }
+
+    // Count viewers currently occupying a live Zoom seat.
+    const activeZoom = await this.attendanceModel.countDocuments({
+      session: session._id,
+      watchSource: 'zoom',
+      lastBeatAt: { $gte: new Date(now.getTime() - this.ACTIVE_VIEWER_WINDOW_MS) },
+    });
+
+    const source: 'zoom' | 'youtube' =
+      activeZoom < this.ZOOM_LIVE_CAPACITY ? 'zoom' : 'youtube';
+
+    // Pin the assignment (and stamp lastBeatAt so a Zoom assignee counts toward
+    // capacity immediately, before their first real heartbeat).
+    await this.attendanceModel.updateOne(
+      { session: session._id, registration: registration._id },
+      {
+        $set: { watchSource: source, lastBeatAt: now },
+        $setOnInsert: {
+          event: session.event,
+          session: session._id,
+          registration: registration._id,
+        },
+      },
+      { upsert: true },
+    );
+
+    return {
+      source,
+      activeZoom,
+      capacity: this.ZOOM_LIVE_CAPACITY,
+    };
+  }
+
   async recordWatchHeartbeat(
     account: PortalAccountDocument,
     sessionId: string,
-    dto: { seconds?: number; newView?: boolean },
+    dto: { seconds?: number; newView?: boolean; source?: 'zoom' | 'youtube' },
   ) {
     const session = await this.sessionModel.findById(sessionId);
     if (!session) throw new NotFoundException('Session not found');
@@ -1574,7 +1660,10 @@ export class LmsService {
           liveMinutes: isLive ? incMin : 0,
           ...(dto.newView ? { watchCount: 1 } : {}),
         },
-        $set: { lastBeatAt: now },
+        $set: {
+          lastBeatAt: now,
+          ...(dto.source ? { watchSource: dto.source } : {}),
+        },
         $setOnInsert: {
           event: session.event,
           session: session._id,
@@ -1826,8 +1915,13 @@ export class LmsService {
       const status = isPresent ? (isLate ? 'late' : 'present') : 'absent';
       if (isPresent) (status === 'late' ? late++ : present++);
 
+      // YouTube-overflow viewers are never expected in the Zoom report, so a
+      // "0 Zoom minutes" gap is by-design, not a discrepancy — skip flagging.
+      const isOverflow = p?.watchSource === 'youtube';
       let discrepancy: string | undefined;
-      if (platformMin >= threshold && zoomMin < threshold)
+      if (isOverflow) {
+        discrepancy = undefined;
+      } else if (platformMin >= threshold && zoomMin < threshold)
         discrepancy = `On platform ${platformMin}m but Zoom shows ${zoomMin}m`;
       else if (zoomMin >= threshold && platformMin < threshold)
         discrepancy = `In Zoom ${zoomMin}m but only ${platformMin}m on the platform`;
@@ -1950,6 +2044,27 @@ export class LmsService {
     return this.youtubeService.getLiveStatus(
       session.location?.virtualLink || '',
     );
+  }
+
+  /**
+   * End the live session for students now (e.g. right after the host ends the
+   * Zoom meeting). Stamps `liveEndedAt` so the portal stops showing it LIVE,
+   * independent of the scheduled end time. Pass `resume: true` to clear it.
+   */
+  async setSessionLiveEnded(
+    eventId: string,
+    sessionId: string,
+    resume = false,
+  ) {
+    const session = await this.sessionModel.findOne({
+      _id: new Types.ObjectId(sessionId),
+      event: new Types.ObjectId(eventId),
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    (session as any).liveEndedAt = resume ? undefined : new Date();
+    if (resume) session.set('liveEndedAt', undefined);
+    await session.save();
+    return { liveEndedAt: (session as any).liveEndedAt ?? null };
   }
 
   // ===================== Application reminders =================================

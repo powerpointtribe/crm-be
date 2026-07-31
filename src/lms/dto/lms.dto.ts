@@ -377,6 +377,13 @@ export class SessionHeartbeatDto {
   @IsOptional()
   @IsBoolean()
   newView?: boolean;
+
+  // Which embedded player produced this beat ('zoom' | 'youtube'). Used to keep
+  // the learner's assigned watch-source accurate for live-capacity routing.
+  @ApiPropertyOptional({ description: "Player source: 'zoom' or 'youtube'." })
+  @IsOptional()
+  @IsString()
+  source?: 'zoom' | 'youtube';
 }
 
 export class PublishRecordingDto {
