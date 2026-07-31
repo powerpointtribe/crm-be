@@ -101,6 +101,11 @@ export class SessionAttendance {
   @Prop({ type: Number, default: 0 })
   lateByMinutes: number;
 
+  // Server timestamp of the last watch-heartbeat — used to cap each beat's
+  // credit to the real wall-clock elapsed (so a client can't inflate minutes).
+  @Prop({ type: Date })
+  lastBeatAt?: Date;
+
   // Learning Objectives Completion
   @Prop({
     type: [

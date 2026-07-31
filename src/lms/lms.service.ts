@@ -1540,17 +1540,26 @@ export class LmsService {
     });
     if (!registration) throw new ForbiddenException('Not enrolled.');
 
-    const seconds = Math.max(
-      0,
-      Math.min(
-        this.MAX_HEARTBEAT_SECONDS,
-        Math.round(Number(dto.seconds) || 0),
-      ),
-    );
-
     const now = new Date();
     const isLive = this.isWithinLiveWindow(session, now);
     const threshold = this.presentThresholdFor(session);
+
+    // Cap this beat's credit to the REAL wall-clock elapsed since the last beat
+    // (server-side), so a client can't inflate minutes by spamming heartbeats.
+    const prior = await this.attendanceModel
+      .findOne({ session: session._id, registration: registration._id })
+      .select('lastBeatAt')
+      .lean();
+    let seconds = Math.max(
+      0,
+      Math.min(this.MAX_HEARTBEAT_SECONDS, Math.round(Number(dto.seconds) || 0)),
+    );
+    if (prior?.lastBeatAt) {
+      const realElapsed = Math.round(
+        (now.getTime() - new Date(prior.lastBeatAt).getTime()) / 1000,
+      );
+      seconds = Math.min(seconds, Math.max(0, realElapsed + 5)); // +5s grace
+    }
     const incMin = seconds / 60;
 
     // Single atomic upsert — accumulate the counters with $inc (no read-first),
@@ -1565,6 +1574,7 @@ export class LmsService {
           liveMinutes: isLive ? incMin : 0,
           ...(dto.newView ? { watchCount: 1 } : {}),
         },
+        $set: { lastBeatAt: now },
         $setOnInsert: {
           event: session.event,
           session: session._id,
@@ -1800,6 +1810,7 @@ export class LmsService {
       zoomMinutes: number;
       reason: string;
     }> = [];
+    const bulkOps: any[] = [];
 
     for (const regId of regIds) {
       const z = byReg.get(regId);
@@ -1838,23 +1849,32 @@ export class LmsService {
           ? Math.max(0, Math.round((firstJoin.getTime() - sStartMs) / 60_000))
           : 0;
 
-      await this.attendanceModel.updateOne(
-        { session: session._id, registration: new Types.ObjectId(regId) },
-        {
-          $set: {
-            event: session.event,
-            status,
-            attendedMinutes: Math.max(p?.attendedMinutes || 0, zoomMin),
-            zoomMinutes: zoomMin,
-            watched: bestMin >= threshold,
-            checkInTime: firstJoin,
-            lateByMinutes: lateBy,
-            attendanceDiscrepancy: discrepancy || null,
+      bulkOps.push({
+        updateOne: {
+          filter: {
+            session: session._id,
+            registration: new Types.ObjectId(regId),
           },
-          $setOnInsert: { registration: new Types.ObjectId(regId) },
+          update: {
+            $set: {
+              event: session.event,
+              status,
+              attendedMinutes: Math.max(p?.attendedMinutes || 0, zoomMin),
+              zoomMinutes: zoomMin,
+              watched: bestMin >= threshold,
+              checkInTime: firstJoin,
+              lateByMinutes: lateBy,
+              attendanceDiscrepancy: discrepancy || null,
+            },
+            $setOnInsert: { registration: new Types.ObjectId(regId) },
+          },
+          upsert: true,
         },
-        { upsert: true },
-      );
+      });
+    }
+
+    if (bulkOps.length) {
+      await this.attendanceModel.bulkWrite(bulkOps, { ordered: false });
     }
 
     session.zoomAttendanceSyncedAt = new Date();
