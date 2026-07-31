@@ -1709,35 +1709,66 @@ export class LmsService {
 
     const participants = await this.zoomService.getParticipants(target, kind);
 
-    // Aggregate total seconds + earliest join per email (participants can have
-    // multiple rows from rejoining).
-    const byEmail: Record<string, { seconds: number; firstJoin?: Date }> = {};
-    let withoutEmail = 0;
-    for (const p of participants) {
-      const email = (p.user_email || '').trim().toLowerCase();
-      if (!email) {
-        withoutEmail += 1;
-        continue;
-      }
-      const rec = (byEmail[email] ||= { seconds: 0 });
-      rec.seconds += Number(p.duration) || 0;
-      const jt = p.join_time ? new Date(p.join_time) : undefined;
-      if (jt && (!rec.firstJoin || jt < rec.firstJoin)) rec.firstJoin = jt;
-    }
-
-    // Map accepted registrants by email.
+    // Index accepted registrants by email AND by normalized full name. Zoom's
+    // report only carries emails for authenticated/registered joiners — students
+    // who join via the embedded SDK appear with the injected NAME and no email —
+    // so we match on either. Ambiguous (duplicate) names are dropped so we never
+    // credit the wrong person.
     const regs = await this.registrationModel
-      .find({
-        event: session.event,
-        admissionStatus: 'accepted',
-        'attendeeInfo.email': { $ne: null },
-      })
+      .find({ event: session.event, admissionStatus: 'accepted' })
       .select('attendeeInfo')
       .lean();
+    const normName = (s: string) =>
+      (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
     const regByEmail = new Map<string, any>();
+    const regByName = new Map<string, any>();
+    const nameCounts = new Map<string, number>();
     for (const r of regs) {
       const e = (r.attendeeInfo?.email || '').trim().toLowerCase();
       if (e) regByEmail.set(e, r);
+      const n = normName(
+        `${r.attendeeInfo?.firstName || ''} ${r.attendeeInfo?.lastName || ''}`,
+      );
+      if (n) {
+        nameCounts.set(n, (nameCounts.get(n) || 0) + 1);
+        regByName.set(n, r);
+      }
+    }
+    for (const [n, c] of nameCounts) if (c > 1) regByName.delete(n);
+
+    // Resolve each participant (email first, then name) and aggregate watch-
+    // seconds + earliest join per registration (people can have multiple rows
+    // from rejoining).
+    const byReg = new Map<
+      string,
+      { reg: any; seconds: number; firstJoin?: Date }
+    >();
+    let withoutEmail = 0;
+    const unmatched: Array<{
+      email: string | null;
+      name?: string;
+      minutes: number;
+    }> = [];
+    for (const p of participants) {
+      const email = (p.user_email || '').trim().toLowerCase();
+      if (!email) withoutEmail += 1;
+      const reg =
+        (email && regByEmail.get(email)) || regByName.get(normName(p.name || ''));
+      const seconds = Number(p.duration) || 0;
+      const jt = p.join_time ? new Date(p.join_time) : undefined;
+      if (!reg) {
+        unmatched.push({
+          email: email || null,
+          name: p.name,
+          minutes: Math.round(seconds / 60),
+        });
+        continue;
+      }
+      const k = String(reg._id);
+      const rec = byReg.get(k) || { reg, seconds: 0 };
+      rec.seconds += seconds;
+      if (jt && (!rec.firstJoin || jt < rec.firstJoin)) rec.firstJoin = jt;
+      byReg.set(k, rec);
     }
 
     const threshold = this.presentThresholdFor(session);
@@ -1746,28 +1777,18 @@ export class LmsService {
     let matched = 0;
     let present = 0;
     let late = 0;
-    const unmatched: Array<{ email: string; name?: string; minutes: number }> =
-      [];
 
-    for (const [email, agg] of Object.entries(byEmail)) {
-      const minutes = agg.seconds / 60;
-      const reg = regByEmail.get(email);
-      if (!reg) {
-        unmatched.push({ email, minutes: Math.round(minutes) });
-        continue;
-      }
+    for (const { reg, seconds, firstJoin } of byReg.values()) {
+      const minutes = seconds / 60;
       matched += 1;
-      const isLate = this.isLateJoin(session, agg.firstJoin);
+      const isLate = this.isLateJoin(session, firstJoin);
       const status = this.deriveStatus(minutes, isLate, threshold);
       if (status === 'present') present += 1;
       else if (status === 'late') late += 1;
 
       const lateBy =
-        isLate && agg.firstJoin
-          ? Math.max(
-              0,
-              Math.round((agg.firstJoin.getTime() - sStartMs) / 60_000),
-            )
+        isLate && firstJoin
+          ? Math.max(0, Math.round((firstJoin.getTime() - sStartMs) / 60_000))
           : 0;
 
       await this.attendanceModel.updateOne(
@@ -1779,7 +1800,7 @@ export class LmsService {
             attendedMinutes: Math.round(minutes),
             liveMinutes: Math.round(minutes),
             watched: minutes >= threshold,
-            checkInTime: agg.firstJoin,
+            checkInTime: firstJoin,
             lateByMinutes: lateBy,
           },
           $setOnInsert: { registration: reg._id },
