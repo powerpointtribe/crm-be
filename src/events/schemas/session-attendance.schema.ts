@@ -78,6 +78,16 @@ export class SessionAttendance {
   @Prop({ type: Number, default: 0 })
   liveMinutes: number;
 
+  // Minutes from the Zoom participant report — a cross-check against the
+  // platform heartbeat (`liveMinutes`), set when attendance is synced from Zoom.
+  @Prop({ type: Number, default: 0 })
+  zoomMinutes: number;
+
+  // Set when the platform heartbeat and the Zoom report disagree (one marks the
+  // learner present, the other doesn't) — flagged for the facilitator to review.
+  @Prop({ type: String })
+  attendanceDiscrepancy?: string;
+
   // True once total watch-time passes the threshold — the learner engaged with
   // the session content, whether live or via the replay.
   @Prop({ type: Boolean, default: false })

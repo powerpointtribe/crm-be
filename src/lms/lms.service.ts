@@ -1438,12 +1438,13 @@ export class LmsService {
 
   // Minimum minutes of watch-time to count as attended. Resolved per session:
   // the session's own attendanceConfig.presentThresholdMinutes wins, then the
-  // ATTENDANCE_PRESENT_THRESHOLD_MINUTES env default, then 10.
+  // ATTENDANCE_PRESENT_THRESHOLD_MINUTES env default, then 90 (1h30 — the CMIT
+  // live-class standard).
   private presentThresholdFor(session: EventSessionDocument): number {
     const perSession = session.attendanceConfig?.presentThresholdMinutes;
     if (perSession && perSession > 0) return perSession;
     const env = Number(process.env.ATTENDANCE_PRESENT_THRESHOLD_MINUTES);
-    return env > 0 ? env : 10;
+    return env > 0 ? env : 90;
   }
 
   /** Parse "7:00 PM" / "7:00PM" / "19:00" → [hours24, minutes], or null. */
@@ -1774,17 +1775,63 @@ export class LmsService {
     const threshold = this.presentThresholdFor(session);
     const sStartMs =
       this.sessionStart(session)?.getTime() ?? new Date(session.date).getTime();
-    let matched = 0;
+
+    // Reconcile the two signals: the PLATFORM heartbeat (liveMinutes — reliable,
+    // we know who's logged in) and the ZOOM report. A learner is present if
+    // EITHER meets the threshold; when they disagree we flag it for the
+    // facilitator but still mark present. The heartbeat's liveMinutes is left
+    // untouched — we only add zoomMinutes + status + discrepancy.
+    const existing = await this.attendanceModel
+      .find({ session: session._id })
+      .lean();
+    const platformByReg = new Map<string, any>();
+    for (const a of existing) platformByReg.set(String(a.registration), a);
+
+    const regIds = new Set<string>([
+      ...byReg.keys(),
+      ...platformByReg.keys(),
+    ]);
     let present = 0;
     let late = 0;
+    const discrepancies: Array<{
+      registrationId: string;
+      name?: string;
+      platformMinutes: number;
+      zoomMinutes: number;
+      reason: string;
+    }> = [];
 
-    for (const { reg, seconds, firstJoin } of byReg.values()) {
-      const minutes = seconds / 60;
-      matched += 1;
+    for (const regId of regIds) {
+      const z = byReg.get(regId);
+      const p = platformByReg.get(regId);
+      const zoomMin = z ? Math.round(z.seconds / 60) : 0;
+      const platformMin = p ? Math.round(p.liveMinutes || 0) : 0;
+      const bestMin = Math.max(zoomMin, platformMin);
+
+      const isPresent = zoomMin >= threshold || platformMin >= threshold;
+      const firstJoin =
+        z?.firstJoin || (p?.checkInTime ? new Date(p.checkInTime) : undefined);
       const isLate = this.isLateJoin(session, firstJoin);
-      const status = this.deriveStatus(minutes, isLate, threshold);
-      if (status === 'present') present += 1;
-      else if (status === 'late') late += 1;
+      const status = isPresent ? (isLate ? 'late' : 'present') : 'absent';
+      if (isPresent) (status === 'late' ? late++ : present++);
+
+      let discrepancy: string | undefined;
+      if (platformMin >= threshold && zoomMin < threshold)
+        discrepancy = `On platform ${platformMin}m but Zoom shows ${zoomMin}m`;
+      else if (zoomMin >= threshold && platformMin < threshold)
+        discrepancy = `In Zoom ${zoomMin}m but only ${platformMin}m on the platform`;
+      if (discrepancy) {
+        const reg = z?.reg;
+        discrepancies.push({
+          registrationId: regId,
+          name: reg
+            ? `${reg.attendeeInfo?.firstName || ''} ${reg.attendeeInfo?.lastName || ''}`.trim()
+            : undefined,
+          platformMinutes: platformMin,
+          zoomMinutes: zoomMin,
+          reason: discrepancy,
+        });
+      }
 
       const lateBy =
         isLate && firstJoin
@@ -1792,18 +1839,19 @@ export class LmsService {
           : 0;
 
       await this.attendanceModel.updateOne(
-        { session: session._id, registration: reg._id },
+        { session: session._id, registration: new Types.ObjectId(regId) },
         {
           $set: {
             event: session.event,
             status,
-            attendedMinutes: Math.round(minutes),
-            liveMinutes: Math.round(minutes),
-            watched: minutes >= threshold,
+            attendedMinutes: Math.max(p?.attendedMinutes || 0, zoomMin),
+            zoomMinutes: zoomMin,
+            watched: bestMin >= threshold,
             checkInTime: firstJoin,
             lateByMinutes: lateBy,
+            attendanceDiscrepancy: discrepancy || null,
           },
-          $setOnInsert: { registration: reg._id },
+          $setOnInsert: { registration: new Types.ObjectId(regId) },
         },
         { upsert: true },
       );
@@ -1816,12 +1864,16 @@ export class LmsService {
       sessionId,
       meetingId,
       occurrence,
+      thresholdMinutes: threshold,
       totalParticipants: participants.length,
       participantsWithoutEmail: withoutEmail,
-      matched,
+      processed: regIds.size,
       present,
       late,
-      absentBelowThreshold: matched - present - late,
+      flagged: discrepancies.length,
+      discrepancies: discrepancies.sort(
+        (a, b) => b.platformMinutes - a.platformMinutes,
+      ),
       unmatched: unmatched.sort((a, b) => b.minutes - a.minutes),
     };
   }
