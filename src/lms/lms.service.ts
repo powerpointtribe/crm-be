@@ -1523,7 +1523,7 @@ export class LmsService {
 
   /**
    * Is `at` inside the session's live broadcast window? Watch-time within the
-   * scheduled start→end (10 min early grace, 30 min late grace) counts as LIVE
+   * scheduled start→end (5 min early grace, 30 min late grace) counts as LIVE
    * attendance; anything outside is a replay ("watched") view only.
    */
   /**
@@ -1545,7 +1545,7 @@ export class LmsService {
     const endedAt = (session as any).liveEndedAt;
     if (endedAt && at.getTime() >= new Date(endedAt).getTime()) return false;
     const end = this.sessionEnd(session);
-    const openFrom = start.getTime() - 10 * 60_000;
+    const openFrom = start.getTime() - 5 * 60_000; // join opens 5 min early
     const openTo =
       (end ? end.getTime() : start.getTime() + 3 * 3_600_000) + 30 * 60_000;
     return at.getTime() >= openFrom && at.getTime() <= openTo;
