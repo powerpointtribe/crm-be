@@ -276,6 +276,18 @@ export class LmsFacilitatorController {
     return this.lms.syncSessionAttendanceFromZoom(eventId, sessionId);
   }
 
+  // Upload a Zoom participant report CSV and reconcile it into attendance
+  // (matched by name/email). The frontend posts the file's text as { csv }.
+  @Post('events/:eventId/sessions/:sessionId/import-zoom-csv')
+  @RequirePermission(EventsPermission.CHECK_IN)
+  importZoomCsv(
+    @Param('eventId') eventId: string,
+    @Param('sessionId') sessionId: string,
+    @Body() body: { csv?: string },
+  ) {
+    return this.lms.importZoomAttendanceCsv(eventId, sessionId, body?.csv || '');
+  }
+
   // End the live session for students now (after ending the Zoom meeting as
   // host) so the portal stops showing it LIVE. Body { resume: true } reopens it.
   @Post('events/:eventId/sessions/:sessionId/end-live')

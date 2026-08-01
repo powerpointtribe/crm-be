@@ -1862,11 +1862,40 @@ export class LmsService {
 
     const participants = await this.zoomService.getParticipants(target, kind);
 
-    // Index accepted registrants by email AND by normalized full name. Zoom's
-    // report only carries emails for authenticated/registered joiners — students
-    // who join via the embedded SDK appear with the injected NAME and no email —
-    // so we match on either. Ambiguous (duplicate) names are dropped so we never
-    // credit the wrong person.
+    const { byReg, withoutEmail, unmatched } = await this.matchZoomParticipants(
+      session,
+      participants.map((p) => ({
+        email: p.user_email,
+        name: p.name,
+        seconds: Number(p.duration) || 0,
+        joinTime: p.join_time ? new Date(p.join_time) : undefined,
+      })),
+    );
+
+    return this.writeReconciledAttendance(session, byReg, {
+      withoutEmail,
+      unmatched,
+      totalParticipants: participants.length,
+      meetingId,
+      occurrence,
+    });
+  }
+
+  /**
+   * Match a list of Zoom participants to accepted registrants — by email first,
+   * then by normalized full name (the embedded SDK injects the learner's name
+   * but no email). Ambiguous duplicate names are dropped so we never credit the
+   * wrong person. Aggregates watch-seconds + earliest join per registration.
+   */
+  private async matchZoomParticipants(
+    session: EventSessionDocument,
+    participants: Array<{
+      email?: string | null;
+      name?: string | null;
+      seconds: number;
+      joinTime?: Date;
+    }>,
+  ) {
     const regs = await this.registrationModel
       .find({ event: session.event, admissionStatus: 'accepted' })
       .select('attendeeInfo')
@@ -1889,9 +1918,6 @@ export class LmsService {
     }
     for (const [n, c] of nameCounts) if (c > 1) regByName.delete(n);
 
-    // Resolve each participant (email first, then name) and aggregate watch-
-    // seconds + earliest join per registration (people can have multiple rows
-    // from rejoining).
     const byReg = new Map<
       string,
       { reg: any; seconds: number; firstJoin?: Date }
@@ -1903,16 +1929,15 @@ export class LmsService {
       minutes: number;
     }> = [];
     for (const p of participants) {
-      const email = (p.user_email || '').trim().toLowerCase();
+      const email = (p.email || '').trim().toLowerCase();
       if (!email) withoutEmail += 1;
       const reg =
         (email && regByEmail.get(email)) || regByName.get(normName(p.name || ''));
-      const seconds = Number(p.duration) || 0;
-      const jt = p.join_time ? new Date(p.join_time) : undefined;
+      const seconds = Number(p.seconds) || 0;
       if (!reg) {
         unmatched.push({
           email: email || null,
-          name: p.name,
+          name: p.name || undefined,
           minutes: Math.round(seconds / 60),
         });
         continue;
@@ -1920,29 +1945,41 @@ export class LmsService {
       const k = String(reg._id);
       const rec = byReg.get(k) || { reg, seconds: 0 };
       rec.seconds += seconds;
-      if (jt && (!rec.firstJoin || jt < rec.firstJoin)) rec.firstJoin = jt;
+      if (p.joinTime && (!rec.firstJoin || p.joinTime < rec.firstJoin))
+        rec.firstJoin = p.joinTime;
       byReg.set(k, rec);
     }
+    return { byReg, withoutEmail, unmatched };
+  }
 
+  /**
+   * Reconcile matched Zoom minutes against the platform heartbeat and persist.
+   * A learner is present if EITHER signal meets the threshold; disagreements are
+   * flagged (but still marked present). Shared by the API sync and CSV upload.
+   */
+  private async writeReconciledAttendance(
+    session: EventSessionDocument,
+    byReg: Map<string, { reg: any; seconds: number; firstJoin?: Date }>,
+    meta: {
+      withoutEmail: number;
+      unmatched: Array<{ email: string | null; name?: string; minutes: number }>;
+      totalParticipants: number;
+      meetingId?: string | null;
+      occurrence?: string | null;
+      source?: 'api' | 'csv';
+    },
+  ) {
     const threshold = this.presentThresholdFor(session);
     const sStartMs =
       this.sessionStart(session)?.getTime() ?? new Date(session.date).getTime();
 
-    // Reconcile the two signals: the PLATFORM heartbeat (liveMinutes — reliable,
-    // we know who's logged in) and the ZOOM report. A learner is present if
-    // EITHER meets the threshold; when they disagree we flag it for the
-    // facilitator but still mark present. The heartbeat's liveMinutes is left
-    // untouched — we only add zoomMinutes + status + discrepancy.
     const existing = await this.attendanceModel
       .find({ session: session._id })
       .lean();
     const platformByReg = new Map<string, any>();
     for (const a of existing) platformByReg.set(String(a.registration), a);
 
-    const regIds = new Set<string>([
-      ...byReg.keys(),
-      ...platformByReg.keys(),
-    ]);
+    const regIds = new Set<string>([...byReg.keys(), ...platformByReg.keys()]);
     let present = 0;
     let late = 0;
     const discrepancies: Array<{
@@ -2028,12 +2065,13 @@ export class LmsService {
     await session.save();
 
     return {
-      sessionId,
-      meetingId,
-      occurrence,
+      sessionId: String(session._id),
+      meetingId: meta.meetingId ?? null,
+      occurrence: meta.occurrence ?? null,
+      source: meta.source ?? 'api',
       thresholdMinutes: threshold,
-      totalParticipants: participants.length,
-      participantsWithoutEmail: withoutEmail,
+      totalParticipants: meta.totalParticipants,
+      participantsWithoutEmail: meta.withoutEmail,
       processed: regIds.size,
       present,
       late,
@@ -2041,8 +2079,136 @@ export class LmsService {
       discrepancies: discrepancies.sort(
         (a, b) => b.platformMinutes - a.platformMinutes,
       ),
-      unmatched: unmatched.sort((a, b) => b.minutes - a.minutes),
+      unmatched: meta.unmatched.sort((a, b) => b.minutes - a.minutes),
     };
+  }
+
+  /**
+   * Import a Zoom participant report CSV (exported from the Zoom web portal) and
+   * reconcile it into attendance — matching by name/email, same as the live API
+   * sync. Useful when the API report is unavailable or incomplete.
+   */
+  async importZoomAttendanceCsv(
+    eventId: string,
+    sessionId: string,
+    csv: string,
+  ) {
+    await this.assertEvent(eventId);
+    const session = await this.sessionModel.findOne({
+      _id: new Types.ObjectId(sessionId),
+      event: new Types.ObjectId(eventId),
+    });
+    if (!session) throw new NotFoundException('Session not found');
+
+    const participants = this.parseZoomCsv(csv);
+    if (!participants.length) {
+      throw new BadRequestException(
+        'No participants found in the file. Upload the Zoom participant report ' +
+          'CSV (with Name / Duration columns).',
+      );
+    }
+    const { byReg, withoutEmail, unmatched } = await this.matchZoomParticipants(
+      session,
+      participants,
+    );
+    return this.writeReconciledAttendance(session, byReg, {
+      withoutEmail,
+      unmatched,
+      totalParticipants: participants.length,
+      meetingId: session.zoomMeetingId || null,
+      source: 'csv',
+    });
+  }
+
+  /**
+   * Parse a Zoom participant report CSV. Handles the leading summary block Zoom
+   * prepends and rows split by rejoining — returns one entry per row with name,
+   * email and watch-seconds (Zoom reports "Duration (Minutes)").
+   */
+  private parseZoomCsv(
+    csv: string,
+  ): Array<{ email?: string; name?: string; seconds: number; joinTime?: Date }> {
+    const rows = this.parseCsvRows(csv);
+    if (!rows.length) return [];
+
+    // Find the header row that names the participant columns (Zoom prepends a
+    // meeting-summary block above it).
+    let headerIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const lower = rows[i].map((c) => c.trim().toLowerCase());
+      const hasName = lower.some((c) => c.startsWith('name'));
+      const hasDuration = lower.some((c) => c.includes('duration'));
+      if (hasName && hasDuration) {
+        headerIdx = i;
+        break;
+      }
+    }
+    if (headerIdx === -1) return [];
+
+    const header = rows[headerIdx].map((c) => c.trim().toLowerCase());
+    const col = (pred: (c: string) => boolean) => header.findIndex(pred);
+    const nameIdx = col((c) => c.startsWith('name'));
+    const emailIdx = col((c) => c.includes('email'));
+    const durIdx = col((c) => c.includes('duration'));
+    const joinIdx = col((c) => c.includes('join') && c.includes('time'));
+
+    const out: Array<{
+      email?: string;
+      name?: string;
+      seconds: number;
+      joinTime?: Date;
+    }> = [];
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      const name = nameIdx >= 0 ? (r[nameIdx] || '').trim() : '';
+      const email = emailIdx >= 0 ? (r[emailIdx] || '').trim() : '';
+      if (!name && !email) continue; // blank / trailing line
+      const minutes = durIdx >= 0 ? parseFloat(r[durIdx] || '0') : 0;
+      const jt = joinIdx >= 0 && r[joinIdx] ? new Date(r[joinIdx]) : undefined;
+      out.push({
+        name: name || undefined,
+        email: email || undefined,
+        seconds: Number.isFinite(minutes) ? Math.round(minutes * 60) : 0,
+        joinTime: jt && !isNaN(jt.getTime()) ? jt : undefined,
+      });
+    }
+    return out;
+  }
+
+  /** Minimal RFC-4180 CSV parser (handles quoted fields, commas, CRLF). */
+  private parseCsvRows(text: string): string[][] {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = '';
+    let inQuotes = false;
+    const src = text.replace(/^﻿/, ''); // strip BOM
+    for (let i = 0; i < src.length; i++) {
+      const ch = src[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (src[i + 1] === '"') {
+            field += '"';
+            i++;
+          } else inQuotes = false;
+        } else field += ch;
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        row.push(field);
+        field = '';
+      } else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && src[i + 1] === '\n') i++;
+        row.push(field);
+        field = '';
+        rows.push(row);
+        row = [];
+      } else field += ch;
+    }
+    if (field.length || row.length) {
+      row.push(field);
+      rows.push(row);
+    }
+    return rows.filter((r) => r.some((c) => c.trim() !== ''));
   }
 
   /**
