@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { LmsService } from './lms.service';
 import { LmsFacilitatorController } from './lms-facilitator.controller';
 import { LmsStudentController } from './lms-student.controller';
+import { LmsZoomWebhookController } from './lms-zoom-webhook.controller';
 import {
   CourseModule as CourseModuleSchemaClass,
   CourseModuleSchema,
@@ -75,7 +76,11 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
     ZoomModule,
     PortalModule,
   ],
-  controllers: [LmsFacilitatorController, LmsStudentController],
+  controllers: [
+    LmsFacilitatorController,
+    LmsStudentController,
+    LmsZoomWebhookController,
+  ],
   providers: [LmsService, CommitteeScopeGuard],
   exports: [LmsService],
 })

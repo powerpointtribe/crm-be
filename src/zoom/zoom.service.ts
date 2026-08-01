@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
+import * as crypto from 'crypto';
 
 export type ZoomKind = 'meeting' | 'webinar';
 
@@ -156,5 +157,56 @@ export class ZoomService {
       { algorithm: 'HS256' },
     );
     return { signature, sdkKey: key };
+  }
+
+  // ---- Event webhooks ------------------------------------------------------
+
+  get webhookSecret(): string | undefined {
+    return process.env.ZOOM_WEBHOOK_SECRET_TOKEN;
+  }
+
+  /**
+   * Answer Zoom's endpoint URL-validation challenge (CRC): return the plainToken
+   * plus its HMAC-SHA256 with the webhook secret. Zoom sends this once when the
+   * webhook URL is (re)configured.
+   */
+  webhookCrcResponse(plainToken: string): {
+    plainToken: string;
+    encryptedToken: string;
+  } {
+    const secret = this.webhookSecret || '';
+    const encryptedToken = crypto
+      .createHmac('sha256', secret)
+      .update(plainToken)
+      .digest('hex');
+    return { plainToken, encryptedToken };
+  }
+
+  /**
+   * Verify a Zoom webhook request signature:
+   *   x-zm-signature === 'v0=' + HMAC-SHA256(`v0:{timestamp}:{rawBody}`, secret)
+   * Returns false if no secret is configured (so callers can decide).
+   */
+  verifyWebhookSignature(
+    signature: string | undefined,
+    timestamp: string | undefined,
+    rawBody: string,
+  ): boolean {
+    const secret = this.webhookSecret;
+    if (!secret || !signature || !timestamp) return false;
+    const expected =
+      'v0=' +
+      crypto
+        .createHmac('sha256', secret)
+        .update(`v0:${timestamp}:${rawBody}`)
+        .digest('hex');
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expected),
+      );
+    } catch {
+      return false;
+    }
   }
 }

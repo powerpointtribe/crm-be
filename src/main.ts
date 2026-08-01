@@ -18,7 +18,15 @@ async function bootstrap() {
         : ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 
-  app.use(json({ limit: '1mb' }));
+  // Capture the raw request body (used to verify Zoom webhook signatures).
+  app.use(
+    json({
+      limit: '1mb',
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ extended: true, limit: '1mb' }));
 
   const configService = app.get(ConfigService);

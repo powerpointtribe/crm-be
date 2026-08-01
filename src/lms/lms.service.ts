@@ -2286,6 +2286,34 @@ export class LmsService {
     return { liveEndedAt: (session as any).liveEndedAt ?? null };
   }
 
+  /**
+   * Zoom `meeting.ended` webhook handler — the host ended the meeting, so end
+   * the matching live session(s) for students automatically. Only sessions
+   * whose live window contains "now" and aren't already ended are touched, so a
+   * recurring meeting-id shared across sessions won't end a future one.
+   */
+  async handleZoomMeetingEnded(meetingId: string) {
+    const id = (meetingId || '').replace(/\s+/g, '');
+    if (!id) return { updated: 0 };
+    const now = new Date();
+    const sessions = await this.sessionModel.find({ zoomMeetingId: id });
+    const targets = sessions.filter(
+      (s) =>
+        !(s as any).liveEndedAt &&
+        this.isWithinLiveWindow(s as unknown as EventSessionDocument, now),
+    );
+    for (const s of targets) {
+      (s as any).liveEndedAt = now;
+      await s.save();
+    }
+    if (targets.length) {
+      this.logger.log(
+        `Zoom meeting ${id} ended — closed ${targets.length} live session(s).`,
+      );
+    }
+    return { updated: targets.length, sessionIds: targets.map((s) => String(s._id)) };
+  }
+
   // ===================== Application reminders =================================
   //
   //  Nudge registrants who started but haven't submitted their application.
