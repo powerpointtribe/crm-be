@@ -18,6 +18,11 @@ async function bootstrap() {
         : ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 
+  // Behind Nginx/other reverse proxy: trust X-Forwarded-For so req.ip is the
+  // REAL client IP. Without this every request looks like the proxy's single IP,
+  // so the whole cohort shares one rate-limit budget and gets throttled at once.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   // Capture the raw request body (used to verify Zoom webhook signatures).
   app.use(
     json({

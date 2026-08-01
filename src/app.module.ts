@@ -72,11 +72,13 @@ import { LmsModule } from './lms/lms.module';
       ? []
       : [ScheduleModule.forRoot()]),
 
-    // Rate limiting
+    // Rate limiting — per client IP (see `trust proxy` in main.ts). 300/min
+    // gives headroom for legitimate bursts (portal page loads fan out to several
+    // authenticated calls); the hot live-session endpoints skip throttling.
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 100,
+        limit: 300,
       },
     ]),
 

@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { PortalJwtGuard } from '../portal/guards/portal-jwt.guard';
 import { CurrentPortalAccount } from '../portal/decorators/current-portal-account.decorator';
 import { PortalAccountDocument } from '../portal/schemas/portal-account.schema';
@@ -21,10 +22,17 @@ import {
   SubmitQuizDto,
 } from './dto/lms.dto';
 
-/** Learner-facing LMS reads + progress. Portal-auth (PortalAccount). */
+/**
+ * Learner-facing LMS reads + progress. Portal-auth (PortalAccount).
+ * Throttling is skipped here: these are authenticated per-learner endpoints and
+ * the live-session ones (heartbeat every 30s, watch-source, zoom-join) are
+ * naturally bursty when a whole cohort joins at once. The heartbeat is already
+ * server-capped against abuse.
+ */
 @ApiTags('LMS (student)')
 @Controller('trainee')
 @UseGuards(PortalJwtGuard)
+@SkipThrottle()
 export class LmsStudentController {
   constructor(private readonly lms: LmsService) {}
 
