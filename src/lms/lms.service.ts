@@ -1386,8 +1386,9 @@ export class LmsService {
           status: s.status,
           joinLink,
           // Parsed YouTube id lets the portal embed the stream and track
-          // watch-time attendance in-page.
-          youtubeVideoId: YoutubeService.extractVideoId(joinLink) || '',
+          // watch-time attendance in-page. Prefers the simulcast link when this
+          // is a Zoom session with YouTube overflow configured.
+          youtubeVideoId: this.sessionYoutubeId(s),
           // Zoom meeting/webinar embed — when set, the portal shows the Meeting
           // SDK player instead of YouTube (attendance from the Zoom report).
           zoomMeetingId: s.zoomMeetingId || '',
@@ -1499,6 +1500,18 @@ export class LmsService {
    * scheduled start→end (10 min early grace, 30 min late grace) counts as LIVE
    * attendance; anything outside is a replay ("watched") view only.
    */
+  /**
+   * Resolve a session's YouTube video id. Prefers the explicit simulcast link
+   * (`youtubeStreamUrl`, used for Zoom→YouTube overflow); falls back to the
+   * session's join link (legacy YouTube-only sessions). Accepts a full URL or a
+   * bare video id.
+   */
+  private sessionYoutubeId(session: any): string {
+    const explicit = (session.youtubeStreamUrl || '').trim();
+    if (explicit) return YoutubeService.extractVideoId(explicit) || explicit;
+    return YoutubeService.extractVideoId(session.location?.virtualLink || '') || '';
+  }
+
   private isWithinLiveWindow(session: EventSessionDocument, at: Date): boolean {
     const start = this.sessionStart(session);
     if (!start) return false;
@@ -1562,7 +1575,8 @@ export class LmsService {
     if (!registration) throw new ForbiddenException('Not enrolled.');
 
     const hasZoom = !!session.zoomMeetingId;
-    const hasYoutube = !!(session as any).youtubeVideoId;
+    const youtubeVideoId = this.sessionYoutubeId(session);
+    const hasYoutube = !!youtubeVideoId;
 
     // No overflow configured (no YouTube simulcast) → whatever the session has.
     if (!hasYoutube) return { source: hasZoom ? 'zoom' : 'none' };

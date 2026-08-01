@@ -249,6 +249,15 @@ export class CreateSessionDto {
   @IsString()
   zoomPasscode?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'YouTube simulcast link/ID. When set alongside a Zoom meeting, viewers ' +
+      'overflow to this stream once Zoom nears live capacity.',
+  })
+  @IsOptional()
+  @IsString()
+  youtubeStreamUrl?: string;
+
   @ApiPropertyOptional({ enum: ['all', 'restricted'] })
   @IsOptional()
   @IsIn(['all', 'restricted'])

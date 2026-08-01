@@ -118,6 +118,12 @@ export class EventSession {
   @Prop({ type: String, trim: true })
   zoomPasscode?: string;
 
+  // YouTube simulcast link/ID. When set alongside zoomMeetingId, viewers who
+  // arrive after Zoom fills its live capacity are routed to this stream instead
+  // (see LmsService.getWatchSource). Attendance still comes from the heartbeat.
+  @Prop({ type: String, trim: true })
+  youtubeStreamUrl?: string;
+
   // Set when attendance was last pulled from Zoom for this session.
   @Prop({ type: Date })
   zoomAttendanceSyncedAt?: Date;
