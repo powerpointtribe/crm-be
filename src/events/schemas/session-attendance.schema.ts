@@ -7,6 +7,10 @@ export type SessionAttendanceDocument = SessionAttendance & Document & { _id: Ty
 export enum SessionAttendanceStatus {
   PRESENT = 'present',
   LATE = 'late',
+  // Joined a live session but hasn't yet reached the watch-time threshold —
+  // a transient live-only state. At finalize it resolves to present/late (if
+  // the threshold was met) or absent.
+  ATTENDING = 'attending',
   ABSENT = 'absent',
   EXCUSED = 'excused',
 }

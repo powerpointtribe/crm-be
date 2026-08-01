@@ -71,6 +71,23 @@ export class LmsFacilitatorController {
     return this.lms.getFlaggedAttendance(eventId);
   }
 
+  // Event-wide attendance breakdown (present/late/attending/absent per session).
+  @Get('events/:eventId/attendance/overview')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  attendanceOverview(@Param('eventId') eventId: string) {
+    return this.lms.getAttendanceOverview(eventId);
+  }
+
+  // Per-session attendance detail — each learner's watch-time, replays, status.
+  @Get('events/:eventId/attendance/sessions/:sessionId')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  attendanceForSession(
+    @Param('eventId') eventId: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.lms.getSessionAttendanceDetail(eventId, sessionId);
+  }
+
   @Get('events/:eventId/overview')
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
   overview(@Param('eventId') eventId: string) {

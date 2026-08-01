@@ -1567,15 +1567,17 @@ export class LmsService {
     minutes: number,
     late: boolean,
     thresholdMinutes: number,
-  ): 'present' | 'late' | 'absent' {
-    // Attendance is only recorded once the watch-time threshold is reached.
-    // Below it the learner has NOT attended yet — 'absent' whether the session
-    // is still live or being finalized (no "counting counts as present").
-    if (minutes < thresholdMinutes) return 'absent';
+    opts?: { isLive?: boolean; joined?: boolean },
+  ): 'present' | 'late' | 'absent' | 'attending' {
     // At/above threshold: attended. 'late' only if they joined after the
     // session's late-arrival grace window (e.g. watching a replay long after
     // the scheduled start); otherwise 'present'.
-    return late ? 'late' : 'present';
+    if (minutes >= thresholdMinutes) return late ? 'late' : 'present';
+    // Below threshold, but they've joined a session that's live right now →
+    // 'attending' (in the room, still accumulating). Finalize (isLive false)
+    // resolves this to 'absent' if the threshold was never reached.
+    if (opts?.isLive && opts?.joined) return 'attending';
+    return 'absent';
   }
 
   /**
@@ -1722,7 +1724,12 @@ export class LmsService {
     // LIVE attendance (present/late/absent) is derived from LIVE minutes;
     // "watched" from total watch-time.
     const late = this.isLateJoin(session, joinedAt);
-    const status = this.deriveStatus(liveMinutes, late, threshold);
+    // They're sending a heartbeat, so they've joined. During the live window a
+    // below-threshold learner is 'attending' (present once they cross it).
+    const status = this.deriveStatus(liveMinutes, late, threshold, {
+      isLive,
+      joined: true,
+    });
     const watched = attendedMinutes >= threshold;
 
     if (doc && (doc.status !== status || doc.watched !== watched)) {
@@ -1773,12 +1780,18 @@ export class LmsService {
 
     const rows = await this.attendanceModel.find({ session: session._id });
     const threshold = this.presentThresholdFor(session);
-    const counts = { present: 0, late: 0, absent: 0 };
+    const counts: Record<string, number> = {
+      present: 0,
+      late: 0,
+      absent: 0,
+      attending: 0,
+    };
     let watched = 0; // reached threshold via any watch-time (live or replay)
     let views = 0; // total viewing sessions across all learners
     for (const row of rows) {
       const late = this.isLateJoin(session, row.checkInTime);
-      // Live attendance is derived from LIVE minutes only.
+      // Finalizing after the session — no live context, so below-threshold
+      // 'attending' learners resolve to 'absent'.
       const status = this.deriveStatus(row.liveMinutes || 0, late, threshold);
       const didWatch = (row.attendedMinutes || 0) >= threshold;
       counts[status] += 1;
@@ -3196,6 +3209,152 @@ export class LmsService {
           reason: (f as any).attendanceDiscrepancy,
         }))
         .sort((a, b) => b.platformMinutes - a.platformMinutes),
+    };
+  }
+
+  // ===================== Attendance tracker (facilitator) ======================
+  //
+  //  A dedicated view over live-session attendance: an event-wide breakdown
+  //  (present/late/attending/absent per session + overall) and per-session
+  //  detail (each learner's watch-time, replays, source and status).
+
+  /** Event-wide attendance breakdown: one row per session + overall totals. */
+  async getAttendanceOverview(eventId: string) {
+    await this.assertEvent(eventId);
+    const eventOid = new Types.ObjectId(eventId);
+    const [sessions, acceptedCount, attendance] = await Promise.all([
+      this.sessionModel
+        .find({ event: eventOid })
+        .sort({ order: 1, date: 1 })
+        .select('title order date startTime endTime')
+        .lean(),
+      this.registrationModel.countDocuments({
+        event: eventOid,
+        admissionStatus: 'accepted',
+      }),
+      this.attendanceModel
+        .find({ event: eventOid })
+        .select('session status')
+        .lean(),
+    ]);
+
+    const bySession = new Map<string, any[]>();
+    for (const a of attendance) {
+      const k = String(a.session);
+      if (!bySession.has(k)) bySession.set(k, []);
+      bySession.get(k)!.push(a);
+    }
+
+    const overall = { present: 0, late: 0, attending: 0, absent: 0, excused: 0 };
+    const sessionRows = sessions.map((s) => {
+      const rows = bySession.get(String(s._id)) || [];
+      const counts = {
+        present: 0,
+        late: 0,
+        attending: 0,
+        absent: 0,
+        excused: 0,
+      };
+      for (const r of rows) {
+        if (counts[r.status as keyof typeof counts] !== undefined)
+          counts[r.status as keyof typeof counts]++;
+      }
+      // Accepted learners with no record at all → absent.
+      counts.absent += Math.max(0, acceptedCount - rows.length);
+      for (const k of Object.keys(overall) as (keyof typeof overall)[])
+        overall[k] += counts[k];
+      const attended = counts.present + counts.late;
+      return {
+        sessionId: s._id,
+        title: s.title,
+        order: s.order,
+        date: s.date,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        counts,
+        totalRegistrants: acceptedCount,
+        attendanceRate: acceptedCount
+          ? Math.round((attended / acceptedCount) * 100)
+          : 0,
+      };
+    });
+
+    const slots = acceptedCount * sessions.length;
+    return {
+      overall: {
+        ...overall,
+        totalRegistrants: acceptedCount,
+        sessions: sessions.length,
+        attendanceRate: slots
+          ? Math.round(((overall.present + overall.late) / slots) * 100)
+          : 0,
+      },
+      sessions: sessionRows,
+    };
+  }
+
+  /** Per-session attendance detail — one row per accepted learner. */
+  async getSessionAttendanceDetail(eventId: string, sessionId: string) {
+    await this.assertEvent(eventId);
+    const session = await this.sessionModel.findOne({
+      _id: new Types.ObjectId(sessionId),
+      event: new Types.ObjectId(eventId),
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    const threshold = this.presentThresholdFor(session);
+
+    const [regs, attendance] = await Promise.all([
+      this.registrationModel
+        .find({ event: session.event, admissionStatus: 'accepted' })
+        .select('attendeeInfo')
+        .lean(),
+      this.attendanceModel.find({ session: session._id }).lean(),
+    ]);
+    const attByReg = new Map(attendance.map((a) => [String(a.registration), a]));
+
+    const counts = { present: 0, late: 0, attending: 0, absent: 0, excused: 0 };
+    const items = regs.map((r) => {
+      const a = attByReg.get(String(r._id));
+      const status = (a?.status as string) || 'absent';
+      if (counts[status as keyof typeof counts] !== undefined)
+        counts[status as keyof typeof counts]++;
+      const name =
+        `${r.attendeeInfo?.firstName || ''} ${r.attendeeInfo?.lastName || ''}`.trim();
+      return {
+        student: name || r.attendeeInfo?.email || 'Unknown',
+        email: r.attendeeInfo?.email || null,
+        status,
+        liveMinutes: Math.round((a as any)?.liveMinutes || 0),
+        attendedMinutes: Math.round((a as any)?.attendedMinutes || 0),
+        watchCount: (a as any)?.watchCount || 0,
+        zoomMinutes: Math.round((a as any)?.zoomMinutes || 0),
+        checkInTime: (a as any)?.checkInTime || null,
+        lateByMinutes: (a as any)?.lateByMinutes || 0,
+        watchSource: (a as any)?.watchSource || null,
+        discrepancy: (a as any)?.attendanceDiscrepancy || null,
+      };
+    });
+    // Most-engaged first, then by name — absent (0 min) sink to the bottom.
+    items.sort(
+      (x, y) =>
+        y.liveMinutes - x.liveMinutes ||
+        (x.student || '').localeCompare(y.student || ''),
+    );
+
+    return {
+      session: {
+        id: session._id,
+        title: session.title,
+        order: session.order,
+        date: session.date,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        thresholdMinutes: threshold,
+        zoomAttendanceSyncedAt: (session as any).zoomAttendanceSyncedAt || null,
+      },
+      counts,
+      totalRegistrants: regs.length,
+      items,
     };
   }
 }
