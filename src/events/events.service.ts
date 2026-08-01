@@ -1657,6 +1657,9 @@ export class EventsService {
       this.sessionModel
         .find(filter)
         .populate('facilitators.member', 'firstName lastName email')
+        // Emails of the restricted allow-list, so the editor can prefill who
+        // already has access (not just the count).
+        .populate('allowedRegistrations', 'attendeeInfo.email')
         .sort({ order: 1, date: 1 })
         .skip(skip)
         .limit(limit)

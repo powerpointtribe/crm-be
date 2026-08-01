@@ -1058,7 +1058,7 @@ export class LmsService {
     if (!registration) throw new ForbiddenException('Not enrolled.');
 
     // Sequential gating: block lessons whose module is still locked.
-    const { map } = await this.computeModuleProgress(
+    const { map, modules } = await this.computeModuleProgress(
       lesson.event as Types.ObjectId,
       registration._id as Types.ObjectId,
     );
@@ -1067,6 +1067,31 @@ export class LmsService {
         'Complete the previous module to unlock this lesson.',
       );
     }
+
+    // Prev/next lesson pointers — the lessons flattened in module order, then
+    // lesson order, so "Next" flows from the end of one module into the start
+    // of the next. `locked` marks a target whose module isn't unlocked yet.
+    const orderedLessons = await this.lessonModel
+      .find({ event: lesson.event, status: 'published' })
+      .sort({ order: 1 })
+      .select('title module order')
+      .lean();
+    const flat: any[] = [];
+    for (const m of modules) {
+      const mid = String(m._id);
+      for (const l of orderedLessons) {
+        if (String(l.module) === mid) flat.push(l);
+      }
+    }
+    const idx = flat.findIndex((l) => String(l._id) === String(lesson._id));
+    const toNav = (l: any) =>
+      l
+        ? { id: l._id, title: l.title, locked: !!map[String(l.module)]?.locked }
+        : null;
+    const nav = {
+      prev: idx > 0 ? toNav(flat[idx - 1]) : null,
+      next: idx >= 0 && idx < flat.length - 1 ? toNav(flat[idx + 1]) : null,
+    };
 
     // Count this open as a view (powers the facilitator "revisited" metric) and
     // mark the lesson in-progress on first open. $setOnInsert leaves an existing
@@ -1087,6 +1112,7 @@ export class LmsService {
 
     return {
       lesson,
+      nav,
       progress: progress
         ? {
             status: progress.status,
