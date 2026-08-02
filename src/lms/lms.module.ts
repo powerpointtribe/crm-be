@@ -5,6 +5,7 @@ import { LmsService } from './lms.service';
 import { LmsFacilitatorController } from './lms-facilitator.controller';
 import { LmsStudentController } from './lms-student.controller';
 import { LmsZoomWebhookController } from './lms-zoom-webhook.controller';
+import { LmsMediaController } from './lms-media.controller';
 import {
   CourseModule as CourseModuleSchemaClass,
   CourseModuleSchema,
@@ -85,6 +86,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
     LmsFacilitatorController,
     LmsStudentController,
     LmsZoomWebhookController,
+    LmsMediaController,
   ],
   providers: [LmsService, CommitteeScopeGuard],
   exports: [LmsService],
