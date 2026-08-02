@@ -96,6 +96,24 @@ export class LmsStudentController {
     return this.lms.saveReflection(account, dto.eventSlug, dto.lessonId, dto.content);
   }
 
+  // A module's single sermon summary note (from its "Messages to listen to").
+  @Get('me/modules/:moduleId/sermon-summary')
+  getSermonSummary(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Param('moduleId') moduleId: string,
+  ) {
+    return this.lms.getSermonSummary(account, moduleId);
+  }
+
+  @Post('me/modules/:moduleId/sermon-summary')
+  saveSermonSummary(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Param('moduleId') moduleId: string,
+    @Body() dto: { content?: string },
+  ) {
+    return this.lms.saveSermonSummary(account, moduleId, dto?.content || '');
+  }
+
   @Get('me/sessions')
   getSessions(
     @CurrentPortalAccount() account: PortalAccountDocument,

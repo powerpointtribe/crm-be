@@ -34,6 +34,23 @@ export class CreateModuleDto {
   status?: string;
 }
 
+export class AddAudioMessageDto {
+  @ApiProperty({ description: 'Hosted URL of the uploaded audio file.' })
+  @IsString()
+  @IsNotEmpty()
+  url: string;
+
+  @ApiPropertyOptional({ description: 'Title/label for the message.' })
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiPropertyOptional({ description: 'Original file name (for download).' })
+  @IsOptional()
+  @IsString()
+  fileName?: string;
+}
+
 export class UpdateModuleDto extends CreateModuleDto {
   @IsOptional()
   @IsString()

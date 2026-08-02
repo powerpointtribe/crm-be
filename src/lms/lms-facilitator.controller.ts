@@ -18,6 +18,7 @@ import { EventsPermission } from '../events/permissions';
 import { CommitteeScopeGuard } from './guards/committee-scope.guard';
 import { LmsService } from './lms.service';
 import {
+  AddAudioMessageDto,
   ApplyCourseDto,
   CreateAssignmentDto,
   CreateLessonDto,
@@ -134,6 +135,26 @@ export class LmsFacilitatorController {
   @RequirePermission(EventsPermission.UPDATE_EVENT)
   deleteModule(@Param('moduleId') moduleId: string) {
     return this.lms.deleteModule(moduleId);
+  }
+
+  // ── Module audio messages ("Messages to listen to") ──────────────────────
+
+  @Post('modules/:moduleId/audio-messages')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  addAudioMessage(
+    @Param('moduleId') moduleId: string,
+    @Body() dto: AddAudioMessageDto,
+  ) {
+    return this.lms.addModuleAudioMessage(moduleId, dto);
+  }
+
+  @Delete('modules/:moduleId/audio-messages/:messageId')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  removeAudioMessage(
+    @Param('moduleId') moduleId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    return this.lms.removeModuleAudioMessage(moduleId, messageId);
   }
 
   @Post('modules/:moduleId/lessons')

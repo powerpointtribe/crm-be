@@ -21,6 +21,29 @@ export class CourseModule {
 
   @Prop({ type: String, enum: ['draft', 'published'], default: 'draft' })
   status: string;
+
+  // "Messages to listen to" — one or more audio files attached to the module
+  // that learners can play in-page or download. A dedicated section, separate
+  // from lessons and their resources.
+  @Prop({
+    type: [
+      {
+        id: { type: String },
+        title: { type: String, trim: true },
+        url: { type: String },
+        fileName: { type: String },
+        createdAt: { type: Date },
+      },
+    ],
+    default: [],
+  })
+  audioMessages: Array<{
+    id: string;
+    title: string;
+    url: string;
+    fileName?: string;
+    createdAt?: Date;
+  }>;
 }
 
 export const CourseModuleSchema = SchemaFactory.createForClass(CourseModule);

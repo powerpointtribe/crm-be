@@ -14,6 +14,10 @@ import {
   CourseModule,
   CourseModuleDocument,
 } from './schemas/course-module.schema';
+import {
+  SermonSummary,
+  SermonSummaryDocument,
+} from './schemas/sermon-summary.schema';
 import { Lesson, LessonDocument } from './schemas/lesson.schema';
 import {
   LessonProgress,
@@ -74,6 +78,8 @@ export class LmsService {
   constructor(
     @InjectModel(CourseModule.name)
     private readonly moduleModel: Model<CourseModuleDocument>,
+    @InjectModel(SermonSummary.name)
+    private readonly sermonSummaryModel: Model<SermonSummaryDocument>,
     @InjectModel(Lesson.name)
     private readonly lessonModel: Model<LessonDocument>,
     @InjectModel(LessonProgress.name)
@@ -157,7 +163,109 @@ export class LmsService {
     const mod = await this.moduleModel.findByIdAndDelete(moduleId);
     if (!mod) throw new NotFoundException('Module not found');
     await this.lessonModel.deleteMany({ module: mod._id });
+    await this.sermonSummaryModel.deleteMany({ module: mod._id });
     return { success: true };
+  }
+
+  // ── Module audio messages ("Messages to listen to") ──────────────────────
+
+  /** Attach an uploaded audio message to a module (facilitator). */
+  async addModuleAudioMessage(
+    moduleId: string,
+    dto: { url: string; title?: string; fileName?: string },
+  ) {
+    const mod = await this.moduleModel.findById(moduleId);
+    if (!mod) throw new NotFoundException('Module not found');
+    const message = {
+      id: new Types.ObjectId().toString(),
+      title: (dto.title || '').trim() || 'Message',
+      url: dto.url,
+      fileName: dto.fileName,
+      createdAt: new Date(),
+    };
+    (mod.audioMessages ||= []).push(message);
+    await mod.save();
+    return message;
+  }
+
+  /** Remove an audio message from a module (facilitator). */
+  async removeModuleAudioMessage(moduleId: string, messageId: string) {
+    const res = await this.moduleModel.updateOne(
+      { _id: new Types.ObjectId(moduleId) },
+      { $pull: { audioMessages: { id: messageId } } },
+    );
+    if (!res.matchedCount) throw new NotFoundException('Module not found');
+    return { success: true };
+  }
+
+  private readonly SERMON_SUMMARY_MAX_WORDS = 500;
+
+  private countWords(text: string): number {
+    return (text || '').trim().split(/\s+/).filter(Boolean).length;
+  }
+
+  /** A learner's sermon summary for a module (one per module). */
+  async getSermonSummary(account: PortalAccountDocument, moduleId: string) {
+    const mod = await this.moduleModel.findById(moduleId).lean();
+    if (!mod) throw new NotFoundException('Module not found');
+    const registration = await this.registrationModel.findOne({
+      event: mod.event,
+      'attendeeInfo.email': account.email,
+      admissionStatus: 'accepted',
+    });
+    if (!registration) throw new ForbiddenException('Not enrolled.');
+    const summary = await this.sermonSummaryModel
+      .findOne({ module: mod._id, registration: registration._id })
+      .lean();
+    return {
+      content: summary?.content || '',
+      wordCount: summary?.wordCount || 0,
+      submitted: !!summary?.submittedAt,
+      submittedAt: summary?.submittedAt || null,
+      maxWords: this.SERMON_SUMMARY_MAX_WORDS,
+    };
+  }
+
+  /** Save a learner's sermon summary for a module (≤ 500 words). */
+  async saveSermonSummary(
+    account: PortalAccountDocument,
+    moduleId: string,
+    content: string,
+  ) {
+    const mod = await this.moduleModel.findById(moduleId);
+    if (!mod) throw new NotFoundException('Module not found');
+    if (!(mod.audioMessages || []).length) {
+      throw new BadRequestException('This module has no messages to summarise.');
+    }
+    const registration = await this.registrationModel.findOne({
+      event: mod.event,
+      'attendeeInfo.email': account.email,
+      admissionStatus: 'accepted',
+    });
+    if (!registration) throw new ForbiddenException('Not enrolled.');
+
+    const clean = (content || '').trim();
+    const words = this.countWords(clean);
+    if (!words) throw new BadRequestException('Write a short summary first.');
+    if (words > this.SERMON_SUMMARY_MAX_WORDS) {
+      throw new BadRequestException(
+        `Keep your summary to ${this.SERMON_SUMMARY_MAX_WORDS} words or fewer (currently ${words}).`,
+      );
+    }
+    await this.sermonSummaryModel.updateOne(
+      { module: mod._id, registration: registration._id },
+      {
+        $set: {
+          event: mod.event,
+          content: clean,
+          wordCount: words,
+          submittedAt: new Date(),
+        },
+        $setOnInsert: { module: mod._id, registration: registration._id },
+      },
+      { upsert: true },
+    );
+    return { success: true, wordCount: words };
   }
 
   async reorderModules(eventId: string, orderedIds: string[]) {
@@ -899,7 +1007,7 @@ export class LmsService {
     eventOid: Types.ObjectId,
     registrationId: Types.ObjectId,
   ) {
-    const [modules, lessons, completed] = await Promise.all([
+    const [modules, lessons, completed, summaries] = await Promise.all([
       this.moduleModel
         .find({ event: eventOid, status: 'published' })
         .sort({ order: 1 })
@@ -918,9 +1026,14 @@ export class LmsService {
         .find({ registration: registrationId, status: 'completed' })
         .select('lesson')
         .lean(),
+      this.sermonSummaryModel
+        .find({ registration: registrationId, submittedAt: { $ne: null } })
+        .select('module')
+        .lean(),
     ]);
 
     const completedSet = new Set(completed.map((p) => String(p.lesson)));
+    const summarySet = new Set(summaries.map((s) => String(s.module)));
     const lessonsByModule: Record<string, string[]> = {};
     for (const l of lessons) {
       const m = String(l.module);
@@ -935,15 +1048,22 @@ export class LmsService {
     for (const m of modules) {
       const mid = String(m._id);
       const ids = lessonsByModule[mid] || [];
-      const done = ids.filter((id) => completedSet.has(id)).length;
-      const complete = ids.length === 0 ? true : done === ids.length;
+      // A module with audio messages also requires the learner's summary note
+      // — it counts as one extra completion task.
+      const needsSummary = ((m as any).audioMessages || []).length > 0;
+      const summaryDone = needsSummary && summarySet.has(mid);
+      const total = ids.length + (needsSummary ? 1 : 0);
+      const done =
+        ids.filter((id) => completedSet.has(id)).length +
+        (summaryDone ? 1 : 0);
+      const complete = total === 0 ? true : done === total;
       const locked = !prevComplete;
-      map[mid] = { total: ids.length, done, complete, locked };
+      map[mid] = { total, done, complete, locked };
       // A locked module never unlocks the next one — even if its lessons were
       // completed earlier. The chain is strictly sequential.
       prevComplete = !locked && complete;
     }
-    return { modules, map };
+    return { modules, map, summarySet };
   }
 
   async getCurriculum(account: PortalAccountDocument, eventSlug?: string) {
@@ -951,7 +1071,7 @@ export class LmsService {
       account,
       eventSlug,
     );
-    const [lessons, { modules, map }, sessions] = await Promise.all([
+    const [lessons, { modules, map, summarySet }, sessions] = await Promise.all([
       this.lessonModel
         .find({ event: event._id, status: 'published' })
         .sort({ order: 1 })
@@ -1021,6 +1141,16 @@ export class LmsService {
           completed: meta.complete,
           lessonsCompleted: meta.done,
           lessonCount: meta.total,
+          // "Messages to listen to" — audio the learner plays/downloads.
+          audioMessages: ((m as any).audioMessages || []).map((a: any) => ({
+            id: a.id,
+            title: a.title,
+            url: a.url,
+            fileName: a.fileName || null,
+          })),
+          // A summary note is required to complete a module that has messages.
+          summaryRequired: (((m as any).audioMessages || []).length || 0) > 0,
+          summarySubmitted: summarySet.has(String(m._id)),
           // Linked live session (shown until its recording is published).
           session: sessionByModule[String(m._id)] || null,
           lessons: lessons

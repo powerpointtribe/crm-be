@@ -11,6 +11,10 @@ import {
 } from './schemas/course-module.schema';
 import { Lesson, LessonSchema } from './schemas/lesson.schema';
 import {
+  SermonSummary,
+  SermonSummarySchema,
+} from './schemas/sermon-summary.schema';
+import {
   LessonProgress,
   LessonProgressSchema,
 } from './schemas/lesson-progress.schema';
@@ -54,6 +58,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
     PassportModule,
     MongooseModule.forFeature([
       { name: CourseModuleSchemaClass.name, schema: CourseModuleSchema },
+      { name: SermonSummary.name, schema: SermonSummarySchema },
       { name: Lesson.name, schema: LessonSchema },
       { name: LessonProgress.name, schema: LessonProgressSchema },
       { name: Quiz.name, schema: QuizSchema },
