@@ -3173,27 +3173,16 @@ export class LmsService {
    */
   private async buildModuleReminderBatch(event: any) {
     const eventOid = event._id as Types.ObjectId;
-    const now = new Date();
-    const [modules, sessions] = await Promise.all([
-      this.moduleModel
-        .find({ event: eventOid, status: 'published' })
-        .sort({ order: 1 })
-        .lean(),
-      this.sessionModel
-        .find({ event: eventOid, moduleId: { $ne: null } })
-        .select('moduleId date')
-        .lean(),
-    ]);
+    const modules = await this.moduleModel
+      .find({ event: eventOid, status: 'published' })
+      .sort({ order: 1 })
+      .lean();
     if (!modules.length) return null;
 
-    // "Started weeks" = modules whose linked session has already occurred.
-    const occurred = new Set<string>();
-    for (const s of sessions) {
-      const d = s.date ? new Date(s.date) : null;
-      if (d && d <= now) occurred.add(String(s.moduleId));
-    }
-    let targets = modules.filter((m) => occurred.has(String(m._id)));
-    if (!targets.length) targets = [modules[0]]; // nothing run yet → week 1
+    // Released weeks = published modules (facilitators publish a module when its
+    // week opens; drafts are future weeks and excluded). So a learner behind on
+    // any released week — including an earlier one — is reminded about it.
+    const targets = modules;
 
     const targetIds = targets.map((m) => m._id);
     const lessons = await this.lessonModel
