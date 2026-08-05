@@ -92,6 +92,14 @@ export class SessionAttendance {
   @Prop({ type: String })
   attendanceDiscrepancy?: string;
 
+  // The facilitator reviewed a flagged discrepancy and reconciled/closed it —
+  // it's then dropped from the flagged list (the discrepancy text is kept).
+  @Prop({ type: Boolean, default: false })
+  discrepancyResolved?: boolean;
+
+  @Prop({ type: Date })
+  discrepancyResolvedAt?: Date;
+
   // Which player the learner was routed to for this session. Once Zoom nears
   // its live capacity, new viewers are pinned to 'youtube' (the simulcast) —
   // their attendance still comes from the heartbeat, and they're NOT expected

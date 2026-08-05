@@ -268,6 +268,72 @@ export class LmsService {
     return { success: true, wordCount: words };
   }
 
+  /**
+   * Facilitator: all learners' sermon summaries for a module — the note they
+   * wrote for the "Messages to listen to", with grade/feedback for review.
+   */
+  async listModuleSermonSummaries(moduleId: string) {
+    const mod = await this.moduleModel.findById(moduleId).lean();
+    if (!mod) throw new NotFoundException('Module not found');
+    const summaries = await this.sermonSummaryModel
+      .find({ module: mod._id, submittedAt: { $ne: null } })
+      .lean();
+    const regIds = summaries.map((s) => s.registration);
+    const regs = await this.registrationModel
+      .find({ _id: { $in: regIds } })
+      .select('attendeeInfo')
+      .lean();
+    const byId = new Map(regs.map((r) => [String(r._id), r]));
+    const items = summaries
+      .map((s) => {
+        const r = byId.get(String(s.registration));
+        const name =
+          `${r?.attendeeInfo?.firstName || ''} ${r?.attendeeInfo?.lastName || ''}`.trim();
+        return {
+          id: String(s._id),
+          student: name || r?.attendeeInfo?.email || 'Unknown',
+          email: r?.attendeeInfo?.email || null,
+          content: s.content || '',
+          wordCount: s.wordCount || 0,
+          submittedAt: s.submittedAt || null,
+          grade: typeof s.grade === 'number' ? s.grade : null,
+          feedback: s.feedback || '',
+          gradedAt: s.gradedAt || null,
+        };
+      })
+      .sort((a, b) => a.student.localeCompare(b.student));
+    return {
+      module: { id: String(mod._id), title: mod.title },
+      total: items.length,
+      graded: items.filter((i) => i.grade !== null).length,
+      items,
+    };
+  }
+
+  /** Facilitator: grade a learner's sermon summary (0–100) + optional feedback. */
+  async gradeSermonSummary(
+    summaryId: string,
+    grade?: number,
+    feedback?: string,
+  ) {
+    const set: any = { gradedAt: new Date() };
+    if (grade !== undefined && grade !== null) {
+      const g = Number(grade);
+      if (!Number.isFinite(g) || g < 0 || g > 100) {
+        throw new BadRequestException('Grade must be between 0 and 100.');
+      }
+      set.grade = Math.round(g);
+    }
+    if (feedback !== undefined) set.feedback = (feedback || '').trim();
+    const s = await this.sermonSummaryModel.findByIdAndUpdate(
+      summaryId,
+      { $set: set },
+      { new: true },
+    );
+    if (!s) throw new NotFoundException('Summary not found');
+    return { success: true };
+  }
+
   async reorderModules(eventId: string, orderedIds: string[]) {
     await this.assertEvent(eventId);
     const eventOid = new Types.ObjectId(eventId);
@@ -3492,7 +3558,11 @@ export class LmsService {
     await this.assertEvent(eventId);
     const eventOid = new Types.ObjectId(eventId);
     const flagged = await this.attendanceModel
-      .find({ event: eventOid, attendanceDiscrepancy: { $ne: null } })
+      .find({
+        event: eventOid,
+        attendanceDiscrepancy: { $ne: null },
+        discrepancyResolved: { $ne: true },
+      })
       .select(
         'registration session attendanceDiscrepancy liveMinutes zoomMinutes status',
       )
@@ -3524,6 +3594,7 @@ export class LmsService {
     return {
       items: flagged
         .map((f) => ({
+          id: String(f._id),
           student: nameById.get(String(f.registration)) || 'Unknown',
           email: emailById.get(String(f.registration)) || null,
           session: titleById.get(String(f.session)) || 'Session',
@@ -3534,6 +3605,17 @@ export class LmsService {
         }))
         .sort((a, b) => b.platformMinutes - a.platformMinutes),
     };
+  }
+
+  /** Reconcile/close a flagged attendance discrepancy — drops it from the list. */
+  async resolveAttendanceFlag(eventId: string, attendanceId: string) {
+    await this.assertEvent(eventId);
+    const res = await this.attendanceModel.updateOne(
+      { _id: new Types.ObjectId(attendanceId), event: new Types.ObjectId(eventId) },
+      { $set: { discrepancyResolved: true, discrepancyResolvedAt: new Date() } },
+    );
+    if (!res.matchedCount) throw new NotFoundException('Attendance not found');
+    return { success: true };
   }
 
   // ===================== Attendance tracker (facilitator) ======================

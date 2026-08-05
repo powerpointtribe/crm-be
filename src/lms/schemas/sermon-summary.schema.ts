@@ -38,6 +38,16 @@ export class SermonSummary {
 
   @Prop({ type: Date })
   submittedAt?: Date;
+
+  // Facilitator grading of the summary (optional score out of 100 + feedback).
+  @Prop({ type: Number })
+  grade?: number;
+
+  @Prop({ trim: true })
+  feedback?: string;
+
+  @Prop({ type: Date })
+  gradedAt?: Date;
 }
 
 export const SermonSummarySchema = SchemaFactory.createForClass(SermonSummary);

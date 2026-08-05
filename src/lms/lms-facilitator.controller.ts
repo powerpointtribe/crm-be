@@ -72,6 +72,33 @@ export class LmsFacilitatorController {
     return this.lms.getFlaggedAttendance(eventId);
   }
 
+  // Reconcile/close a flagged attendance discrepancy (drops it from the list).
+  @Patch('events/:eventId/attendance/:attendanceId/resolve-flag')
+  @RequirePermission(EventsPermission.CHECK_IN)
+  resolveAttendanceFlag(
+    @Param('eventId') eventId: string,
+    @Param('attendanceId') attendanceId: string,
+  ) {
+    return this.lms.resolveAttendanceFlag(eventId, attendanceId);
+  }
+
+  // ── Module sermon summaries (facilitator review + grading) ────────────────
+
+  @Get('modules/:moduleId/sermon-summaries')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  listSermonSummaries(@Param('moduleId') moduleId: string) {
+    return this.lms.listModuleSermonSummaries(moduleId);
+  }
+
+  @Patch('sermon-summaries/:summaryId/grade')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  gradeSermonSummary(
+    @Param('summaryId') summaryId: string,
+    @Body() dto: { grade?: number; feedback?: string },
+  ) {
+    return this.lms.gradeSermonSummary(summaryId, dto?.grade, dto?.feedback);
+  }
+
   // Event-wide attendance breakdown (present/late/attending/absent per session).
   @Get('events/:eventId/attendance/overview')
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
