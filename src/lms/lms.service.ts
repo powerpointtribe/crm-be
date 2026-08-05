@@ -232,6 +232,9 @@ export class LmsService {
       submitted: !!summary?.submittedAt,
       submittedAt: summary?.submittedAt || null,
       maxWords: this.SERMON_SUMMARY_MAX_WORDS,
+      grade: typeof summary?.grade === 'number' ? summary.grade : null,
+      feedback: summary?.feedback || '',
+      gradedAt: summary?.gradedAt || null,
     };
   }
 
