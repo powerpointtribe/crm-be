@@ -180,6 +180,7 @@ export class FirstTimer {
             'busy',
             'not_interested',
             'interested',
+            'undecided',
             'follow_up_needed',
           ],
           required: true,

@@ -10,6 +10,8 @@ import {
   IsOptional,
   MaxLength,
   ArrayMaxSize,
+  IsBoolean,
+  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -46,6 +48,17 @@ export class CreateServiceReportDto {
   @ArrayMaxSize(10)
   serviceTags?: ServiceTag[];
 
+  @ApiPropertyOptional({
+    description:
+      'Special-event report: capture only the head count and relax the ' +
+      'males/females/children breakdown requirement',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  headcountOnly?: boolean;
+
   @ApiProperty({
     description: 'Total number of people in the service',
     example: 150,
@@ -56,35 +69,40 @@ export class CreateServiceReportDto {
   @Min(0)
   totalAttendance: number;
 
-  @ApiProperty({
-    description: 'Number of males in the service',
+  // Gender/age breakdown is required for normal reports, but optional for
+  // head-count-only (special event) reports.
+  @ApiPropertyOptional({
+    description: 'Number of males in the service (required unless headcountOnly)',
     example: 45,
     minimum: 0,
   })
+  @ValidateIf((o) => !o.headcountOnly)
   @IsNotEmpty()
   @IsNumber()
   @Min(0)
-  numberOfMales: number;
+  numberOfMales?: number;
 
-  @ApiProperty({
-    description: 'Number of females in the service',
+  @ApiPropertyOptional({
+    description: 'Number of females in the service (required unless headcountOnly)',
     example: 65,
     minimum: 0,
   })
+  @ValidateIf((o) => !o.headcountOnly)
   @IsNotEmpty()
   @IsNumber()
   @Min(0)
-  numberOfFemales: number;
+  numberOfFemales?: number;
 
-  @ApiProperty({
-    description: 'Number of children in the service',
+  @ApiPropertyOptional({
+    description: 'Number of children in the service (required unless headcountOnly)',
     example: 40,
     minimum: 0,
   })
+  @ValidateIf((o) => !o.headcountOnly)
   @IsNotEmpty()
   @IsNumber()
   @Min(0)
-  numberOfChildren: number;
+  numberOfChildren?: number;
 
   @ApiProperty({
     description: 'Number of first-time visitors',

@@ -143,6 +143,8 @@ export class ServiceReportsPdfService {
     const fDate = new Date(report.date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' });
     const total = report.totalAttendance;
     const adults = report.numberOfMales + report.numberOfFemales;
+    // Special-event head-count reports omit the gender/age breakdown.
+    const headcountOnly = !!(report as any).headcountOnly;
 
     const prevHtml = stats?.previousReport ? (() => {
       const pDate = new Date(stats.previousReport.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -171,7 +173,7 @@ body{font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-seri
 <div style="position:relative;z-index:1;">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
 <div style="font-size:8px;text-transform:uppercase;letter-spacing:2.5px;opacity:.75;font-weight:500;">The PowerPoint Tribe • ${branch}</div>
-<div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.15);padding:3px 10px;border-radius:10px;font-size:8px;font-weight:500;letter-spacing:.3px;">Service Report</div>
+<div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.15);padding:3px 10px;border-radius:10px;font-size:8px;font-weight:500;letter-spacing:.3px;">${headcountOnly ? 'Head Count · Special Event' : 'Service Report'}</div>
 </div>
 <div style="font-size:18px;font-weight:700;letter-spacing:-.4px;margin-bottom:2px;">${report.serviceName}</div>
 <div style="font-size:11px;opacity:.85;font-weight:400;">${fDate}</div>
@@ -189,14 +191,14 @@ body{font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-seri
 <div style="font-size:7.5px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:.8px;margin-top:2px;">Attendance</div>
 ${stats ? `<div style="margin-top:1px;">${this.delta(total, stats.averageAttendance)}</div>` : ''}
 </div>
-<div style="flex:1;text-align:center;padding:10px 8px 8px;border-right:1px solid #F1F5F9;">
+${headcountOnly ? '' : `<div style="flex:1;text-align:center;padding:10px 8px 8px;border-right:1px solid #F1F5F9;">
 <div style="font-size:22px;font-weight:800;color:#1e293b;line-height:1;">${this.n(adults)}</div>
 <div style="font-size:7.5px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:.8px;margin-top:2px;">Adults</div>
 </div>
 <div style="flex:1;text-align:center;padding:10px 8px 8px;border-right:1px solid #F1F5F9;">
 <div style="font-size:22px;font-weight:800;color:#14B8A6;line-height:1;">${this.n(report.numberOfChildren)}</div>
 <div style="font-size:7.5px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:.8px;margin-top:2px;">Children</div>
-</div>
+</div>`}
 <div style="flex:1;text-align:center;padding:10px 8px 8px;">
 <div style="font-size:22px;font-weight:800;color:#F59E0B;line-height:1;">${this.n(report.numberOfFirstTimers)}</div>
 <div style="font-size:7.5px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:.8px;margin-top:2px;">First Timers</div>
@@ -232,6 +234,7 @@ ${stats ? `
 </div>
 ` : ''}
 
+${headcountOnly ? '' : `
 <!-- DEMOGRAPHICS -->
 <div class="section" data-pdf-block style="margin-bottom:12px;">
 <div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:#4F46E5;border-radius:1px;"></div>Demographics</div>
@@ -259,17 +262,19 @@ ${this.donut(report)}
 </div>
 </div>
 </div>
+`}
 
 ${prevHtml}
 
 ${stats ? `
+${headcountOnly ? '' : `
 <!-- COMPARISON CHART -->
 <div class="section" data-pdf-block style="margin-top:12px;">
 <div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:#4F46E5;border-radius:1px;"></div>This Service vs ${year} Average</div>
 <div style="background:#F8FAFC;border:1px solid #F1F5F9;border-radius:8px;padding:10px 12px;">
 ${this.bars(report, stats)}
 </div>
-</div>
+</div>`}
 
 ${stats.monthlyTrend && stats.monthlyTrend.length >= 2 ? `
 <!-- TREND -->

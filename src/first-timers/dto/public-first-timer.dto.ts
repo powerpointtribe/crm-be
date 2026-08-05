@@ -11,6 +11,7 @@ import {
   IsBoolean,
   Min,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -145,7 +146,9 @@ export class PublicCreateFirstTimerDto {
   invitedBy?: string;
 
   @ApiPropertyOptional({ description: 'Name of school/university (for students)' })
-  @IsOptional()
+  // Required when the visitor's occupation is "Student"; ignored otherwise.
+  @ValidateIf((o) => o.occupation === 'Student')
+  @IsNotEmpty({ message: 'School name is required for students' })
   @IsString()
   schoolName?: string;
 

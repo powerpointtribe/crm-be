@@ -66,13 +66,18 @@ export class ServiceReportsService {
       numberOfFemales,
       numberOfChildren,
       numberOfFirstTimers,
+      headcountOnly,
     } = createServiceReportDto;
 
-    const calculatedTotal = numberOfMales + numberOfFemales + numberOfChildren;
-    if (calculatedTotal !== totalAttendance) {
-      throw new BadRequestException(
-        `Total attendance (${totalAttendance}) must equal sum of males (${numberOfMales}) + females (${numberOfFemales}) + children (${numberOfChildren}) = ${calculatedTotal}`,
-      );
+    // Special-event (head-count-only) reports skip the gender/age breakdown rule.
+    if (!headcountOnly) {
+      const calculatedTotal =
+        (numberOfMales || 0) + (numberOfFemales || 0) + (numberOfChildren || 0);
+      if (calculatedTotal !== totalAttendance) {
+        throw new BadRequestException(
+          `Total attendance (${totalAttendance}) must equal sum of males (${numberOfMales}) + females (${numberOfFemales}) + children (${numberOfChildren}) = ${calculatedTotal}`,
+        );
+      }
     }
 
     if (numberOfFirstTimers > totalAttendance) {
@@ -97,6 +102,10 @@ export class ServiceReportsService {
 
     const serviceReport = new this.serviceReportModel({
       ...createServiceReportDto,
+      // Default the breakdown to 0 (head-count-only reports may omit it).
+      numberOfMales: createServiceReportDto.numberOfMales ?? 0,
+      numberOfFemales: createServiceReportDto.numberOfFemales ?? 0,
+      numberOfChildren: createServiceReportDto.numberOfChildren ?? 0,
       date: new Date(createServiceReportDto.date),
       reportedBy: new Types.ObjectId(reportedBy),
       branch: new Types.ObjectId(branchId),
@@ -270,13 +279,18 @@ export class ServiceReportsService {
       const numberOfFirstTimers =
         updateServiceReportDto.numberOfFirstTimers ??
         report.numberOfFirstTimers;
+      const headcountOnly =
+        updateServiceReportDto.headcountOnly ?? report.headcountOnly;
 
-      const calculatedTotal =
-        numberOfMales + numberOfFemales + numberOfChildren;
-      if (calculatedTotal !== totalAttendance) {
-        throw new BadRequestException(
-          `Total attendance (${totalAttendance}) must equal sum of males (${numberOfMales}) + females (${numberOfFemales}) + children (${numberOfChildren}) = ${calculatedTotal}`,
-        );
+      // Special-event (head-count-only) reports skip the gender/age breakdown rule.
+      if (!headcountOnly) {
+        const calculatedTotal =
+          numberOfMales + numberOfFemales + numberOfChildren;
+        if (calculatedTotal !== totalAttendance) {
+          throw new BadRequestException(
+            `Total attendance (${totalAttendance}) must equal sum of males (${numberOfMales}) + females (${numberOfFemales}) + children (${numberOfChildren}) = ${calculatedTotal}`,
+          );
+        }
       }
 
       if (numberOfFirstTimers > totalAttendance) {

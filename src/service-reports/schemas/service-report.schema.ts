@@ -31,17 +31,24 @@ export class ServiceReport {
   @Prop({ required: true, min: 0 })
   totalAttendance: number;
 
-  @Prop({ required: true, min: 0 })
+  // Gender/age breakdown. Not required for head-count-only reports (special
+  // events), where only the total attendance is captured — defaults to 0.
+  @Prop({ required: false, default: 0, min: 0 })
   numberOfMales: number;
 
-  @Prop({ required: true, min: 0 })
+  @Prop({ required: false, default: 0, min: 0 })
   numberOfFemales: number;
 
-  @Prop({ required: true, min: 0 })
+  @Prop({ required: false, default: 0, min: 0 })
   numberOfChildren: number;
 
   @Prop({ required: true, min: 0 })
   numberOfFirstTimers: number;
+
+  // Special-event flag: when true the males+females+children breakdown is
+  // relaxed and only the head count (totalAttendance) is required.
+  @Prop({ default: false })
+  headcountOnly: boolean;
 
   @Prop({ type: Types.ObjectId, ref: 'Member', required: true })
   reportedBy: Types.ObjectId;
@@ -82,14 +89,17 @@ ServiceReportSchema.virtual('attendanceBreakdown').get(function () {
 
 // Validation to ensure attendance numbers add up correctly
 ServiceReportSchema.pre('save', function (next) {
-  const calculatedTotal =
-    this.numberOfMales + this.numberOfFemales + this.numberOfChildren;
+  // Head-count-only (special event) reports skip the gender/age breakdown rule.
+  if (!this.headcountOnly) {
+    const calculatedTotal =
+      this.numberOfMales + this.numberOfFemales + this.numberOfChildren;
 
-  if (calculatedTotal !== this.totalAttendance) {
-    const error = new Error(
-      `Total attendance (${this.totalAttendance}) must equal sum of males (${this.numberOfMales}) + females (${this.numberOfFemales}) + children (${this.numberOfChildren}) = ${calculatedTotal}`,
-    );
-    return next(error);
+    if (calculatedTotal !== this.totalAttendance) {
+      const error = new Error(
+        `Total attendance (${this.totalAttendance}) must equal sum of males (${this.numberOfMales}) + females (${this.numberOfFemales}) + children (${this.numberOfChildren}) = ${calculatedTotal}`,
+      );
+      return next(error);
+    }
   }
 
   if (this.numberOfFirstTimers > this.totalAttendance) {

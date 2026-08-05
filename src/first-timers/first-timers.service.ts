@@ -1698,6 +1698,7 @@ export class FirstTimersService {
       dateOfBirth: createFirstTimerDto.dateOfBirth,
       gender: createFirstTimerDto.gender,
       occupation: createFirstTimerDto.occupation,
+      schoolName: createFirstTimerDto.schoolName,
       alternateContactMethod: createFirstTimerDto.alternateContactMethod,
       socialMediaHandles: createFirstTimerDto.socialMediaHandles,
       serviceExperience: createFirstTimerDto.serviceExperience,

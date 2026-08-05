@@ -45,6 +45,7 @@ export class AddFollowUpDto {
       'busy',
       'not_interested',
       'interested',
+      'undecided',
       'follow_up_needed',
     ],
   })
@@ -54,6 +55,7 @@ export class AddFollowUpDto {
     'busy',
     'not_interested',
     'interested',
+    'undecided',
     'follow_up_needed',
   ])
   @IsNotEmpty()
