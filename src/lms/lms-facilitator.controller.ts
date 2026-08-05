@@ -99,6 +99,37 @@ export class LmsFacilitatorController {
     return this.lms.gradeSermonSummary(summaryId, dto?.grade, dto?.feedback);
   }
 
+  // ── Q&A community feed (facilitator authoring) ────────────────────────────
+
+  @Get('events/:eventId/qa')
+  @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
+  listQaPosts(@Param('eventId') eventId: string) {
+    return this.lms.listQaPosts(eventId);
+  }
+
+  @Post('events/:eventId/qa')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  createQaPost(
+    @Param('eventId') eventId: string,
+    @Body()
+    dto: {
+      question: string;
+      label?: string;
+      answerType?: 'text' | 'audio';
+      answerText?: string;
+      answerAudioUrl?: string;
+      answerAudioName?: string;
+    },
+  ) {
+    return this.lms.createQaPost(eventId, dto);
+  }
+
+  @Delete('events/:eventId/qa/:postId')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  deleteQaPost(@Param('postId') postId: string) {
+    return this.lms.deleteQaPost(postId);
+  }
+
   // Event-wide attendance breakdown (present/late/attending/absent per session).
   @Get('events/:eventId/attendance/overview')
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)

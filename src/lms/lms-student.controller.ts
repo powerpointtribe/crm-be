@@ -114,6 +114,24 @@ export class LmsStudentController {
     return this.lms.saveSermonSummary(account, moduleId, dto?.content || '');
   }
 
+  // Q&A community feed (read-only) + a single reaction per post.
+  @Get('me/qa')
+  getQaFeed(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Query('eventSlug') eventSlug?: string,
+  ) {
+    return this.lms.getQaFeed(account, eventSlug);
+  }
+
+  @Post('me/qa/:postId/react')
+  reactToQaPost(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Param('postId') postId: string,
+    @Body() dto: { emoji?: string },
+  ) {
+    return this.lms.reactToQaPost(account, postId, dto?.emoji || '');
+  }
+
   @Get('me/sessions')
   getSessions(
     @CurrentPortalAccount() account: PortalAccountDocument,

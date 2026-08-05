@@ -15,6 +15,7 @@ import {
   SermonSummary,
   SermonSummarySchema,
 } from './schemas/sermon-summary.schema';
+import { QaPost, QaPostSchema } from './schemas/qa-post.schema';
 import {
   LessonProgress,
   LessonProgressSchema,
@@ -60,6 +61,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
     MongooseModule.forFeature([
       { name: CourseModuleSchemaClass.name, schema: CourseModuleSchema },
       { name: SermonSummary.name, schema: SermonSummarySchema },
+      { name: QaPost.name, schema: QaPostSchema },
       { name: Lesson.name, schema: LessonSchema },
       { name: LessonProgress.name, schema: LessonProgressSchema },
       { name: Quiz.name, schema: QuizSchema },

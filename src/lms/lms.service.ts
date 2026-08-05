@@ -18,6 +18,7 @@ import {
   SermonSummary,
   SermonSummaryDocument,
 } from './schemas/sermon-summary.schema';
+import { QaPost, QaPostDocument } from './schemas/qa-post.schema';
 import { Lesson, LessonDocument } from './schemas/lesson.schema';
 import {
   LessonProgress,
@@ -80,6 +81,8 @@ export class LmsService {
     private readonly moduleModel: Model<CourseModuleDocument>,
     @InjectModel(SermonSummary.name)
     private readonly sermonSummaryModel: Model<SermonSummaryDocument>,
+    @InjectModel(QaPost.name)
+    private readonly qaPostModel: Model<QaPostDocument>,
     @InjectModel(Lesson.name)
     private readonly lessonModel: Model<LessonDocument>,
     @InjectModel(LessonProgress.name)
@@ -332,6 +335,137 @@ export class LmsService {
     );
     if (!s) throw new NotFoundException('Summary not found');
     return { success: true };
+  }
+
+  // ===================== Q&A community feed ====================================
+  //
+  //  Facilitators publish a week's questions + answers (text or audio). Learners
+  //  see a read-only feed and can drop one reaction per post (no comments).
+
+  private readonly QA_REACTIONS = ['🙏', '❤️', '🔥', '👍', '😮', '💡'];
+
+  private shapeQaPost(p: any, myRegId?: string) {
+    const counts: Record<string, number> = {};
+    let total = 0;
+    let mine: string | null = null;
+    for (const r of p.reactions || []) {
+      counts[r.emoji] = (counts[r.emoji] || 0) + 1;
+      total += 1;
+      if (myRegId && String(r.registration) === myRegId) mine = r.emoji;
+    }
+    return {
+      id: String(p._id),
+      label: p.label || null,
+      question: p.question,
+      answerType: p.answerType,
+      answerText: p.answerText || null,
+      answerAudioUrl: p.answerAudioUrl || null,
+      answerAudioName: p.answerAudioName || null,
+      createdAt: p.createdAt,
+      reactions: counts,
+      reactionTotal: total,
+      myReaction: mine,
+    };
+  }
+
+  async createQaPost(
+    eventId: string,
+    dto: {
+      question: string;
+      label?: string;
+      answerType?: 'text' | 'audio';
+      answerText?: string;
+      answerAudioUrl?: string;
+      answerAudioName?: string;
+    },
+  ) {
+    await this.assertEvent(eventId);
+    const question = (dto.question || '').trim();
+    if (!question) throw new BadRequestException('A question is required.');
+    const answerType = dto.answerType === 'audio' ? 'audio' : 'text';
+    if (answerType === 'audio' && !dto.answerAudioUrl) {
+      throw new BadRequestException('Upload the audio answer first.');
+    }
+    if (answerType === 'text' && !(dto.answerText || '').trim()) {
+      throw new BadRequestException('Write a text answer.');
+    }
+    const post = await this.qaPostModel.create({
+      event: new Types.ObjectId(eventId),
+      label: (dto.label || '').trim() || undefined,
+      question,
+      answerType,
+      answerText: answerType === 'text' ? (dto.answerText || '').trim() : undefined,
+      answerAudioUrl: answerType === 'audio' ? dto.answerAudioUrl : undefined,
+      answerAudioName: answerType === 'audio' ? dto.answerAudioName : undefined,
+    });
+    return this.shapeQaPost(post.toObject());
+  }
+
+  async listQaPosts(eventId: string) {
+    await this.assertEvent(eventId);
+    const posts = await this.qaPostModel
+      .find({ event: new Types.ObjectId(eventId) })
+      .sort({ createdAt: -1 })
+      .lean();
+    return { items: posts.map((p) => this.shapeQaPost(p)) };
+  }
+
+  async deleteQaPost(postId: string) {
+    const res = await this.qaPostModel.findByIdAndDelete(postId);
+    if (!res) throw new NotFoundException('Post not found');
+    return { success: true };
+  }
+
+  async getQaFeed(account: PortalAccountDocument, eventSlug?: string) {
+    const { event, registration } = await this.resolveLearner(
+      account,
+      eventSlug,
+    );
+    const posts = await this.qaPostModel
+      .find({ event: event._id })
+      .sort({ createdAt: -1 })
+      .lean();
+    const myReg = String(registration._id);
+    return {
+      supportEmail: 'cmithub@gmail.com',
+      reactions: this.QA_REACTIONS,
+      items: posts.map((p) => this.shapeQaPost(p, myReg)),
+    };
+  }
+
+  async reactToQaPost(
+    account: PortalAccountDocument,
+    postId: string,
+    emoji: string,
+  ) {
+    const post = await this.qaPostModel.findById(postId);
+    if (!post) throw new NotFoundException('Post not found');
+    const registration = await this.registrationModel.findOne({
+      event: post.event,
+      'attendeeInfo.email': account.email,
+      admissionStatus: 'accepted',
+    });
+    if (!registration) throw new ForbiddenException('Not enrolled.');
+
+    const regId = registration._id as Types.ObjectId;
+    const existing = (post.reactions || []).find(
+      (r) => String(r.registration) === String(regId),
+    );
+    // Toggle off if same emoji; otherwise set/replace. Empty emoji clears.
+    if (!emoji || (existing && existing.emoji === emoji)) {
+      post.reactions = (post.reactions || []).filter(
+        (r) => String(r.registration) !== String(regId),
+      );
+    } else if (this.QA_REACTIONS.includes(emoji)) {
+      post.reactions = (post.reactions || []).filter(
+        (r) => String(r.registration) !== String(regId),
+      );
+      post.reactions.push({ registration: regId, emoji });
+    } else {
+      throw new BadRequestException('Unknown reaction.');
+    }
+    await post.save();
+    return this.shapeQaPost(post.toObject(), String(regId));
   }
 
   async reorderModules(eventId: string, orderedIds: string[]) {
