@@ -3174,14 +3174,19 @@ export class LmsService {
   private async buildModuleReminderBatch(event: any) {
     const eventOid = event._id as Types.ObjectId;
     const modules = await this.moduleModel
-      .find({ event: eventOid, status: 'published' })
+      .find({
+        event: eventOid,
+        status: 'published',
+        excludeFromReminders: { $ne: true },
+      })
       .sort({ order: 1 })
       .lean();
     if (!modules.length) return null;
 
-    // Released weeks = published modules (facilitators publish a module when its
-    // week opens; drafts are future weeks and excluded). So a learner behind on
-    // any released week — including an earlier one — is reminded about it.
+    // Released weeks = published modules not opted out of reminders (facilitators
+    // publish a module when its week opens; drafts are future weeks). So a
+    // learner behind on any released week — including an earlier one — is
+    // reminded about it.
     const targets = modules;
 
     const targetIds = targets.map((m) => m._id);

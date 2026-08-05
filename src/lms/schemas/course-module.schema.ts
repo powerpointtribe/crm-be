@@ -22,6 +22,11 @@ export class CourseModule {
   @Prop({ type: String, enum: ['draft', 'published'], default: 'draft' })
   status: string;
 
+  // Keep this module out of the 48h "complete the week's module" reminder
+  // emails (e.g. a week published early/by mistake). It still shows in the app.
+  @Prop({ type: Boolean, default: false })
+  excludeFromReminders?: boolean;
+
   // "Messages to listen to" — one or more audio files attached to the module
   // that learners can play in-page or download. A dedicated section, separate
   // from lessons and their resources.
