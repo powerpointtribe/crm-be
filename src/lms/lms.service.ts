@@ -2006,7 +2006,7 @@ export class LmsService {
     // (server-side), so a client can't inflate minutes by spamming heartbeats.
     const prior = await this.attendanceModel
       .findOne({ session: session._id, registration: registration._id })
-      .select('lastBeatAt')
+      .select('lastBeatAt statusManual')
       .lean();
     let seconds = Math.max(
       0,
@@ -2062,7 +2062,12 @@ export class LmsService {
     });
     const watched = attendedMinutes >= threshold;
 
-    if (doc && (doc.status !== status || doc.watched !== watched)) {
+    // A facilitator's manual status wins — don't let heartbeats overwrite it.
+    if (
+      doc &&
+      !prior?.statusManual &&
+      (doc.status !== status || doc.watched !== watched)
+    ) {
       await this.attendanceModel.updateOne(
         { _id: doc._id },
         {
@@ -2119,6 +2124,13 @@ export class LmsService {
     let watched = 0; // reached threshold via any watch-time (live or replay)
     let views = 0; // total viewing sessions across all learners
     for (const row of rows) {
+      // A facilitator's manual status is preserved — don't recompute it.
+      if (row.statusManual) {
+        counts[row.status] = (counts[row.status] || 0) + 1;
+        if (row.watched) watched += 1;
+        views += row.watchCount || 0;
+        continue;
+      }
       const late = this.isLateJoin(session, row.checkInTime);
       // Finalizing after the session — no live context, so below-threshold
       // 'attending' learners resolve to 'absent'.
@@ -2332,14 +2344,23 @@ export class LmsService {
       const firstJoin =
         z?.firstJoin || (p?.checkInTime ? new Date(p.checkInTime) : undefined);
       const isLate = this.isLateJoin(session, firstJoin);
-      const status = isPresent ? (isLate ? 'late' : 'present') : 'absent';
-      if (isPresent) (status === 'late' ? late++ : present++);
+      // A facilitator's manual status is kept as-is (not recomputed/flagged).
+      const manual = !!p?.statusManual;
+      const status = manual
+        ? (p.status as string)
+        : isPresent
+          ? isLate
+            ? 'late'
+            : 'present'
+          : 'absent';
+      if (status === 'present') present++;
+      else if (status === 'late') late++;
 
       // YouTube-overflow viewers are never expected in the Zoom report, so a
       // "0 Zoom minutes" gap is by-design, not a discrepancy — skip flagging.
       const isOverflow = p?.watchSource === 'youtube';
       let discrepancy: string | undefined;
-      if (isOverflow) {
+      if (isOverflow || manual) {
         discrepancy = undefined;
       } else if (platformMin >= threshold && zoomMin < threshold)
         discrepancy = `On platform ${platformMin}m but Zoom shows ${zoomMin}m`;
@@ -3834,6 +3855,49 @@ export class LmsService {
   }
 
   /** Per-session attendance detail — one row per accepted learner. */
+  /**
+   * Facilitator manually sets a learner's status for a session. Marked
+   * `statusManual` so the heartbeat / Zoom sync / finalize leave it untouched.
+   */
+  async setAttendanceStatus(
+    eventId: string,
+    sessionId: string,
+    registrationId: string,
+    status: string,
+  ) {
+    await this.assertEvent(eventId);
+    const allowed = ['present', 'late', 'absent', 'excused'];
+    if (!allowed.includes(status)) {
+      throw new BadRequestException('Invalid status.');
+    }
+    const session = await this.sessionModel.findOne({
+      _id: new Types.ObjectId(sessionId),
+      event: new Types.ObjectId(eventId),
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    await this.attendanceModel.updateOne(
+      {
+        session: session._id,
+        registration: new Types.ObjectId(registrationId),
+      },
+      {
+        $set: {
+          status,
+          watched: status === 'present' || status === 'late',
+          statusManual: true,
+          statusManualAt: new Date(),
+        },
+        $setOnInsert: {
+          event: session.event,
+          session: session._id,
+          registration: new Types.ObjectId(registrationId),
+        },
+      },
+      { upsert: true },
+    );
+    return { success: true, status };
+  }
+
   async getSessionAttendanceDetail(eventId: string, sessionId: string) {
     await this.assertEvent(eventId);
     const session = await this.sessionModel.findOne({
@@ -3861,9 +3925,11 @@ export class LmsService {
       const name =
         `${r.attendeeInfo?.firstName || ''} ${r.attendeeInfo?.lastName || ''}`.trim();
       return {
+        registrationId: String(r._id),
         student: name || r.attendeeInfo?.email || 'Unknown',
         email: r.attendeeInfo?.email || null,
         status,
+        manual: !!(a as any)?.statusManual,
         liveMinutes: Math.round((a as any)?.liveMinutes || 0),
         attendedMinutes: Math.round((a as any)?.attendedMinutes || 0),
         watchCount: (a as any)?.watchCount || 0,

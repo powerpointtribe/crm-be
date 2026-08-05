@@ -107,6 +107,14 @@ export class SessionAttendance {
   @Prop({ type: String, enum: ['zoom', 'youtube'] })
   watchSource?: 'zoom' | 'youtube';
 
+  // A facilitator set this status by hand — the automated writers (heartbeat,
+  // Zoom sync, finalize) then leave the status alone so the override sticks.
+  @Prop({ type: Boolean, default: false })
+  statusManual?: boolean;
+
+  @Prop({ type: Date })
+  statusManualAt?: Date;
+
   // True once total watch-time passes the threshold — the learner engaged with
   // the session content, whether live or via the replay.
   @Prop({ type: Boolean, default: false })

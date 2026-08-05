@@ -137,6 +137,22 @@ export class LmsFacilitatorController {
     return this.lms.getAttendanceOverview(eventId);
   }
 
+  // Manually set a learner's attendance status for a session (present/absent/…).
+  @Patch('events/:eventId/attendance/sessions/:sessionId/status')
+  @RequirePermission(EventsPermission.CHECK_IN)
+  setAttendanceStatus(
+    @Param('eventId') eventId: string,
+    @Param('sessionId') sessionId: string,
+    @Body() dto: { registrationId: string; status: string },
+  ) {
+    return this.lms.setAttendanceStatus(
+      eventId,
+      sessionId,
+      dto?.registrationId,
+      dto?.status,
+    );
+  }
+
   // Per-session attendance detail — each learner's watch-time, replays, status.
   @Get('events/:eventId/attendance/sessions/:sessionId')
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
