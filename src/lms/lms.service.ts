@@ -3139,6 +3139,239 @@ export class LmsService {
     return base ? `${base}/portal/lessons/${lessonId}` : '';
   }
 
+  // ===================== Weekly module-completion reminders ====================
+  //
+  //  Every 48h, nudge accepted learners who haven't completed the current
+  //  week's module: list the pending lessons if they've started, else just the
+  //  module title. Set MODULE_REMINDER_ENABLED=false to switch off.
+
+  @Cron('0 0 9 */2 * *', { timeZone: 'Africa/Lagos' })
+  async sendModuleCompletionReminders() {
+    if (process.env.MODULE_REMINDER_ENABLED === 'false') return;
+    const events = await this.eventModel
+      .find({
+        'registrationSettings.applicationBaseUrl': { $exists: true, $ne: '' },
+      })
+      .lean();
+    for (const event of events) {
+      try {
+        await this.remindCurrentModule(event as any);
+      } catch (e) {
+        this.logger.warn(
+          `Module reminder for "${(event as any).title}" failed: ${(e as Error).message}`,
+        );
+      }
+    }
+  }
+
+  /** Compute the reminder batch for an event's current-week module. */
+  private async buildModuleReminderBatch(event: any) {
+    const eventOid = event._id as Types.ObjectId;
+    const now = new Date();
+    const [modules, sessions] = await Promise.all([
+      this.moduleModel
+        .find({ event: eventOid, status: 'published' })
+        .sort({ order: 1 })
+        .lean(),
+      this.sessionModel
+        .find({ event: eventOid, moduleId: { $ne: null } })
+        .select('moduleId date')
+        .lean(),
+    ]);
+    if (!modules.length) return null;
+
+    // Current week = the published module whose linked session most-recently
+    // occurred; fall back to the first module if none has run yet.
+    const latestByModule = new Map<string, Date>();
+    for (const s of sessions) {
+      const d = s.date ? new Date(s.date) : null;
+      if (!d || d > now) continue;
+      const k = String(s.moduleId);
+      const cur = latestByModule.get(k);
+      if (!cur || d > cur) latestByModule.set(k, d);
+    }
+    let current: any = null;
+    let currentDate: Date | null = null;
+    for (const m of modules) {
+      const d = latestByModule.get(String(m._id));
+      if (d && (!currentDate || d > currentDate)) {
+        current = m;
+        currentDate = d;
+      }
+    }
+    if (!current) current = modules[0];
+
+    const lessons = await this.lessonModel
+      .find({
+        event: eventOid,
+        module: current._id,
+        status: 'published',
+        excludeFromCompletion: { $ne: true },
+        isSessionRecording: { $ne: true },
+      })
+      .select('_id title order')
+      .sort({ order: 1 })
+      .lean();
+    const needsSummary = ((current.audioMessages as any[]) || []).length > 0;
+
+    const regs = await this.registrationModel
+      .find({ event: eventOid, admissionStatus: 'accepted' })
+      .select('attendeeInfo')
+      .lean();
+    if (!regs.length) return { event, module: current, recipients: [] };
+
+    const regIds = regs.map((r) => r._id);
+    const lessonIds = lessons.map((l) => l._id);
+    const [progresses, summaries] = await Promise.all([
+      lessonIds.length
+        ? this.progressModel
+            .find({
+              registration: { $in: regIds },
+              lesson: { $in: lessonIds },
+            })
+            .select('registration lesson status')
+            .lean()
+        : [],
+      needsSummary
+        ? this.sermonSummaryModel
+            .find({
+              module: current._id,
+              registration: { $in: regIds },
+              submittedAt: { $ne: null },
+            })
+            .select('registration')
+            .lean()
+        : [],
+    ]);
+
+    const doneByReg = new Map<string, Set<string>>();
+    const startedByReg = new Set<string>();
+    for (const p of progresses) {
+      const rk = String(p.registration);
+      startedByReg.add(rk);
+      if (p.status === 'completed') {
+        if (!doneByReg.has(rk)) doneByReg.set(rk, new Set());
+        doneByReg.get(rk)!.add(String(p.lesson));
+      }
+    }
+    const summaryDone = new Set(summaries.map((s) => String(s.registration)));
+
+    const recipients: Array<{
+      email: string;
+      firstName: string;
+      started: boolean;
+      pending: string[];
+    }> = [];
+    for (const r of regs) {
+      const email = r.attendeeInfo?.email;
+      if (!email) continue;
+      const rk = String(r._id);
+      const done = doneByReg.get(rk) || new Set();
+      const lessonsComplete =
+        lessons.length === 0 || lessons.every((l) => done.has(String(l._id)));
+      const summaryOk = !needsSummary || summaryDone.has(rk);
+      if (lessonsComplete && summaryOk) continue; // completed → no reminder
+
+      const started = startedByReg.has(rk) || summaryDone.has(rk);
+      const pending = lessons
+        .filter((l) => !done.has(String(l._id)))
+        .map((l) => l.title);
+      if (needsSummary && !summaryDone.has(rk)) {
+        pending.push('Write your summary of the messages');
+      }
+      recipients.push({
+        email,
+        firstName: r.attendeeInfo?.firstName || 'there',
+        started,
+        pending,
+      });
+    }
+    return { event, module: current, recipients };
+  }
+
+  private async remindCurrentModule(event: any) {
+    const batch = await this.buildModuleReminderBatch(event);
+    if (!batch || !batch.recipients.length) return;
+    const from = this.senderFromEvent(event);
+    const base =
+      event.registrationSettings?.applicationBaseUrl?.replace(/\/+$/, '') ||
+      process.env.FRONTEND_URL ||
+      '';
+    const portalUrl = base ? `${base}/portal/courses` : '';
+    let sent = 0;
+    for (const r of batch.recipients) {
+      try {
+        const { subject, html } = this.renderModuleReminderEmail({
+          firstName: r.firstName,
+          moduleTitle: batch.module.title,
+          started: r.started,
+          pending: r.pending,
+          portalUrl,
+        });
+        await this.emailProvider.sendEmail({
+          to: r.email,
+          subject,
+          html,
+          ...(from ? { from } : {}),
+        });
+        sent += 1;
+        await new Promise((res) => setTimeout(res, 150)); // gentle Gmail throttle
+      } catch (e) {
+        this.logger.warn(
+          `Module reminder to ${r.email} failed: ${(e as Error).message}`,
+        );
+      }
+    }
+    this.logger.log(
+      `Module reminder "${batch.module.title}" for "${event.title}": ${sent}/${batch.recipients.length} sent.`,
+    );
+  }
+
+  /** Branded reminder email — pending lessons if started, else module title. */
+  renderModuleReminderEmail(ctx: {
+    firstName: string;
+    moduleTitle: string;
+    started: boolean;
+    pending: string[];
+    portalUrl: string;
+  }): { subject: string; html: string } {
+    const esc = (s: string) =>
+      String(s || '').replace(
+        /[&<>"]/g,
+        (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] || c,
+      );
+    const { firstName, moduleTitle, started, pending, portalUrl } = ctx;
+    const subject = started
+      ? `Almost there — finish ${moduleTitle}`
+      : `A quick nudge: ${moduleTitle} is waiting`;
+    const intro = started
+      ? `You've started <strong>${esc(moduleTitle)}</strong> but haven't finished it yet. Here's what's left:`
+      : `You haven't started this week's module yet — <strong>${esc(moduleTitle)}</strong>. It only takes a little time to get going.`;
+    const list =
+      started && pending.length
+        ? `<ul style="margin:16px 0;padding-left:20px;color:#1e2340;font-size:15px;line-height:1.7">${pending
+            .map((p) => `<li>${esc(p)}</li>`)
+            .join('')}</ul>`
+        : '';
+    const button = portalUrl
+      ? `<a href="${esc(portalUrl)}" style="display:inline-block;background:#1b2559;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:13px 28px;border-radius:999px">${started ? 'Continue the module →' : 'Start the module →'}</a>`
+      : '';
+    const html = `<!doctype html><html><body style="margin:0;background:#f5f6fb;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <div style="max-width:560px;margin:0 auto;padding:28px 20px">
+    <div style="background:#fff;border:1px solid #e6e8f2;border-radius:20px;padding:28px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#c79a3a">Campus Ministers in Training</div>
+      <h1 style="margin:10px 0 0;font-size:22px;line-height:1.25;color:#1b2559">Hi ${esc(firstName)},</h1>
+      <p style="margin:14px 0 0;font-size:15px;line-height:1.7;color:#3a4066">${intro}</p>
+      ${list}
+      <div style="margin:22px 0 6px">${button}</div>
+      <p style="margin:20px 0 0;font-size:13px;line-height:1.6;color:#8890ac">Have a question? Reply to this email or reach us at cmithub@gmail.com. Keep showing up — you've got this. 💪</p>
+    </div>
+    <p style="text-align:center;margin:16px 0 0;font-size:11px;color:#aab">A vision of Dami Oguntunde Teaching Ministries</p>
+  </div></body></html>`;
+    return { subject, html };
+  }
+
   /** Manual trigger: check a single session for a ready recording + notify. */
   async checkAndNotifyRecording(sessionId: string) {
     const session = await this.sessionModel.findById(sessionId);
