@@ -17,6 +17,11 @@ import {
 } from './schemas/sermon-summary.schema';
 import { QaPost, QaPostSchema } from './schemas/qa-post.schema';
 import {
+  FacilitatorAudit,
+  FacilitatorAuditSchema,
+} from './schemas/facilitator-audit.schema';
+import { FacilitatorAuditInterceptor } from './facilitator-audit.interceptor';
+import {
   LessonProgress,
   LessonProgressSchema,
 } from './schemas/lesson-progress.schema';
@@ -62,6 +67,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
       { name: CourseModuleSchemaClass.name, schema: CourseModuleSchema },
       { name: SermonSummary.name, schema: SermonSummarySchema },
       { name: QaPost.name, schema: QaPostSchema },
+      { name: FacilitatorAudit.name, schema: FacilitatorAuditSchema },
       { name: Lesson.name, schema: LessonSchema },
       { name: LessonProgress.name, schema: LessonProgressSchema },
       { name: Quiz.name, schema: QuizSchema },
@@ -90,7 +96,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
     LmsZoomWebhookController,
     LmsMediaController,
   ],
-  providers: [LmsService, CommitteeScopeGuard],
+  providers: [LmsService, CommitteeScopeGuard, FacilitatorAuditInterceptor],
   exports: [LmsService],
 })
 export class LmsModule {}

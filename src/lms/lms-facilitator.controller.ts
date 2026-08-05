@@ -9,6 +9,7 @@ import {
   Put,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -16,6 +17,7 @@ import { PermissionGuard } from '../roles/guards/permission.guard';
 import { RequirePermission } from '../roles/decorators/require-permission.decorator';
 import { EventsPermission } from '../events/permissions';
 import { CommitteeScopeGuard } from './guards/committee-scope.guard';
+import { FacilitatorAuditInterceptor } from './facilitator-audit.interceptor';
 import { LmsService } from './lms.service';
 import {
   AddAudioMessageDto,
@@ -40,6 +42,7 @@ import {
 @ApiTags('LMS (facilitator)')
 @Controller('lms')
 @UseGuards(JwtAuthGuard, PermissionGuard, CommitteeScopeGuard)
+@UseInterceptors(FacilitatorAuditInterceptor)
 export class LmsFacilitatorController {
   constructor(private readonly lms: LmsService) {}
 
@@ -70,6 +73,20 @@ export class LmsFacilitatorController {
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
   flaggedAttendance(@Param('eventId') eventId: string) {
     return this.lms.getFlaggedAttendance(eventId);
+  }
+
+  // Facilitator audit log — every change action, visible to all facilitators.
+  @Get('events/:eventId/audit-log')
+  @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
+  auditLog(
+    @Param('eventId') eventId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.lms.getAuditLog(eventId, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   // Reconcile/close a flagged attendance discrepancy (drops it from the list).

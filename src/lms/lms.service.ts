@@ -19,6 +19,10 @@ import {
   SermonSummaryDocument,
 } from './schemas/sermon-summary.schema';
 import { QaPost, QaPostDocument } from './schemas/qa-post.schema';
+import {
+  FacilitatorAudit,
+  FacilitatorAuditDocument,
+} from './schemas/facilitator-audit.schema';
 import { Lesson, LessonDocument } from './schemas/lesson.schema';
 import {
   LessonProgress,
@@ -83,6 +87,8 @@ export class LmsService {
     private readonly sermonSummaryModel: Model<SermonSummaryDocument>,
     @InjectModel(QaPost.name)
     private readonly qaPostModel: Model<QaPostDocument>,
+    @InjectModel(FacilitatorAudit.name)
+    private readonly auditModel: Model<FacilitatorAuditDocument>,
     @InjectModel(Lesson.name)
     private readonly lessonModel: Model<LessonDocument>,
     @InjectModel(LessonProgress.name)
@@ -466,6 +472,139 @@ export class LmsService {
     }
     await post.save();
     return this.shapeQaPost(post.toObject(), String(regId));
+  }
+
+  // ===================== Facilitator audit log =================================
+  //
+  //  Every change action on the facilitator dashboard is recorded (who/what/
+  //  when) via FacilitatorAuditInterceptor and shown to all facilitators.
+
+  // Turn a controller handler name into a readable action, e.g.
+  // "gradeSermonSummary" → "Grade sermon summary".
+  private humanizeAuditAction(handler: string): string {
+    const words = String(handler || 'action')
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .trim()
+      .toLowerCase();
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+
+  // Best-effort resolve of the owning event from route params, so audit entries
+  // land under the right event even when the route doesn't carry :eventId.
+  private async resolveEventIdForAudit(
+    params: Record<string, string>,
+  ): Promise<Types.ObjectId | null> {
+    const oid = (v?: string) => {
+      try {
+        return v ? new Types.ObjectId(v) : null;
+      } catch {
+        return null;
+      }
+    };
+    if (params.eventId) return oid(params.eventId);
+    try {
+      if (params.moduleId) {
+        const m = await this.moduleModel
+          .findById(params.moduleId)
+          .select('event')
+          .lean();
+        return (m?.event as Types.ObjectId) || null;
+      }
+      if (params.lessonId) {
+        const l = await this.lessonModel
+          .findById(params.lessonId)
+          .select('event')
+          .lean();
+        return (l?.event as Types.ObjectId) || null;
+      }
+      if (params.summaryId) {
+        const s = await this.sermonSummaryModel
+          .findById(params.summaryId)
+          .select('event')
+          .lean();
+        return (s?.event as Types.ObjectId) || null;
+      }
+      if (params.sessionId) {
+        const s = await this.sessionModel
+          .findById(params.sessionId)
+          .select('event')
+          .lean();
+        return (s?.event as Types.ObjectId) || null;
+      }
+      if (params.assignmentId) {
+        const a = await this.assignmentModel
+          .findById(params.assignmentId)
+          .select('event')
+          .lean();
+        return (a?.event as Types.ObjectId) || null;
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+
+  /** Write one audit entry for a facilitator change action (never throws). */
+  async recordFacilitatorAudit(ctx: {
+    handler: string;
+    method: string;
+    path: string;
+    params: Record<string, string>;
+    actor?: any;
+  }) {
+    try {
+      const event = await this.resolveEventIdForAudit(ctx.params || {});
+      const actor = ctx.actor || {};
+      const actorName =
+        `${actor.firstName || ''} ${actor.lastName || ''}`.trim() ||
+        actor.email ||
+        'A facilitator';
+      await this.auditModel.create({
+        event: event || undefined,
+        actor: actor?._id,
+        actorName,
+        actorEmail: actor?.email,
+        action: this.humanizeAuditAction(ctx.handler),
+        method: ctx.method,
+        path: ctx.path,
+      });
+    } catch {
+      /* auditing must never break the request */
+    }
+  }
+
+  /** Paginated audit log for an event (visible to all its facilitators). */
+  async getAuditLog(
+    eventId: string,
+    opts: { page?: number; limit?: number } = {},
+  ) {
+    await this.assertEvent(eventId);
+    const page = Math.max(1, opts.page || 1);
+    const limit = Math.min(100, Math.max(1, opts.limit || 30));
+    const filter = { event: new Types.ObjectId(eventId) };
+    const [rows, total] = await Promise.all([
+      this.auditModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      this.auditModel.countDocuments(filter),
+    ]);
+    return {
+      items: rows.map((r) => ({
+        id: String(r._id),
+        actor: r.actorName || 'A facilitator',
+        action: r.action,
+        method: r.method || null,
+        at: r.createdAt,
+      })),
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
   }
 
   async reorderModules(eventId: string, orderedIds: string[]) {
