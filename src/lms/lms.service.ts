@@ -134,13 +134,21 @@ export class LmsService {
   async listModules(eventId: string) {
     await this.assertEvent(eventId);
     const eventOid = new Types.ObjectId(eventId);
-    const [modules, lessons] = await Promise.all([
+    const [modules, lessons, summaryCounts] = await Promise.all([
       this.moduleModel.find({ event: eventOid }).sort({ order: 1 }).lean(),
       this.lessonModel.find({ event: eventOid }).sort({ order: 1 }).lean(),
+      this.sermonSummaryModel.aggregate([
+        { $match: { event: eventOid, submittedAt: { $ne: null } } },
+        { $group: { _id: '$module', n: { $sum: 1 } } },
+      ]),
     ]);
+    const summaryByModule = new Map(
+      (summaryCounts as any[]).map((s) => [String(s._id), s.n]),
+    );
     return modules.map((m) => ({
       ...m,
       lessons: lessons.filter((l) => String(l.module) === String(m._id)),
+      summaryCount: summaryByModule.get(String(m._id)) || 0,
     }));
   }
 
