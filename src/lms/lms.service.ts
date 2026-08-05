@@ -3164,7 +3164,13 @@ export class LmsService {
     }
   }
 
-  /** Compute the reminder batch for an event's current-week module. */
+  /**
+   * Build the reminder batch: for every "started week" (module whose session
+   * has occurred), collect each accepted learner's incomplete modules — so a
+   * learner behind on an earlier week is reminded about it too, not just the
+   * current week. Per incomplete module: pending lessons if started, else the
+   * module counts as not-started.
+   */
   private async buildModuleReminderBatch(event: any) {
     const eventOid = event._id as Types.ObjectId;
     const now = new Date();
@@ -3180,113 +3186,133 @@ export class LmsService {
     ]);
     if (!modules.length) return null;
 
-    // Current week = the published module whose linked session most-recently
-    // occurred; fall back to the first module if none has run yet.
-    const latestByModule = new Map<string, Date>();
+    // "Started weeks" = modules whose linked session has already occurred.
+    const occurred = new Set<string>();
     for (const s of sessions) {
       const d = s.date ? new Date(s.date) : null;
-      if (!d || d > now) continue;
-      const k = String(s.moduleId);
-      const cur = latestByModule.get(k);
-      if (!cur || d > cur) latestByModule.set(k, d);
+      if (d && d <= now) occurred.add(String(s.moduleId));
     }
-    let current: any = null;
-    let currentDate: Date | null = null;
-    for (const m of modules) {
-      const d = latestByModule.get(String(m._id));
-      if (d && (!currentDate || d > currentDate)) {
-        current = m;
-        currentDate = d;
-      }
-    }
-    if (!current) current = modules[0];
+    let targets = modules.filter((m) => occurred.has(String(m._id)));
+    if (!targets.length) targets = [modules[0]]; // nothing run yet → week 1
 
+    const targetIds = targets.map((m) => m._id);
     const lessons = await this.lessonModel
       .find({
         event: eventOid,
-        module: current._id,
+        module: { $in: targetIds },
         status: 'published',
         excludeFromCompletion: { $ne: true },
         isSessionRecording: { $ne: true },
       })
-      .select('_id title order')
+      .select('_id title order module')
       .sort({ order: 1 })
       .lean();
-    const needsSummary = ((current.audioMessages as any[]) || []).length > 0;
+    const lessonsByModule = new Map<string, any[]>();
+    for (const l of lessons) {
+      const k = String(l.module);
+      if (!lessonsByModule.has(k)) lessonsByModule.set(k, []);
+      lessonsByModule.get(k)!.push(l);
+    }
+    const summaryModuleIds = targets
+      .filter((m) => ((m.audioMessages as any[]) || []).length > 0)
+      .map((m) => m._id);
 
     const regs = await this.registrationModel
       .find({ event: eventOid, admissionStatus: 'accepted' })
       .select('attendeeInfo')
       .lean();
-    if (!regs.length) return { event, module: current, recipients: [] };
+    if (!regs.length) return { event, targets, recipients: [] };
 
     const regIds = regs.map((r) => r._id);
-    const lessonIds = lessons.map((l) => l._id);
     const [progresses, summaries] = await Promise.all([
-      lessonIds.length
+      lessons.length
         ? this.progressModel
             .find({
               registration: { $in: regIds },
-              lesson: { $in: lessonIds },
+              lesson: { $in: lessons.map((l) => l._id) },
             })
             .select('registration lesson status')
             .lean()
         : [],
-      needsSummary
+      summaryModuleIds.length
         ? this.sermonSummaryModel
             .find({
-              module: current._id,
+              module: { $in: summaryModuleIds },
               registration: { $in: regIds },
               submittedAt: { $ne: null },
             })
-            .select('registration')
+            .select('registration module')
             .lean()
         : [],
     ]);
 
-    const doneByReg = new Map<string, Set<string>>();
-    const startedByReg = new Set<string>();
+    const doneByReg = new Map<string, Set<string>>(); // completed lesson ids
+    const startedLessonModuleByReg = new Map<string, Set<string>>(); // module ids with any progress
     for (const p of progresses) {
       const rk = String(p.registration);
-      startedByReg.add(rk);
+      const lm = lessons.find((l) => String(l._id) === String(p.lesson));
+      if (lm) {
+        if (!startedLessonModuleByReg.has(rk))
+          startedLessonModuleByReg.set(rk, new Set());
+        startedLessonModuleByReg.get(rk)!.add(String(lm.module));
+      }
       if (p.status === 'completed') {
         if (!doneByReg.has(rk)) doneByReg.set(rk, new Set());
         doneByReg.get(rk)!.add(String(p.lesson));
       }
     }
-    const summaryDone = new Set(summaries.map((s) => String(s.registration)));
+    const summaryByReg = new Map<string, Set<string>>(); // module ids w/ summary
+    for (const s of summaries) {
+      const rk = String(s.registration);
+      if (!summaryByReg.has(rk)) summaryByReg.set(rk, new Set());
+      summaryByReg.get(rk)!.add(String(s.module));
+    }
 
     const recipients: Array<{
       email: string;
       firstName: string;
-      started: boolean;
-      pending: string[];
+      modules: Array<{ title: string; started: boolean; pending: string[] }>;
     }> = [];
     for (const r of regs) {
       const email = r.attendeeInfo?.email;
       if (!email) continue;
       const rk = String(r._id);
       const done = doneByReg.get(rk) || new Set();
-      const lessonsComplete =
-        lessons.length === 0 || lessons.every((l) => done.has(String(l._id)));
-      const summaryOk = !needsSummary || summaryDone.has(rk);
-      if (lessonsComplete && summaryOk) continue; // completed → no reminder
+      const startedModules = startedLessonModuleByReg.get(rk) || new Set();
+      const summaryModules = summaryByReg.get(rk) || new Set();
 
-      const started = startedByReg.has(rk) || summaryDone.has(rk);
-      const pending = lessons
-        .filter((l) => !done.has(String(l._id)))
-        .map((l) => l.title);
-      if (needsSummary && !summaryDone.has(rk)) {
-        pending.push('Write your summary of the messages');
+      const incomplete: Array<{
+        title: string;
+        started: boolean;
+        pending: string[];
+      }> = [];
+      for (const m of targets) {
+        const mid = String(m._id);
+        const ml = lessonsByModule.get(mid) || [];
+        const needsSummary = ((m.audioMessages as any[]) || []).length > 0;
+        const lessonsComplete =
+          ml.length === 0 || ml.every((l) => done.has(String(l._id)));
+        const summaryOk = !needsSummary || summaryModules.has(mid);
+        if (lessonsComplete && summaryOk) continue; // this module is complete
+
+        const started =
+          startedModules.has(mid) || summaryModules.has(mid);
+        const pending = ml
+          .filter((l) => !done.has(String(l._id)))
+          .map((l) => l.title);
+        if (needsSummary && !summaryModules.has(mid)) {
+          pending.push('Write your summary of the messages');
+        }
+        incomplete.push({ title: m.title, started, pending });
       }
+      if (!incomplete.length) continue; // fully caught up → no reminder
       recipients.push({
         email,
         firstName: r.attendeeInfo?.firstName || 'there',
-        started,
-        pending,
+        modules: incomplete,
       });
     }
-    return { event, module: current, recipients };
+    return { event, targets, recipients };
   }
 
   private async remindCurrentModule(event: any) {
@@ -3303,9 +3329,7 @@ export class LmsService {
       try {
         const { subject, html } = this.renderModuleReminderEmail({
           firstName: r.firstName,
-          moduleTitle: batch.module.title,
-          started: r.started,
-          pending: r.pending,
+          modules: r.modules,
           portalUrl,
         });
         await this.emailProvider.sendEmail({
@@ -3323,16 +3347,17 @@ export class LmsService {
       }
     }
     this.logger.log(
-      `Module reminder "${batch.module.title}" for "${event.title}": ${sent}/${batch.recipients.length} sent.`,
+      `Module reminders for "${event.title}": ${sent}/${batch.recipients.length} sent.`,
     );
   }
 
-  /** Branded reminder email — pending lessons if started, else module title. */
+  /**
+   * Branded reminder email listing every incomplete module — pending lessons
+   * for ones they've started, "not started yet" for the rest.
+   */
   renderModuleReminderEmail(ctx: {
     firstName: string;
-    moduleTitle: string;
-    started: boolean;
-    pending: string[];
+    modules: Array<{ title: string; started: boolean; pending: string[] }>;
     portalUrl: string;
   }): { subject: string; html: string } {
     const esc = (s: string) =>
@@ -3341,21 +3366,32 @@ export class LmsService {
         (c) =>
           ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] || c,
       );
-    const { firstName, moduleTitle, started, pending, portalUrl } = ctx;
-    const subject = started
-      ? `Almost there — finish ${moduleTitle}`
-      : `A quick nudge: ${moduleTitle} is waiting`;
-    const intro = started
-      ? `You've started <strong>${esc(moduleTitle)}</strong> but haven't finished it yet. Here's what's left:`
-      : `You haven't started this week's module yet — <strong>${esc(moduleTitle)}</strong>. It only takes a little time to get going.`;
-    const list =
-      started && pending.length
-        ? `<ul style="margin:16px 0;padding-left:20px;color:#1e2340;font-size:15px;line-height:1.7">${pending
-            .map((p) => `<li>${esc(p)}</li>`)
-            .join('')}</ul>`
-        : '';
+    const { firstName, modules, portalUrl } = ctx;
+    const n = modules.length;
+    const subject =
+      n === 1
+        ? `A quick nudge: finish ${modules[0].title}`
+        : `You have ${n} modules to catch up on`;
+    const intro =
+      n === 1
+        ? `Here's what's left to complete:`
+        : `You're a little behind — here's everything still to complete, including earlier weeks:`;
+    const sections = modules
+      .map((m) => {
+        const body =
+          m.started && m.pending.length
+            ? `<ul style="margin:8px 0 0;padding-left:20px;color:#3a4066;font-size:14px;line-height:1.7">${m.pending
+                .map((p) => `<li>${esc(p)}</li>`)
+                .join('')}</ul>`
+            : `<p style="margin:6px 0 0;font-size:13px;color:#8890ac">Not started yet.</p>`;
+        return `<div style="margin:14px 0 0;padding:14px 16px;border:1px solid #eceef6;border-radius:12px;background:#fafbff">
+          <div style="font-weight:700;font-size:15px;color:#1b2559">${esc(m.title)}</div>
+          ${body}
+        </div>`;
+      })
+      .join('');
     const button = portalUrl
-      ? `<a href="${esc(portalUrl)}" style="display:inline-block;background:#1b2559;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:13px 28px;border-radius:999px">${started ? 'Continue the module →' : 'Start the module →'}</a>`
+      ? `<a href="${esc(portalUrl)}" style="display:inline-block;background:#1b2559;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:13px 28px;border-radius:999px">Go to my courses →</a>`
       : '';
     const html = `<!doctype html><html><body style="margin:0;background:#f5f6fb;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
   <div style="max-width:560px;margin:0 auto;padding:28px 20px">
@@ -3363,7 +3399,7 @@ export class LmsService {
       <div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#c79a3a">Campus Ministers in Training</div>
       <h1 style="margin:10px 0 0;font-size:22px;line-height:1.25;color:#1b2559">Hi ${esc(firstName)},</h1>
       <p style="margin:14px 0 0;font-size:15px;line-height:1.7;color:#3a4066">${intro}</p>
-      ${list}
+      ${sections}
       <div style="margin:22px 0 6px">${button}</div>
       <p style="margin:20px 0 0;font-size:13px;line-height:1.6;color:#8890ac">Have a question? Reply to this email or reach us at cmithub@gmail.com. Keep showing up — you've got this. 💪</p>
     </div>
