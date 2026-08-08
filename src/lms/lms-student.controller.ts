@@ -80,6 +80,22 @@ export class LmsStudentController {
     return this.lms.getProgress(account, eventSlug);
   }
 
+  // Top-100 leaderboard for the scope (25/page) + the caller's own rank.
+  @Get('me/leaderboard')
+  getLeaderboard(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Query('eventSlug') eventSlug?: string,
+    @Query('scope') scope?: string,
+    @Query('page') page?: string,
+  ) {
+    return this.lms.getLeaderboardForLearner(
+      account,
+      eventSlug,
+      scope === 'weekly' ? 'weekly' : 'overall',
+      page ? Number(page) : 1,
+    );
+  }
+
   @Post('me/progress')
   setProgress(
     @CurrentPortalAccount() account: PortalAccountDocument,

@@ -50,6 +50,14 @@ import {
   EventAnnouncementSchema,
 } from '../events/schemas/event-announcement.schema';
 import { Member, MemberSchema } from '../members/schemas/member.schema';
+import {
+  LeaderboardEntry,
+  LeaderboardEntrySchema,
+} from './schemas/leaderboard-entry.schema';
+import {
+  LeaderboardWeights,
+  LeaderboardWeightsSchema,
+} from './schemas/leaderboard-weights.schema';
 import { AuthModule } from '../auth/auth.module';
 import { RolesModule } from '../roles/roles.module';
 import { AiModule } from '../ai/ai.module';
@@ -80,6 +88,8 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
       { name: SessionAttendance.name, schema: SessionAttendanceSchema },
       { name: EventAnnouncement.name, schema: EventAnnouncementSchema },
       { name: Member.name, schema: MemberSchema },
+      { name: LeaderboardEntry.name, schema: LeaderboardEntrySchema },
+      { name: LeaderboardWeights.name, schema: LeaderboardWeightsSchema },
     ]),
     forwardRef(() => AuthModule),
     RolesModule,

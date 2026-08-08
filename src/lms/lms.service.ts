@@ -54,6 +54,14 @@ import {
 } from '../events/schemas/session-attendance.schema';
 import { PortalAccountDocument } from '../portal/schemas/portal-account.schema';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
+import {
+  LeaderboardEntry,
+  LeaderboardEntryDocument,
+} from './schemas/leaderboard-entry.schema';
+import {
+  LeaderboardWeights,
+  LeaderboardWeightsDocument,
+} from './schemas/leaderboard-weights.schema';
 import { AiService } from '../ai/ai.service';
 import { YoutubeService } from '../youtube/youtube.service';
 import { EmailProvider } from '../notifications/providers/email.provider';
@@ -115,6 +123,10 @@ export class LmsService {
     private readonly attendanceModel: Model<SessionAttendanceDocument>,
     @InjectModel(Member.name)
     private readonly memberModel: Model<MemberDocument>,
+    @InjectModel(LeaderboardEntry.name)
+    private readonly leaderboardModel: Model<LeaderboardEntryDocument>,
+    @InjectModel(LeaderboardWeights.name)
+    private readonly leaderboardWeightsModel: Model<LeaderboardWeightsDocument>,
     private readonly emailProvider: EmailProvider,
     private readonly templateResolver: EmailTemplateResolverService,
     private readonly zoomService: ZoomService,
@@ -4375,5 +4387,507 @@ export class LmsService {
       totalRegistrants: regs.length,
       items,
     };
+  }
+
+  // ===================== LEADERBOARD =====================
+  //
+  // Learners earn points for completed lessons, completing whole modules,
+  // passed quizzes (scaled by score) and graded sermon summaries (scaled by
+  // grade), plus a consecutive-week "streak" bonus on the all-time board.
+  // Scores are snapshotted into `leaderboardentries` (scope 'overall' | 'weekly')
+  // by a cron + on facilitator demand, so student reads are a cheap sort.
+  // Weekly window = Sunday → Saturday, Africa/Lagos.
+
+  // Africa/Lagos is a fixed UTC+1 (no DST), so a constant offset is exact.
+  private static readonly LAGOS_OFFSET_MS = 60 * 60 * 1000;
+  private static readonly WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  // Internal test accounts always kept off the board (in addition to the
+  // facilitator-managed excludedEmails list).
+  private isTestLearnerEmail(email?: string): boolean {
+    if (!email) return false;
+    return /^gthankgod(\+[^@]+)?@gmail\.com$/i.test(email.trim());
+  }
+
+  // Index of the Sun–Sat week a timestamp falls in (weeks since Unix epoch in
+  // Lagos time). Used both to bucket "this week" and to measure streaks.
+  private lagosWeekIndex(d: Date): number {
+    const shifted = d.getTime() + LmsService.LAGOS_OFFSET_MS;
+    // Unix epoch (1970-01-01) was a Thursday; shift so weeks start on Sunday.
+    return Math.floor((shifted + 4 * 24 * 60 * 60 * 1000) / LmsService.WEEK_MS);
+  }
+
+  // Start (UTC instant) of the current Sun 00:00 Africa/Lagos window.
+  private currentWeekStart(now = new Date()): Date {
+    const idx = this.lagosWeekIndex(now);
+    const startShifted =
+      idx * LmsService.WEEK_MS - 4 * 24 * 60 * 60 * 1000;
+    return new Date(startShifted - LmsService.LAGOS_OFFSET_MS);
+  }
+
+  private async getOrCreateWeights(
+    eventOid: Types.ObjectId,
+  ): Promise<LeaderboardWeightsDocument> {
+    let w = await this.leaderboardWeightsModel.findOne({ event: eventOid });
+    if (!w) {
+      w = await this.leaderboardWeightsModel.create({ event: eventOid });
+    }
+    return w;
+  }
+
+  /**
+   * Recompute + persist both leaderboard snapshots for an event. Idempotent:
+   * wipes and rewrites the event's rows. Returns a small summary.
+   */
+  async recomputeLeaderboard(eventId: string) {
+    const eventOid = new Types.ObjectId(eventId);
+    const weights = await this.getOrCreateWeights(eventOid);
+    const excluded = new Set(
+      (weights.excludedEmails || []).map((e) => e.trim().toLowerCase()),
+    );
+
+    const [regs, modules, lessons, progresses, attempts, summaries] =
+      await Promise.all([
+        this.registrationModel
+          .find({ event: eventOid, admissionStatus: 'accepted' })
+          .lean(),
+        this.moduleModel
+          .find({ event: eventOid, status: 'published' })
+          .select('_id')
+          .lean(),
+        this.lessonModel
+          .find({
+            event: eventOid,
+            status: 'published',
+            isSessionRecording: { $ne: true },
+            excludeFromCompletion: { $ne: true },
+          })
+          .select('_id module')
+          .lean(),
+        this.progressModel
+          .find({ event: eventOid, status: 'completed' })
+          .select('registration lesson completedAt')
+          .lean(),
+        this.quizAttemptModel
+          .find({ event: eventOid, passed: true })
+          .select('registration score updatedAt')
+          .lean(),
+        this.sermonSummaryModel
+          .find({ event: eventOid, grade: { $ne: null } })
+          .select('registration grade gradedAt')
+          .lean(),
+      ]);
+
+    // Countable lessons + module membership.
+    const countableLesson = new Set(lessons.map((l) => String(l._id)));
+    const lessonToModule: Record<string, string> = {};
+    const moduleLessonCount: Record<string, number> = {};
+    for (const l of lessons) {
+      lessonToModule[String(l._id)] = String(l.module);
+      const m = String(l.module);
+      moduleLessonCount[m] = (moduleLessonCount[m] || 0) + 1;
+    }
+    // Only modules that are published AND have at least one countable lesson.
+    const publishedModules = new Set(modules.map((m) => String(m._id)));
+
+    const now = new Date();
+    const currentWeek = this.lagosWeekIndex(now);
+    const weekStart = this.currentWeekStart(now);
+    const w = {
+      perLesson: weights.perLesson,
+      perModule: weights.perModule,
+      quizMax: weights.quizMax,
+      summaryMax: weights.summaryMax,
+      streakBonusPerWeek: weights.streakBonusPerWeek,
+    };
+
+    // Per-learner accumulators.
+    type Acc = {
+      lessons: number;
+      modules: number;
+      quizzes: number;
+      summaries: number;
+      wLessons: number;
+      wModules: number;
+      wQuizzes: number;
+      wSummaries: number;
+      completedInModule: Record<string, number>;
+      moduleDoneAt: Record<string, number>; // module -> max completedAt ms
+      activeWeeks: Set<number>;
+      lastActivity: number;
+    };
+    const acc: Record<string, Acc> = {};
+    const ensure = (k: string): Acc =>
+      (acc[k] ||= {
+        lessons: 0,
+        modules: 0,
+        quizzes: 0,
+        summaries: 0,
+        wLessons: 0,
+        wModules: 0,
+        wQuizzes: 0,
+        wSummaries: 0,
+        completedInModule: {},
+        moduleDoneAt: {},
+        activeWeeks: new Set<number>(),
+        lastActivity: 0,
+      });
+    const touch = (a: Acc, ts?: Date) => {
+      if (!ts) return;
+      const ms = new Date(ts).getTime();
+      a.activeWeeks.add(this.lagosWeekIndex(new Date(ms)));
+      if (ms > a.lastActivity) a.lastActivity = ms;
+    };
+    const inThisWeek = (ts?: Date) =>
+      !!ts && this.lagosWeekIndex(new Date(ts)) === currentWeek;
+
+    // Lessons.
+    for (const p of progresses) {
+      const lid = String(p.lesson);
+      if (!countableLesson.has(lid)) continue;
+      const a = ensure(String(p.registration));
+      a.lessons += w.perLesson;
+      touch(a, p.completedAt);
+      if (inThisWeek(p.completedAt)) a.wLessons += w.perLesson;
+      const mod = lessonToModule[lid];
+      if (mod) {
+        a.completedInModule[mod] = (a.completedInModule[mod] || 0) + 1;
+        const ms = p.completedAt ? new Date(p.completedAt).getTime() : 0;
+        if (ms > (a.moduleDoneAt[mod] || 0)) a.moduleDoneAt[mod] = ms;
+      }
+    }
+    // Module-completion bonuses (all countable lessons in a published module).
+    for (const k of Object.keys(acc)) {
+      const a = acc[k];
+      for (const mod of Object.keys(a.completedInModule)) {
+        if (!publishedModules.has(mod)) continue;
+        const need = moduleLessonCount[mod] || 0;
+        if (need > 0 && a.completedInModule[mod] >= need) {
+          a.modules += w.perModule;
+          const doneMs = a.moduleDoneAt[mod] || 0;
+          if (doneMs && this.lagosWeekIndex(new Date(doneMs)) === currentWeek)
+            a.wModules += w.perModule;
+        }
+      }
+    }
+    // Quizzes (scaled by percent score).
+    for (const q of attempts) {
+      const a = ensure(String(q.registration));
+      const pts = Math.round((w.quizMax * (q.score || 0)) / 100);
+      a.quizzes += pts;
+      touch(a, (q as any).updatedAt);
+      if (inThisWeek((q as any).updatedAt)) a.wQuizzes += pts;
+    }
+    // Sermon summaries (scaled by grade).
+    for (const s of summaries) {
+      const a = ensure(String(s.registration));
+      const pts = Math.round((w.summaryMax * (s.grade || 0)) / 100);
+      a.summaries += pts;
+      touch(a, s.gradedAt);
+      if (inThisWeek(s.gradedAt)) a.wSummaries += pts;
+    }
+
+    // Consecutive-week streak ending at the current or immediately prior week
+    // (so a learner mid-week who hasn't acted yet keeps last week's streak).
+    const streakWeeks = (a: Acc): number => {
+      if (!a.activeWeeks.size) return 0;
+      let anchor = a.activeWeeks.has(currentWeek)
+        ? currentWeek
+        : a.activeWeeks.has(currentWeek - 1)
+          ? currentWeek - 1
+          : -1;
+      if (anchor < 0) return 0;
+      let n = 0;
+      while (a.activeWeeks.has(anchor)) {
+        n += 1;
+        anchor -= 1;
+      }
+      return n;
+    };
+
+    // Build rows keyed by registration, with denormalised name/studentId.
+    const regInfo: Record<string, { name: string; studentId?: string }> = {};
+    for (const r of regs) {
+      const email = (r.attendeeInfo?.email || '').trim().toLowerCase();
+      if (excluded.has(email) || this.isTestLearnerEmail(email)) continue;
+      regInfo[String(r._id)] = {
+        name: `${r.attendeeInfo?.firstName || ''} ${r.attendeeInfo?.lastName || ''}`.trim(),
+        studentId: (r as any).studentId,
+      };
+    }
+
+    const buildRows = (scope: 'overall' | 'weekly') => {
+      const rows = Object.keys(regInfo)
+        .map((k) => {
+          const a = acc[k];
+          const info = regInfo[k];
+          if (!a) return null;
+          const streak = streakWeeks(a);
+          const streakPts =
+            scope === 'overall' ? streak * w.streakBonusPerWeek : 0;
+          const breakdown =
+            scope === 'overall'
+              ? {
+                  lessons: a.lessons,
+                  modules: a.modules,
+                  quizzes: a.quizzes,
+                  summaries: a.summaries,
+                  streak: streakPts,
+                }
+              : {
+                  lessons: a.wLessons,
+                  modules: a.wModules,
+                  quizzes: a.wQuizzes,
+                  summaries: a.wSummaries,
+                  streak: 0,
+                };
+          const points =
+            breakdown.lessons +
+            breakdown.modules +
+            breakdown.quizzes +
+            breakdown.summaries +
+            breakdown.streak;
+          return {
+            registration: new Types.ObjectId(k),
+            name: info.name,
+            studentId: info.studentId,
+            points,
+            breakdown,
+            streakWeeks: streak,
+            lastActivityAt: a.lastActivity ? new Date(a.lastActivity) : undefined,
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => !!r && r.points > 0);
+
+      // Rank: points desc, tie-break earliest-to-reach (earlier last activity).
+      rows.sort(
+        (x, y) =>
+          y.points - x.points ||
+          (x.lastActivityAt?.getTime() || Infinity) -
+            (y.lastActivityAt?.getTime() || Infinity),
+      );
+      return rows.map((r, i) => ({
+        ...r,
+        event: eventOid,
+        scope,
+        weekStart: scope === 'weekly' ? weekStart : undefined,
+        rank: i + 1,
+        computedAt: now,
+      }));
+    };
+
+    const overallRows = buildRows('overall');
+    const weeklyRows = buildRows('weekly');
+
+    // Replace the event's snapshot atomically-enough (wipe + reinsert).
+    await this.leaderboardModel.deleteMany({ event: eventOid });
+    if (overallRows.length)
+      await this.leaderboardModel.insertMany(overallRows, { ordered: false });
+    if (weeklyRows.length)
+      await this.leaderboardModel.insertMany(weeklyRows, { ordered: false });
+
+    return {
+      event: eventId,
+      overall: overallRows.length,
+      weekly: weeklyRows.length,
+      weekStart,
+      computedAt: now,
+    };
+  }
+
+  /** Recompute every event that has a published module. Cron + admin trigger. */
+  async recomputeAllLeaderboards() {
+    const eventIds = await this.moduleModel.distinct('event', {
+      status: 'published',
+    });
+    for (const id of eventIds) {
+      try {
+        await this.recomputeLeaderboard(String(id));
+      } catch (err) {
+        this.logger.error(
+          `Leaderboard recompute failed for event ${String(id)}: ${(err as Error).message}`,
+        );
+      }
+    }
+    return { events: eventIds.length };
+  }
+
+  // Refresh snapshots a few times a day; the weekly board naturally rolls to
+  // the new Sun–Sat window on the first run after the boundary.
+  @Cron('0 20 */4 * * *', { timeZone: 'Africa/Lagos' })
+  async leaderboardCron() {
+    await this.recomputeAllLeaderboards();
+  }
+
+  private shapeEntry(e: any) {
+    return {
+      rank: e.rank,
+      name: e.name,
+      studentId: e.studentId,
+      points: e.points,
+      breakdown: e.breakdown,
+      streakWeeks: e.streakWeeks,
+    };
+  }
+
+  /**
+   * Student-facing board: top 100 for the scope (paginated 25/page) plus the
+   * caller's own rank + breakdown, even when they're outside the top 100.
+   */
+  async getLeaderboardForLearner(
+    account: PortalAccountDocument,
+    eventSlug?: string,
+    scope: 'overall' | 'weekly' = 'overall',
+    page = 1,
+  ) {
+    const { event, registration } = await this.resolveLearner(
+      account,
+      eventSlug,
+    );
+    const safeScope = scope === 'weekly' ? 'weekly' : 'overall';
+
+    // Cold start: populate on first ever view for this event.
+    const any = await this.leaderboardModel.exists({ event: event._id });
+    if (!any) await this.recomputeLeaderboard(String(event._id));
+
+    const PAGE_SIZE = 25;
+    const PUBLIC_CAP = 100;
+    const safePage = Math.max(1, Math.min(4, Number(page) || 1));
+    const skip = (safePage - 1) * PAGE_SIZE;
+    const remainingCap = Math.max(0, PUBLIC_CAP - skip);
+    const take = Math.min(PAGE_SIZE, remainingCap);
+
+    const [rankedTotal, entries, mine] = await Promise.all([
+      this.leaderboardModel.countDocuments({
+        event: event._id,
+        scope: safeScope,
+      }),
+      take > 0
+        ? this.leaderboardModel
+            .find({ event: event._id, scope: safeScope })
+            .sort({ rank: 1 })
+            .skip(skip)
+            .limit(take)
+            .lean()
+        : Promise.resolve([]),
+      this.leaderboardModel
+        .findOne({
+          event: event._id,
+          scope: safeScope,
+          registration: registration._id,
+        })
+        .lean(),
+    ]);
+
+    const shownTotal = Math.min(rankedTotal, PUBLIC_CAP);
+    return {
+      scope: safeScope,
+      page: safePage,
+      pageSize: PAGE_SIZE,
+      total: shownTotal,
+      totalRanked: rankedTotal,
+      totalPages: Math.max(1, Math.ceil(shownTotal / PAGE_SIZE)),
+      weekStart: safeScope === 'weekly' ? this.currentWeekStart() : undefined,
+      entries: entries.map((e) => ({
+        ...this.shapeEntry(e),
+        isMe: mine ? String(e.registration) === String(registration._id) : false,
+      })),
+      me: mine
+        ? { ...this.shapeEntry(mine), inTop100: mine.rank <= PUBLIC_CAP }
+        : {
+            rank: null,
+            points: 0,
+            breakdown: { lessons: 0, modules: 0, quizzes: 0, summaries: 0, streak: 0 },
+            streakWeeks: 0,
+            inTop100: false,
+          },
+    };
+  }
+
+  /** Facilitator board: the FULL ranked list, paginated, no top-100 cap. */
+  async getLeaderboardForFacilitator(
+    eventId: string,
+    opts: { scope?: 'overall' | 'weekly'; page?: number; limit?: number } = {},
+  ) {
+    await this.assertEvent(eventId);
+    const eventOid = new Types.ObjectId(eventId);
+    const scope = opts.scope === 'weekly' ? 'weekly' : 'overall';
+    const page = Math.max(1, Number(opts.page) || 1);
+    const limit = Math.min(200, Math.max(1, Number(opts.limit) || 25));
+
+    const any = await this.leaderboardModel.exists({ event: eventOid });
+    if (!any) await this.recomputeLeaderboard(eventId);
+
+    const [total, entries, sample] = await Promise.all([
+      this.leaderboardModel.countDocuments({ event: eventOid, scope }),
+      this.leaderboardModel
+        .find({ event: eventOid, scope })
+        .sort({ rank: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      this.leaderboardModel
+        .findOne({ event: eventOid, scope })
+        .select('computedAt')
+        .lean(),
+    ]);
+
+    return {
+      scope,
+      page,
+      pageSize: limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      computedAt: sample?.computedAt || null,
+      entries: entries.map((e) => this.shapeEntry(e)),
+    };
+  }
+
+  async getLeaderboardWeights(eventId: string) {
+    await this.assertEvent(eventId);
+    const w = await this.getOrCreateWeights(new Types.ObjectId(eventId));
+    return {
+      perLesson: w.perLesson,
+      perModule: w.perModule,
+      quizMax: w.quizMax,
+      summaryMax: w.summaryMax,
+      streakBonusPerWeek: w.streakBonusPerWeek,
+      excludedEmails: w.excludedEmails || [],
+    };
+  }
+
+  async updateLeaderboardWeights(
+    eventId: string,
+    dto: {
+      perLesson?: number;
+      perModule?: number;
+      quizMax?: number;
+      summaryMax?: number;
+      streakBonusPerWeek?: number;
+      excludedEmails?: string[];
+    },
+  ) {
+    await this.assertEvent(eventId);
+    const eventOid = new Types.ObjectId(eventId);
+    const w = await this.getOrCreateWeights(eventOid);
+    const num = (v: any, fallback: number) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 ? n : fallback;
+    };
+    if (dto.perLesson !== undefined) w.perLesson = num(dto.perLesson, w.perLesson);
+    if (dto.perModule !== undefined) w.perModule = num(dto.perModule, w.perModule);
+    if (dto.quizMax !== undefined) w.quizMax = num(dto.quizMax, w.quizMax);
+    if (dto.summaryMax !== undefined)
+      w.summaryMax = num(dto.summaryMax, w.summaryMax);
+    if (dto.streakBonusPerWeek !== undefined)
+      w.streakBonusPerWeek = num(dto.streakBonusPerWeek, w.streakBonusPerWeek);
+    if (Array.isArray(dto.excludedEmails))
+      w.excludedEmails = dto.excludedEmails
+        .map((e) => String(e).trim().toLowerCase())
+        .filter(Boolean);
+    await w.save();
+    // Reflect new weights immediately.
+    await this.recomputeLeaderboard(eventId);
+    return this.getLeaderboardWeights(eventId);
   }
 }

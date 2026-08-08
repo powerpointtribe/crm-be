@@ -69,6 +69,51 @@ export class LmsFacilitatorController {
     });
   }
 
+  // ---- Leaderboard ----
+  @Get('events/:eventId/leaderboard')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  leaderboard(
+    @Param('eventId') eventId: string,
+    @Query('scope') scope?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.lms.getLeaderboardForFacilitator(eventId, {
+      scope: scope === 'weekly' ? 'weekly' : 'overall',
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('events/:eventId/leaderboard/weights')
+  @RequirePermission(EventsPermission.VIEW_EVENT_DETAILS)
+  leaderboardWeights(@Param('eventId') eventId: string) {
+    return this.lms.getLeaderboardWeights(eventId);
+  }
+
+  @Put('events/:eventId/leaderboard/weights')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  saveLeaderboardWeights(
+    @Param('eventId') eventId: string,
+    @Body()
+    dto: {
+      perLesson?: number;
+      perModule?: number;
+      quizMax?: number;
+      summaryMax?: number;
+      streakBonusPerWeek?: number;
+      excludedEmails?: string[];
+    },
+  ) {
+    return this.lms.updateLeaderboardWeights(eventId, dto);
+  }
+
+  @Post('events/:eventId/leaderboard/recompute')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  recomputeLeaderboard(@Param('eventId') eventId: string) {
+    return this.lms.recomputeLeaderboard(eventId);
+  }
+
   @Get('events/:eventId/flagged-attendance')
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
   flaggedAttendance(@Param('eventId') eventId: string) {
