@@ -215,6 +215,20 @@ export class LmsFacilitatorController {
     );
   }
 
+  // Bulk-mark every learner who watched a session ≥ minMinutes as present.
+  @Post('events/:eventId/attendance/sessions/:sessionId/mark-present')
+  @RequirePermission(EventsPermission.CHECK_IN)
+  bulkMarkPresent(
+    @Param('eventId') eventId: string,
+    @Param('sessionId') sessionId: string,
+    @Body() dto: { minMinutes?: number; field?: 'attended' | 'live' },
+  ) {
+    return this.lms.bulkMarkPresentByWatchTime(eventId, sessionId, {
+      minMinutes: dto?.minMinutes,
+      field: dto?.field,
+    });
+  }
+
   // Per-session attendance detail — each learner's watch-time, replays, status.
   @Get('events/:eventId/attendance/sessions/:sessionId')
   @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)

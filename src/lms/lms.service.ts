@@ -51,6 +51,7 @@ import {
 import {
   SessionAttendance,
   SessionAttendanceDocument,
+  SessionAttendanceStatus,
 } from '../events/schemas/session-attendance.schema';
 import { PortalAccountDocument } from '../portal/schemas/portal-account.schema';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
@@ -4323,6 +4324,57 @@ export class LmsService {
     return { success: true, status };
   }
 
+  /**
+   * Bulk-mark every learner who watched a session for at least `minMinutes` as
+   * present. `field` picks the watch-time source: 'attended' = total watch-time
+   * (live + replay, the platform total), 'live' = only the live-window minutes.
+   * Marked rows are set statusManual so the automated writers won't revert them.
+   */
+  async bulkMarkPresentByWatchTime(
+    eventId: string,
+    sessionId: string,
+    opts: { minMinutes?: number; field?: 'attended' | 'live' } = {},
+  ) {
+    await this.assertEvent(eventId);
+    const session = await this.sessionModel.findOne({
+      _id: new Types.ObjectId(sessionId),
+      event: new Types.ObjectId(eventId),
+    });
+    if (!session) throw new NotFoundException('Session not found');
+
+    const minMinutes = Math.max(1, Number(opts.minMinutes) || 20);
+    const field = opts.field === 'live' ? 'liveMinutes' : 'attendedMinutes';
+
+    const res = await this.attendanceModel.updateMany(
+      {
+        session: session._id,
+        [field]: { $gte: minMinutes },
+        // Don't touch those already present, or deliberately excused.
+        status: {
+          $nin: [
+            SessionAttendanceStatus.PRESENT,
+            SessionAttendanceStatus.EXCUSED,
+          ],
+        },
+      },
+      {
+        $set: {
+          status: SessionAttendanceStatus.PRESENT,
+          watched: true,
+          statusManual: true,
+          statusManualAt: new Date(),
+        },
+      },
+    );
+
+    return {
+      success: true,
+      minMinutes,
+      field,
+      updated: res.modifiedCount ?? 0,
+    };
+  }
+
   async getSessionAttendanceDetail(eventId: string, sessionId: string) {
     await this.assertEvent(eventId);
     const session = await this.sessionModel.findOne({
@@ -4407,6 +4459,20 @@ export class LmsService {
   private isTestLearnerEmail(email?: string): boolean {
     if (!email) return false;
     return /^gthankgod(\+[^@]+)?@gmail\.com$/i.test(email.trim());
+  }
+
+  // Phased rollout: only these learners can open the leaderboard for now.
+  // Everyone else gets a 403 (the portal also hides the nav for them).
+  private static readonly LEADERBOARD_ALLOWLIST = new Set([
+    'gthankgod+19@gmail.com',
+    'damioguntunde@gmail.com',
+    'nonsoorji67@gmail.com',
+    'abigail.tolusanya@gmail.com',
+  ]);
+
+  private canViewLeaderboard(email?: string): boolean {
+    if (!email) return false;
+    return LmsService.LEADERBOARD_ALLOWLIST.has(email.trim().toLowerCase());
   }
 
   // Index of the Sun–Sat week a timestamp falls in (weeks since Unix epoch in
@@ -4744,6 +4810,11 @@ export class LmsService {
       account,
       eventSlug,
     );
+    if (!this.canViewLeaderboard(account.email)) {
+      throw new ForbiddenException(
+        'The leaderboard is not available for your account yet.',
+      );
+    }
     const safeScope = scope === 'weekly' ? 'weekly' : 'overall';
 
     // Cold start: populate on first ever view for this event.
