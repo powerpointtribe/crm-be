@@ -161,6 +161,16 @@ export class LmsFacilitatorController {
     return this.lms.gradeSermonSummary(summaryId, dto?.grade, dto?.feedback);
   }
 
+  // Bulk-grade a module's summaries from a re-uploaded CSV (parsed client-side).
+  @Post('modules/:moduleId/sermon-summaries/grade-bulk')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  bulkGradeSermonSummaries(
+    @Param('moduleId') moduleId: string,
+    @Body() dto: { grades: Array<{ id?: string; grade?: number; feedback?: string }> },
+  ) {
+    return this.lms.bulkGradeSermonSummaries(moduleId, dto?.grades || []);
+  }
+
   // ── Q&A community feed (facilitator authoring) ────────────────────────────
 
   @Get('events/:eventId/qa')

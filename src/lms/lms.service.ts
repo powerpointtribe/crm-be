@@ -367,6 +367,73 @@ export class LmsService {
     return { success: true };
   }
 
+  /**
+   * Bulk-grade a module's sermon summaries from a re-uploaded CSV. Each row is
+   * matched by summary id; rows with a valid 0–100 grade are applied (feedback
+   * optional). Invalid/blank grades are skipped and reported.
+   */
+  async bulkGradeSermonSummaries(
+    moduleId: string,
+    grades: Array<{ id?: string; grade?: any; feedback?: string }>,
+  ) {
+    const mod = await this.moduleModel.findById(moduleId).lean();
+    if (!mod) throw new NotFoundException('Module not found');
+    if (!Array.isArray(grades)) {
+      throw new BadRequestException('Expected a list of grades.');
+    }
+
+    // Only touch summaries that belong to this module.
+    const owned = new Set(
+      (
+        await this.sermonSummaryModel
+          .find({ module: mod._id })
+          .select('_id')
+          .lean()
+      ).map((s) => String(s._id)),
+    );
+
+    const now = new Date();
+    let updated = 0;
+    const skipped: Array<{ id?: string; reason: string }> = [];
+    const ops: any[] = [];
+
+    for (const row of grades) {
+      const id = (row?.id || '').trim();
+      if (!id) {
+        skipped.push({ id: row?.id, reason: 'missing id' });
+        continue;
+      }
+      if (!owned.has(id)) {
+        skipped.push({ id, reason: 'not in this module' });
+        continue;
+      }
+      const hasGrade =
+        row.grade !== undefined && row.grade !== null && `${row.grade}`.trim() !== '';
+      const hasFeedback = row.feedback !== undefined;
+      if (!hasGrade && !hasFeedback) {
+        skipped.push({ id, reason: 'no grade' });
+        continue;
+      }
+      const set: any = { gradedAt: now };
+      if (hasGrade) {
+        const g = Number(row.grade);
+        if (!Number.isFinite(g) || g < 0 || g > 100) {
+          skipped.push({ id, reason: `invalid grade "${row.grade}"` });
+          continue;
+        }
+        set.grade = Math.round(g);
+      }
+      if (hasFeedback) set.feedback = (row.feedback || '').trim();
+      ops.push({
+        updateOne: { filter: { _id: new Types.ObjectId(id) }, update: { $set: set } },
+      });
+      updated += 1;
+    }
+
+    if (ops.length) await this.sermonSummaryModel.bulkWrite(ops, { ordered: false });
+    return { updated, skipped: skipped.length, skippedRows: skipped };
+  }
+
   // ===================== Q&A community feed ====================================
   //
   //  Facilitators publish a week's questions + answers (text or audio). Learners
