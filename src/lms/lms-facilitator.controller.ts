@@ -152,6 +152,13 @@ export class LmsFacilitatorController {
     return this.lms.listModuleSermonSummaries(moduleId);
   }
 
+  // Every learner's written reflection for a lesson.
+  @Get('lessons/:lessonId/reflections')
+  @RequirePermission(EventsPermission.VIEW_REGISTRATIONS)
+  lessonReflections(@Param('lessonId') lessonId: string) {
+    return this.lms.getLessonReflections(lessonId);
+  }
+
   @Patch('sermon-summaries/:summaryId/grade')
   @RequirePermission(EventsPermission.UPDATE_EVENT)
   gradeSermonSummary(

@@ -343,6 +343,51 @@ export class LmsService {
     };
   }
 
+  /** Facilitator: every learner's written reflection for one lesson. */
+  async getLessonReflections(lessonId: string) {
+    const lesson = await this.lessonModel
+      .findById(lessonId)
+      .select('title reflectionPrompt')
+      .lean();
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    const progresses = await this.progressModel
+      .find({ lesson: lesson._id, reflection: { $nin: [null, ''] } })
+      .select('registration reflection updatedAt')
+      .lean();
+    const regIds = progresses.map((p) => p.registration);
+    const regs = await this.registrationModel
+      .find({ _id: { $in: regIds } })
+      .select('attendeeInfo')
+      .lean();
+    const byId = new Map(regs.map((r) => [String(r._id), r]));
+
+    const items = progresses
+      .map((p) => {
+        const r = byId.get(String(p.registration));
+        const name =
+          `${r?.attendeeInfo?.firstName || ''} ${r?.attendeeInfo?.lastName || ''}`.trim();
+        return {
+          student: name || r?.attendeeInfo?.email || 'Unknown',
+          email: r?.attendeeInfo?.email || null,
+          content: (p.reflection || '').trim(),
+          updatedAt: (p as any).updatedAt || null,
+        };
+      })
+      .filter((i) => i.content)
+      .sort((a, b) => a.student.localeCompare(b.student));
+
+    return {
+      lesson: {
+        id: String(lesson._id),
+        title: lesson.title,
+        prompt: (lesson as any).reflectionPrompt || '',
+      },
+      total: items.length,
+      items,
+    };
+  }
+
   /** Facilitator: grade a learner's sermon summary (0–100) + optional feedback. */
   async gradeSermonSummary(
     summaryId: string,
