@@ -171,6 +171,13 @@ export class EventsController {
     return event;
   }
 
+  // Public read-only Q&A feed for the cohort's marketing site (no api key).
+  @Get('public/:slug/qa')
+  @Public()
+  getPublicQa(@Param('slug') slug: string) {
+    return this.eventsService.getPublicQaFeed(slug);
+  }
+
   @Get('public/:slug')
   @Public()
   async getPublicEvent(

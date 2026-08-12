@@ -778,6 +778,11 @@ export class EventsService {
    * set-password invite is decoupled — an admin sends it later, manually, via
    * `sendPortalInvite` / `sendPortalInvitesToAllAccepted`.
    */
+  /** Public (unauthenticated) Q&A feed for a cohort's marketing page. */
+  getPublicQaFeed(slug: string) {
+    return this.lmsService.getPublicQaFeed(slug);
+  }
+
   async setAdmission(
     eventId: string,
     registrationId: string,

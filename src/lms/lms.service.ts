@@ -575,6 +575,27 @@ export class LmsService {
     };
   }
 
+  /**
+   * Public (unauthenticated) Q&A feed for a cohort — every published answer,
+   * newest first. Read-only; no per-viewer reaction state. Callers (the public
+   * marketing page) hide the section entirely when `items` is empty.
+   */
+  async getPublicQaFeed(eventSlug?: string) {
+    const event = await this.eventModel
+      .findOne({ registrationSlug: eventSlug || 'cmit-cohort-1' })
+      .select('_id')
+      .lean();
+    if (!event) return { supportEmail: 'cmithub@gmail.com', items: [] };
+    const posts = await this.qaPostModel
+      .find({ event: event._id })
+      .sort({ createdAt: -1 })
+      .lean();
+    return {
+      supportEmail: 'cmithub@gmail.com',
+      items: posts.map((p) => this.shapeQaPost(p)),
+    };
+  }
+
   async reactToQaPost(
     account: PortalAccountDocument,
     postId: string,
