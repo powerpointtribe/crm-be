@@ -2966,12 +2966,14 @@ export class LmsService {
   //  Nudge registrants who started but haven't submitted their application.
   //  One reminder per registrant per interval (APPLICATION_REMINDER_INTERVAL_DAYS,
   //  default 4 days), capped at APPLICATION_REMINDER_MAX (default 6). The first
-  //  reminder fires `interval` days after they registered. Set
-  //  APPLICATION_REMINDER_ENABLED=false to switch it off.
+  //  reminder fires `interval` days after they registered. Paused by default —
+  //  set APPLICATION_REMINDER_ENABLED=true to switch it back on.
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async sendApplicationReminders() {
-    if (process.env.APPLICATION_REMINDER_ENABLED === 'false') return;
+    // Opt-in only: these "finish your application" nudges are off unless
+    // explicitly enabled, so incomplete-registration reminders stay stopped.
+    if (process.env.APPLICATION_REMINDER_ENABLED !== 'true') return;
     const intervalDays =
       Number(process.env.APPLICATION_REMINDER_INTERVAL_DAYS) || 4;
     const maxReminders = Number(process.env.APPLICATION_REMINDER_MAX) || 6;
