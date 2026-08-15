@@ -4716,6 +4716,10 @@ export class LmsService {
       moduleDoneAt: Record<string, number>; // module -> max completedAt ms
       activeWeeks: Set<number>;
       lastActivity: number;
+      // When the learner finished their module content (max lesson completedAt).
+      // Used ONLY for tie-breaking: earlier finisher ranks higher. Excludes quiz
+      // and facilitator-grading timestamps, which aren't "finishing a module".
+      finishedAt: number;
     };
     const acc: Record<string, Acc> = {};
     const ensure = (k: string): Acc =>
@@ -4732,6 +4736,7 @@ export class LmsService {
         moduleDoneAt: {},
         activeWeeks: new Set<number>(),
         lastActivity: 0,
+        finishedAt: 0,
       });
     const touch = (a: Acc, ts?: Date) => {
       if (!ts) return;
@@ -4750,11 +4755,12 @@ export class LmsService {
       a.lessons += w.perLesson;
       touch(a, p.completedAt);
       if (inThisWeek(p.completedAt)) a.wLessons += w.perLesson;
+      const cms = p.completedAt ? new Date(p.completedAt).getTime() : 0;
+      if (cms > a.finishedAt) a.finishedAt = cms;
       const mod = lessonToModule[lid];
       if (mod) {
         a.completedInModule[mod] = (a.completedInModule[mod] || 0) + 1;
-        const ms = p.completedAt ? new Date(p.completedAt).getTime() : 0;
-        if (ms > (a.moduleDoneAt[mod] || 0)) a.moduleDoneAt[mod] = ms;
+        if (cms > (a.moduleDoneAt[mod] || 0)) a.moduleDoneAt[mod] = cms;
       }
     }
     // Module-completion bonuses (all countable lessons in a published module).
@@ -4856,14 +4862,18 @@ export class LmsService {
             breakdown,
             streakWeeks: streak,
             lastActivityAt: a.lastActivity ? new Date(a.lastActivity) : undefined,
+            finishedAt: a.finishedAt || 0,
           };
         })
         .filter((r): r is NonNullable<typeof r> => !!r && r.points > 0);
 
-      // Rank: points desc, tie-break earliest-to-reach (earlier last activity).
+      // Rank: points desc, then TIE-BREAK by who finished their module content
+      // first — earlier last-lesson completion ranks higher. Learners with no
+      // completed lessons sort last; final fallback is overall last activity.
       rows.sort(
         (x, y) =>
           y.points - x.points ||
+          (x.finishedAt || Infinity) - (y.finishedAt || Infinity) ||
           (x.lastActivityAt?.getTime() || Infinity) -
             (y.lastActivityAt?.getTime() || Infinity),
       );
