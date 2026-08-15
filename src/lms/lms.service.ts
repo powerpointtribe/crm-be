@@ -4997,11 +4997,6 @@ export class LmsService {
       account,
       eventSlug,
     );
-    if (!this.canViewLeaderboard(account.email)) {
-      throw new ForbiddenException(
-        'The leaderboard is not available for your account yet.',
-      );
-    }
     const safeScope = scope === 'weekly' ? 'weekly' : 'overall';
 
     // Cold start: populate on first ever view for this event.
