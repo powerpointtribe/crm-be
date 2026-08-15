@@ -63,6 +63,10 @@ export class LeaderboardEntry {
   @Prop({ type: Number, default: 0 })
   streakWeeks: number;
 
+  // Count of fully-completed published modules (for the shareable card).
+  @Prop({ type: Number, default: 0 })
+  modulesCompleted: number;
+
   @Prop({ type: Number, default: 0 })
   rank: number;
 

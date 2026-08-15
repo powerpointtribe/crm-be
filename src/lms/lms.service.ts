@@ -4589,11 +4589,29 @@ export class LmsService {
   private static readonly LAGOS_OFFSET_MS = 60 * 60 * 1000;
   private static readonly WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-  // Internal test accounts always kept off the board (in addition to the
-  // facilitator-managed excludedEmails list).
-  private isTestLearnerEmail(email?: string): boolean {
-    if (!email) return false;
-    return /^gthankgod(\+[^@]+)?@gmail\.com$/i.test(email.trim());
+  // Facilitators (the event's committee + organizer) are excluded from the
+  // rankings — they can view/manage the board but never compete on it. Returns
+  // their lowercased emails so the recompute can drop matching registrations.
+  private async getFacilitatorEmails(
+    eventOid: Types.ObjectId,
+  ): Promise<string[]> {
+    const ev = await this.eventModel
+      .findById(eventOid)
+      .select('committee organizer')
+      .lean();
+    if (!ev) return [];
+    const ids = [
+      ...(((ev as any).committee || []).map((c: any) => c.member)),
+      (ev as any).organizer,
+    ].filter(Boolean);
+    if (!ids.length) return [];
+    const members = await this.memberModel
+      .find({ _id: { $in: ids } })
+      .select('email')
+      .lean();
+    return members
+      .map((m) => String((m as any).email || '').trim().toLowerCase())
+      .filter(Boolean);
   }
 
   // Phased rollout: only these learners can open the leaderboard for now.
@@ -4646,6 +4664,10 @@ export class LmsService {
     const excluded = new Set(
       (weights.excludedEmails || []).map((e) => e.trim().toLowerCase()),
     );
+    // Facilitators (committee + organizer) never appear on the board.
+    for (const email of await this.getFacilitatorEmails(eventOid)) {
+      excluded.add(email);
+    }
 
     const [regs, modules, lessons, progresses, attempts, summaries] =
       await Promise.all([
@@ -4714,6 +4736,7 @@ export class LmsService {
       wSummaries: number;
       completedInModule: Record<string, number>;
       moduleDoneAt: Record<string, number>; // module -> max completedAt ms
+      modulesDone: number; // count of fully-completed published modules
       activeWeeks: Set<number>;
       lastActivity: number;
       // When the learner finished their module content (max lesson completedAt).
@@ -4734,6 +4757,7 @@ export class LmsService {
         wSummaries: 0,
         completedInModule: {},
         moduleDoneAt: {},
+        modulesDone: 0,
         activeWeeks: new Set<number>(),
         lastActivity: 0,
         finishedAt: 0,
@@ -4771,6 +4795,7 @@ export class LmsService {
         const need = moduleLessonCount[mod] || 0;
         if (need > 0 && a.completedInModule[mod] >= need) {
           a.modules += w.perModule;
+          a.modulesDone += 1;
           const doneMs = a.moduleDoneAt[mod] || 0;
           if (doneMs && this.lagosWeekIndex(new Date(doneMs)) === currentWeek)
             a.wModules += w.perModule;
@@ -4816,7 +4841,7 @@ export class LmsService {
     const regInfo: Record<string, { name: string; studentId?: string }> = {};
     for (const r of regs) {
       const email = (r.attendeeInfo?.email || '').trim().toLowerCase();
-      if (excluded.has(email) || this.isTestLearnerEmail(email)) continue;
+      if (excluded.has(email)) continue;
       regInfo[String(r._id)] = {
         name: `${r.attendeeInfo?.firstName || ''} ${r.attendeeInfo?.lastName || ''}`.trim(),
         studentId: (r as any).studentId,
@@ -4861,6 +4886,7 @@ export class LmsService {
             points,
             breakdown,
             streakWeeks: streak,
+            modulesCompleted: a.modulesDone,
             lastActivityAt: a.lastActivity ? new Date(a.lastActivity) : undefined,
             finishedAt: a.finishedAt || 0,
           };
@@ -4938,6 +4964,7 @@ export class LmsService {
       points: e.points,
       breakdown: e.breakdown,
       streakWeeks: e.streakWeeks,
+      modulesCompleted: e.modulesCompleted || 0,
     };
   }
 
@@ -5015,6 +5042,7 @@ export class LmsService {
             points: 0,
             breakdown: { lessons: 0, modules: 0, quizzes: 0, summaries: 0, streak: 0 },
             streakWeeks: 0,
+            modulesCompleted: 0,
             inTop100: false,
           },
     };
