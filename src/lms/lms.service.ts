@@ -5014,10 +5014,15 @@ export class LmsService {
     const remainingCap = Math.max(0, PUBLIC_CAP - skip);
     const take = Math.min(PAGE_SIZE, remainingCap);
 
-    const [rankedTotal, entries, mine] = await Promise.all([
+    const [rankedTotal, totalStudents, entries, mine] = await Promise.all([
       this.leaderboardModel.countDocuments({
         event: event._id,
         scope: safeScope,
+      }),
+      // Rank is framed against the whole accepted cohort, not just those scored.
+      this.registrationModel.countDocuments({
+        event: event._id,
+        admissionStatus: 'accepted',
       }),
       take > 0
         ? this.leaderboardModel
@@ -5043,6 +5048,7 @@ export class LmsService {
       pageSize: PAGE_SIZE,
       total: shownTotal,
       totalRanked: rankedTotal,
+      totalStudents,
       totalPages: Math.max(1, Math.ceil(shownTotal / PAGE_SIZE)),
       weekStart: safeScope === 'weekly' ? this.currentWeekStart() : undefined,
       entries: entries.map((e) => ({
