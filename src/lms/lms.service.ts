@@ -4850,7 +4850,8 @@ export class LmsService {
     const regInfo: Record<string, { name: string; studentId?: string }> = {};
     for (const r of regs) {
       const email = (r.attendeeInfo?.email || '').trim().toLowerCase();
-      if (excluded.has(email)) continue;
+      // Internal test accounts (any gthankgod* address) never rank.
+      if (excluded.has(email) || email.startsWith('gthankgod')) continue;
       regInfo[String(r._id)] = {
         name: `${r.attendeeInfo?.firstName || ''} ${r.attendeeInfo?.lastName || ''}`.trim(),
         studentId: (r as any).studentId,
