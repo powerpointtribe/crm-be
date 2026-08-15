@@ -4676,7 +4676,7 @@ export class LmsService {
           .lean(),
         this.moduleModel
           .find({ event: eventOid, status: 'published' })
-          .select('_id')
+          .select('_id title order')
           .lean(),
         this.lessonModel
           .find({
@@ -4712,6 +4712,12 @@ export class LmsService {
     }
     // Only modules that are published AND have at least one countable lesson.
     const publishedModules = new Set(modules.map((m) => String(m._id)));
+    const moduleMeta: Record<string, { title: string; order: number }> = {};
+    for (const m of modules)
+      moduleMeta[String(m._id)] = {
+        title: (m as any).title || 'Module',
+        order: (m as any).order ?? 0,
+      };
 
     const now = new Date();
     const currentWeek = this.lagosWeekIndex(now);
@@ -4737,6 +4743,7 @@ export class LmsService {
       completedInModule: Record<string, number>;
       moduleDoneAt: Record<string, number>; // module -> max completedAt ms
       modulesDone: number; // count of fully-completed published modules
+      completedMods: Array<{ title: string; order: number }>;
       activeWeeks: Set<number>;
       lastActivity: number;
       // When the learner finished their module content (max lesson completedAt).
@@ -4758,6 +4765,7 @@ export class LmsService {
         completedInModule: {},
         moduleDoneAt: {},
         modulesDone: 0,
+        completedMods: [],
         activeWeeks: new Set<number>(),
         lastActivity: 0,
         finishedAt: 0,
@@ -4796,6 +4804,7 @@ export class LmsService {
         if (need > 0 && a.completedInModule[mod] >= need) {
           a.modules += w.perModule;
           a.modulesDone += 1;
+          a.completedMods.push(moduleMeta[mod] || { title: 'Module', order: 0 });
           const doneMs = a.moduleDoneAt[mod] || 0;
           if (doneMs && this.lagosWeekIndex(new Date(doneMs)) === currentWeek)
             a.wModules += w.perModule;
@@ -4887,6 +4896,10 @@ export class LmsService {
             breakdown,
             streakWeeks: streak,
             modulesCompleted: a.modulesDone,
+            completedModules: a.completedMods
+              .slice()
+              .sort((m1, m2) => m1.order - m2.order)
+              .map((m) => m.title),
             lastActivityAt: a.lastActivity ? new Date(a.lastActivity) : undefined,
             finishedAt: a.finishedAt || 0,
           };
@@ -4965,6 +4978,7 @@ export class LmsService {
       breakdown: e.breakdown,
       streakWeeks: e.streakWeeks,
       modulesCompleted: e.modulesCompleted || 0,
+      completedModules: e.completedModules || [],
     };
   }
 
@@ -5043,6 +5057,7 @@ export class LmsService {
             breakdown: { lessons: 0, modules: 0, quizzes: 0, summaries: 0, streak: 0 },
             streakWeeks: 0,
             modulesCompleted: 0,
+            completedModules: [],
             inTop100: false,
           },
     };

@@ -67,6 +67,10 @@ export class LeaderboardEntry {
   @Prop({ type: Number, default: 0 })
   modulesCompleted: number;
 
+  // Titles of the fully-completed modules, in course order (for the card).
+  @Prop({ type: [String], default: [] })
+  completedModules: string[];
+
   @Prop({ type: Number, default: 0 })
   rank: number;
 
