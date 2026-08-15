@@ -2171,7 +2171,7 @@ export class LmsService {
     const endedAt = (session as any).liveEndedAt;
     if (endedAt && at.getTime() >= new Date(endedAt).getTime()) return false;
     const end = this.sessionEnd(session);
-    const openFrom = start.getTime() - 5 * 60_000; // join opens 5 min early
+    const openFrom = start.getTime() - 2 * 60_000; // session goes live 2 min early
     const openTo =
       (end ? end.getTime() : start.getTime() + 3 * 3_600_000) + 30 * 60_000;
     return at.getTime() >= openFrom && at.getTime() <= openTo;
