@@ -277,6 +277,17 @@ export class LmsService {
     });
     if (!registration) throw new ForbiddenException('Not enrolled.');
 
+    // Once a facilitator has graded the summary, it's locked — no resubmission.
+    const existingSummary = await this.sermonSummaryModel
+      .findOne({ module: mod._id, registration: registration._id })
+      .select('grade gradedAt')
+      .lean();
+    if (existingSummary && (existingSummary.gradedAt || existingSummary.grade != null)) {
+      throw new BadRequestException(
+        'Your summary has already been graded and can no longer be changed.',
+      );
+    }
+
     const clean = (content || '').trim();
     const words = this.countWords(clean);
     if (!words) throw new BadRequestException('Write a short summary first.');
@@ -1875,6 +1886,17 @@ export class LmsService {
       admissionStatus: 'accepted',
     });
     if (!registration) throw new ForbiddenException('Not enrolled.');
+
+    // Once passed, the quiz is locked — no retakes. (Failed attempts may retry.)
+    const priorAttempt = await this.quizAttemptModel
+      .findOne({ registration: registration._id, quiz: quiz._id })
+      .select('passed')
+      .lean();
+    if (priorAttempt?.passed) {
+      throw new BadRequestException(
+        'You have already passed this quiz — retakes are not allowed.',
+      );
+    }
 
     // Only choice questions are auto-graded; open answers (text/date/file) are
     // recorded for facilitator review and don't affect the score.
