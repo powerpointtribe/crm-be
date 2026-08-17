@@ -1974,23 +1974,41 @@ export class LmsService {
       account,
       eventSlug,
     );
-    const [lessons, completed] = await Promise.all([
+    const [lessons, completed, modules] = await Promise.all([
       this.lessonModel
         .find({ event: event._id, status: 'published' })
-        .select('_id')
+        .select('_id module')
         .lean(),
       this.progressModel
         .find({ registration: registration._id, status: 'completed' })
         .select('lesson completedAt')
         .lean(),
+      this.moduleModel
+        .find({ event: event._id })
+        .select('_id status')
+        .lean(),
     ]);
 
-    const total = lessons.length;
+    // The certificate is only awarded once the WHOLE programme has been
+    // released and completed — not just the modules published so far. If any
+    // module is still a draft (e.g. the final week is not out yet), the learner
+    // cannot be eligible, and we only count lessons in published modules.
+    const publishedModuleIds = new Set(
+      modules
+        .filter((m) => m.status === 'published')
+        .map((m) => String(m._id)),
+    );
+    const hasUnreleasedModule = modules.some((m) => m.status !== 'published');
+    const countable = lessons.filter((l) =>
+      publishedModuleIds.has(String(l.module)),
+    );
+
+    const total = countable.length;
     const completedSet = new Set(completed.map((c) => String(c.lesson)));
-    const doneCount = lessons.filter((l) =>
+    const doneCount = countable.filter((l) =>
       completedSet.has(String(l._id)),
     ).length;
-    const eligible = total > 0 && doneCount === total;
+    const eligible = !hasUnreleasedModule && total > 0 && doneCount === total;
 
     if (!eligible) {
       return { eligible: false, completed: doneCount, total };
