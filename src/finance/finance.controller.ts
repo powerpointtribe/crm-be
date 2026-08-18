@@ -224,6 +224,26 @@ export class FinanceController {
     return ResponseUtil.success(result, 'Requisition closed successfully');
   }
 
+  @Post('requisitions/:id/resend-notification')
+  @RequirePermission(FinancePermission.VIEW_REQUISITION_DETAILS)
+  @ApiOperation({
+    summary:
+      'Resend the pending notification (to approvers while pending approval, or disbursers once approved)',
+  })
+  async resendRequisitionNotification(
+    @Param('id') id: string,
+    @Req() req: any,
+  ) {
+    const result = await this.financeService.resendPendingNotification(id);
+    const who = result.stage === 'approver' ? 'approver(s)' : 'disburser(s)';
+    return ResponseUtil.success(
+      result,
+      result.recipientCount > 0
+        ? `Notification re-sent to ${result.recipientCount} ${who}.`
+        : `No ${who} with an email address were found for this requisition's branch.`,
+    );
+  }
+
   @Delete('requisitions/:id')
   @RequirePermission(FinancePermission.DELETE_REQUISITION)
   @ApiOperation({ summary: 'Delete a draft requisition' })

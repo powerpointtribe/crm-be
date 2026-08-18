@@ -133,6 +133,15 @@ export class FinanceService {
   }
 
   /**
+   * Super admins (and admins) have organisation-wide visibility over the
+   * finance module — their requisition views are not scoped to a single branch.
+   */
+  private hasGlobalFinanceAccess(user: any): boolean {
+    const roles = user?.systemRoles || [];
+    return roles.includes('super_admin') || roles.includes('admin');
+  }
+
+  /**
    * Find all requisitions with filtering
    */
   async findAll(
@@ -144,7 +153,7 @@ export class FinanceService {
     // Branch filter - users can only see requisitions in their branch
     if (query.branch) {
       filter.branch = new Types.ObjectId(query.branch);
-    } else if (user.branch) {
+    } else if (user.branch && !this.hasGlobalFinanceAccess(user)) {
       // Handle both populated object and raw ObjectId
       filter.branch = typeof user.branch === 'object' && user.branch?._id
         ? user.branch._id
@@ -240,7 +249,7 @@ export class FinanceService {
     // Branch filter - users can only see requisitions in their branch
     if (query.branch) {
       filter.branch = new Types.ObjectId(query.branch);
-    } else if (user.branch) {
+    } else if (user.branch && !this.hasGlobalFinanceAccess(user)) {
       filter.branch = typeof user.branch === 'object' && user.branch?._id
         ? user.branch._id
         : user.branch;
@@ -325,6 +334,35 @@ export class FinanceService {
     }
 
     return requisition;
+  }
+
+  /**
+   * Re-send the notification for a requisition that is currently waiting on
+   * someone to act — the approver(s) while it is pending approval, or the
+   * disburser(s) once it has been approved. Regenerates fresh action tokens
+   * and re-queues the same emails the original workflow sends.
+   */
+  async resendPendingNotification(
+    id: string,
+  ): Promise<{ stage: 'approver' | 'disburser'; recipientCount: number }> {
+    const requisition = await this.requisitionModel.findById(id);
+    if (!requisition) {
+      throw new NotFoundException('Requisition not found');
+    }
+
+    if (requisition.status === RequisitionStatus.PENDING_APPROVAL) {
+      const recipientCount = await this.notifyApproversWithTokens(requisition);
+      return { stage: 'approver', recipientCount };
+    }
+
+    if (requisition.status === RequisitionStatus.APPROVED) {
+      const recipientCount = await this.notifyDisbursersWithTokens(requisition);
+      return { stage: 'disburser', recipientCount };
+    }
+
+    throw new BadRequestException(
+      `A notification can only be resent while a requisition is awaiting approval or disbursement (current status: ${requisition.status}).`,
+    );
   }
 
   /**
@@ -1284,7 +1322,7 @@ export class FinanceService {
    */
   private async notifyApproversWithTokens(
     requisition: RequisitionDocument,
-  ): Promise<void> {
+  ): Promise<number> {
     try {
       const approvers = await this.userPermissionsService.getMembersWithPermission(
         FinancePermission.APPROVE_REQUISITION,
@@ -1300,11 +1338,12 @@ export class FinanceService {
         return !((a as any).roleAssignments?.some((ra: any) => ra.role?.slug === 'super-admin' && (a as any).roleAssignments?.length === 1));
       });
 
-      if (filteredApprovers.length === 0) return;
+      if (filteredApprovers.length === 0) return 0;
 
       const subject = `New Requisition Requires Your Approval - ${requisition.eventDescription.substring(0, 50)}`;
 
       // Create tokens and queue emails for each approver (non-blocking email send)
+      let queued = 0;
       for (const approver of filteredApprovers) {
         if (!approver.email) continue;
 
@@ -1329,12 +1368,15 @@ export class FinanceService {
             subject,
             [{ email: approver.email, name: `${approver.firstName || ''} ${approver.lastName || ''}`.trim() }],
           );
+          queued++;
         } catch (err) {
           console.error(`Failed to queue approval email for ${approver.email}:`, err);
         }
       }
+      return queued;
     } catch (error) {
       console.error('Failed to notify approvers with tokens:', error);
+      return 0;
     }
   }
 
@@ -1380,18 +1422,19 @@ export class FinanceService {
    */
   private async notifyDisbursersWithTokens(
     requisition: RequisitionDocument,
-  ): Promise<void> {
+  ): Promise<number> {
     try {
       const disbursers = await this.userPermissionsService.getMembersWithPermission(
         FinancePermission.DISBURSE,
         requisition.branch?.toString(),
       );
 
-      if (disbursers.length === 0) return;
+      if (disbursers.length === 0) return 0;
 
       const subject = `Requisition ${requisition.referenceNumber || ''} Approved - Action Required`;
 
       // Create tokens and queue emails for each disburser (non-blocking email send)
+      let queued = 0;
       for (const disburser of disbursers) {
         if (!disburser.email) continue;
 
@@ -1413,12 +1456,15 @@ export class FinanceService {
             subject,
             [{ email: disburser.email, name: `${disburser.firstName || ''} ${disburser.lastName || ''}`.trim() }],
           );
+          queued++;
         } catch (err) {
           console.error(`Failed to queue disburse email for ${disburser.email}:`, err);
         }
       }
+      return queued;
     } catch (error) {
       console.error('Failed to notify disbursers with tokens:', error);
+      return 0;
     }
   }
 
