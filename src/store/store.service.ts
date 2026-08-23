@@ -651,95 +651,127 @@ export class StoreService {
         minimumFractionDigits: 0,
       }).format(amount);
 
-    const itemRows = order.items
+    const orderDate = new Date(
+      order['createdAt'] || Date.now(),
+    ).toLocaleDateString('en-NG', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+
+    const itemCards = order.items
       .map((item) => {
-        const imageUrl = item.images?.[0];
-        const imageCell = imageUrl
-          ? `<td style="padding:12px;width:72px;vertical-align:top"><img src="${imageUrl}" alt="" width="60" height="60" style="border-radius:8px;object-fit:cover;display:block" /></td>`
-          : '';
-        return `<tr>
-          ${imageCell}
-          <td style="padding:12px;vertical-align:top${!imageUrl ? ';padding-left:12px' : ''}">
-            <strong style="color:#1a1a1a;font-size:14px">${item.productName}</strong><br/>
-            <span style="color:#6b7280;font-size:13px">${item.colour || ''}${item.size ? ` · ${item.size}` : ''}</span>
-          </td>
-          <td style="padding:12px;text-align:center;vertical-align:top;color:#374151;font-size:14px">x${item.quantity}</td>
-          <td style="padding:12px;text-align:right;vertical-align:top;font-weight:600;color:#1a1a1a;font-size:14px">${formatPrice(item.totalPrice)}</td>
-        </tr>`;
+        const img = item.images?.[0];
+        const colourMatch = item.colour?.match(/^(.+?)\s*\(([^)]+)\)$/);
+        const design = colourMatch ? colourMatch[1].trim() : item.colour || '';
+        const color = colourMatch ? colourMatch[2].trim() : '';
+        const meta = [design, color, item.size].filter(Boolean).join(' · ');
+        return `
+        <table style="width:100%;border-collapse:collapse;margin-bottom:8px" cellpadding="0" cellspacing="0">
+          <tr>
+            ${
+              img
+                ? `<td style="width:56px;padding:0 12px 0 0;vertical-align:top">
+                <img src="${img}" alt="" width="52" height="52" style="border-radius:10px;object-fit:cover;display:block" />
+              </td>`
+                : ''
+            }
+            <td style="vertical-align:top;padding:2px 0">
+              <p style="margin:0;font-size:13px;font-weight:600;color:#111827;line-height:1.3">${item.productName}</p>
+              ${meta ? `<p style="margin:2px 0 0;font-size:11px;color:#9ca3af;letter-spacing:0.2px">${meta}</p>` : ''}
+            </td>
+            <td style="vertical-align:top;text-align:right;white-space:nowrap;padding:2px 0">
+              <p style="margin:0;font-size:13px;font-weight:600;color:#111827">${formatPrice(item.totalPrice)}</p>
+              <p style="margin:2px 0 0;font-size:11px;color:#9ca3af">Qty ${item.quantity}</p>
+            </td>
+          </tr>
+        </table>`;
       })
       .join('');
 
+    const discountRow =
+      order.discountAmount > 0
+        ? `<tr>
+        <td style="padding:3px 0;font-size:12px;color:#059669">Discount</td>
+        <td style="padding:3px 0;text-align:right;font-size:12px;color:#059669">-${formatPrice(order.discountAmount)}</td>
+      </tr>`
+        : '';
+
+    const deliveryParts = [
+      order.delivery.address,
+      order.delivery.city,
+      order.delivery.state,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     const html = `
-    <div style="max-width:600px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#ffffff">
-      <!-- Header -->
-      <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:32px 24px;text-align:center;border-radius:12px 12px 0 0">
-        <h1 style="color:#ffffff;font-size:24px;margin:0 0 8px">Order Confirmed!</h1>
-        <p style="color:rgba(255,255,255,0.85);font-size:14px;margin:0">Thank you for your purchase, ${order.delivery.fullName}</p>
-      </div>
+    <div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:#ffffff">
+      <!-- Accent bar -->
+      <div style="height:4px;background:linear-gradient(90deg,#6366f1,#8b5cf6,#a78bfa);border-radius:4px 4px 0 0"></div>
 
-      <div style="padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
-        <!-- Order info -->
-        <div style="background:#f9fafb;border-radius:8px;padding:16px;margin-bottom:24px">
-          <table style="width:100%;border-collapse:collapse">
-            <tr>
-              <td style="padding:4px 0;color:#6b7280;font-size:13px">Order Number</td>
-              <td style="padding:4px 0;text-align:right;font-weight:600;color:#1a1a1a;font-size:13px;font-family:monospace">${order.orderNumber}</td>
-            </tr>
-            <tr>
-              <td style="padding:4px 0;color:#6b7280;font-size:13px">Date</td>
-              <td style="padding:4px 0;text-align:right;color:#1a1a1a;font-size:13px">${new Date(order['createdAt'] || Date.now()).toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}</td>
-            </tr>
-            <tr>
-              <td style="padding:4px 0;color:#6b7280;font-size:13px">Payment Status</td>
-              <td style="padding:4px 0;text-align:right"><span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500">Paid</span></td>
-            </tr>
-          </table>
-        </div>
+      <div style="padding:28px 24px 20px">
+        <!-- Confirmation badge -->
+        <table cellpadding="0" cellspacing="0" style="margin:0 auto 20px"><tr>
+          <td style="background:#f0fdf4;border-radius:20px;padding:6px 16px">
+            <span style="font-size:13px;font-weight:600;color:#15803d;letter-spacing:0.3px">&#10003; Payment Confirmed</span>
+          </td>
+        </tr></table>
 
-        <!-- Items -->
-        <h2 style="font-size:16px;color:#1a1a1a;margin:0 0 12px;font-weight:600">Your Items</h2>
-        <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
-          ${itemRows}
+        <p style="margin:0 0 4px;font-size:16px;font-weight:700;color:#111827;text-align:center">Thanks, ${order.delivery.fullName}!</p>
+        <p style="margin:0 0 24px;font-size:13px;color:#9ca3af;text-align:center">Your order has been received and is being processed.</p>
+
+        <!-- Order meta -->
+        <table style="width:100%;border-collapse:collapse;margin-bottom:20px" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:10px 12px;background:#f9fafb;border-radius:8px 0 0 8px;width:50%">
+              <p style="margin:0;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:#9ca3af;font-weight:600">Order</p>
+              <p style="margin:3px 0 0;font-size:13px;font-weight:600;color:#111827;font-family:'SF Mono',Monaco,monospace,sans-serif">${order.orderNumber}</p>
+            </td>
+            <td style="padding:10px 12px;background:#f9fafb;border-radius:0 8px 8px 0;width:50%;text-align:right">
+              <p style="margin:0;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:#9ca3af;font-weight:600">Date</p>
+              <p style="margin:3px 0 0;font-size:13px;font-weight:600;color:#111827">${orderDate}</p>
+            </td>
+          </tr>
         </table>
 
-        <!-- Totals -->
-        <div style="border-top:1px solid #e5e7eb;padding-top:12px">
-          <table style="width:100%;border-collapse:collapse">
-            <tr>
-              <td style="padding:4px 0;color:#6b7280;font-size:14px">Subtotal</td>
-              <td style="padding:4px 0;text-align:right;color:#374151;font-size:14px">${formatPrice(order.subtotal)}</td>
-            </tr>
-            ${
-              order.discountAmount > 0
-                ? `<tr>
-              <td style="padding:4px 0;color:#059669;font-size:14px">Discount</td>
-              <td style="padding:4px 0;text-align:right;color:#059669;font-size:14px">-${formatPrice(order.discountAmount)}</td>
-            </tr>`
-                : ''
-            }
-            <tr>
-              <td style="padding:8px 0 0;font-weight:700;color:#1a1a1a;font-size:16px;border-top:1px solid #e5e7eb">Total</td>
-              <td style="padding:8px 0 0;text-align:right;font-weight:700;color:#1a1a1a;font-size:16px;border-top:1px solid #e5e7eb">${formatPrice(order.totalAmount)}</td>
-            </tr>
-          </table>
-        </div>
+        <!-- Items -->
+        <p style="margin:0 0 10px;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#9ca3af;font-weight:700">Items</p>
+        ${itemCards}
 
-        <!-- Delivery info -->
-        <div style="margin-top:24px;background:#f9fafb;border-radius:8px;padding:16px">
-          <h3 style="font-size:14px;color:#1a1a1a;margin:0 0 8px;font-weight:600">Delivery Details</h3>
-          <p style="margin:0;color:#374151;font-size:13px;line-height:1.5">
+        <!-- Divider + totals -->
+        <div style="border-top:1px solid #f3f4f6;margin:14px 0 10px"></div>
+        <table style="width:100%;border-collapse:collapse" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:3px 0;font-size:12px;color:#6b7280">Subtotal</td>
+            <td style="padding:3px 0;text-align:right;font-size:12px;color:#374151">${formatPrice(order.subtotal)}</td>
+          </tr>
+          ${discountRow}
+        </table>
+        <div style="border-top:1px solid #f3f4f6;margin:6px 0"></div>
+        <table style="width:100%;border-collapse:collapse" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:6px 0;font-size:15px;font-weight:700;color:#111827">Total</td>
+            <td style="padding:6px 0;text-align:right;font-size:15px;font-weight:700;color:#111827">${formatPrice(order.totalAmount)}</td>
+          </tr>
+        </table>
+
+        <!-- Delivery -->
+        <div style="margin-top:20px;border:1px solid #f3f4f6;border-radius:8px;padding:14px 14px 12px">
+          <p style="margin:0 0 8px;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#9ca3af;font-weight:700">Delivery</p>
+          <p style="margin:0;font-size:13px;color:#374151;line-height:1.6">
             ${order.delivery.fullName}<br/>
             ${order.delivery.phone}<br/>
-            ${order.delivery.address}${order.delivery.city ? ', ' + order.delivery.city : ''}${order.delivery.state ? ', ' + order.delivery.state : ''}
+            ${deliveryParts}
           </p>
-          ${order.delivery.notes ? `<p style="margin:8px 0 0;color:#6b7280;font-size:12px;font-style:italic">Note: ${order.delivery.notes}</p>` : ''}
+          ${order.delivery.notes ? `<p style="margin:6px 0 0;font-size:11px;color:#9ca3af;font-style:italic">${order.delivery.notes}</p>` : ''}
         </div>
+      </div>
 
-        <!-- Footer -->
-        <div style="margin-top:24px;text-align:center;color:#9ca3af;font-size:12px;line-height:1.5">
-          <p style="margin:0">If you have any questions about your order, please reply to this email.</p>
-          <p style="margin:8px 0 0;color:#d1d5db">A vision of Dami Oguntunde Teaching Ministries</p>
-        </div>
+      <!-- Footer -->
+      <div style="padding:14px 24px 20px;text-align:center;border-top:1px solid #f9fafb">
+        <p style="margin:0;font-size:11px;color:#d1d5db">Questions? Reply to this email.</p>
+        <p style="margin:6px 0 0;font-size:10px;color:#e5e7eb">A vision of Dami Oguntunde Teaching Ministries</p>
       </div>
     </div>`;
 
