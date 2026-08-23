@@ -438,12 +438,17 @@ export class StoreService {
       order.delivery?.email === 'gthankgod@gmail.com';
     const chargeAmount = isTestOrder ? 100 : order.totalAmount;
 
+    const firstProduct = order.items?.[0]?.product;
+    const product = firstProduct
+      ? await this.productModel.findById(firstProduct).select('slug').lean()
+      : null;
+
     const txRef = `store-${order.orderNumber}-${Date.now()}`;
     const payload = {
       tx_ref: txRef,
       amount: chargeAmount,
       currency: order.currency || 'NGN',
-      redirect_url: `${this.frontendUrl}/store/payment/verify?order=${order.orderNumber}`,
+      redirect_url: `${this.frontendUrl}/store/payment/verify?order=${order.orderNumber}${product?.slug ? `&product=${product.slug}` : ''}`,
       customer: {
         email: order.customerEmail || order.delivery.email || 'customer@store.com',
         phone_number: order.customerPhone || order.delivery.phone,
