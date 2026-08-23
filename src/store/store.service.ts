@@ -379,6 +379,8 @@ export class StoreService {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
+    await this.expireStalePendingOrders();
+
     const filter: any = {};
 
     if (query.status) filter.status = query.status;
@@ -778,6 +780,20 @@ export class StoreService {
         err,
       );
     }
+  }
+
+  private async expireStalePendingOrders() {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    await this.orderModel.updateMany(
+      {
+        status: OrderStatus.PENDING,
+        paymentStatus: PaymentStatus.PENDING,
+        createdAt: { $lt: tenMinutesAgo },
+      },
+      {
+        $set: { status: OrderStatus.FAILED, paymentStatus: PaymentStatus.FAILED },
+      },
+    );
   }
 
   private async deductStock(order: OrderDocument) {
