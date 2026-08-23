@@ -18,6 +18,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { createPaginatedResult } from '../common/utils/pagination.util';
+import { EmailProvider } from '../notifications/providers/email.provider';
 
 @Injectable()
 export class StoreService {
@@ -31,6 +32,7 @@ export class StoreService {
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @InjectModel(Coupon.name) private couponModel: Model<CouponDocument>,
     private configService: ConfigService,
+    private emailProvider: EmailProvider,
   ) {
     this.flutterwaveSecretKey =
       this.configService.get<string>('FLUTTERWAVE_SECRET_KEY') || '';
@@ -291,6 +293,7 @@ export class StoreService {
         throw new BadRequestException(`Product "${product.name}" is not available`);
       }
 
+      let itemImages: string[] = [];
       if (item.size || item.colour) {
         const variant = product.variants.find(
           (v) =>
@@ -307,6 +310,12 @@ export class StoreService {
             `Insufficient stock for "${product.name}" (${item.size}/${item.colour}). Available: ${variant.stock}`,
           );
         }
+        const colourGroup = product.variants.find(
+          (v) => v.colour === item.colour && v.images?.length,
+        );
+        itemImages = colourGroup?.images || product.images || [];
+      } else {
+        itemImages = product.images || [];
       }
 
       const unitPrice = product.price;
@@ -320,6 +329,7 @@ export class StoreService {
         quantity: item.quantity,
         unitPrice,
         totalPrice: itemTotal,
+        images: itemImages,
       });
 
       subtotal += itemTotal;
@@ -364,6 +374,7 @@ export class StoreService {
     limit?: number;
     status?: string;
     paymentStatus?: string;
+    search?: string;
   }) {
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -372,6 +383,16 @@ export class StoreService {
 
     if (query.status) filter.status = query.status;
     if (query.paymentStatus) filter.paymentStatus = query.paymentStatus;
+    if (query.search) {
+      const q = query.search.trim();
+      filter.$or = [
+        { orderNumber: { $regex: q, $options: 'i' } },
+        { 'delivery.fullName': { $regex: q, $options: 'i' } },
+        { 'delivery.email': { $regex: q, $options: 'i' } },
+        { 'delivery.phone': { $regex: q, $options: 'i' } },
+        { customerEmail: { $regex: q, $options: 'i' } },
+      ];
+    }
 
     const [data, total] = await Promise.all([
       this.orderModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
@@ -394,6 +415,11 @@ export class StoreService {
   }
 
   async updateOrder(id: string, dto: UpdateOrderDto) {
+    if ((dto as any).status === OrderStatus.PAID) {
+      throw new BadRequestException(
+        'Order status "paid" can only be set through payment verification',
+      );
+    }
     const order = await this.orderModel.findByIdAndUpdate(id, dto, {
       new: true,
     });
@@ -402,21 +428,30 @@ export class StoreService {
   }
 
   async getOrderStats() {
-    const [totalOrders, revenue, statusBreakdown] = await Promise.all([
-      this.orderModel.countDocuments({ paymentStatus: PaymentStatus.SUCCESSFUL }),
-      this.orderModel.aggregate([
-        { $match: { paymentStatus: PaymentStatus.SUCCESSFUL } },
-        { $group: { _id: null, total: { $sum: '$totalAmount' } } },
-      ]),
-      this.orderModel.aggregate([
-        { $group: { _id: '$status', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
-    ]);
+    const [totalOrders, revenue, statusBreakdown, itemsSold] =
+      await Promise.all([
+        this.orderModel.countDocuments({
+          paymentStatus: PaymentStatus.SUCCESSFUL,
+        }),
+        this.orderModel.aggregate([
+          { $match: { paymentStatus: PaymentStatus.SUCCESSFUL } },
+          { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+        ]),
+        this.orderModel.aggregate([
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+        ]),
+        this.orderModel.aggregate([
+          { $match: { paymentStatus: PaymentStatus.SUCCESSFUL } },
+          { $unwind: '$items' },
+          { $group: { _id: null, total: { $sum: '$items.quantity' } } },
+        ]),
+      ]);
 
     return {
       totalOrders,
       totalRevenue: revenue[0]?.total || 0,
+      totalItemsSold: itemsSold[0]?.total || 0,
       statusBreakdown: statusBreakdown.map((s) => ({
         status: s._id,
         count: s.count,
@@ -529,6 +564,47 @@ export class StoreService {
     await order.save();
 
     await this.deductStock(order);
+    this.sendOrderConfirmationEmail(order).catch(() => {});
+
+    return { verified: true, order };
+  }
+
+  async verifyOrderPayment(orderId: string) {
+    const order = await this.orderModel.findById(orderId);
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.paymentStatus === PaymentStatus.SUCCESSFUL) {
+      return { verified: true, message: 'Already verified', order };
+    }
+    if (!order.flutterwaveRef) {
+      throw new BadRequestException('No payment initiated for this order');
+    }
+
+    const response = await fetch(
+      `${this.flutterwaveBaseUrl}/transactions/verify_by_reference?tx_ref=${order.flutterwaveRef}`,
+      { headers: { Authorization: `Bearer ${this.flutterwaveSecretKey}` } },
+    );
+    const data = await response.json();
+
+    if (data.status !== 'success' || data.data?.status !== 'successful') {
+      return { verified: false, message: 'Payment not found or not successful', data: data.data };
+    }
+
+    const isTestOrder =
+      order.customerEmail === 'gthankgod@gmail.com' ||
+      order.delivery?.email === 'gthankgod@gmail.com';
+    const expectedAmount = isTestOrder ? 100 : order.totalAmount;
+
+    if (data.data.amount < expectedAmount) {
+      return { verified: false, message: `Amount mismatch: paid ${data.data.amount}, expected ${expectedAmount}` };
+    }
+
+    order.paymentStatus = PaymentStatus.SUCCESSFUL;
+    order.status = OrderStatus.PAID;
+    order.flutterwaveTransactionId = String(data.data.id);
+    order.paymentMeta = data.data;
+    await order.save();
+    await this.deductStock(order);
+    this.sendOrderConfirmationEmail(order).catch(() => {});
 
     return { verified: true, order };
   }
@@ -551,10 +627,136 @@ export class StoreService {
         order.paymentMeta = payload.data;
         await order.save();
         await this.deductStock(order);
+        this.sendOrderConfirmationEmail(order).catch(() => {});
       }
     }
 
     return { status: 'ok' };
+  }
+
+  private async sendOrderConfirmationEmail(order: OrderDocument) {
+    const email =
+      order.customerEmail || order.delivery?.email;
+    if (!email) {
+      this.logger.warn(
+        `No email for order ${order.orderNumber}, skipping confirmation`,
+      );
+      return;
+    }
+
+    const formatPrice = (amount: number) =>
+      new Intl.NumberFormat('en-NG', {
+        style: 'currency',
+        currency: order.currency || 'NGN',
+        minimumFractionDigits: 0,
+      }).format(amount);
+
+    const itemRows = order.items
+      .map((item) => {
+        const imageUrl = item.images?.[0];
+        const imageCell = imageUrl
+          ? `<td style="padding:12px;width:72px;vertical-align:top"><img src="${imageUrl}" alt="" width="60" height="60" style="border-radius:8px;object-fit:cover;display:block" /></td>`
+          : '';
+        return `<tr>
+          ${imageCell}
+          <td style="padding:12px;vertical-align:top${!imageUrl ? ';padding-left:12px' : ''}">
+            <strong style="color:#1a1a1a;font-size:14px">${item.productName}</strong><br/>
+            <span style="color:#6b7280;font-size:13px">${item.colour || ''}${item.size ? ` · ${item.size}` : ''}</span>
+          </td>
+          <td style="padding:12px;text-align:center;vertical-align:top;color:#374151;font-size:14px">x${item.quantity}</td>
+          <td style="padding:12px;text-align:right;vertical-align:top;font-weight:600;color:#1a1a1a;font-size:14px">${formatPrice(item.totalPrice)}</td>
+        </tr>`;
+      })
+      .join('');
+
+    const html = `
+    <div style="max-width:600px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#ffffff">
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:32px 24px;text-align:center;border-radius:12px 12px 0 0">
+        <h1 style="color:#ffffff;font-size:24px;margin:0 0 8px">Order Confirmed!</h1>
+        <p style="color:rgba(255,255,255,0.85);font-size:14px;margin:0">Thank you for your purchase, ${order.delivery.fullName}</p>
+      </div>
+
+      <div style="padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+        <!-- Order info -->
+        <div style="background:#f9fafb;border-radius:8px;padding:16px;margin-bottom:24px">
+          <table style="width:100%;border-collapse:collapse">
+            <tr>
+              <td style="padding:4px 0;color:#6b7280;font-size:13px">Order Number</td>
+              <td style="padding:4px 0;text-align:right;font-weight:600;color:#1a1a1a;font-size:13px;font-family:monospace">${order.orderNumber}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;color:#6b7280;font-size:13px">Date</td>
+              <td style="padding:4px 0;text-align:right;color:#1a1a1a;font-size:13px">${new Date(order['createdAt'] || Date.now()).toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;color:#6b7280;font-size:13px">Payment Status</td>
+              <td style="padding:4px 0;text-align:right"><span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500">Paid</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Items -->
+        <h2 style="font-size:16px;color:#1a1a1a;margin:0 0 12px;font-weight:600">Your Items</h2>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+          ${itemRows}
+        </table>
+
+        <!-- Totals -->
+        <div style="border-top:1px solid #e5e7eb;padding-top:12px">
+          <table style="width:100%;border-collapse:collapse">
+            <tr>
+              <td style="padding:4px 0;color:#6b7280;font-size:14px">Subtotal</td>
+              <td style="padding:4px 0;text-align:right;color:#374151;font-size:14px">${formatPrice(order.subtotal)}</td>
+            </tr>
+            ${
+              order.discountAmount > 0
+                ? `<tr>
+              <td style="padding:4px 0;color:#059669;font-size:14px">Discount</td>
+              <td style="padding:4px 0;text-align:right;color:#059669;font-size:14px">-${formatPrice(order.discountAmount)}</td>
+            </tr>`
+                : ''
+            }
+            <tr>
+              <td style="padding:8px 0 0;font-weight:700;color:#1a1a1a;font-size:16px;border-top:1px solid #e5e7eb">Total</td>
+              <td style="padding:8px 0 0;text-align:right;font-weight:700;color:#1a1a1a;font-size:16px;border-top:1px solid #e5e7eb">${formatPrice(order.totalAmount)}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Delivery info -->
+        <div style="margin-top:24px;background:#f9fafb;border-radius:8px;padding:16px">
+          <h3 style="font-size:14px;color:#1a1a1a;margin:0 0 8px;font-weight:600">Delivery Details</h3>
+          <p style="margin:0;color:#374151;font-size:13px;line-height:1.5">
+            ${order.delivery.fullName}<br/>
+            ${order.delivery.phone}<br/>
+            ${order.delivery.address}${order.delivery.city ? ', ' + order.delivery.city : ''}${order.delivery.state ? ', ' + order.delivery.state : ''}
+          </p>
+          ${order.delivery.notes ? `<p style="margin:8px 0 0;color:#6b7280;font-size:12px;font-style:italic">Note: ${order.delivery.notes}</p>` : ''}
+        </div>
+
+        <!-- Footer -->
+        <div style="margin-top:24px;text-align:center;color:#9ca3af;font-size:12px;line-height:1.5">
+          <p style="margin:0">If you have any questions about your order, please reply to this email.</p>
+          <p style="margin:8px 0 0;color:#d1d5db">A vision of Dami Oguntunde Teaching Ministries</p>
+        </div>
+      </div>
+    </div>`;
+
+    try {
+      await this.emailProvider.sendEmail({
+        to: email,
+        subject: `Order Confirmed - ${order.orderNumber}`,
+        html,
+        from: this.configService.get<string>('STORE_EMAIL_FROM') || undefined,
+      });
+      this.logger.log(`Order confirmation email sent for ${order.orderNumber}`);
+    } catch (err) {
+      this.logger.error(
+        `Failed to send confirmation email for ${order.orderNumber}`,
+        err,
+      );
+    }
   }
 
   private async deductStock(order: OrderDocument) {

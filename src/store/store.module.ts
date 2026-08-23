@@ -6,10 +6,12 @@ import { Product, ProductSchema } from './schemas/product.schema';
 import { Order, OrderSchema } from './schemas/order.schema';
 import { Coupon, CouponSchema } from './schemas/coupon.schema';
 import { RolesModule } from '../roles/roles.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     RolesModule,
+    NotificationsModule,
     MongooseModule.forFeature([
       { name: Product.name, schema: ProductSchema },
       { name: Order.name, schema: OrderSchema },

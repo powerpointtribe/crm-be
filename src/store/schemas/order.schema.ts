@@ -42,6 +42,9 @@ export class OrderItem {
 
   @Prop({ type: Number, required: true, min: 0 })
   totalPrice: number;
+
+  @Prop([String])
+  images?: string[];
 }
 
 export const OrderItemSchema = SchemaFactory.createForClass(OrderItem);

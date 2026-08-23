@@ -216,17 +216,20 @@ export class StoreController {
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'status', required: false })
   @ApiQuery({ name: 'paymentStatus', required: false })
+  @ApiQuery({ name: 'search', required: false })
   async getOrders(
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('status') status?: string,
     @Query('paymentStatus') paymentStatus?: string,
+    @Query('search') search?: string,
   ) {
     const result = await this.storeService.getOrders({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       status,
       paymentStatus,
+      search,
     });
     return ResponseUtil.success(result, 'Orders retrieved');
   }
@@ -249,6 +252,16 @@ export class StoreController {
   async getOrderById(@Param('id') id: string) {
     const order = await this.storeService.getOrderById(id);
     return ResponseUtil.success(order, 'Order retrieved');
+  }
+
+  @Post('orders/:id/verify-payment')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @ApiBearerAuth()
+  @RequirePermission(StorePermission.UPDATE_ORDER)
+  @ApiOperation({ summary: 'Verify pending payment for an order' })
+  async verifyOrderPayment(@Param('id') id: string) {
+    const result = await this.storeService.verifyOrderPayment(id);
+    return ResponseUtil.success(result, 'Payment verification complete');
   }
 
   @Patch('orders/:id')
