@@ -32,6 +32,7 @@ import { LibraryModule } from './library/library.module';
 import { BulkEmailModule } from './bulk-email/bulk-email.module';
 import { PortalModule } from './portal/portal.module';
 import { LmsModule } from './lms/lms.module';
+import { StoreModule } from './store/store.module';
 
 @Module({
   imports: [
@@ -107,6 +108,7 @@ import { LmsModule } from './lms/lms.module';
     BulkEmailModule,
     PortalModule,
     LmsModule,
+    StoreModule,
   ],
   controllers: [AppController],
   providers: [
