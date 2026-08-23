@@ -468,11 +468,6 @@ export class StoreService {
       throw new BadRequestException('Order has already been paid');
     }
 
-    const isTestOrder =
-      order.customerEmail === 'gthankgod@gmail.com' ||
-      order.delivery?.email === 'gthankgod@gmail.com';
-    const chargeAmount = isTestOrder ? 100 : order.totalAmount;
-
     const firstProduct = order.items?.[0]?.product;
     const product = firstProduct
       ? await this.productModel.findById(firstProduct).select('slug').lean()
@@ -481,7 +476,7 @@ export class StoreService {
     const txRef = `store-${order.orderNumber}-${Date.now()}`;
     const payload = {
       tx_ref: txRef,
-      amount: chargeAmount,
+      amount: order.totalAmount,
       currency: order.currency || 'NGN',
       redirect_url: `${this.frontendUrl}/store/payment/verify?order=${order.orderNumber}${product?.slug ? `&product=${product.slug}` : ''}`,
       customer: {
@@ -493,6 +488,7 @@ export class StoreService {
         title: 'Store Order Payment',
         description: `Payment for order ${order.orderNumber}`,
       },
+      payment_options: 'banktransfer,card,ussd',
       meta: {
         orderId: order._id.toString(),
         orderNumber: order.orderNumber,
@@ -545,14 +541,9 @@ export class StoreService {
       return { verified: false, message: 'Order not found' };
     }
 
-    const isTestOrder =
-      order.customerEmail === 'gthankgod@gmail.com' ||
-      order.delivery?.email === 'gthankgod@gmail.com';
-    const expectedAmount = isTestOrder ? 100 : order.totalAmount;
-
-    if (data.data.amount < expectedAmount) {
+    if (data.data.amount < order.totalAmount) {
       this.logger.warn(
-        `Amount mismatch: paid ${data.data.amount}, expected ${expectedAmount}`,
+        `Amount mismatch: paid ${data.data.amount}, expected ${order.totalAmount}`,
       );
       return { verified: false, message: 'Amount mismatch' };
     }
@@ -589,13 +580,11 @@ export class StoreService {
       return { verified: false, message: 'Payment not found or not successful', data: data.data };
     }
 
-    const isTestOrder =
-      order.customerEmail === 'gthankgod@gmail.com' ||
-      order.delivery?.email === 'gthankgod@gmail.com';
-    const expectedAmount = isTestOrder ? 100 : order.totalAmount;
-
-    if (data.data.amount < expectedAmount) {
-      return { verified: false, message: `Amount mismatch: paid ${data.data.amount}, expected ${expectedAmount}` };
+    if (data.data.amount < order.totalAmount) {
+      return {
+        verified: false,
+        message: `Amount mismatch: paid ${data.data.amount}, expected ${order.totalAmount}`,
+      };
     }
 
     order.paymentStatus = PaymentStatus.SUCCESSFUL;
