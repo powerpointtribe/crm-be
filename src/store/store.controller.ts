@@ -10,6 +10,7 @@ import {
   UseGuards,
   Headers,
   HttpCode,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -201,6 +202,11 @@ export class StoreController {
     @Body() dto: UpdateProductDto,
     @CurrentUser() user?: any,
   ) {
+    if (dto.isActive !== undefined && user?.role?.level !== 100) {
+      throw new ForbiddenException(
+        'Only a super admin can activate or deactivate a product',
+      );
+    }
     this.storeService.assertProductAccess(id, user?.scopedProductIds);
     const product = await this.storeService.updateProduct(id, dto);
     return ResponseUtil.success(product, 'Product updated');
@@ -215,6 +221,11 @@ export class StoreController {
     @Param('id') id: string,
     @CurrentUser() user?: any,
   ) {
+    if (user?.role?.level !== 100) {
+      throw new ForbiddenException(
+        'Only a super admin can delete a product',
+      );
+    }
     this.storeService.assertProductAccess(id, user?.scopedProductIds);
     await this.storeService.deleteProduct(id);
     return ResponseUtil.success(null, 'Product deleted');
