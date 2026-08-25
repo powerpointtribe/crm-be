@@ -25,6 +25,7 @@ export enum ModuleIdentifier {
   USER_MANAGEMENT = 'users',
   QUEUE = 'queue',
   NOTIFICATIONS = 'notifications',
+  STORE = 'store',
 }
 
 /**
@@ -53,6 +54,7 @@ export const MODULE_DISPLAY_NAMES: Record<string, string> = {
   [ModuleIdentifier.USER_MANAGEMENT]: 'User Management',
   [ModuleIdentifier.QUEUE]: 'Queue Management',
   [ModuleIdentifier.NOTIFICATIONS]: 'Notifications',
+  [ModuleIdentifier.STORE]: 'Store',
 };
 
 /**

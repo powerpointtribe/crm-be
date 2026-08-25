@@ -66,6 +66,10 @@ import {
   EventsPermission,
   EventsPermissionMetadata,
 } from '../../events/permissions';
+import {
+  StorePermission,
+  StorePermissionMetadata,
+} from '../../store/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -248,6 +252,15 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       perm,
       EventsPermissionMetadata[perm] || {},
       'events',
+    ),
+  ),
+
+  // Store Module
+  ...Object.values(StorePermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      StorePermissionMetadata[perm] || {},
+      'store',
     ),
   ),
 ];

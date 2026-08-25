@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
@@ -101,12 +102,16 @@ export class StoreService {
     limit?: number;
     search?: string;
     isActive?: boolean;
+    scopedProductIds?: Types.ObjectId[];
   }) {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
     const filter: any = {};
 
+    if (query.scopedProductIds?.length) {
+      filter._id = { $in: query.scopedProductIds };
+    }
     if (query.isActive !== undefined) filter.isActive = query.isActive;
     if (query.search) {
       filter.$or = [
@@ -128,10 +133,24 @@ export class StoreService {
     return createPaginatedResult(data, total, page, limit);
   }
 
-  async getProductById(id: string) {
+  async getProductById(id: string, scopedProductIds?: Types.ObjectId[]) {
+    if (scopedProductIds?.length) {
+      const ids = scopedProductIds.map((i) => i.toString());
+      if (!ids.includes(id)) {
+        throw new ForbiddenException('You do not have access to this product');
+      }
+    }
     const product = await this.productModel.findById(id).lean();
     if (!product) throw new NotFoundException('Product not found');
     return product;
+  }
+
+  assertProductAccess(productId: string, scopedProductIds?: Types.ObjectId[]) {
+    if (!scopedProductIds?.length) return;
+    const ids = scopedProductIds.map((i) => i.toString());
+    if (!ids.includes(productId)) {
+      throw new ForbiddenException('You do not have access to this product');
+    }
   }
 
   async getProductBySlug(slug: string) {
@@ -375,6 +394,7 @@ export class StoreService {
     status?: string;
     paymentStatus?: string;
     search?: string;
+    scopedProductIds?: Types.ObjectId[];
   }) {
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -383,6 +403,9 @@ export class StoreService {
 
     const filter: any = {};
 
+    if (query.scopedProductIds?.length) {
+      filter['items.product'] = { $in: query.scopedProductIds };
+    }
     if (query.status) filter.status = query.status;
     if (query.paymentStatus) filter.paymentStatus = query.paymentStatus;
     if (query.search) {

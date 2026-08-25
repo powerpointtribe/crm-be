@@ -426,6 +426,21 @@ export class MembersController {
     return this.membersService.setScopedEvents(id, body.eventIds);
   }
 
+  @Get(':id/scoped-products')
+  @RequirePermission(MembersPermission.UPDATE_MEMBER_ROLES)
+  async getScopedProducts(@Param('id') id: string) {
+    return this.membersService.getScopedProducts(id);
+  }
+
+  @Put(':id/scoped-products')
+  @RequirePermission(MembersPermission.UPDATE_MEMBER_ROLES)
+  async setScopedProducts(
+    @Param('id') id: string,
+    @Body() body: { productIds: string[] },
+  ) {
+    return this.membersService.setScopedProducts(id, body.productIds);
+  }
+
   @Patch(':id/assign-unit')
   @RequirePermission(MembersPermission.ASSIGN_UNIT)
   async assignUnit(

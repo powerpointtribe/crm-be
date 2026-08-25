@@ -149,12 +149,18 @@ export class StoreController {
     @Query('limit') limit?: number,
     @Query('search') search?: string,
     @Query('isActive') isActive?: string,
+    @CurrentUser() user?: any,
   ) {
+    const scopedProductIds = user?.scopedProductIds?.length
+      ? user.scopedProductIds
+      : undefined;
+
     const result = await this.storeService.getProducts({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       search,
       isActive: isActive !== undefined ? isActive === 'true' : undefined,
+      scopedProductIds,
     });
     return ResponseUtil.success(result, 'Products retrieved');
   }
@@ -164,8 +170,11 @@ export class StoreController {
   @ApiBearerAuth()
   @RequirePermission(StorePermission.VIEW_PRODUCTS)
   @ApiOperation({ summary: 'Get product by ID (admin)' })
-  async getProductById(@Param('id') id: string) {
-    const product = await this.storeService.getProductById(id);
+  async getProductById(
+    @Param('id') id: string,
+    @CurrentUser() user?: any,
+  ) {
+    const product = await this.storeService.getProductById(id, user?.scopedProductIds);
     return ResponseUtil.success(product, 'Product retrieved');
   }
 
@@ -190,7 +199,9 @@ export class StoreController {
   async updateProduct(
     @Param('id') id: string,
     @Body() dto: UpdateProductDto,
+    @CurrentUser() user?: any,
   ) {
+    this.storeService.assertProductAccess(id, user?.scopedProductIds);
     const product = await this.storeService.updateProduct(id, dto);
     return ResponseUtil.success(product, 'Product updated');
   }
@@ -200,7 +211,11 @@ export class StoreController {
   @ApiBearerAuth()
   @RequirePermission(StorePermission.DELETE_PRODUCT)
   @ApiOperation({ summary: 'Delete a product' })
-  async deleteProduct(@Param('id') id: string) {
+  async deleteProduct(
+    @Param('id') id: string,
+    @CurrentUser() user?: any,
+  ) {
+    this.storeService.assertProductAccess(id, user?.scopedProductIds);
     await this.storeService.deleteProduct(id);
     return ResponseUtil.success(null, 'Product deleted');
   }
@@ -223,13 +238,19 @@ export class StoreController {
     @Query('status') status?: string,
     @Query('paymentStatus') paymentStatus?: string,
     @Query('search') search?: string,
+    @CurrentUser() user?: any,
   ) {
+    const scopedProductIds = user?.scopedProductIds?.length
+      ? user.scopedProductIds
+      : undefined;
+
     const result = await this.storeService.getOrders({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       status,
       paymentStatus,
       search,
+      scopedProductIds,
     });
     return ResponseUtil.success(result, 'Orders retrieved');
   }

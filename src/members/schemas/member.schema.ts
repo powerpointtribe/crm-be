@@ -99,6 +99,10 @@ export class Member {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Event' }], default: [] })
   scopedEventIds!: Types.ObjectId[];
 
+  // Scoped store product access — when non-empty, limits store:view-products to only these products
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Product' }], default: [] })
+  scopedProductIds!: Types.ObjectId[];
+
   // ADDRESS INFORMATION
   @Prop({
     type: {
