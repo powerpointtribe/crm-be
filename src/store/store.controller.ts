@@ -32,6 +32,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { BulkUpdateOrderStatusDto } from './dto/bulk-update-order-status.dto';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 
@@ -274,6 +275,16 @@ export class StoreController {
   async getOrderStats() {
     const stats = await this.storeService.getOrderStats();
     return ResponseUtil.success(stats, 'Order stats retrieved');
+  }
+
+  @Patch('orders/bulk-status')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @ApiBearerAuth()
+  @RequirePermission(StorePermission.UPDATE_ORDER)
+  @ApiOperation({ summary: 'Bulk update order statuses' })
+  async bulkUpdateOrderStatus(@Body() dto: BulkUpdateOrderStatusDto) {
+    const result = await this.storeService.bulkUpdateOrderStatus(dto);
+    return ResponseUtil.success(result, `${result.updated} order(s) updated`);
   }
 
   @Get('orders/:id')

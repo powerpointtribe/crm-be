@@ -16,6 +16,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { BulkUpdateOrderStatusDto } from './dto/bulk-update-order-status.dto';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { createPaginatedResult } from '../common/utils/pagination.util';
@@ -450,6 +451,36 @@ export class StoreService {
     });
     if (!order) throw new NotFoundException('Order not found');
     return order;
+  }
+
+  async bulkUpdateOrderStatus(dto: BulkUpdateOrderStatusDto) {
+    const results = { updated: 0, skipped: 0, errors: [] as string[] };
+
+    for (const item of dto.orders) {
+      if (item.status === OrderStatus.PAID) {
+        results.errors.push(`${item.orderNumber}: Cannot set status to "paid" manually`);
+        results.skipped++;
+        continue;
+      }
+
+      const order = await this.orderModel.findOne({ orderNumber: item.orderNumber });
+      if (!order) {
+        results.errors.push(`${item.orderNumber}: Order not found`);
+        results.skipped++;
+        continue;
+      }
+
+      if (order.status === item.status) {
+        results.skipped++;
+        continue;
+      }
+
+      order.status = item.status;
+      await order.save();
+      results.updated++;
+    }
+
+    return results;
   }
 
   async getOrderStats() {
