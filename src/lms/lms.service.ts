@@ -1896,9 +1896,23 @@ export class LmsService {
       account,
       eventSlug,
     );
+    const lessonOid = new Types.ObjectId(lessonId);
+
+    // Don't allow un-completing a lesson whose quiz has been passed.
+    if (!completed) {
+      const passedQuiz = await this.quizAttemptModel.exists({
+        registration: registration._id,
+        lesson: lessonOid,
+        passed: true,
+      });
+      if (passedQuiz) {
+        return { success: true, status: 'completed' };
+      }
+    }
+
     const status = completed ? 'completed' : 'in_progress';
     await this.progressModel.updateOne(
-      { registration: registration._id, lesson: new Types.ObjectId(lessonId) },
+      { registration: registration._id, lesson: lessonOid },
       {
         $set: {
           event: event._id,
