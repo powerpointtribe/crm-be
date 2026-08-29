@@ -35,6 +35,10 @@ import {
 } from './schemas/quiz-attempt.schema';
 import { Assignment, AssignmentDocument } from './schemas/assignment.schema';
 import { Submission, SubmissionDocument } from './schemas/submission.schema';
+import {
+  MdfSubmission,
+  MdfSubmissionDocument,
+} from './schemas/mdf-submission.schema';
 import { Event, EventDocument } from '../events/schemas/event.schema';
 import {
   EventRegistration,
@@ -74,6 +78,7 @@ import {
   CreateAssignmentDto,
   CreateLessonDto,
   CreateModuleDto,
+  SaveMdfDto,
   UpdateAssignmentDto,
   UpdateLessonDto,
   UpdateModuleDto,
@@ -110,6 +115,8 @@ export class LmsService {
     private readonly assignmentModel: Model<AssignmentDocument>,
     @InjectModel(Submission.name)
     private readonly submissionModel: Model<SubmissionDocument>,
+    @InjectModel(MdfSubmission.name)
+    private readonly mdfModel: Model<MdfSubmissionDocument>,
     private readonly aiService: AiService,
     private readonly youtubeService: YoutubeService,
     @InjectModel(Event.name)
@@ -1355,9 +1362,111 @@ export class LmsService {
     return { success: true };
   }
 
+  // ===================== MINISTRY DEPLOYMENT FORM (MDF) =====================
+
+  async getMdf(account: PortalAccountDocument, eventSlug?: string) {
+    const { event, registration } = await this.resolveLearner(
+      account,
+      eventSlug,
+    );
+    const mdf = await this.mdfModel
+      .findOne({ event: event._id, registration: registration._id })
+      .lean();
+    return {
+      background: mdf?.background || '',
+      goal: mdf?.goal || '',
+      initiative: mdf?.initiative || '',
+      impact: mdf?.impact || '',
+      wordCount: mdf?.wordCount || 0,
+      status: mdf?.status || 'draft',
+      submittedAt: mdf?.submittedAt || null,
+      grade: typeof mdf?.grade === 'number' ? mdf.grade : null,
+      feedback: mdf?.feedback || '',
+      gradedAt: mdf?.gradedAt || null,
+    };
+  }
+
+  async saveMdf(account: PortalAccountDocument, dto: SaveMdfDto) {
+    const { event, registration } = await this.resolveLearner(
+      account,
+      dto.eventSlug,
+    );
+
+    const existing = await this.mdfModel.findOne({
+      event: event._id,
+      registration: registration._id,
+    });
+
+    if (existing?.status === 'submitted') {
+      throw new BadRequestException(
+        'Your MDF has already been submitted and cannot be edited.',
+      );
+    }
+
+    const fields = {
+      background: dto.background ?? existing?.background ?? '',
+      goal: dto.goal ?? existing?.goal ?? '',
+      initiative: dto.initiative ?? existing?.initiative ?? '',
+      impact: dto.impact ?? existing?.impact ?? '',
+    };
+
+    const allText = Object.values(fields).join(' ');
+    const wordCount = this.countWords(allText);
+
+    if (dto.submit) {
+      if (!fields.background.trim()) {
+        throw new BadRequestException(
+          'Please fill in the Background & Burden section.',
+        );
+      }
+      if (!fields.goal.trim()) {
+        throw new BadRequestException('Please fill in The Goal section.');
+      }
+      if (!fields.initiative.trim()) {
+        throw new BadRequestException(
+          'Please fill in The Initiative section.',
+        );
+      }
+      if (!fields.impact.trim()) {
+        throw new BadRequestException(
+          'Please fill in the Expected Impact section.',
+        );
+      }
+    }
+
+    await this.mdfModel.updateOne(
+      { event: event._id, registration: registration._id },
+      {
+        $set: {
+          ...fields,
+          wordCount,
+          status: dto.submit ? 'submitted' : 'draft',
+          ...(dto.submit ? { submittedAt: new Date() } : {}),
+        },
+        $setOnInsert: {
+          event: event._id,
+          registration: registration._id,
+        },
+      },
+      { upsert: true },
+    );
+    return { success: true, wordCount, status: dto.submit ? 'submitted' : 'draft' };
+  }
+
   // ===================== STUDENT (portal) =====================
 
   /** Resolve the learner's accepted registration for an event slug. */
+  async updateProfileImage(
+    account: PortalAccountDocument,
+    imageUrl: string,
+    eventSlug?: string,
+  ) {
+    const { registration } = await this.resolveLearner(account, eventSlug);
+    registration.customFieldResponses.set('headshotUrl', imageUrl);
+    await registration.save();
+    return { headshotUrl: imageUrl };
+  }
+
   private async resolveLearner(
     account: PortalAccountDocument,
     eventSlug?: string,

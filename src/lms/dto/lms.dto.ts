@@ -414,3 +414,47 @@ export class PublishRecordingDto {
   @IsString()
   title?: string;
 }
+
+export class SaveMdfDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  eventSlug?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  background?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  goal?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  initiative?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  impact?: string;
+
+  @ApiProperty({ description: 'true to finalize, false/omit to save draft' })
+  @IsOptional()
+  @IsBoolean()
+  submit?: boolean;
+}
+
+export class UpdateProfileImageDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  imageUrl: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  eventSlug?: string;
+}

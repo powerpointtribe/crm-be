@@ -32,6 +32,10 @@ import {
 } from './schemas/quiz-attempt.schema';
 import { Assignment, AssignmentSchema } from './schemas/assignment.schema';
 import { Submission, SubmissionSchema } from './schemas/submission.schema';
+import {
+  MdfSubmission,
+  MdfSubmissionSchema,
+} from './schemas/mdf-submission.schema';
 import { Event, EventSchema } from '../events/schemas/event.schema';
 import {
   EventRegistration,
@@ -82,6 +86,7 @@ import { CommitteeScopeGuard } from './guards/committee-scope.guard';
       { name: QuizAttempt.name, schema: QuizAttemptSchema },
       { name: Assignment.name, schema: AssignmentSchema },
       { name: Submission.name, schema: SubmissionSchema },
+      { name: MdfSubmission.name, schema: MdfSubmissionSchema },
       { name: Event.name, schema: EventSchema },
       { name: EventRegistration.name, schema: EventRegistrationSchema },
       { name: EventSession.name, schema: EventSessionSchema },

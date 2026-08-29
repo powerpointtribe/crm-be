@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -15,11 +16,13 @@ import { PortalAccountDocument } from '../portal/schemas/portal-account.schema';
 import { LmsService } from './lms.service';
 import {
   AssistantDto,
+  SaveMdfDto,
   SaveReflectionDto,
   SessionHeartbeatDto,
   SetLessonProgressDto,
   SubmitAssignmentDto,
   SubmitQuizDto,
+  UpdateProfileImageDto,
 } from './dto/lms.dto';
 
 /**
@@ -225,6 +228,14 @@ export class LmsStudentController {
     return this.lms.getStudentProfile(account, eventSlug);
   }
 
+  @Patch('me/profile-image')
+  updateProfileImage(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Body() dto: UpdateProfileImageDto,
+  ) {
+    return this.lms.updateProfileImage(account, dto.imageUrl, dto.eventSlug);
+  }
+
   @Get('me/notifications')
   getNotifications(
     @CurrentPortalAccount() account: PortalAccountDocument,
@@ -238,6 +249,22 @@ export class LmsStudentController {
     @CurrentPortalAccount() account: PortalAccountDocument,
   ) {
     return this.lms.markNotificationsRead(account);
+  }
+
+  @Get('me/mdf')
+  getMdf(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Query('eventSlug') eventSlug?: string,
+  ) {
+    return this.lms.getMdf(account, eventSlug);
+  }
+
+  @Post('me/mdf')
+  saveMdf(
+    @CurrentPortalAccount() account: PortalAccountDocument,
+    @Body() dto: SaveMdfDto,
+  ) {
+    return this.lms.saveMdf(account, dto);
   }
 
   @Post('me/assistant')
