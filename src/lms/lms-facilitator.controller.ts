@@ -77,11 +77,13 @@ export class LmsFacilitatorController {
     @Query('scope') scope?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('search') search?: string,
   ) {
     return this.lms.getLeaderboardForFacilitator(eventId, {
       scope: scope === 'weekly' ? 'weekly' : 'overall',
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
+      search: search?.trim() || undefined,
     });
   }
 
@@ -112,6 +114,12 @@ export class LmsFacilitatorController {
   @RequirePermission(EventsPermission.UPDATE_EVENT)
   recomputeLeaderboard(@Param('eventId') eventId: string) {
     return this.lms.recomputeLeaderboard(eventId);
+  }
+
+  @Post('events/:eventId/backfill-recording-progress')
+  @RequirePermission(EventsPermission.UPDATE_EVENT)
+  backfillRecordingProgress(@Param('eventId') eventId: string) {
+    return this.lms.backfillRecordingProgress(eventId);
   }
 
   @Get('events/:eventId/flagged-attendance')

@@ -4028,6 +4028,9 @@ export class LmsService {
     };
     await session.save();
 
+    // Auto-mark recording as completed for all accepted students (background).
+    void this.autoCompleteRecordingLesson(String(session.event), lesson._id);
+
     // Notify trainees the replay is available (background — don't block publish).
     void this.notifyStudentsRecordingAvailable(
       String(session.event),
@@ -4042,6 +4045,110 @@ export class LmsService {
       moduleId: mod._id,
       moduleTitle: mod.title,
       url,
+    };
+  }
+
+  /**
+   * Auto-mark a session recording lesson as completed for every accepted
+   * student. Uses bulkWrite with upsert so existing progress isn't overwritten.
+   */
+  private async autoCompleteRecordingLesson(
+    eventId: string,
+    lessonId: Types.ObjectId,
+  ) {
+    try {
+      const eventOid = new Types.ObjectId(eventId);
+      const regs = await this.registrationModel
+        .find({ event: eventOid, admissionStatus: 'accepted' })
+        .select('_id')
+        .lean();
+      if (!regs.length) return;
+
+      const now = new Date();
+      const ops = regs.map((r) => ({
+        updateOne: {
+          filter: { registration: r._id, lesson: lessonId },
+          update: {
+            $setOnInsert: {
+              event: eventOid,
+              registration: r._id,
+              lesson: lessonId,
+              status: 'completed',
+              completedAt: now,
+              timeSpentSec: 0,
+              viewCount: 0,
+            },
+          },
+          upsert: true,
+        },
+      }));
+
+      await this.lessonProgressModel.bulkWrite(ops, { ordered: false });
+    } catch (err) {
+      this.logger.warn(
+        `autoCompleteRecordingLesson failed: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * Bulk auto-complete ALL existing session recording lessons for every
+   * accepted student. Called once for backward compatibility.
+   */
+  async backfillRecordingProgress(eventId: string) {
+    await this.assertEvent(eventId);
+    const eventOid = new Types.ObjectId(eventId);
+
+    const recordings = await this.lessonModel
+      .find({ event: eventOid, isSessionRecording: true, status: 'published' })
+      .select('_id')
+      .lean();
+    if (!recordings.length) return { updated: 0, lessons: 0 };
+
+    const regs = await this.registrationModel
+      .find({ event: eventOid, admissionStatus: 'accepted' })
+      .select('_id')
+      .lean();
+    if (!regs.length) return { updated: 0, lessons: recordings.length };
+
+    const now = new Date();
+    const ops: any[] = [];
+    for (const lesson of recordings) {
+      for (const reg of regs) {
+        ops.push({
+          updateOne: {
+            filter: { registration: reg._id, lesson: lesson._id },
+            update: {
+              $setOnInsert: {
+                event: eventOid,
+                registration: reg._id,
+                lesson: lesson._id,
+                status: 'completed',
+                completedAt: now,
+                timeSpentSec: 0,
+                viewCount: 0,
+              },
+            },
+            upsert: true,
+          },
+        });
+      }
+    }
+
+    let totalUpserted = 0;
+    const BATCH = 500;
+    for (let i = 0; i < ops.length; i += BATCH) {
+      const result = await this.lessonProgressModel.bulkWrite(
+        ops.slice(i, i + BATCH),
+        { ordered: false },
+      );
+      totalUpserted += result.upsertedCount;
+    }
+
+    return {
+      lessons: recordings.length,
+      students: regs.length,
+      created: totalUpserted,
     };
   }
 
@@ -5231,7 +5338,12 @@ export class LmsService {
   /** Facilitator board: the FULL ranked list, paginated, no top-100 cap. */
   async getLeaderboardForFacilitator(
     eventId: string,
-    opts: { scope?: 'overall' | 'weekly'; page?: number; limit?: number } = {},
+    opts: {
+      scope?: 'overall' | 'weekly';
+      page?: number;
+      limit?: number;
+      search?: string;
+    } = {},
   ) {
     await this.assertEvent(eventId);
     const eventOid = new Types.ObjectId(eventId);
@@ -5242,10 +5354,17 @@ export class LmsService {
     const any = await this.leaderboardModel.exists({ event: eventOid });
     if (!any) await this.recomputeLeaderboard(eventId);
 
+    const filter: any = { event: eventOid, scope };
+    if (opts.search) {
+      const esc = opts.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(esc, 'i');
+      filter.$or = [{ name: re }, { studentId: re }];
+    }
+
     const [total, entries, sample] = await Promise.all([
-      this.leaderboardModel.countDocuments({ event: eventOid, scope }),
+      this.leaderboardModel.countDocuments(filter),
       this.leaderboardModel
-        .find({ event: eventOid, scope })
+        .find(filter)
         .sort({ rank: 1 })
         .skip((page - 1) * limit)
         .limit(limit)
