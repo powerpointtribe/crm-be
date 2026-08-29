@@ -1572,22 +1572,26 @@ export class LmsService {
     const cf = (k: string) =>
       (cfr && typeof cfr.get === 'function' ? cfr.get(k) : cfr?.[k]) || null;
 
-    // Course progress at a glance (accepted learner, published lessons only).
-    const modules = await this.moduleModel
-      .find({ event: event._id, status: 'published' })
+    // Course progress at a glance — exclude recordings/optional lessons so
+    // this matches the dashboard and courses page completion metric.
+    const countingLessons = await this.lessonModel
+      .find({
+        event: event._id,
+        status: 'published',
+        excludeFromCompletion: { $ne: true },
+        isSessionRecording: { $ne: true },
+      })
       .select('_id')
       .lean();
-    const moduleIds = modules.map((m) => m._id);
-    const totalLessons = moduleIds.length
-      ? await this.lessonModel.countDocuments({
-          module: { $in: moduleIds },
-          status: 'published',
+    const countingIds = countingLessons.map((l) => l._id);
+    const totalLessons = countingIds.length;
+    const completedLessons = totalLessons
+      ? await this.progressModel.countDocuments({
+          registration: registration._id,
+          lesson: { $in: countingIds },
+          status: 'completed',
         })
       : 0;
-    const completedLessons = await this.progressModel.countDocuments({
-      registration: registration._id,
-      status: 'completed',
-    });
 
     return {
       firstName: info.firstName || account.firstName || '',
