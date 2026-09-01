@@ -3244,7 +3244,7 @@ export class LmsService {
   private nextStudentSeq = new Map<string, number>();
 
   // Auto-admission config (hardcoded constants, not env-driven).
-  private readonly AUTO_ADMISSION_ENABLED = true;
+  private readonly AUTO_ADMISSION_ENABLED = false;
   private readonly ADMISSION_LETTER_CC = ['cmithub@gmail.com'];
 
   // Build the per-event "From" string so an event's emails are branded with its
@@ -3610,9 +3610,18 @@ export class LmsService {
   //  week's module: list the pending lessons if they've started, else just the
   //  module title. Set MODULE_REMINDER_ENABLED=false to switch off.
 
-  @Cron('0 0 9 */2 * *', { timeZone: 'Africa/Lagos' })
-  async sendModuleCompletionReminders() {
-    if (process.env.MODULE_REMINDER_ENABLED === 'false') return;
+  // Recurring module reminders — STOPPED. Replaced by the one-shot final
+  // reminder below (Tue 1 Sept 2026). To re-enable set cron back to
+  // '0 0 9 */2 * *' and remove the year guard.
+  // @Cron('0 0 9 */2 * *', { timeZone: 'Africa/Lagos' })
+  // async sendModuleCompletionReminders() { ... }
+
+  // Final reminder — Tuesday 1 September 2026, 9:00 AM WAT.
+  // Fires once for everyone with incomplete modules. The submission deadline
+  // is Wednesday 2 September 2026 at 11:59 PM WAT.
+  @Cron('0 0 9 1 9 *', { timeZone: 'Africa/Lagos' })
+  async sendFinalCompletionReminder() {
+    if (new Date().getFullYear() !== 2026) return;
     const events = await this.eventModel
       .find({
         'registrationSettings.applicationBaseUrl': { $exists: true, $ne: '' },
@@ -3620,10 +3629,10 @@ export class LmsService {
       .lean();
     for (const event of events) {
       try {
-        await this.remindCurrentModule(event as any);
+        await this.remindFinalDeadline(event as any);
       } catch (e) {
         this.logger.warn(
-          `Module reminder for "${(event as any).title}" failed: ${(e as Error).message}`,
+          `Final reminder for "${(event as any).title}" failed: ${(e as Error).message}`,
         );
       }
     }
@@ -3808,6 +3817,91 @@ export class LmsService {
     this.logger.log(
       `Module reminders for "${event.title}": ${sent}/${batch.recipients.length} sent.`,
     );
+  }
+
+  private async remindFinalDeadline(event: any) {
+    const batch = await this.buildModuleReminderBatch(event);
+    if (!batch || !batch.recipients.length) return;
+    const from = this.senderFromEvent(event);
+    const base =
+      event.registrationSettings?.applicationBaseUrl?.replace(/\/+$/, '') ||
+      process.env.FRONTEND_URL ||
+      '';
+    const portalUrl = base ? `${base}/portal/courses` : '';
+    let sent = 0;
+    for (const r of batch.recipients) {
+      try {
+        const { subject, html } = this.renderFinalDeadlineEmail({
+          firstName: r.firstName,
+          modules: r.modules,
+          portalUrl,
+        });
+        await this.emailProvider.sendEmail({
+          to: r.email,
+          subject,
+          html,
+          ...(from ? { from } : {}),
+        });
+        sent += 1;
+        await new Promise((res) => setTimeout(res, 150));
+      } catch (e) {
+        this.logger.warn(
+          `Final reminder to ${r.email} failed: ${(e as Error).message}`,
+        );
+      }
+    }
+    this.logger.log(
+      `Final deadline reminders for "${event.title}": ${sent}/${batch.recipients.length} sent.`,
+    );
+  }
+
+  private renderFinalDeadlineEmail(ctx: {
+    firstName: string;
+    modules: Array<{ title: string; started: boolean; pending: string[] }>;
+    portalUrl: string;
+  }): { subject: string; html: string } {
+    const esc = (s: string) =>
+      String(s || '').replace(
+        /[&<>"]/g,
+        (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] || c,
+      );
+    const { firstName, modules, portalUrl } = ctx;
+    const subject = '⏰ Final reminder: submit all work by tomorrow 11:59 PM';
+    const sections = modules
+      .map((m) => {
+        const body =
+          m.started && m.pending.length
+            ? `<ul style="margin:8px 0 0;padding-left:20px;color:#3a4066;font-size:14px;line-height:1.7">${m.pending
+                .map((p) => `<li>${esc(p)}</li>`)
+                .join('')}</ul>`
+            : `<p style="margin:6px 0 0;font-size:13px;color:#8890ac">Not started yet.</p>`;
+        return `<div style="margin:14px 0 0;padding:14px 16px;border:1px solid #eceef6;border-radius:12px;background:#fafbff">
+          <div style="font-weight:700;font-size:15px;color:#1b2559">${esc(m.title)}</div>
+          ${body}
+        </div>`;
+      })
+      .join('');
+    const button = portalUrl
+      ? `<a href="${esc(portalUrl)}" style="display:inline-block;background:#1b2559;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:13px 28px;border-radius:999px">Go to my courses →</a>`
+      : '';
+    const html = `<!doctype html><html><body style="margin:0;background:#f5f6fb;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <div style="max-width:560px;margin:0 auto;padding:28px 20px">
+    <div style="background:#fff;border:1px solid #e6e8f2;border-radius:20px;padding:28px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#c79a3a">Campus Ministers in Training</div>
+      <h1 style="margin:10px 0 0;font-size:22px;line-height:1.25;color:#1b2559">Hi ${esc(firstName)},</h1>
+      <div style="margin:16px 0;padding:14px 16px;border-radius:12px;background:#fef3cd;border:1px solid #f0d78c">
+        <p style="margin:0;font-size:15px;font-weight:700;color:#92400e">⏰ Deadline: Wednesday, 2nd September 2026 at 11:59 PM (WAT)</p>
+        <p style="margin:6px 0 0;font-size:13px;color:#92400e">All lessons and summaries must be completed by this time. Submissions after this deadline will not be accepted.</p>
+      </div>
+      <p style="margin:14px 0 0;font-size:15px;line-height:1.7;color:#3a4066">You still have incomplete modules. Here's what's left:</p>
+      ${sections}
+      <div style="margin:22px 0 6px">${button}</div>
+      <p style="margin:20px 0 0;font-size:13px;line-height:1.6;color:#8890ac">This is the final reminder. Don't miss out — complete your work today. You've got this! 💪</p>
+    </div>
+    <p style="text-align:center;margin:16px 0 0;font-size:11px;color:#aab">A vision of Dami Oguntunde Teaching Ministries</p>
+  </div></body></html>`;
+    return { subject, html };
   }
 
   /**
