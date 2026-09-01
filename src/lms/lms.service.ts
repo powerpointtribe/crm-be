@@ -2103,7 +2103,12 @@ export class LmsService {
     );
     const [lessons, completed, modules] = await Promise.all([
       this.lessonModel
-        .find({ event: event._id, status: 'published' })
+        .find({
+          event: event._id,
+          status: 'published',
+          excludeFromCompletion: { $ne: true },
+          isSessionRecording: { $ne: true },
+        })
         .select('_id module')
         .lean(),
       this.progressModel
