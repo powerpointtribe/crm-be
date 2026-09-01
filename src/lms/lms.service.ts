@@ -235,6 +235,17 @@ export class LmsService {
     return { success: true };
   }
 
+  // Sept 2 2026 23:59:59 WAT (UTC+1) = Sept 2 2026 22:59:59 UTC
+  private readonly CMIT_DEADLINE = new Date('2026-09-02T22:59:59Z');
+
+  private assertBeforeDeadline() {
+    if (new Date() > this.CMIT_DEADLINE) {
+      throw new BadRequestException(
+        'The submission deadline has passed. No further submissions or completions are allowed.',
+      );
+    }
+  }
+
   private readonly SERMON_SUMMARY_MAX_WORDS = 500;
 
   private countWords(text: string): number {
@@ -272,6 +283,7 @@ export class LmsService {
     moduleId: string,
     content: string,
   ) {
+    this.assertBeforeDeadline();
     const mod = await this.moduleModel.findById(moduleId);
     if (!mod) throw new NotFoundException('Module not found');
     if (!(mod.audioMessages || []).length) {
@@ -1323,6 +1335,7 @@ export class LmsService {
     assignmentId: string,
     data: { text?: string; fileUrl?: string; fileName?: string },
   ) {
+    this.assertBeforeDeadline();
     const assignment = await this.assignmentModel.findOne({
       _id: new Types.ObjectId(assignmentId),
       status: 'published',
@@ -1896,6 +1909,7 @@ export class LmsService {
     lessonId: string,
     completed?: boolean,
   ) {
+    this.assertBeforeDeadline();
     const { event, registration } = await this.resolveLearner(
       account,
       eventSlug,
@@ -1936,6 +1950,7 @@ export class LmsService {
     lessonId: string,
     content: string,
   ) {
+    this.assertBeforeDeadline();
     const { event, registration } = await this.resolveLearner(
       account,
       eventSlug,
@@ -2001,6 +2016,7 @@ export class LmsService {
     lessonId: string,
     responses: any[],
   ) {
+    this.assertBeforeDeadline();
     const quiz = await this.quizModel.findOne({
       lesson: new Types.ObjectId(lessonId),
       status: 'published',
@@ -4186,7 +4202,7 @@ export class LmsService {
         },
       }));
 
-      await this.lessonProgressModel.bulkWrite(ops, { ordered: false });
+      await this.progressModel.bulkWrite(ops, { ordered: false });
     } catch (err) {
       this.logger.warn(
         `autoCompleteRecordingLesson failed: ${(err as Error).message}`,
@@ -4241,7 +4257,7 @@ export class LmsService {
     let totalUpserted = 0;
     const BATCH = 500;
     for (let i = 0; i < ops.length; i += BATCH) {
-      const result = await this.lessonProgressModel.bulkWrite(
+      const result = await this.progressModel.bulkWrite(
         ops.slice(i, i + BATCH),
         { ordered: false },
       );
@@ -5227,7 +5243,7 @@ export class LmsService {
       if (excluded.has(email) || email.startsWith('gthankgod')) continue;
       regInfo[String(r._id)] = {
         name: `${r.attendeeInfo?.firstName || ''} ${r.attendeeInfo?.lastName || ''}`.trim(),
-        studentId: (r as any).studentId,
+        studentId: (r as any).checkInCode || (r as any).studentId,
       };
     }
 
