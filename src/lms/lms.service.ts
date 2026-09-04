@@ -5494,6 +5494,22 @@ export class LmsService {
         .lean(),
     ]);
 
+    const regIds = entries
+      .map((e) => e.registration)
+      .filter(Boolean);
+    const regs = regIds.length
+      ? await this.registrationModel
+          .find({ _id: { $in: regIds } })
+          .select('customFieldResponses.headshotUrl')
+          .lean()
+      : [];
+    const headshotMap = new Map(
+      regs.map((r) => [
+        r._id.toString(),
+        (r as any).customFieldResponses?.headshotUrl || null,
+      ]),
+    );
+
     return {
       scope,
       page,
@@ -5501,7 +5517,11 @@ export class LmsService {
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
       computedAt: sample?.computedAt || null,
-      entries: entries.map((e) => this.shapeEntry(e)),
+      entries: entries.map((e) => ({
+        ...this.shapeEntry(e),
+        headshotUrl:
+          headshotMap.get(e.registration?.toString()) || null,
+      })),
     };
   }
 
