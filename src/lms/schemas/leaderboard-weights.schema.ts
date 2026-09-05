@@ -42,6 +42,10 @@ export class LeaderboardWeights {
   // Learner emails to keep off the board (test/staff accounts).
   @Prop({ type: [String], default: [] })
   excludedEmails: string[];
+
+  // When true, the board is frozen — no recomputation from any source.
+  @Prop({ type: Boolean, default: false })
+  frozen: boolean;
 }
 
 export const LeaderboardWeightsSchema =

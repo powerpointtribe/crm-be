@@ -105,6 +105,7 @@ export class LmsFacilitatorController {
       summaryMax?: number;
       streakBonusPerWeek?: number;
       excludedEmails?: string[];
+      frozen?: boolean;
     },
   ) {
     return this.lms.updateLeaderboardWeights(eventId, dto);

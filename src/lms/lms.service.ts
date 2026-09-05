@@ -235,15 +235,11 @@ export class LmsService {
     return { success: true };
   }
 
-  // Sept 2 2026 23:59:59 WAT (UTC+1) = Sept 2 2026 22:59:59 UTC
-  private readonly CMIT_DEADLINE = new Date('2026-09-02T22:59:59Z');
-
+  // Deadline removed — students can still complete lessons, quizzes, and
+  // summaries after the cohort ends. The leaderboard is frozen separately
+  // via the `frozen` flag on LeaderboardWeights.
   private assertBeforeDeadline() {
-    if (new Date() > this.CMIT_DEADLINE) {
-      throw new BadRequestException(
-        'The submission deadline has passed. No further submissions or completions are allowed.',
-      );
-    }
+    // no-op: submissions are always open
   }
 
   private readonly SERMON_SUMMARY_MAX_WORDS = 500;
@@ -5050,6 +5046,9 @@ export class LmsService {
   async recomputeLeaderboard(eventId: string) {
     const eventOid = new Types.ObjectId(eventId);
     const weights = await this.getOrCreateWeights(eventOid);
+
+    if (weights.frozen) return;
+
     const excluded = new Set(
       (weights.excludedEmails || []).map((e) => e.trim().toLowerCase()),
     );
@@ -5535,6 +5534,7 @@ export class LmsService {
       summaryMax: w.summaryMax,
       streakBonusPerWeek: w.streakBonusPerWeek,
       excludedEmails: w.excludedEmails || [],
+      frozen: !!w.frozen,
     };
   }
 
@@ -5547,6 +5547,7 @@ export class LmsService {
       summaryMax?: number;
       streakBonusPerWeek?: number;
       excludedEmails?: string[];
+      frozen?: boolean;
     },
   ) {
     await this.assertEvent(eventId);
@@ -5567,8 +5568,9 @@ export class LmsService {
       w.excludedEmails = dto.excludedEmails
         .map((e) => String(e).trim().toLowerCase())
         .filter(Boolean);
+    if (dto.frozen !== undefined) w.frozen = !!dto.frozen;
     await w.save();
-    // Reflect new weights immediately.
+    // Reflect new weights immediately (skipped if frozen).
     await this.recomputeLeaderboard(eventId);
     return this.getLeaderboardWeights(eventId);
   }
