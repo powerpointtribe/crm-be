@@ -1489,4 +1489,209 @@ export const eventsDefaults: TemplateDefinition[] = [
 </div>`,
     variableDefinitions: [],
   },
+  {
+    slug: 'events.cmit-cohort-2-waitlist',
+    name: 'CMIT Cohort 02 Waitlist Confirmation',
+    module: TemplateModule.EVENTS,
+    category: TemplateCategory.WELCOME,
+    subject: "You're on the list, {{firstName}} — CMIT Cohort 02",
+    htmlContent: `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>CMIT Cohort 02 — Waiting List</title>
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+  <style>
+    html, body { margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; }
+    * { -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; border-collapse: collapse !important; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    a { text-decoration: none; }
+
+    @media screen and (max-width: 600px) {
+      .container { width: 100% !important; }
+      .px { padding-left: 26px !important; padding-right: 26px !important; }
+      .h1 { font-size: 24px !important; line-height: 30px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#F4F3F0;">
+  <!-- Preheader (hidden) -->
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#F4F3F0; opacity:0;">
+    You're on the CMIT Cohort 02 waiting list. We'll notify you as soon as registration opens.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F3F0;">
+    <tr>
+      <td align="center" style="padding:28px 16px;">
+
+        <!-- Card -->
+        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#FFFFFF; border:1px solid #E7E4DE; border-radius:12px; overflow:hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td class="px" style="padding:36px 44px 30px 44px; background-color:#F1EFEA; border-bottom:1px solid #DCD8D0; font-family:'Helvetica Neue',Arial,sans-serif;">
+              <p style="margin:0 0 18px 0; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:#908C85; font-weight:700;">
+                Dami Oguntunde Teaching Ministries
+              </p>
+              <h1 class="h1" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:28px; line-height:34px; color:#1B1A18; font-weight:700;">
+                CMIT Cohort 02
+              </h1>
+              <p style="margin:14px 0 0 0; font-size:14px; line-height:21px; color:#908C85;">
+                You're on the waiting list — we'll be in touch.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td class="px" style="padding:30px 44px 4px 44px; font-family:'Helvetica Neue',Arial,sans-serif;">
+
+              <p style="margin:0 0 18px 0; font-family:Georgia,'Times New Roman',serif; font-size:19px; line-height:26px; color:#1B1A18; font-weight:700;">
+                Dear {{firstName}},
+              </p>
+
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
+                Thank you for your interest in the next cohort of <strong style="color:#1B1A18;">Campus Ministers In Training (CMIT)</strong>. We're excited that you want to be a part of what God is doing through this initiative.
+              </p>
+
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
+                Your name has been added to the Cohort 02 waiting list. You'll be among the <strong style="color:#1B1A18;">first to know</strong> when registration officially opens, and you'll get early access before the general public.
+              </p>
+
+              <p style="margin:0 0 4px 0; font-size:15px; line-height:24px; color:#46443F;">
+                In the meantime, here's what you can look forward to:
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- What to expect panel -->
+          <tr>
+            <td class="px" style="padding:24px 44px 0 44px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F7F6F3; border-radius:8px;">
+                <tr>
+                  <td style="padding:22px 26px; font-family:'Helvetica Neue',Arial,sans-serif;">
+                    <p style="margin:0 0 16px 0; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#908C85; font-weight:700;">
+                      What to expect
+                    </p>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:0 0 12px 0; font-size:14px; line-height:20px; color:#46443F;">
+                          <span style="color:#D4AF37; font-weight:700; margin-right:6px;">&#10003;</span>
+                          <strong style="color:#1B1A18;">5 weeks</strong> of intensive online ministry training
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:0 0 12px 0; font-size:14px; line-height:20px; color:#46443F;">
+                          <span style="color:#D4AF37; font-weight:700; margin-right:6px;">&#10003;</span>
+                          Live sessions, mentorship, and community
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:0 0 12px 0; font-size:14px; line-height:20px; color:#46443F;">
+                          <span style="color:#D4AF37; font-weight:700; margin-right:6px;">&#10003;</span>
+                          Practical tools to lead campus ministry effectively
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:0; font-size:14px; line-height:20px; color:#46443F;">
+                          <span style="color:#D4AF37; font-weight:700; margin-right:6px;">&#10003;</span>
+                          Certificate of completion and alumni network
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Closing copy -->
+          <tr>
+            <td class="px" style="padding:26px 44px 0 44px; font-family:'Helvetica Neue',Arial,sans-serif;">
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:24px; color:#46443F;">
+                We'll send you an email the moment registration opens. Until then, feel free to share CMIT with other students on your campus who carry a burden for ministry.
+              </p>
+              <p style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:17px; line-height:25px; color:#1B1A18; font-weight:700;">
+                The best is ahead. We can't wait to have you.
+              </p>
+            </td>
+          </tr>
+
+          <!-- CTA button -->
+          <tr>
+            <td class="px" style="padding:24px 44px 0 44px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" bgcolor="#1B1A18" style="border-radius:6px;">
+                    <a href="https://cmithub.org" target="_blank" style="display:inline-block; padding:14px 38px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:15px; font-weight:700; letter-spacing:0.3px; color:#FFFFFF; background-color:#1B1A18; border-radius:6px;">
+                      Visit CMIT
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Signature -->
+          <tr>
+            <td class="px" style="padding:24px 44px 38px 44px; font-family:'Helvetica Neue',Arial,sans-serif;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="height:1px; background-color:#E7E4DE; line-height:1px; font-size:0;">&nbsp;</td></tr>
+              </table>
+              <p style="margin:22px 0 4px 0; font-size:15px; line-height:22px; color:#46443F;">
+                Warm regards,
+              </p>
+              <p style="margin:0; font-size:15px; line-height:22px; color:#1B1A18; font-weight:700;">
+                The CMIT Team
+              </p>
+              <p style="margin:0; font-size:13px; line-height:20px; color:#908C85;">
+                Dami Oguntunde Teaching Ministries
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Card -->
+
+        <!-- Footer -->
+        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px;">
+          <tr>
+            <td align="center" style="padding:24px 40px; font-family:'Helvetica Neue',Arial,sans-serif;">
+              <p style="margin:0 0 6px 0; font-size:11px; line-height:17px; color:#A8A39B;">
+                You're receiving this email because you joined the CMIT Cohort 02 waiting list.
+              </p>
+              <p style="margin:0; font-size:11px; line-height:17px; color:#A8A39B;">
+                &copy; {{year}} Dami Oguntunde Teaching Ministries
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+    variableDefinitions: [
+      {
+        name: 'firstName',
+        description: 'Registrant first name',
+        sampleValue: 'Adaeze',
+      },
+      { name: 'year', description: 'Current year', sampleValue: '2026' },
+    ],
+  },
 ];
