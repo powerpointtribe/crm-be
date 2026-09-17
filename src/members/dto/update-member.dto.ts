@@ -233,4 +233,36 @@ export class UpdateMemberDto {
   @ApiPropertyOptional({ description: 'Is member active' })
   @IsOptional()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Reason for leaving the church',
+    enum: [
+      'personal',
+      'relocation',
+      'dissatisfaction',
+      'church_discipline',
+      'health',
+      'family',
+      'unknown',
+      'other',
+    ],
+  })
+  @IsOptional()
+  @IsEnum([
+    'personal',
+    'relocation',
+    'dissatisfaction',
+    'church_discipline',
+    'health',
+    'family',
+    'unknown',
+    'other',
+  ])
+  exitReason?: string;
+
+  @ApiPropertyOptional({ description: 'Date member left the church' })
+  @IsOptional()
+  @Transform(transformToDate)
+  @IsDate({ message: 'exitDate must be a valid date' })
+  exitDate?: Date;
 }

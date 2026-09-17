@@ -33,6 +33,8 @@ import { BulkEmailModule } from './bulk-email/bulk-email.module';
 import { PortalModule } from './portal/portal.module';
 import { LmsModule } from './lms/lms.module';
 import { StoreModule } from './store/store.module';
+import { ServiceAttendanceModule } from './service-attendance/service-attendance.module';
+import { GisModule } from './gis/gis.module';
 
 @Module({
   imports: [
@@ -109,6 +111,8 @@ import { StoreModule } from './store/store.module';
     PortalModule,
     LmsModule,
     StoreModule,
+    ServiceAttendanceModule,
+    GisModule,
   ],
   controllers: [AppController],
   providers: [

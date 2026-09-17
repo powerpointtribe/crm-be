@@ -993,6 +993,24 @@ export class MembersService {
       updateMemberDto.email = updateMemberDto.email.toLowerCase();
     }
 
+    // Track exit/return transitions
+    const exitStatuses = [MembershipStatus.LEFT, MembershipStatus.RELOCATED];
+    if (
+      updateMemberDto.membershipStatus &&
+      updateMemberDto.membershipStatus !== existingMember.membershipStatus
+    ) {
+      if (exitStatuses.includes(updateMemberDto.membershipStatus)) {
+        (updateMemberDto as any).previousStatus = existingMember.membershipStatus;
+        if (!updateMemberDto.exitDate) {
+          (updateMemberDto as any).exitDate = new Date();
+        }
+      } else if (exitStatuses.includes(existingMember.membershipStatus as MembershipStatus)) {
+        (updateMemberDto as any).previousStatus = existingMember.membershipStatus;
+        (updateMemberDto as any).exitDate = null;
+        (updateMemberDto as any).exitReason = null;
+      }
+    }
+
     // Track if this is a first-time unit assignment
     const isFirstUnitAssignment = !existingMember.unit && !!updateMemberDto.unit;
 

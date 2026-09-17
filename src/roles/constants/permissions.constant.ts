@@ -70,6 +70,14 @@ import {
   StorePermission,
   StorePermissionMetadata,
 } from '../../store/permissions';
+import {
+  ServiceAttendancePermission,
+  ServiceAttendancePermissionMetadata,
+} from '../../service-attendance/permissions';
+import {
+  GisPermission,
+  GisPermissionMetadata,
+} from '../../gis/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -261,6 +269,24 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       perm,
       StorePermissionMetadata[perm] || {},
       'store',
+    ),
+  ),
+
+  // Service Attendance Module
+  ...Object.values(ServiceAttendancePermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      ServiceAttendancePermissionMetadata[perm] || {},
+      'service-attendance',
+    ),
+  ),
+
+  // Growth Intelligence System Module
+  ...Object.values(GisPermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      GisPermissionMetadata[perm] || {},
+      'gis',
     ),
   ),
 ];

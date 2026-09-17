@@ -255,6 +255,31 @@ export class Member {
   @Prop({ trim: true })
   notes?: string;
 
+  // EXIT TRACKING
+  @Prop({
+    type: String,
+    enum: [
+      'personal',
+      'relocation',
+      'dissatisfaction',
+      'church_discipline',
+      'health',
+      'family',
+      'unknown',
+      'other',
+    ],
+  })
+  exitReason?: string;
+
+  @Prop({ type: Date })
+  exitDate?: Date;
+
+  @Prop({
+    type: String,
+    enum: Object.values(MembershipStatus),
+  })
+  previousStatus?: MembershipStatus;
+
   // ENGAGEMENT TRACKING
   @Prop({
     type: {
@@ -364,3 +389,5 @@ MemberSchema.index({ assignedDistricts: 1 }); // For assistant pastor district a
 MemberSchema.index({ lastLogin: -1 });
 MemberSchema.index({ isActive: 1 });
 MemberSchema.index({ accountType: 1 });
+MemberSchema.index({ exitDate: -1 });
+MemberSchema.index({ exitReason: 1 });
