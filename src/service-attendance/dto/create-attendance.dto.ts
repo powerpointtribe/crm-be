@@ -59,6 +59,11 @@ export class CreateAttendanceDto {
   @IsMongoId()
   serviceReport?: string;
 
+  @ApiPropertyOptional({ description: 'Branch ID (for multi-campus admins)' })
+  @IsOptional()
+  @IsMongoId()
+  branch?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

@@ -244,8 +244,12 @@ export class ServiceAttendanceService {
     serviceType: string,
     branch: string,
   ) {
+    const filter: any = { serviceDate, serviceType };
+    if (branch) {
+      filter.branch = new Types.ObjectId(branch);
+    }
     return this.attendanceModel
-      .find({ serviceDate, serviceType, branch })
+      .find(filter)
       .populate('member', 'firstName lastName email phone profilePicture')
       .sort({ checkInTime: 1 })
       .exec();

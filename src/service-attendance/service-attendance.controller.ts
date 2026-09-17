@@ -53,7 +53,7 @@ export class ServiceAttendanceController {
     const record = await this.attendanceService.checkIn(
       dto,
       user.sub,
-      user.branch,
+      dto.branch || user.branch,
     );
     return { data: record };
   }
@@ -144,11 +144,12 @@ export class ServiceAttendanceController {
     @CurrentUser() user: any,
     @Query('date') date: string,
     @Query('serviceType') serviceType: string,
+    @Query('branch') branch?: string,
   ) {
     const data = await this.attendanceService.getServiceAttendees(
       new Date(date),
       serviceType,
-      user.branch,
+      branch || user.branch,
     );
     return { data };
   }
@@ -195,9 +196,10 @@ export class ServiceAttendanceController {
     @CurrentUser() user: any,
     @Body('serviceDate') serviceDate: string,
     @Body('serviceType') serviceType: string,
+    @Body('branch') branch?: string,
   ) {
     const result = await this.attendanceService.markAbsentees(
-      user.branch,
+      branch || user.branch,
       new Date(serviceDate),
       serviceType,
     );
