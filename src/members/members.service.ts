@@ -41,6 +41,11 @@ import {
 import { RolesService } from '../roles/services/roles.service';
 import { MemberLifecycleService } from '../activity-tracker/member-lifecycle.service';
 import { generateDefaultPassword } from '../common/utils/password-generator';
+import {
+  ProfileSubmission,
+  ProfileSubmissionDocument,
+  SubmissionStatus,
+} from './schemas/profile-submission.schema';
 
 @Injectable()
 export class MembersService {
@@ -48,6 +53,7 @@ export class MembersService {
 
   constructor(
     @InjectModel(Member.name) private memberModel: Model<MemberDocument>,
+    @InjectModel(ProfileSubmission.name) private submissionModel: Model<ProfileSubmissionDocument>,
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
     @InjectModel(Branch.name) private branchModel: Model<BranchDocument>,
     private branchAccessService: BranchAccessService,
@@ -2583,5 +2589,138 @@ export class MembersService {
     ];
 
     return [headers.join(','), ...sampleRows].join('\n');
+  }
+
+  async createProfileSubmission(data: any) {
+    const submission = new this.submissionModel(data);
+    return submission.save();
+  }
+
+  async getProfileSubmissions(
+    status?: string,
+    page = 1,
+    limit = 20,
+  ) {
+    const filter: any = {};
+    if (status) filter.status = status;
+
+    const skip = (page - 1) * limit;
+    const [items, total] = await Promise.all([
+      this.submissionModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('matchedMember', 'firstName lastName email')
+        .populate('processedBy', 'firstName lastName')
+        .exec(),
+      this.submissionModel.countDocuments(filter),
+    ]);
+
+    return { items, total, page, limit };
+  }
+
+  async getProfileSubmission(id: string) {
+    const sub = await this.submissionModel
+      .findById(id)
+      .populate('matchedMember', 'firstName lastName email phone')
+      .populate('processedBy', 'firstName lastName')
+      .exec();
+    if (!sub) throw new NotFoundException('Submission not found');
+    return sub;
+  }
+
+  async matchSubmissionToMember(submissionId: string, memberId: string, adminId: string) {
+    const submission = await this.submissionModel.findById(submissionId);
+    if (!submission) throw new NotFoundException('Submission not found');
+
+    const member = await this.memberModel.findById(memberId);
+    if (!member) throw new NotFoundException('Member not found');
+
+    const updateFields: Record<string, any> = {};
+    const directFields = [
+      'phone', 'dateOfBirth', 'gender', 'maritalStatus',
+      'occupation', 'profession', 'businessName', 'businessType',
+      'employer', 'workAddress', 'weddingAnniversary',
+    ];
+    for (const field of directFields) {
+      if (submission[field]) updateFields[field] = submission[field];
+    }
+    if (submission.interests?.length) updateFields.interests = submission.interests;
+    if (submission.skills?.length) updateFields.skills = submission.skills;
+
+    if (submission.address) {
+      for (const key of ['street', 'city', 'state', 'country', 'lga', 'landmark']) {
+        if (submission.address[key]) updateFields[`address.${key}`] = submission.address[key];
+      }
+    }
+
+    if (submission.socialMedia) {
+      for (const key of ['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok']) {
+        if (submission.socialMedia[key])
+          updateFields[`socialMedia.${key}`] = submission.socialMedia[key];
+      }
+    }
+
+    if (submission.emergencyContact) {
+      for (const key of ['name', 'relationship', 'phone']) {
+        if (submission.emergencyContact[key])
+          updateFields[`emergencyContact.${key}`] = submission.emergencyContact[key];
+      }
+    }
+
+    if (Object.keys(updateFields).length > 0) {
+      await this.memberModel.findByIdAndUpdate(memberId, { $set: updateFields });
+    }
+
+    submission.status = SubmissionStatus.MATCHED;
+    submission.matchedMember = new Types.ObjectId(memberId);
+    submission.processedBy = new Types.ObjectId(adminId);
+    submission.processedAt = new Date();
+    await submission.save();
+
+    return { member: { firstName: member.firstName, lastName: member.lastName } };
+  }
+
+  async dismissSubmission(submissionId: string, adminId: string) {
+    const submission = await this.submissionModel.findById(submissionId);
+    if (!submission) throw new NotFoundException('Submission not found');
+
+    submission.status = SubmissionStatus.DISMISSED;
+    submission.processedBy = new Types.ObjectId(adminId);
+    submission.processedAt = new Date();
+    await submission.save();
+
+    return { dismissed: true };
+  }
+
+  async getSubmissionStats() {
+    const [pending, matched, created, dismissed, total] = await Promise.all([
+      this.submissionModel.countDocuments({ status: SubmissionStatus.PENDING }),
+      this.submissionModel.countDocuments({ status: SubmissionStatus.MATCHED }),
+      this.submissionModel.countDocuments({ status: SubmissionStatus.CREATED }),
+      this.submissionModel.countDocuments({ status: SubmissionStatus.DISMISSED }),
+      this.submissionModel.countDocuments(),
+    ]);
+    return { pending, matched, created, dismissed, total };
+  }
+
+  async searchMembersForMatch(query: string) {
+    if (!query || query.length < 2) return [];
+    const regex = new RegExp(query, 'i');
+    return this.memberModel
+      .find({
+        isActive: true,
+        $or: [
+          { firstName: regex },
+          { lastName: regex },
+          { email: regex },
+          { phone: regex },
+        ],
+      })
+      .select('firstName lastName email phone branch')
+      .populate('branch', 'name')
+      .limit(10)
+      .exec();
   }
 }

@@ -34,6 +34,7 @@ import { AuditAction, AuditEntity } from '../common/enums/audit-action.enum';
 import { UserPermissionsService } from '../roles/services/user-permissions.service';
 import { BranchFilterContext } from '../common/services/branch-access.service';
 import { MemberSearchDto } from './dto/member-search.dto';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('members')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -322,6 +323,70 @@ export class MembersController {
     return { modules };
   }
 
+  @Post('profile-submissions')
+  @Public()
+  async createProfileSubmission(@Body() body: any) {
+    if (!body.firstName || !body.lastName) {
+      throw new BadRequestException('First name and last name are required');
+    }
+    const submission = await this.membersService.createProfileSubmission(body);
+    return { data: { id: submission._id }, message: 'Profile submitted successfully' };
+  }
+
+  @Get('profile-submissions')
+  @RequirePermission(MembersPermission.VIEW_MEMBERS)
+  async getProfileSubmissions(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return {
+      data: await this.membersService.getProfileSubmissions(
+        status,
+        page ? parseInt(page) : 1,
+        limit ? parseInt(limit) : 20,
+      ),
+    };
+  }
+
+  @Get('profile-submissions/stats')
+  @RequirePermission(MembersPermission.VIEW_MEMBERS)
+  async getSubmissionStats() {
+    return { data: await this.membersService.getSubmissionStats() };
+  }
+
+  @Get('profile-submissions/search-members')
+  @RequirePermission(MembersPermission.VIEW_MEMBERS)
+  async searchMembersForMatch(@Query('q') query: string) {
+    return { data: await this.membersService.searchMembersForMatch(query) };
+  }
+
+  @Get('profile-submissions/:id')
+  @RequirePermission(MembersPermission.VIEW_MEMBERS)
+  async getProfileSubmission(@Param('id') id: string) {
+    return { data: await this.membersService.getProfileSubmission(id) };
+  }
+
+  @Post('profile-submissions/:id/match/:memberId')
+  @RequirePermission(MembersPermission.UPDATE_MEMBER)
+  async matchSubmission(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+    @Request() req,
+  ) {
+    const adminId = req.user?.sub || req.user?._id;
+    const result = await this.membersService.matchSubmissionToMember(id, memberId, adminId);
+    return { data: result, message: 'Submission matched to member successfully' };
+  }
+
+  @Patch('profile-submissions/:id/dismiss')
+  @RequirePermission(MembersPermission.UPDATE_MEMBER)
+  async dismissSubmission(@Param('id') id: string, @Request() req) {
+    const adminId = req.user?.sub || req.user?._id;
+    const result = await this.membersService.dismissSubmission(id, adminId);
+    return { data: result, message: 'Submission dismissed' };
+  }
+
   @Get(':id')
   @RequirePermission(MembersPermission.VIEW_MEMBER_DETAILS)
   async findOne(@Param('id') id: string, @Request() req) {
@@ -495,4 +560,5 @@ export class MembersController {
       targetMember._id.toString(),
     );
   }
+
 }

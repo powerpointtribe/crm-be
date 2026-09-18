@@ -111,6 +111,8 @@ export class Member {
       state: { type: String, required: true, default: 'Lagos' },
       zipCode: String,
       country: { type: String, default: 'Nigeria' },
+      lga: String,
+      landmark: String,
     },
     default: {
       street: '',
@@ -125,6 +127,8 @@ export class Member {
     state: string;
     zipCode?: string;
     country: string;
+    lga?: string;
+    landmark?: string;
   };
 
   // CHURCH DATES
@@ -187,7 +191,51 @@ export class Member {
   occupation?: string;
 
   @Prop({ trim: true })
+  profession?: string;
+
+  @Prop({ trim: true })
+  employer?: string;
+
+  @Prop({ trim: true })
+  businessName?: string;
+
+  @Prop({ trim: true })
+  businessType?: string;
+
+  @Prop({ trim: true })
   workAddress?: string;
+
+  @Prop({ type: Date })
+  weddingAnniversary?: Date;
+
+  @Prop([String])
+  interests!: string[];
+
+  @Prop({ trim: true })
+  memberCategory?: string;
+
+  @Prop({ trim: true })
+  howLongAttending?: string;
+
+  @Prop({ trim: true })
+  previousChurch?: string;
+
+  @Prop({
+    type: {
+      facebook: String,
+      instagram: String,
+      twitter: String,
+      linkedin: String,
+      tiktok: String,
+    },
+  })
+  socialMedia?: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+    linkedin?: string;
+    tiktok?: string;
+  };
 
   // FAMILY RELATIONSHIPS
   @Prop({ type: Types.ObjectId, ref: 'Member' })

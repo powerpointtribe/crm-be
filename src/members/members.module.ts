@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { MembersService } from './members.service';
 import { MembersController } from './members.controller';
 import { Member, MemberSchema } from './schemas/member.schema';
+import { ProfileSubmission, ProfileSubmissionSchema } from './schemas/profile-submission.schema';
 import { Group, GroupSchema } from '../groups/schemas/group.schema';
 import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
 import { QueueModule } from '../queue/queue.module';
@@ -18,6 +19,7 @@ import { ActivityTrackerModule } from '../activity-tracker/activity-tracker.modu
   imports: [
     MongooseModule.forFeature([
       { name: Member.name, schema: MemberSchema },
+      { name: ProfileSubmission.name, schema: ProfileSubmissionSchema },
       { name: Group.name, schema: GroupSchema },
       { name: Branch.name, schema: BranchSchema },
     ]),
