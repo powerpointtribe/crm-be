@@ -138,6 +138,18 @@ export class ServiceReportsController {
     type: String,
     description: 'End date for filtering stats (ISO format)',
   })
+  @ApiQuery({
+    name: 'branchId',
+    required: false,
+    type: String,
+    description: 'Branch ID to filter stats',
+  })
+  @ApiQuery({
+    name: 'serviceTag',
+    required: false,
+    type: String,
+    description: 'Service tag to filter stats',
+  })
   @ApiResponse({
     status: 200,
     description: 'Service report statistics retrieved successfully',
@@ -145,8 +157,10 @@ export class ServiceReportsController {
   async getServiceReportStats(
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('branchId') branchId?: string,
+    @Query('serviceTag') serviceTag?: string,
   ) {
-    const stats = await this.serviceReportsService.getServiceReportStats(dateFrom, dateTo);
+    const stats = await this.serviceReportsService.getServiceReportStats(dateFrom, dateTo, branchId, serviceTag);
     return ResponseUtil.success(
       stats,
       'Service report statistics retrieved successfully',
@@ -174,6 +188,12 @@ export class ServiceReportsController {
     type: String,
     description: 'End date for filtering chart data (ISO format)',
   })
+  @ApiQuery({
+    name: 'branchId',
+    required: false,
+    type: String,
+    description: 'Branch ID to filter chart data',
+  })
   @ApiResponse({
     status: 200,
     description: 'Attendance chart data retrieved successfully',
@@ -182,21 +202,23 @@ export class ServiceReportsController {
     @Query('limit') limit?: number,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('branchId') queryBranchId?: string,
     @CurrentUser() user?: any,
   ) {
-    // Resolve branch filtering based on user permissions
-    let branchId: string | undefined;
+    let branchId: string | undefined = queryBranchId;
 
-    if (user?.role) {
-      const userPermissions = await this.userPermissionsService.getUserPermissions(
-        user.role._id || user.role,
-      );
-      const hasViewAll = userPermissions.permissions.includes('branches:view-all');
-      if (!hasViewAll) {
+    if (!branchId) {
+      if (user?.role) {
+        const userPermissions = await this.userPermissionsService.getUserPermissions(
+          user.role._id || user.role,
+        );
+        const hasViewAll = userPermissions.permissions.includes('branches:view-all');
+        if (!hasViewAll) {
+          branchId = user.branch?._id || user.branch;
+        }
+      } else if (user) {
         branchId = user.branch?._id || user.branch;
       }
-    } else if (user) {
-      branchId = user.branch?._id || user.branch;
     }
 
     const chartData = await this.serviceReportsService.getAttendanceChartData(

@@ -334,7 +334,7 @@ export class ServiceReportsService {
     }
   }
 
-  async getServiceReportStats(dateFrom?: string, dateTo?: string): Promise<any> {
+  async getServiceReportStats(dateFrom?: string, dateTo?: string, branchId?: string, serviceTag?: string): Promise<any> {
     // Build date filter
     const dateFilter: any = { isActive: true };
     if (dateFrom || dateTo) {
@@ -345,6 +345,12 @@ export class ServiceReportsService {
       if (dateTo) {
         dateFilter.date.$lte = new Date(dateTo);
       }
+    }
+    if (branchId) {
+      dateFilter.branch = new Types.ObjectId(branchId);
+    }
+    if (serviceTag) {
+      dateFilter.serviceTags = serviceTag;
     }
 
     const stats = await this.serviceReportModel.aggregate([
