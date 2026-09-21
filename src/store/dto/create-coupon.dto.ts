@@ -62,6 +62,16 @@ export class CreateCouponDto {
   @IsMongoId({ each: true })
   applicableProducts?: string[];
 
+  @ApiPropertyOptional({
+    example: 1,
+    description:
+      'Max number of items the discount applies to. When set, discount is calculated on only this many items instead of the full subtotal.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  maxApplicableItems?: number;
+
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()

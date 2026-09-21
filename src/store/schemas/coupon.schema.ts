@@ -44,6 +44,9 @@ export class Coupon {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Product' }] })
   applicableProducts?: Types.ObjectId[];
 
+  @Prop({ type: Number, min: 1 })
+  maxApplicableItems?: number;
+
   @Prop({ type: Boolean, default: true })
   isActive: boolean;
 

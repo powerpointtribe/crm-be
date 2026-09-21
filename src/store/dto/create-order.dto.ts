@@ -89,6 +89,16 @@ export class CreateOrderDto {
   @IsString()
   couponCode?: string;
 
+  @ApiPropertyOptional({
+    example: 0,
+    description:
+      'Index of the item (in the items array) to apply a per-item coupon to. Required when the coupon has maxApplicableItems set.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  couponApplyToItemIndex?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsEmail()

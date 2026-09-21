@@ -243,7 +243,13 @@ export class StoreService {
     return createPaginatedResult(data, total, page, limit);
   }
 
-  async validateCoupon(code: string, orderSubtotal: number, productIds: string[]) {
+  async validateCoupon(
+    code: string,
+    orderSubtotal: number,
+    productIds: string[],
+    itemPrices?: { productId: string; totalPrice: number }[],
+    applyToItemIndex?: number,
+  ) {
     const coupon = await this.couponModel
       .findOne({ code: code.toUpperCase(), isActive: true })
       .lean();
@@ -278,14 +284,28 @@ export class StoreService {
       }
     }
 
+    let discountBase = orderSubtotal;
+
+    if (coupon.maxApplicableItems && itemPrices?.length) {
+      if (applyToItemIndex !== undefined && applyToItemIndex < itemPrices.length) {
+        discountBase = itemPrices[applyToItemIndex].totalPrice;
+      } else {
+        const sorted = [...itemPrices]
+          .sort((a, b) => b.totalPrice - a.totalPrice);
+        discountBase = sorted
+          .slice(0, coupon.maxApplicableItems)
+          .reduce((sum, item) => sum + item.totalPrice, 0);
+      }
+    }
+
     let discountAmount: number;
     if (coupon.discountType === DiscountType.PERCENTAGE) {
-      discountAmount = Math.round(orderSubtotal * (coupon.discountValue / 100));
+      discountAmount = Math.round(discountBase * (coupon.discountValue / 100));
       if (coupon.maxDiscountAmount) {
         discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
       }
     } else {
-      discountAmount = Math.min(coupon.discountValue, orderSubtotal);
+      discountAmount = Math.min(coupon.discountValue, discountBase);
     }
 
     return { coupon, discountAmount };
@@ -360,7 +380,17 @@ export class StoreService {
 
     if (dto.couponCode) {
       const productIds = dto.items.map((i) => i.product);
-      const result = await this.validateCoupon(dto.couponCode, subtotal, productIds);
+      const itemPrices = orderItems.map((item) => ({
+        productId: item.product.toString(),
+        totalPrice: item.totalPrice,
+      }));
+      const result = await this.validateCoupon(
+        dto.couponCode,
+        subtotal,
+        productIds,
+        itemPrices,
+        dto.couponApplyToItemIndex,
+      );
       discountAmount = result.discountAmount;
       couponCode = result.coupon.code;
     }

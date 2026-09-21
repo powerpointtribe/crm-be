@@ -106,12 +106,21 @@ export class StoreController {
   @Public()
   @ApiOperation({ summary: 'Validate a coupon code (public)' })
   async validateCoupon(
-    @Body() body: { code: string; subtotal: number; productIds: string[] },
+    @Body()
+    body: {
+      code: string;
+      subtotal: number;
+      productIds: string[];
+      itemPrices?: { productId: string; totalPrice: number }[];
+      applyToItemIndex?: number;
+    },
   ) {
     const result = await this.storeService.validateCoupon(
       body.code,
       body.subtotal,
       body.productIds,
+      body.itemPrices,
+      body.applyToItemIndex,
     );
     return ResponseUtil.success(
       {
@@ -119,6 +128,7 @@ export class StoreController {
         discountType: result.coupon.discountType,
         discountValue: result.coupon.discountValue,
         discountAmount: result.discountAmount,
+        maxApplicableItems: result.coupon.maxApplicableItems || null,
       },
       'Coupon is valid',
     );
