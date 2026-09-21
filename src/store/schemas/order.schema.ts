@@ -96,6 +96,9 @@ export class Order {
   @Prop({ type: Number, default: 0, min: 0 })
   discountAmount: number;
 
+  @Prop({ trim: true, uppercase: true })
+  couponCode?: string;
+
   @Prop({ type: Number, required: true, min: 0 })
   totalAmount: number;
 

@@ -404,17 +404,11 @@ export class StoreService {
       delivery: dto.delivery,
       subtotal,
       discountAmount,
+      couponCode,
       totalAmount,
       customerEmail: dto.customerEmail || dto.delivery.email,
       customerPhone: dto.customerPhone || dto.delivery.phone,
     });
-
-    if (couponCode) {
-      await this.couponModel.updateOne(
-        { code: couponCode },
-        { $inc: { usageCount: 1 } },
-      );
-    }
 
     return order;
   }
@@ -641,6 +635,7 @@ export class StoreService {
     await order.save();
 
     await this.deductStock(order);
+    await this.incrementCouponUsage(order);
     this.sendOrderConfirmationEmail(order).catch(() => {});
 
     return { verified: true, order };
@@ -679,6 +674,7 @@ export class StoreService {
     order.paymentMeta = data.data;
     await order.save();
     await this.deductStock(order);
+    await this.incrementCouponUsage(order);
     this.sendOrderConfirmationEmail(order).catch(() => {});
 
     return { verified: true, order };
@@ -702,11 +698,21 @@ export class StoreService {
         order.paymentMeta = payload.data;
         await order.save();
         await this.deductStock(order);
+        await this.incrementCouponUsage(order);
         this.sendOrderConfirmationEmail(order).catch(() => {});
       }
     }
 
     return { status: 'ok' };
+  }
+
+  private async incrementCouponUsage(order: OrderDocument) {
+    if (order.couponCode) {
+      await this.couponModel.updateOne(
+        { code: order.couponCode },
+        { $inc: { usageCount: 1 } },
+      );
+    }
   }
 
   private async sendOrderConfirmationEmail(order: OrderDocument) {
