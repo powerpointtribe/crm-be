@@ -379,6 +379,16 @@ export class StoreController {
     return ResponseUtil.success(coupon, 'Coupon updated');
   }
 
+  @Get('coupons/:code/usage')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @ApiBearerAuth()
+  @RequirePermission(StorePermission.MANAGE_COUPONS)
+  @ApiOperation({ summary: 'Get orders that used a coupon code' })
+  async getCouponUsage(@Param('code') code: string) {
+    const orders = await this.storeService.getCouponUsage(code);
+    return ResponseUtil.success(orders, 'Coupon usage retrieved');
+  }
+
   @Delete('coupons/:id')
   @UseGuards(JwtAuthGuard, PermissionGuard)
   @ApiBearerAuth()

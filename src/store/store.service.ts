@@ -452,6 +452,15 @@ export class StoreService {
     return createPaginatedResult(data, total, page, limit);
   }
 
+  async getCouponUsage(couponCode: string) {
+    const orders = await this.orderModel
+      .find({ couponCode: couponCode.toUpperCase(), paymentStatus: PaymentStatus.SUCCESSFUL })
+      .select('orderNumber customerEmail delivery.fullName delivery.phone discountAmount totalAmount createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
+    return orders;
+  }
+
   async getOrderById(id: string) {
     const order = await this.orderModel.findById(id).lean();
     if (!order) throw new NotFoundException('Order not found');
