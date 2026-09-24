@@ -636,6 +636,10 @@ export class StoreService {
       return { verified: false, message: 'Order not found' };
     }
 
+    if (order.paymentStatus === PaymentStatus.SUCCESSFUL) {
+      return { verified: true, message: 'Already verified', order };
+    }
+
     if (data.data.amount < order.totalAmount) {
       this.logger.warn(
         `Amount mismatch: paid ${data.data.amount}, expected ${order.totalAmount}`,
