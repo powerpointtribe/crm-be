@@ -25,6 +25,11 @@ export class QrCheckInDto {
   @IsString()
   branch: string;
 
+  @ApiPropertyOptional({ description: 'Service title' })
+  @IsOptional()
+  @IsString()
+  serviceTitle?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -19,6 +20,7 @@ import { ServiceAttendanceService } from './service-attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { BulkCheckInDto } from './dto/bulk-check-in.dto';
 import { QrCheckInDto } from './dto/qr-check-in.dto';
+import { GroupMeetingAttendanceDto } from './dto/group-meeting-attendance.dto';
 import { QueryAttendanceDto } from './dto/query-attendance.dto';
 import { ServiceAttendancePermission } from './permissions';
 
@@ -28,6 +30,45 @@ import { ServiceAttendancePermission } from './permissions';
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class ServiceAttendanceController {
   constructor(private readonly attendanceService: ServiceAttendanceService) {}
+
+  @Post('public/verify-leader')
+  @Public()
+  @ApiOperation({ summary: 'Verify leader credentials and return their groups (no auth required)' })
+  async publicVerifyLeader(
+    @Body() body: { email: string; password: string },
+  ) {
+    const data = await this.attendanceService.publicVerifyLeader(
+      body.email,
+      body.password,
+    );
+    return { data };
+  }
+
+  @Post('public/group-meeting')
+  @Public()
+  @ApiOperation({ summary: 'Submit group meeting attendance (public, leader email required)' })
+  async publicGroupMeeting(
+    @Body() body: { email: string; password: string; groupId: string; meetingDate: string; presentMemberIds: string[]; notes?: string },
+  ) {
+    const verified = await this.attendanceService.publicVerifyLeader(
+      body.email,
+      body.password,
+    );
+    const leaderGroups = verified.groups.map((g: any) => g._id.toString());
+    if (!leaderGroups.includes(body.groupId)) {
+      throw new ForbiddenException('You do not lead this group');
+    }
+    const result = await this.attendanceService.recordGroupMeeting(
+      {
+        groupId: body.groupId,
+        meetingDate: new Date(body.meetingDate),
+        presentMemberIds: body.presentMemberIds,
+        notes: body.notes,
+      },
+      verified.leader._id.toString(),
+    );
+    return { data: result };
+  }
 
   @Post('qr-check-in')
   @Public()
@@ -39,6 +80,7 @@ export class ServiceAttendanceController {
       dto.serviceType,
       dto.branch,
       dto.notes,
+      dto.serviceTitle,
     );
     return { data: result };
   }
@@ -71,6 +113,60 @@ export class ServiceAttendanceController {
       user.branch,
     );
     return { data: result };
+  }
+
+  @Post('group-meeting')
+  @ApiOperation({ summary: 'Record attendance for a district/unit meeting' })
+  @RequirePermission(ServiceAttendancePermission.RECORD)
+  async recordGroupMeeting(
+    @Body() dto: GroupMeetingAttendanceDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.attendanceService.recordGroupMeeting(dto, user.sub);
+    return { data: result };
+  }
+
+  @Get('group-meeting/overview')
+  @ApiOperation({ summary: 'Overview of meeting attendance across all districts/units' })
+  @RequirePermission(ServiceAttendancePermission.VIEW)
+  async getGroupMeetingOverview(
+    @CurrentUser() user: any,
+    @Query('branch') branch?: string,
+  ) {
+    const data = await this.attendanceService.getGroupMeetingOverview(
+      branch || user.branch,
+    );
+    return { data };
+  }
+
+  @Get('group-meeting/:groupId/history')
+  @ApiOperation({ summary: 'Get meeting attendance history for a group' })
+  @RequirePermission(ServiceAttendancePermission.VIEW)
+  async getGroupMeetingHistory(
+    @Param('groupId') groupId: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.attendanceService.getGroupMeetingHistory(
+      groupId,
+      limit ? parseInt(limit, 10) : 10,
+    );
+    return { data };
+  }
+
+  @Get('sessions')
+  @ApiOperation({ summary: 'List distinct service sessions with attendance counts' })
+  @RequirePermission(ServiceAttendancePermission.VIEW)
+  async getServiceSessions(
+    @CurrentUser() user: any,
+    @Query('branch') branch?: string,
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+  ) {
+    return this.attendanceService.getServiceSessions(
+      branch || user.branch,
+      limit ? parseInt(limit, 10) : 20,
+      page ? parseInt(page, 10) : 1,
+    );
   }
 
   @Get()

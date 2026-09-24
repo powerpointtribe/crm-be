@@ -6,6 +6,8 @@ import { FirstTimer, FirstTimerDocument } from '../first-timers/schemas/first-ti
 import {
   ServiceAttendance,
   ServiceAttendanceDocument,
+  ServiceType,
+  AttendanceStatus,
 } from '../service-attendance/schemas/service-attendance.schema';
 import {
   ServiceReport,
@@ -17,6 +19,7 @@ import {
   WorkerTraineeDocument,
 } from '../workers-training/schemas/worker-trainee.schema';
 import { GisSnapshot, GisSnapshotDocument } from './schemas/gis-snapshot.schema';
+import { Branch } from '../branches/schemas/branch.schema';
 import { MembershipStatus } from '../common/enums/member-status.enum';
 import { GroupType } from '../common/enums/group-types.enum';
 import { WorkersTrainingStatus } from '../common/enums/workers-training.enum';
@@ -31,33 +34,38 @@ export class GisService {
     @InjectModel(Group.name) private readonly groupModel: Model<GroupDocument>,
     @InjectModel(WorkerTrainee.name) private readonly traineeModel: Model<WorkerTraineeDocument>,
     @InjectModel(GisSnapshot.name) private readonly snapshotModel: Model<GisSnapshotDocument>,
+    @InjectModel(Branch.name) private readonly branchModel: Model<any>,
   ) {}
 
-  async getDashboard(branch: string, asOf?: Date) {
-    const branchId = new Types.ObjectId(branch);
-    const now = asOf || new Date();
+  async getDashboard(branch?: string, startDate?: Date, endDate?: Date) {
+    const branchId = branch ? new Types.ObjectId(branch) : undefined;
+    const end = endDate || new Date();
+    const start = startDate || undefined;
 
     const [metrics, funnel] = await Promise.all([
-      this.computeMetrics(branchId, now),
-      this.computeFunnel(branchId, now),
+      this.computeMetrics(branchId, end, start),
+      this.computeFunnel(branchId, end, start),
     ]);
 
     return { metrics, funnel };
   }
 
-  async computeMetrics(branchId: Types.ObjectId, now: Date) {
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const days30Ago = new Date(now.getTime() - 30 * 86400000);
+  async computeMetrics(branchId: Types.ObjectId | undefined, now: Date, rangeStart?: Date) {
+    const periodStart = rangeStart || new Date(now.getFullYear(), now.getMonth(), 1);
     const days60Ago = new Date(now.getTime() - 60 * 86400000);
-    const days90Ago = new Date(now.getTime() - 90 * 86400000);
-    const weeks4Ago = new Date(now.getTime() - 28 * 86400000);
+    const longWindow = rangeStart || new Date(now.getTime() - 90 * 86400000);
+    const attendanceWindow = rangeStart || new Date(now.getTime() - 28 * 86400000);
 
+    const branchFilter = branchId ? { branch: branchId } : {};
     const activeFilter = {
-      branch: branchId,
+      ...branchFilter,
       isActive: true,
       membershipStatus: { $nin: [MembershipStatus.LEFT, MembershipStatus.RELOCATED] },
     };
+
+    const dateRange = rangeStart
+      ? { $gte: rangeStart, $lte: now }
+      : { $gte: periodStart };
 
     const [
       totalActiveMembers,
@@ -80,57 +88,55 @@ export class GisService {
       // 1. Total active members
       this.memberModel.countDocuments(activeFilter),
 
-      // 2. Average Sunday attendance (last 4 weeks from service reports)
-      // serviceName holds the sermon title, not a service-type label,
-      // so we match all reports in the date window.
+      // 2. Average Sunday attendance
       this.serviceReportModel.aggregate([
         {
           $match: {
-            branch: branchId,
-            date: { $gte: weeks4Ago },
+            ...branchFilter,
+            date: rangeStart ? dateRange : { $gte: attendanceWindow },
           },
         },
         { $group: { _id: null, avg: { $avg: '$totalAttendance' } } },
       ]).then((r) => Math.round(r[0]?.avg || 0)),
 
-      // 3. First-timer count this month
+      // 3. First-timer count in period
       this.firstTimerModel.countDocuments({
-        branch: branchId,
-        dateOfVisit: { $gte: monthStart },
+        ...branchFilter,
+        dateOfVisit: dateRange,
       }),
 
-      // 4a. First-timers converted (last 90 days for rate)
+      // 4a. First-timers converted in period
       this.firstTimerModel.countDocuments({
-        branch: branchId,
-        dateOfVisit: { $gte: days90Ago },
+        ...branchFilter,
+        dateOfVisit: rangeStart ? dateRange : { $gte: longWindow },
         converted: true,
       }),
 
-      // 4b. Total first-timers (last 90 days for rate)
+      // 4b. Total first-timers in period (for rate)
       this.firstTimerModel.countDocuments({
-        branch: branchId,
-        dateOfVisit: { $gte: days90Ago },
+        ...branchFilter,
+        dateOfVisit: rangeStart ? dateRange : { $gte: longWindow },
       }),
 
-      // 5. Members who attended at least once in last 90 days
+      // 5. Members who attended at least once in period
       this.attendanceModel
         .distinct('member', {
-          branch: branchId,
-          serviceDate: { $gte: days90Ago },
+          ...branchFilter,
+          serviceDate: rangeStart ? dateRange : { $gte: longWindow },
         })
         .then((ids) => ids.length),
 
-      // 8. New members this month
+      // 8. New members in period
       this.memberModel.countDocuments({
         ...activeFilter,
-        dateJoined: { $gte: monthStart },
+        dateJoined: dateRange,
       }),
 
       // 6. Members in a district or fellowship group (small group participation)
       this.groupModel.aggregate([
         {
           $match: {
-            branch: branchId,
+            ...branchFilter,
             isActive: true,
             type: { $in: [GroupType.DISTRICT, GroupType.FELLOWSHIP] },
           },
@@ -156,7 +162,7 @@ export class GisService {
 
       // 11. Currently in training
       this.traineeModel.countDocuments({
-        branch: branchId,
+        ...branchFilter,
         status: { $in: [WorkersTrainingStatus.REGISTERED, WorkersTrainingStatus.IN_PROGRESS] },
       }),
 
@@ -166,34 +172,42 @@ export class GisService {
         { $group: { _id: null, avg: { $avg: '$engagement.engagementScore' } } },
       ]).then((r) => Math.round((r[0]?.avg || 0) * 10) / 10),
 
-      // 14. Attrition this month
+      // 14. Attrition in period
       this.memberModel.countDocuments({
-        branch: branchId,
+        ...branchFilter,
         membershipStatus: { $in: [MembershipStatus.LEFT, MembershipStatus.RELOCATED] },
-        exitDate: { $gte: monthStart },
+        exitDate: dateRange,
       }),
 
-      // 15a. First-timers who got at least one follow-up this month
+      // 15a. First-timers who got at least one follow-up in period
       this.firstTimerModel.countDocuments({
-        branch: branchId,
-        dateOfVisit: { $gte: monthStart },
+        ...branchFilter,
+        dateOfVisit: dateRange,
         followUpCount: { $gte: 1 },
       }),
 
-      // 15b. Total first-timers this month (for follow-up rate)
+      // 15b. Total first-timers in period (for follow-up rate)
       this.firstTimerModel.countDocuments({
-        branch: branchId,
-        dateOfVisit: { $gte: monthStart },
+        ...branchFilter,
+        dateOfVisit: dateRange,
       }),
 
-      // 9. Inactive members (no attendance in 60+ days)
-      this.memberModel.countDocuments({
-        ...activeFilter,
-        $or: [
-          { 'engagement.lastAttendance': { $lt: days60Ago } },
-          { 'engagement.lastAttendance': null },
-        ],
-      }),
+      // 9. Inactive members — when a custom range is given, members who didn't attend in that range;
+      // otherwise members with no attendance in the last 60 days
+      rangeStart
+        ? this.attendanceModel
+            .distinct('member', { ...branchFilter, serviceDate: { $gte: rangeStart, $lte: now } })
+            .then(async (attendedIds) => {
+              const total = await this.memberModel.countDocuments(activeFilter);
+              return total - attendedIds.length;
+            })
+        : this.memberModel.countDocuments({
+            ...activeFilter,
+            $or: [
+              { 'engagement.lastAttendance': { $lt: days60Ago } },
+              { 'engagement.lastAttendance': null },
+            ],
+          }),
     ]);
 
     const firstTimerConversionRate =
@@ -221,6 +235,21 @@ export class GisService {
         ? Math.round((baptizedMembers / totalActiveMembers) * 1000) / 10
         : 0;
 
+    const meetingAttendanceFilter: any = {
+      serviceType: { $in: [ServiceType.DISTRICT_MEETING, ServiceType.UNIT_MEETING] },
+      status: AttendanceStatus.PRESENT,
+      serviceDate: rangeStart ? { $gte: rangeStart, $lte: now } : { $gte: longWindow },
+    };
+    if (branchId) meetingAttendanceFilter.branch = branchId;
+    const distinctMeetingAttendees = await this.attendanceModel.distinct(
+      'member',
+      meetingAttendanceFilter,
+    );
+    const districtUnitParticipationRate =
+      totalActiveMembers > 0
+        ? Math.round((distinctMeetingAttendees.length / totalActiveMembers) * 1000) / 10
+        : 0;
+
     // Estimate last month's total: current - joined this month + left this month
     const estimatedPrevTotal = totalActiveMembers - newMembersThisMonth + attritionCount;
     const growthRate =
@@ -233,6 +262,37 @@ export class GisService {
         ? Math.round((followedUp / totalFirstTimersMonth) * 1000) / 10
         : 0;
 
+    const [regularAttendees, exitReasons] = await Promise.all([
+      this.attendanceModel.aggregate([
+        {
+          $match: {
+            ...branchFilter,
+            serviceDate: rangeStart ? { $gte: rangeStart, $lte: now } : { $gte: longWindow },
+          },
+        },
+        { $group: { _id: '$member', count: { $sum: 1 } } },
+        { $match: { count: { $gte: 4 } } },
+        { $count: 'total' },
+      ]).then((r) => r[0]?.total || 0),
+
+      this.memberModel.aggregate([
+        {
+          $match: {
+            ...branchFilter,
+            membershipStatus: { $in: [MembershipStatus.LEFT, MembershipStatus.RELOCATED] },
+            exitDate: rangeStart ? { $gte: rangeStart, $lte: now } : dateRange,
+          },
+        },
+        {
+          $group: {
+            _id: { $ifNull: ['$exitReason', 'Not specified'] },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { count: -1 } },
+      ]).then((r) => r.map((item) => ({ reason: item._id, count: item.count }))),
+    ]);
+
     return {
       totalActiveMembers,
       avgSundayAttendance,
@@ -244,18 +304,23 @@ export class GisService {
       newMembersThisMonth,
       inactiveMembers,
       baptismRate,
+      districtUnitParticipationRate,
       leadershipPipelineCount: inTraining,
       growthRate,
       avgEngagementScore: avgEngagement,
       attritionCount,
       followUpRate,
+      regularAttendees,
+      exitReasons,
     };
   }
 
-  async computeFunnel(branchId: Types.ObjectId, now: Date) {
-    const days90Ago = new Date(now.getTime() - 90 * 86400000);
+  async computeFunnel(branchId: Types.ObjectId | undefined, now: Date, rangeStart?: Date) {
+    const longWindow = rangeStart || new Date(now.getTime() - 90 * 86400000);
+    const dateRange = rangeStart ? { $gte: rangeStart, $lte: now } : { $gte: longWindow };
+    const branchFilter = branchId ? { branch: branchId } : {};
     const activeFilter = {
-      branch: branchId,
+      ...branchFilter,
       isActive: true,
       membershipStatus: { $nin: [MembershipStatus.LEFT, MembershipStatus.RELOCATED] },
     };
@@ -273,17 +338,17 @@ export class GisService {
       this.serviceReportModel.aggregate([
         {
           $match: {
-            branch: branchId,
-            date: { $gte: days90Ago },
+            ...branchFilter,
+            date: dateRange,
           },
         },
         { $group: { _id: null, total: { $sum: '$totalAttendance' } } },
       ]).then((r) => r[0]?.total || 0),
 
-      // Visit: first-timers in last 90 days
+      // Visit: first-timers in period
       this.firstTimerModel.countDocuments({
-        branch: branchId,
-        dateOfVisit: { $gte: days90Ago },
+        ...branchFilter,
+        dateOfVisit: dateRange,
       }),
 
       // Connect + Belong base: all active members
@@ -516,19 +581,52 @@ export class GisService {
     return 'connect';
   }
 
-  async getTrends(branch: string, months: number = 6, period: 'weekly' | 'monthly' = 'weekly') {
+  async getTrends(branch?: string, months: number = 6, period: 'weekly' | 'monthly' = 'weekly') {
     const since = new Date();
     since.setMonth(since.getMonth() - months);
 
+    const filter: any = {
+      snapshotDate: { $gte: since },
+      period,
+    };
+    if (branch) filter.branch = new Types.ObjectId(branch);
+
     const snapshots = await this.snapshotModel
-      .find({
-        branch: new Types.ObjectId(branch),
-        snapshotDate: { $gte: since },
-        period,
-      })
+      .find(filter)
       .sort({ snapshotDate: 1 })
-      .select('snapshotDate metrics funnelCounts')
+      .select('snapshotDate branch metrics funnelCounts')
       .exec();
+
+    if (!branch && snapshots.length > 0) {
+      const byDate = new Map<string, any>();
+      for (const s of snapshots) {
+        const key = s.snapshotDate.toISOString().slice(0, 10);
+        if (!byDate.has(key)) {
+          byDate.set(key, {
+            snapshotDate: s.snapshotDate,
+            metrics: { ...s.metrics },
+            funnelCounts: { ...s.funnelCounts },
+          });
+        } else {
+          const agg = byDate.get(key);
+          const m = agg.metrics;
+          const sm = s.metrics as any;
+          m.totalActiveMembers += sm.totalActiveMembers || 0;
+          m.avgSundayAttendance += sm.avgSundayAttendance || 0;
+          m.firstTimerCount += sm.firstTimerCount || 0;
+          m.newMembersThisMonth += sm.newMembersThisMonth || 0;
+          m.inactiveMembers += sm.inactiveMembers || 0;
+          m.leadershipPipelineCount += sm.leadershipPipelineCount || 0;
+          m.attritionCount += sm.attritionCount || 0;
+          const f = agg.funnelCounts;
+          const sf = s.funnelCounts as any;
+          for (const k of ['reach', 'visit', 'connect', 'belong', 'grow', 'serve', 'lead', 'multiply']) {
+            f[k] = (f[k] || 0) + (sf[k] || 0);
+          }
+        }
+      }
+      return Array.from(byDate.values());
+    }
 
     return snapshots;
   }
@@ -603,5 +701,15 @@ export class GisService {
       },
       { upsert: true, new: true },
     );
+  }
+
+  async takeSnapshotAllBranches(period: 'weekly' | 'monthly' = 'weekly') {
+    const branches = await this.branchModel.find({ isActive: true }).select('_id name');
+    const results: any[] = [];
+    for (const branch of branches) {
+      const snapshot = await this.takeSnapshot(branch._id.toString(), period);
+      results.push({ branch: branch.name, snapshot });
+    }
+    return results;
   }
 }

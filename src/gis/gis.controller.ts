@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Body,
   Param,
   Query,
   UseGuards,
@@ -29,9 +30,10 @@ export class GisController {
     @CurrentUser() user: any,
     @Query() query: QueryGisDashboardDto,
   ) {
-    const branch = query.branch || user.branch;
-    const date = query.date ? new Date(query.date) : undefined;
-    const data = await this.gisService.getDashboard(branch, date);
+    const branch = query.branch || undefined;
+    const startDate = query.startDate ? new Date(query.startDate) : undefined;
+    const endDate = query.endDate ? new Date(query.endDate) : undefined;
+    const data = await this.gisService.getDashboard(branch, startDate, endDate);
     return { data };
   }
 
@@ -42,7 +44,7 @@ export class GisController {
     @CurrentUser() user: any,
     @Query() query: QueryGisTrendsDto,
   ) {
-    const branch = query.branch || user.branch;
+    const branch = query.branch || undefined;
     const data = await this.gisService.getTrends(
       branch,
       query.months ? parseInt(query.months, 10) : 6,
@@ -86,8 +88,14 @@ export class GisController {
   @Post('snapshot')
   @ApiOperation({ summary: 'Manually trigger a GIS snapshot (admin)' })
   @RequirePermission(GisPermission.VIEW_DASHBOARD)
-  async triggerSnapshot(@CurrentUser() user: any) {
-    const data = await this.gisService.takeSnapshot(user.branch, 'weekly');
-    return { data, message: 'Snapshot created' };
+  async triggerSnapshot(
+    @Body() body: { branch?: string },
+  ) {
+    if (body.branch) {
+      const data = await this.gisService.takeSnapshot(body.branch, 'weekly');
+      return { data, message: 'Snapshot created' };
+    }
+    const data = await this.gisService.takeSnapshotAllBranches('weekly');
+    return { data, message: 'Snapshots created for all branches' };
   }
 }

@@ -4,6 +4,10 @@ import { Document, Types } from 'mongoose';
 export type ServiceAttendanceDocument = ServiceAttendance & Document;
 
 export enum ServiceType {
+  SUNDAY_SERVICE = 'sunday_service',
+  BIBLE_STUDY = 'bible_study',
+  WORKERS_MEETING = 'workers_meeting',
+  SPECIAL_EVENT = 'special_event',
   SUNDAY_FIRST_SERVICE = 'sunday_first_service',
   SUNDAY_SECOND_SERVICE = 'sunday_second_service',
   MIDWEEK_SERVICE = 'midweek_service',
@@ -11,6 +15,8 @@ export enum ServiceType {
   SPECIAL_SERVICE = 'special_service',
   YOUTH_SERVICE = 'youth_service',
   CHILDREN_SERVICE = 'children_service',
+  DISTRICT_MEETING = 'district_meeting',
+  UNIT_MEETING = 'unit_meeting',
   OTHER = 'other',
 }
 
@@ -67,6 +73,12 @@ export class ServiceAttendance {
 
   @Prop({ type: Types.ObjectId, ref: 'ServiceReport' })
   serviceReport?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Group', index: true })
+  group?: Types.ObjectId;
+
+  @Prop({ trim: true })
+  serviceTitle?: string;
 
   @Prop({ trim: true })
   notes?: string;

@@ -7,6 +7,8 @@ import {
   ServiceAttendanceSchema,
 } from './schemas/service-attendance.schema';
 import { Member, MemberSchema } from '../members/schemas/member.schema';
+import { Group, GroupSchema } from '../groups/schemas/group.schema';
+import { Role, RoleSchema } from '../roles/schemas/role.schema';
 import { RolesModule } from '../roles/roles.module';
 import { CommonModule } from '../common/common.module';
 
@@ -15,6 +17,8 @@ import { CommonModule } from '../common/common.module';
     MongooseModule.forFeature([
       { name: ServiceAttendance.name, schema: ServiceAttendanceSchema },
       { name: Member.name, schema: MemberSchema },
+      { name: Group.name, schema: GroupSchema },
+      { name: Role.name, schema: RoleSchema },
     ]),
     RolesModule,
     CommonModule,

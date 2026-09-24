@@ -3,7 +3,9 @@ import {
   Logger,
   NotFoundException,
   ConflictException,
+  UnauthorizedException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model, Types } from 'mongoose';
@@ -15,9 +17,13 @@ import {
   ServiceType,
 } from './schemas/service-attendance.schema';
 import { Member, MemberDocument } from '../members/schemas/member.schema';
+import { Group, GroupDocument } from '../groups/schemas/group.schema';
+import { Role, RoleDocument } from '../roles/schemas/role.schema';
+import { GroupType } from '../common/enums/group-types.enum';
 import { MembershipStatus } from '../common/enums/member-status.enum';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { BulkCheckInDto } from './dto/bulk-check-in.dto';
+import { GroupMeetingAttendanceDto } from './dto/group-meeting-attendance.dto';
 import { QueryAttendanceDto } from './dto/query-attendance.dto';
 
 @Injectable()
@@ -27,6 +33,10 @@ export class ServiceAttendanceService {
     private readonly attendanceModel: Model<ServiceAttendanceDocument>,
     @InjectModel(Member.name)
     private readonly memberModel: Model<MemberDocument>,
+    @InjectModel(Group.name)
+    private readonly groupModel: Model<GroupDocument>,
+    @InjectModel(Role.name)
+    private readonly roleModel: Model<RoleDocument>,
   ) {}
 
   private async updateMemberEngagement(
@@ -114,12 +124,312 @@ export class ServiceAttendanceService {
     };
   }
 
+  async recordGroupMeeting(
+    dto: GroupMeetingAttendanceDto,
+    checkedInBy: string,
+  ): Promise<{ present: number; absent: number; skipped: number }> {
+    const group = await this.groupModel
+      .findById(dto.groupId)
+      .select('members branch type')
+      .exec();
+    if (!group) throw new NotFoundException('Group not found');
+
+    const serviceType =
+      group.type === GroupType.DISTRICT
+        ? ServiceType.DISTRICT_MEETING
+        : ServiceType.UNIT_MEETING;
+
+    const allMemberIds = group.members.map((m) => m.toString());
+    const presentSet = new Set(dto.presentMemberIds);
+
+    const existing = await this.attendanceModel
+      .find({
+        group: new Types.ObjectId(dto.groupId),
+        serviceDate: dto.meetingDate,
+        serviceType,
+      })
+      .select('member');
+    const existingSet = new Set(existing.map((r) => r.member.toString()));
+
+    const records = allMemberIds
+      .filter((id) => !existingSet.has(id))
+      .map((memberId) => ({
+        member: new Types.ObjectId(memberId),
+        branch: group.branch,
+        serviceDate: dto.meetingDate,
+        serviceType,
+        status: presentSet.has(memberId)
+          ? AttendanceStatus.PRESENT
+          : AttendanceStatus.ABSENT,
+        checkInMethod: CheckInMethod.MANUAL,
+        checkInTime: new Date(),
+        checkedInBy: new Types.ObjectId(checkedInBy),
+        group: new Types.ObjectId(dto.groupId),
+        notes: dto.notes,
+      }));
+
+    let present = 0;
+    let absent = 0;
+    if (records.length > 0) {
+      await this.attendanceModel.insertMany(records, { ordered: false });
+      for (const r of records) {
+        if (r.status === AttendanceStatus.PRESENT) {
+          present++;
+          this.updateMemberEngagement(
+            r.member.toString(),
+            dto.meetingDate,
+          ).catch(() => {});
+        } else {
+          absent++;
+        }
+      }
+    }
+
+    return { present, absent, skipped: existingSet.size };
+  }
+
+  async getGroupMeetingHistory(
+    groupId: string,
+    limit = 10,
+  ): Promise<any[]> {
+    const meetings = await this.attendanceModel.aggregate([
+      {
+        $match: {
+          group: new Types.ObjectId(groupId),
+          serviceType: {
+            $in: [ServiceType.DISTRICT_MEETING, ServiceType.UNIT_MEETING],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$serviceDate',
+          present: {
+            $sum: { $cond: [{ $eq: ['$status', AttendanceStatus.PRESENT] }, 1, 0] },
+          },
+          absent: {
+            $sum: { $cond: [{ $eq: ['$status', AttendanceStatus.ABSENT] }, 1, 0] },
+          },
+          total: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: -1 } },
+      { $limit: limit },
+    ]);
+
+    return meetings.map((m) => ({
+      date: m._id,
+      present: m.present,
+      absent: m.absent,
+      total: m.total,
+      rate: m.total > 0 ? Math.round((m.present / m.total) * 100) : 0,
+    }));
+  }
+
+  async getGroupMeetingOverview(branchId?: string) {
+    const branchFilter: any = branchId ? { branch: new Types.ObjectId(branchId) } : {};
+
+    // Get all active districts and units
+    const groups = await this.groupModel
+      .find({
+        type: { $in: [GroupType.DISTRICT, GroupType.UNIT] },
+        isActive: true,
+        ...branchFilter,
+      })
+      .select('_id name type members districtPastor unitHead')
+      .exec();
+
+    if (groups.length === 0) return [];
+
+    const groupIds = groups.map((g: any) => g._id);
+
+    // Aggregate meeting stats per group
+    const stats = await this.attendanceModel.aggregate([
+      {
+        $match: {
+          group: { $in: groupIds },
+          serviceType: {
+            $in: [ServiceType.DISTRICT_MEETING, ServiceType.UNIT_MEETING],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { group: '$group', date: '$serviceDate' },
+          present: {
+            $sum: { $cond: [{ $eq: ['$status', AttendanceStatus.PRESENT] }, 1, 0] },
+          },
+          absent: {
+            $sum: { $cond: [{ $eq: ['$status', AttendanceStatus.ABSENT] }, 1, 0] },
+          },
+          total: { $sum: 1 },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id.group',
+          totalMeetings: { $sum: 1 },
+          lastMeetingDate: { $max: '$_id.date' },
+          totalPresent: { $sum: '$present' },
+          totalAbsent: { $sum: '$absent' },
+          totalRecords: { $sum: '$total' },
+        },
+      },
+    ]);
+
+    const statsMap = new Map(
+      stats.map((s) => [s._id.toString(), s]),
+    );
+
+    // Get leader names
+    const leaderIds = groups
+      .flatMap((g: any) => [g.districtPastor, g.unitHead].filter(Boolean))
+      .map((id: any) => id.toString());
+    const uniqueLeaderIds = [...new Set(leaderIds)];
+    const leaders = uniqueLeaderIds.length > 0
+      ? await this.memberModel
+          .find({ _id: { $in: uniqueLeaderIds } })
+          .select('_id firstName lastName')
+          .exec()
+      : [];
+    const leaderMap = new Map(
+      leaders.map((l) => [l._id.toString(), `${l.firstName} ${l.lastName}`]),
+    );
+
+    const allMemberIds = new Set<string>();
+    for (const g of groups) {
+      for (const m of (g as any).members || []) {
+        allMemberIds.add(m.toString());
+      }
+    }
+
+    const groupData = groups.map((g: any) => {
+      const s = statsMap.get(g._id.toString());
+      const leaderId = g.type === 'district' ? g.districtPastor : g.unitHead;
+      return {
+        _id: g._id,
+        name: g.name,
+        type: g.type,
+        memberCount: g.members?.length || 0,
+        leader: leaderId ? leaderMap.get(leaderId.toString()) || null : null,
+        totalMeetings: s?.totalMeetings || 0,
+        lastMeetingDate: s?.lastMeetingDate || null,
+        avgAttendanceRate:
+          s && s.totalRecords > 0
+            ? Math.round((s.totalPresent / s.totalRecords) * 100)
+            : 0,
+      };
+    });
+
+    return { groups: groupData, uniqueMemberCount: allMemberIds.size };
+  }
+
+  async publicVerifyLeader(email: string, password: string) {
+    const member = await this.memberModel
+      .findOne({ email: email.toLowerCase(), isActive: true })
+      .select('_id firstName lastName password branch district unit role additionalRoles')
+      .exec();
+    if (!member || !member.password) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const valid = await bcrypt.compare(password, member.password);
+    if (!valid) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    // Groups where this member is a formal leader
+    const leaderGroups = await this.groupModel
+      .find({
+        type: { $in: [GroupType.DISTRICT, GroupType.UNIT] },
+        isActive: true,
+        $or: [
+          { districtPastor: member._id },
+          { unitHead: member._id },
+          { assistantUnitHead: member._id },
+        ],
+      })
+      .select('_id name type members')
+      .exec();
+
+    // Also check if member has attendance:record permission and a district/unit assigned
+    const leaderGroupIds = new Set(leaderGroups.map((g: any) => g._id.toString()));
+    const assignedGroupIds: string[] = [];
+    if (member.district && !leaderGroupIds.has(member.district.toString())) {
+      assignedGroupIds.push(member.district.toString());
+    }
+    if (member.unit && !leaderGroupIds.has(member.unit.toString())) {
+      assignedGroupIds.push(member.unit.toString());
+    }
+
+    let assignedGroups: GroupDocument[] = [];
+    if (assignedGroupIds.length > 0) {
+      const roleIds = [member.role, ...(member.additionalRoles || [])].filter(Boolean);
+      let hasPermission = false;
+      if (roleIds.length > 0) {
+        const roles = await this.roleModel
+          .find({ _id: { $in: roleIds } })
+          .populate('permissions', 'name')
+          .exec();
+        hasPermission = roles.some((r: any) =>
+          r.permissions?.some((p: any) => p.name === 'attendance:record'),
+        );
+      }
+      if (hasPermission) {
+        assignedGroups = await this.groupModel
+          .find({
+            _id: { $in: assignedGroupIds },
+            type: { $in: [GroupType.DISTRICT, GroupType.UNIT] },
+            isActive: true,
+          })
+          .select('_id name type members')
+          .exec();
+      }
+    }
+
+    const allGroups = [...leaderGroups, ...assignedGroups];
+    if (allGroups.length === 0) {
+      throw new UnauthorizedException(
+        'You are not a leader of any district or unit, or you do not have the required permission',
+      );
+    }
+
+    // Collect all member IDs across groups and fetch their names
+    const allMemberIds = [
+      ...new Set(allGroups.flatMap((g: any) => g.members.map((m: any) => m.toString()))),
+    ];
+    const memberDocs = await this.memberModel
+      .find({ _id: { $in: allMemberIds } })
+      .select('_id firstName lastName')
+      .exec();
+    const memberMap = new Map(
+      memberDocs.map((m) => [m._id.toString(), { _id: m._id, firstName: m.firstName, lastName: m.lastName }]),
+    );
+
+    return {
+      leader: {
+        _id: member._id,
+        firstName: member.firstName,
+        lastName: member.lastName,
+      },
+      groups: allGroups.map((g: any) => ({
+        _id: g._id,
+        name: g.name,
+        type: g.type,
+        members: g.members
+          .map((id: any) => memberMap.get(id.toString()))
+          .filter(Boolean),
+      })),
+    };
+  }
+
   async selfCheckIn(
     identifier: string,
     serviceDate: Date,
     serviceType: string,
     branch: string,
     notes?: string,
+    serviceTitle?: string,
   ): Promise<{ member: { firstName: string; lastName: string }; alreadyCheckedIn: boolean }> {
     const query = identifier.includes('@')
       ? { email: identifier.toLowerCase() }
@@ -159,6 +469,7 @@ export class ServiceAttendanceService {
       checkInMethod: CheckInMethod.QR,
       checkInTime: new Date(),
       notes,
+      serviceTitle,
     });
 
     await record.save();
@@ -237,6 +548,73 @@ export class ServiceAttendanceService {
     ]);
 
     return { data, total, page, limit };
+  }
+
+  async getServiceSessions(branch: string, limit = 20, page = 1) {
+    const skip = (page - 1) * limit;
+    const match: any = {
+      branch: new Types.ObjectId(branch),
+      serviceType: {
+        $nin: [ServiceType.DISTRICT_MEETING, ServiceType.UNIT_MEETING],
+      },
+    };
+
+    const [sessions, totalAgg] = await Promise.all([
+      this.attendanceModel.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: { serviceDate: '$serviceDate', serviceType: '$serviceType' },
+            totalCheckedIn: {
+              $sum: { $cond: [{ $ne: ['$status', AttendanceStatus.ABSENT] }, 1, 0] },
+            },
+            totalPresent: {
+              $sum: { $cond: [{ $eq: ['$status', AttendanceStatus.PRESENT] }, 1, 0] },
+            },
+            totalLate: {
+              $sum: { $cond: [{ $eq: ['$status', AttendanceStatus.LATE] }, 1, 0] },
+            },
+            totalAbsent: {
+              $sum: { $cond: [{ $eq: ['$status', AttendanceStatus.ABSENT] }, 1, 0] },
+            },
+            total: { $sum: 1 },
+            serviceTitle: { $first: '$serviceTitle' },
+            lastCheckIn: { $max: '$checkInTime' },
+          },
+        },
+        { $sort: { '_id.serviceDate': -1 } },
+        { $skip: skip },
+        { $limit: limit },
+      ]),
+      this.attendanceModel.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: { serviceDate: '$serviceDate', serviceType: '$serviceType' },
+          },
+        },
+        { $count: 'total' },
+      ]),
+    ]);
+
+    const total = totalAgg[0]?.total || 0;
+
+    return {
+      data: sessions.map((s) => ({
+        serviceDate: s._id.serviceDate,
+        serviceType: s._id.serviceType,
+        serviceTitle: s.serviceTitle || null,
+        totalCheckedIn: s.totalCheckedIn,
+        totalPresent: s.totalPresent,
+        totalLate: s.totalLate,
+        totalAbsent: s.totalAbsent,
+        total: s.total,
+        lastCheckIn: s.lastCheckIn,
+      })),
+      total,
+      page,
+      limit,
+    };
   }
 
   async getServiceAttendees(
