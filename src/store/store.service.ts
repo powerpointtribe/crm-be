@@ -28,6 +28,8 @@ export class StoreService {
   private readonly flutterwaveSecretKey: string;
   private readonly flutterwaveBaseUrl = 'https://api.flutterwave.com/v3';
   private readonly frontendUrl: string;
+  private readonly googleSheetWebhookUrl: string;
+  private readonly googleSheetSecret: string;
 
   constructor(
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
@@ -40,6 +42,10 @@ export class StoreService {
       this.configService.get<string>('FLUTTERWAVE_SECRET_KEY') || '';
     this.frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    this.googleSheetWebhookUrl =
+      this.configService.get<string>('GOOGLE_SHEET_WEBHOOK_URL') || '';
+    this.googleSheetSecret =
+      this.configService.get<string>('GOOGLE_SHEET_SECRET') || '';
   }
 
   // ─── Product CRUD ──────────────────────────────────────────────
@@ -646,6 +652,7 @@ export class StoreService {
     await this.deductStock(order);
     await this.incrementCouponUsage(order);
     this.sendOrderConfirmationEmail(order).catch(() => {});
+    this.pushOrderToGoogleSheet(order).catch(() => {});
 
     return { verified: true, order };
   }
@@ -685,6 +692,7 @@ export class StoreService {
     await this.deductStock(order);
     await this.incrementCouponUsage(order);
     this.sendOrderConfirmationEmail(order).catch(() => {});
+    this.pushOrderToGoogleSheet(order).catch(() => {});
 
     return { verified: true, order };
   }
@@ -709,6 +717,7 @@ export class StoreService {
         await this.deductStock(order);
         await this.incrementCouponUsage(order);
         this.sendOrderConfirmationEmail(order).catch(() => {});
+        this.pushOrderToGoogleSheet(order).catch(() => {});
       }
     }
 
@@ -908,5 +917,101 @@ export class StoreService {
         );
       }
     }
+  }
+
+  private formatOrderRowsForSheet(order: OrderDocument): Record<string, any>[] {
+    const date = (order as any).createdAt
+      ? new Date((order as any).createdAt).toISOString().slice(0, 10)
+      : '';
+    const address =
+      (order.delivery?.address || '') +
+      (order.delivery?.city ? ', ' + order.delivery.city : '') +
+      (order.delivery?.state ? ', ' + order.delivery.state : '');
+
+    return (order.items || []).map((item) => {
+      const cm = item.colour?.match(/^(.+?)\s*\(([^)]+)\)$/);
+      const design = cm ? cm[1].trim() : item.colour || '';
+      const color = cm ? cm[2].trim() : '';
+      const images = (item.images || []).join(', ');
+
+      return {
+        orderNumber: order.orderNumber,
+        date,
+        customerName: order.delivery?.fullName || '',
+        email: order.delivery?.email || order.customerEmail || '',
+        phone: order.delivery?.phone || order.customerPhone || '',
+        address,
+        product: item.productName,
+        design,
+        colour: color,
+        size: item.size || '',
+        qty: item.quantity,
+        unitPrice: item.unitPrice,
+        itemTotal: item.totalPrice,
+        images,
+        status: order.status,
+        payment: order.paymentStatus,
+        orderTotal: order.totalAmount,
+      };
+    });
+  }
+
+  private async postToGoogleSheet(payload: Record<string, any>) {
+    const body = JSON.stringify(payload);
+    const res = await fetch(this.googleSheetWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      redirect: 'follow',
+    });
+    if (!res.ok && res.status !== 302) {
+      const text = await res.text().catch(() => '');
+      this.logger.warn(`Google Sheet POST failed (${res.status}): ${text.substring(0, 200)}`);
+    }
+  }
+
+  async pushOrderToGoogleSheet(order: OrderDocument) {
+    if (!this.googleSheetWebhookUrl) return;
+    try {
+      const rows = this.formatOrderRowsForSheet(order);
+      for (const row of rows) {
+        await this.postToGoogleSheet({
+          secret: this.googleSheetSecret,
+          order: row,
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to push order ${order.orderNumber} to Google Sheet: ${err}`);
+    }
+  }
+
+  async syncAllOrdersToGoogleSheet() {
+    if (!this.googleSheetWebhookUrl) {
+      throw new BadRequestException('GOOGLE_SHEET_WEBHOOK_URL is not configured');
+    }
+
+    const orders = await this.orderModel
+      .find({ paymentStatus: PaymentStatus.SUCCESSFUL })
+      .sort({ createdAt: 1 })
+      .exec();
+
+    const allRows: Record<string, any>[] = [];
+    for (const o of orders) {
+      allRows.push(...this.formatOrderRowsForSheet(o));
+    }
+
+    const batchSize = 50;
+    let synced = 0;
+    for (let i = 0; i < allRows.length; i += batchSize) {
+      const batch = allRows.slice(i, i + batchSize);
+      await this.postToGoogleSheet({
+        secret: this.googleSheetSecret,
+        action: 'bulk',
+        orders: batch,
+      });
+      synced += batch.length;
+    }
+
+    return { synced, total: allRows.length };
   }
 }

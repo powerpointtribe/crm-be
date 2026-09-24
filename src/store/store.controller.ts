@@ -398,4 +398,14 @@ export class StoreController {
     await this.storeService.deleteCoupon(id);
     return ResponseUtil.success(null, 'Coupon deleted');
   }
+
+  @Post('sync-google-sheet')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @ApiBearerAuth()
+  @RequirePermission(StorePermission.VIEW_ORDERS)
+  @ApiOperation({ summary: 'Sync all paid orders to Google Sheet' })
+  async syncOrdersToGoogleSheet() {
+    const result = await this.storeService.syncAllOrdersToGoogleSheet();
+    return ResponseUtil.success(result, `Synced ${result.synced} orders to Google Sheet`);
+  }
 }
