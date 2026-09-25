@@ -340,10 +340,12 @@ export class StoreService {
       }
 
       let itemImages: string[] = [];
-      if (item.size || item.colour) {
+      const sizeForLookup =
+        item.size && /^Age:\s*/i.test(item.size) ? 'Standard' : item.size;
+      if (sizeForLookup || item.colour) {
         const variant = product.variants.find(
           (v) =>
-            (!item.size || v.size === item.size) &&
+            (!sizeForLookup || v.size === sizeForLookup) &&
             (!item.colour || v.colour === item.colour),
         );
         if (!variant) {
@@ -910,11 +912,13 @@ export class StoreService {
 
   private async deductStock(order: OrderDocument) {
     for (const item of order.items) {
-      if (item.size || item.colour) {
+      const sizeForQuery =
+        item.size && /^Age:\s*/i.test(item.size) ? 'Standard' : item.size;
+      if (sizeForQuery || item.colour) {
         await this.productModel.updateOne(
           {
             _id: item.product,
-            'variants.size': item.size,
+            'variants.size': sizeForQuery,
             'variants.colour': item.colour,
           },
           { $inc: { 'variants.$.stock': -item.quantity } },
