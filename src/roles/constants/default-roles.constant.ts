@@ -51,6 +51,42 @@ export const DEFAULT_ROLES: DefaultRoleConfig[] = [
     colorCode: '#F59E0B',
     permissions: ['view:*'], // All view/read-only permissions (handled by seeder)
   },
+  {
+    name: 'Campus Administrator',
+    slug: 'campus-administrator',
+    displayName: 'Campus Administrator',
+    description:
+      'Administrator with view access to all system data plus edit rights for members, service reports, and first timers.',
+    level: 85,
+    isSystemRole: true,
+    colorCode: '#3B82F6',
+    permissions: [
+      'view:*',
+      // Members edit permissions
+      'members:update',
+      'members:update-own-profile',
+      'members:update-status',
+      'members:update-roles',
+      'members:assign-district',
+      'members:assign-unit',
+      'members:assign-ministry',
+      'members:update-spiritual-journey',
+      // Service reports permissions
+      'service-reports:create',
+      'service-reports:submit',
+      'service-reports:update',
+      'service-reports:update-any',
+      'service-reports:approve',
+      'service-reports:reject',
+      'service-reports:delete',
+      // First timers edit permissions
+      'first-timers:update',
+      'first-timers:assign',
+      'first-timers:update-follow-up',
+      'first-timers:add-call-report',
+      'first-timers:update-integration-stage',
+    ],
+  },
 ];
 
 /**

@@ -408,4 +408,27 @@ export class StoreController {
     const result = await this.storeService.syncAllOrdersToGoogleSheet();
     return ResponseUtil.success(result, `Synced ${result.synced} orders to Google Sheet`);
   }
+
+  @Post('push-to-sheet')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @ApiBearerAuth()
+  @RequirePermission(StorePermission.VIEW_ORDERS)
+  @ApiOperation({
+    summary: 'Push specific orders to Google Sheet by order number(s)',
+  })
+  async pushOrdersToSheet(@Body() body: { orderNumbers: string }) {
+    const numbers = body.orderNumbers
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean);
+    if (!numbers.length) {
+      return ResponseUtil.error('Provide at least one order number');
+    }
+    const result =
+      await this.storeService.pushOrdersToGoogleSheetByNumbers(numbers);
+    return ResponseUtil.success(
+      result,
+      `Pushed ${result.rows} rows from ${result.pushed} orders`,
+    );
+  }
 }

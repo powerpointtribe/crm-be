@@ -565,6 +565,24 @@ export class StoreService {
       throw new BadRequestException('Order has already been paid');
     }
 
+    if (order.totalAmount <= 0) {
+      order.paymentStatus = PaymentStatus.SUCCESSFUL;
+      order.status = OrderStatus.PAID;
+      order.paymentMeta = { method: 'coupon', note: 'Fully covered by coupon' };
+      await order.save();
+      await this.deductStock(order);
+      await this.incrementCouponUsage(order);
+      this.sendOrderConfirmationEmail(order).catch(() => {});
+      this.pushOrderToGoogleSheet(order).catch(() => {});
+
+      const firstProduct = order.items?.[0]?.product;
+      const product = firstProduct
+        ? await this.productModel.findById(firstProduct).select('slug').lean()
+        : null;
+      const redirectUrl = `${this.frontendUrl}/store/payment/verify?order=${order.orderNumber}${product?.slug ? `&product=${product.slug}` : ''}`;
+      return { paymentLink: redirectUrl, txRef: 'coupon-' + order.orderNumber, freeOrder: true };
+    }
+
     const firstProduct = order.items?.[0]?.product;
     const product = firstProduct
       ? await this.productModel.findById(firstProduct).select('slug').lean()
@@ -1021,5 +1039,42 @@ export class StoreService {
     }
 
     return { synced, total: allRows.length };
+  }
+
+  async pushOrdersToGoogleSheetByNumbers(orderNumbers: string[]) {
+    if (!this.googleSheetWebhookUrl) {
+      throw new BadRequestException('GOOGLE_SHEET_WEBHOOK_URL is not configured');
+    }
+
+    const orders = await this.orderModel
+      .find({ orderNumber: { $in: orderNumbers } })
+      .sort({ createdAt: 1 })
+      .exec();
+
+    if (!orders.length) {
+      throw new NotFoundException('No orders found for the given order numbers');
+    }
+
+    const notFound = orderNumbers.filter(
+      (n) => !orders.some((o) => o.orderNumber === n),
+    );
+
+    const allRows: Record<string, any>[] = [];
+    for (const o of orders) {
+      allRows.push(...this.formatOrderRowsForSheet(o));
+    }
+
+    for (const row of allRows) {
+      await this.postToGoogleSheet({
+        secret: this.googleSheetSecret,
+        order: row,
+      });
+    }
+
+    return {
+      pushed: orders.length,
+      rows: allRows.length,
+      ...(notFound.length ? { notFound } : {}),
+    };
   }
 }
