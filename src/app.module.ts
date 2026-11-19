@@ -35,6 +35,7 @@ import { LmsModule } from './lms/lms.module';
 import { StoreModule } from './store/store.module';
 import { ServiceAttendanceModule } from './service-attendance/service-attendance.module';
 import { GisModule } from './gis/gis.module';
+import { DbBackupModule } from './db-backup/db-backup.module';
 
 @Module({
   imports: [
@@ -116,6 +117,7 @@ import { GisModule } from './gis/gis.module';
     StoreModule,
     ServiceAttendanceModule,
     GisModule,
+    DbBackupModule,
   ],
   controllers: [AppController],
   providers: [
