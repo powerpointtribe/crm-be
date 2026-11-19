@@ -10,7 +10,7 @@ export class DbBackupService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  @Cron('0 2 */4 * *')
+  @Cron('0 2 */2 * *')
   async handleBackup() {
     const targetUri = this.configService.get<string>('BACKUP_MONGODB_URI');
     if (!targetUri) return;
