@@ -44,25 +44,28 @@ import { GisModule } from './gis/gis.module';
       envFilePath: '.env',
     }),
 
-    // Database
+    // Database — uses PAID_MONGODB_URI when set (e.g. during an active CMIT
+    // cohort that needs a non-free-tier cluster), otherwise falls back to
+    // MONGODB_URI (free-tier). Toggle by adding/removing the env var + restart.
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI'),
-        dbName: configService.get<string>('DATABASE_NAME'),
+        uri:
+          configService.get<string>('PAID_MONGODB_URI') ||
+          configService.get<string>('MONGODB_URI'),
+        dbName:
+          configService.get<string>('PAID_DATABASE_NAME') ||
+          configService.get<string>('DATABASE_NAME'),
         ssl: true,
         tls: true,
         tlsInsecure: false,
-        // Bound the connection pool so a single instance can't exhaust the
-        // cluster's connection limit, and fail fast instead of hanging when
-        // the cluster is slow/unreachable (prevents 15s+ "no-response" hangs).
         maxPoolSize: Number(configService.get('MONGO_MAX_POOL_SIZE') ?? 20),
         minPoolSize: 2,
-        maxIdleTimeMS: 60_000, // reclaim idle sockets after 60s
-        serverSelectionTimeoutMS: 8_000, // give up finding a server in 8s
-        socketTimeoutMS: 45_000, // abort a stuck operation after 45s
-        waitQueueTimeoutMS: 10_000, // don't wait forever for a pooled connection
+        maxIdleTimeMS: 60_000,
+        serverSelectionTimeoutMS: 8_000,
+        socketTimeoutMS: 45_000,
+        waitQueueTimeoutMS: 10_000,
       }),
     }),
 
