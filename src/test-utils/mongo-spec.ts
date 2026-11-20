@@ -1,3 +1,5 @@
+// Test-only helper. The "-spec.ts" suffix keeps it out of the production build
+// (tsconfig.build.json excludes **/*spec.ts) without being picked up as a test.
 import { Connection, createConnection } from 'mongoose';
 
 /**

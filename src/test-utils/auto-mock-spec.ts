@@ -1,3 +1,5 @@
+// Test-only helper. The "-spec.ts" suffix keeps it out of the production build
+// (tsconfig.build.json excludes **/*spec.ts) without being picked up as a test.
 /**
  * `Test.createTestingModule(...).useMocker(autoMock)`: every dependency that
  * isn't provided explicitly becomes an object whose properties are jest.fn().
