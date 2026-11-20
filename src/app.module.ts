@@ -38,6 +38,7 @@ import { ServiceAttendanceModule } from './service-attendance/service-attendance
 import { GisModule } from './gis/gis.module';
 import { DbBackupModule } from './db-backup/db-backup.module';
 import { WebsiteModule } from './website/website.module';
+import { LostFoundModule } from './lost-found/lost-found.module';
 
 @Module({
   imports: [
@@ -123,6 +124,7 @@ import { WebsiteModule } from './website/website.module';
     GisModule,
     DbBackupModule,
     WebsiteModule,
+    LostFoundModule,
   ],
   controllers: [AppController],
   providers: [

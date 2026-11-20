@@ -20,6 +20,19 @@ import type { Sharp } from 'sharp';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const sharp = require('sharp') as (input?: Buffer) => Sharp;
 
+/** Longest edge kept for website images (never cropped, only shrunk). */
+export const WEBSITE_IMAGE_MAX_EDGE = 2560;
+
+export interface WebsiteImageResult {
+  url: string;
+  width?: number;
+  height?: number;
+  bytes?: number;
+}
+
+const imageKindOf = (mime: string): 'jpeg' | 'png' | 'webp' =>
+  mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpeg';
+
 /**
  * Cloudflare R2 storage (S3-compatible). Drop-in replacement for
  * CloudinaryService with matching method signatures. R2 has no on-the-fly
@@ -119,6 +132,52 @@ export class R2StorageService {
       }),
     );
     return this.publicUrl(key);
+  }
+
+  /**
+   * Website content image (artwork, posters, lost-item photos). Unlike
+   * uploadImage it keeps the original format (JPEG/PNG/WebP) and never crops:
+   * it only honours EXIF orientation, strips metadata (e.g. phone GPS) and
+   * shrinks anything larger than WEBSITE_IMAGE_MAX_EDGE.
+   */
+  async uploadWebsiteImage(
+    file: Express.Multer.File,
+    folder = 'website',
+  ): Promise<WebsiteImageResult> {
+    const kind = imageKindOf(file.mimetype);
+    let pipeline = sharp(file.buffer)
+      .rotate()
+      .resize(WEBSITE_IMAGE_MAX_EDGE, WEBSITE_IMAGE_MAX_EDGE, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
+    pipeline =
+      kind === 'png'
+        ? pipeline.png()
+        : kind === 'webp'
+          ? pipeline.webp({ quality: 90 })
+          : pipeline.jpeg({ quality: 90, mozjpeg: true });
+    const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
+    const base = file.originalname.replace(/\.[^.]+$/, '') || 'image';
+    const key = this.buildKey(
+      folder,
+      `${base}.${kind === 'jpeg' ? 'jpg' : kind}`,
+    );
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: data,
+        ContentType: `image/${kind}`,
+        CacheControl: 'public, max-age=31536000, immutable',
+      }),
+    );
+    return {
+      url: this.publicUrl(key),
+      width: info.width,
+      height: info.height,
+      bytes: info.size,
+    };
   }
 
   /**

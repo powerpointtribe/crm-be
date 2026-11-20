@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
+import {
+  WEBSITE_IMAGE_MAX_EDGE,
+  WebsiteImageResult,
+} from './r2-storage.service';
 
 @Injectable()
 export class CloudinaryService {
@@ -33,6 +37,49 @@ export class CloudinaryService {
               reject(error);
             } else if (result?.secure_url) {
               resolve(result.secure_url);
+            } else {
+              reject(new Error('Upload failed: No secure URL returned'));
+            }
+          },
+        )
+        .end(file.buffer);
+    });
+  }
+
+  /**
+   * Website content image. Unlike uploadImage (500×500, forced JPG), this
+   * keeps the original format and never crops: `crop: 'limit'` only shrinks
+   * images whose longest edge is over WEBSITE_IMAGE_MAX_EDGE.
+   */
+  async uploadWebsiteImage(
+    file: Express.Multer.File,
+    folder: string = 'website',
+  ): Promise<WebsiteImageResult> {
+    return new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          {
+            folder,
+            resource_type: 'image',
+            transformation: [
+              {
+                width: WEBSITE_IMAGE_MAX_EDGE,
+                height: WEBSITE_IMAGE_MAX_EDGE,
+                crop: 'limit',
+              },
+              { quality: 'auto:good' },
+            ],
+          },
+          (error, result) => {
+            if (error) {
+              reject(new Error(error.message || 'Upload failed'));
+            } else if (result?.secure_url) {
+              resolve({
+                url: result.secure_url,
+                width: result.width,
+                height: result.height,
+                bytes: result.bytes,
+              });
             } else {
               reject(new Error('Upload failed: No secure URL returned'));
             }

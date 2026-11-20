@@ -27,6 +27,11 @@ import {
 } from './guards/upload-auth.guard';
 import { AnonymousUploadLimitGuard } from './guards/anonymous-upload-limit.guard';
 import { detectImageKind } from './utils/image-signature.util';
+import { PermissionGuard } from '../roles/guards/permission.guard';
+import { RequireAnyPermission } from '../roles/decorators/require-permission.decorator';
+
+/** Website content images (staff): bigger than the public cap. */
+export const WEBSITE_IMAGE_MAX_BYTES = 15 * 1024 * 1024;
 
 /** Anonymous uploads: smaller cap, and kept apart from staff/portal uploads. */
 export const ANONYMOUS_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -173,6 +178,77 @@ export class UploadController {
       const err = error as { message?: string; error?: { message?: string } };
       const reason = err?.message || err?.error?.message || 'unknown error';
       throw new BadRequestException(`Failed to upload image: ${reason}`);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequireAnyPermission('website:upload', 'lost-found:create')
+  @ApiBearerAuth()
+  @Post('website-image')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: WEBSITE_IMAGE_MAX_BYTES } }),
+  )
+  @ApiOperation({
+    summary: 'Upload a website image (staff)',
+    description:
+      'For website content (series artwork, posters, pastor photos, lost-item photos). ' +
+      'JPEG, PNG or WebP, checked by content; up to 15 MB. Kept in its original format and ' +
+      'never cropped (only images over 2560px are shrunk; metadata is stripped). ' +
+      'Stored under "website/<folder>". Needs website:upload or lost-found:create.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        folder: { type: 'string', example: 'series' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    schema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+        width: { type: 'number' },
+        height: { type: 'number' },
+        bytes: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'No valid staff token' })
+  @ApiResponse({ status: 403, description: 'Missing permission' })
+  async uploadWebsiteImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+    const kind = detectImageKind(file.buffer);
+    if (!kind) {
+      throw new BadRequestException(
+        'Only JPEG, PNG, and WebP images are allowed',
+      );
+    }
+    if (file.size > WEBSITE_IMAGE_MAX_BYTES) {
+      throw new BadRequestException('File size must be less than 15MB');
+    }
+    // Storage picks the output format from the mimetype: use what the bytes
+    // say, not what the client claimed.
+    file.mimetype = `image/${kind}`;
+    try {
+      return await this.storage.uploadWebsiteImage(
+        file,
+        `website/${this.sanitizeFolder(folder, 'uploads')}`,
+      );
+    } catch (error) {
+      const err = error as { message?: string };
+      throw new BadRequestException(
+        `Failed to upload image: ${err?.message || 'unknown error'}`,
+      );
     }
   }
 
