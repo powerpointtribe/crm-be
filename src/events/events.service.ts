@@ -1,3 +1,4 @@
+import { publicEventFilter } from './utils/public-event-filter.util';
 import {
   Injectable,
   NotFoundException,
@@ -416,6 +417,21 @@ export class EventsService {
             : 'admin',
       };
     });
+  }
+
+  /** Like findBySlug, for public routes: draft events are treated as not found. */
+  async findPublicBySlug(slug: string): Promise<EventDocument> {
+    const event = await this.eventModel
+      .findOne(publicEventFilter(slug))
+      .populate('branch', 'name')
+      .populate('organizer', 'firstName lastName email')
+      .exec();
+
+    if (!event) {
+      throw new NotFoundException(`Event with slug "${slug}" not found`);
+    }
+
+    return event;
   }
 
   async findBySlug(slug: string): Promise<EventDocument> {
@@ -1159,7 +1175,7 @@ export class EventsService {
     slug: string,
     dto: PublicRegistrationDto,
   ): Promise<EventRegistrationDocument> {
-    const event = await this.findBySlug(slug);
+    const event = await this.findPublicBySlug(slug);
 
     // Check if event is published
     if (event.status !== EventStatus.PUBLISHED) {
@@ -3758,9 +3774,7 @@ export class EventsService {
     submitPartnerDto: SubmitPartnerDto,
   ): Promise<EventPartnerDocument> {
     // Find event by registrationSlug
-    const event = await this.eventModel.findOne({
-      registrationSlug: eventSlug,
-    });
+    const event = await this.eventModel.findOne(publicEventFilter(eventSlug));
     if (!event) {
       throw new NotFoundException('Event not found');
     }
@@ -4738,7 +4752,7 @@ export class EventsService {
     slug: string,
     data: { fullName: string; email?: string; phone?: string; testimony: string; title?: string; isAnonymous?: boolean },
   ): Promise<TestimonyDocument> {
-    const event = await this.eventModel.findOne({ registrationSlug: slug });
+    const event = await this.eventModel.findOne(publicEventFilter(slug));
     if (!event) {
       throw new NotFoundException('Event not found');
     }
@@ -4816,7 +4830,7 @@ export class EventsService {
     formConfig?: any;
   }> {
     const event = await this.eventModel
-      .findOne({ registrationSlug: slug })
+      .findOne(publicEventFilter(slug))
       .select('title bannerImage description testimonyFormEnabled testimonyFormId')
       .populate('testimonyFormId')
       .exec();
@@ -4883,7 +4897,7 @@ export class EventsService {
       isAnonymous?: boolean;
     },
   ): Promise<FeedbackDocument> {
-    const event = await this.eventModel.findOne({ registrationSlug: slug });
+    const event = await this.eventModel.findOne(publicEventFilter(slug));
     if (!event) throw new NotFoundException('Event not found');
     if (!event.feedbackFormEnabled) {
       throw new BadRequestException('Feedback form is not enabled for this event');
@@ -4945,7 +4959,7 @@ export class EventsService {
     formConfig?: any;
   }> {
     const event = await this.eventModel
-      .findOne({ registrationSlug: slug })
+      .findOne(publicEventFilter(slug))
       .select('title bannerImage description feedbackFormEnabled feedbackFormId')
       .populate('feedbackFormId')
       .exec();
