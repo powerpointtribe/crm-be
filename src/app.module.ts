@@ -39,6 +39,7 @@ import { GisModule } from './gis/gis.module';
 import { DbBackupModule } from './db-backup/db-backup.module';
 import { WebsiteModule } from './website/website.module';
 import { LostFoundModule } from './lost-found/lost-found.module';
+import { GivingModule } from './giving/giving.module';
 
 @Module({
   imports: [
@@ -125,6 +126,7 @@ import { LostFoundModule } from './lost-found/lost-found.module';
     DbBackupModule,
     WebsiteModule,
     LostFoundModule,
+    GivingModule,
   ],
   controllers: [AppController],
   providers: [

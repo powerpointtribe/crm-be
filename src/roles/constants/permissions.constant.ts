@@ -86,6 +86,10 @@ import {
   LostFoundPermission,
   LostFoundPermissionMetadata,
 } from '../../lost-found/permissions';
+import {
+  GivingPermission,
+  GivingPermissionMetadata,
+} from '../../giving/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -313,6 +317,15 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       perm,
       LostFoundPermissionMetadata[perm] || {},
       'lost-found',
+    ),
+  ),
+
+  // Giving Module (giving accounts + online donations)
+  ...Object.values(GivingPermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      GivingPermissionMetadata[perm] || {},
+      'giving',
     ),
   ),
 ];

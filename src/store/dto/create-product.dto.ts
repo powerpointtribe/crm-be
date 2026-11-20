@@ -8,9 +8,17 @@ import {
   Min,
   ValidateNested,
   ArrayMinSize,
+  IsIn,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  PRODUCT_BADGES,
+  PRODUCT_CATEGORIES,
+  type ProductBadge,
+  type ProductCategory,
+} from '../schemas/product.schema';
 
 export class ProductVariantDto {
   @ApiProperty({ example: 'M' })
@@ -95,4 +103,24 @@ export class CreateProductDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @ApiPropertyOptional({
+    enum: PRODUCT_CATEGORIES,
+    nullable: true,
+    description: 'Website shop category (null = none)',
+  })
+  @IsOptional()
+  @IsIn(PRODUCT_CATEGORIES)
+  category?: ProductCategory | null;
+
+  @ApiPropertyOptional({ example: 'by Dami Oguntunde', maxLength: 120 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  byline?: string;
+
+  @ApiPropertyOptional({ enum: PRODUCT_BADGES, nullable: true })
+  @IsOptional()
+  @IsIn(PRODUCT_BADGES)
+  badge?: ProductBadge | null;
 }

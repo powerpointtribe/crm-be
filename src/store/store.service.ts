@@ -1,6 +1,7 @@
 import {
   Injectable,
   Logger,
+  Optional,
   NotFoundException,
   BadRequestException,
   ConflictException,
@@ -21,6 +22,8 @@ import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { createPaginatedResult } from '../common/utils/pagination.util';
 import { EmailProvider } from '../notifications/providers/email.provider';
+import { Branch, BranchDocument } from '../branches/schemas/branch.schema';
+import { DonationsService } from '../giving/services/donations.service';
 
 @Injectable()
 export class StoreService {
@@ -28,6 +31,8 @@ export class StoreService {
   private readonly flutterwaveSecretKey: string;
   private readonly flutterwaveBaseUrl = 'https://api.flutterwave.com/v3';
   private readonly frontendUrl: string;
+  /** Public website origin; website-channel orders return here after payment. */
+  private readonly websiteUrl: string;
   private readonly googleSheetWebhookUrl: string;
   private readonly googleSheetSecret: string;
 
@@ -35,13 +40,20 @@ export class StoreService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @InjectModel(Coupon.name) private couponModel: Model<CouponDocument>,
+    @InjectModel(Branch.name) private branchModel: Model<BranchDocument>,
     private configService: ConfigService,
     private emailProvider: EmailProvider,
+    // Flutterwave allows one webhook URL per account, so giving shares ours.
+    @Optional() private donationsService?: DonationsService,
   ) {
     this.flutterwaveSecretKey =
       this.configService.get<string>('FLUTTERWAVE_SECRET_KEY') || '';
     this.frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    this.websiteUrl = (this.configService.get<string>('WEBSITE_URL') || '').replace(
+      /\/+$/,
+      '',
+    );
     this.googleSheetWebhookUrl =
       this.configService.get<string>('GOOGLE_SHEET_WEBHOOK_URL') || '';
     this.googleSheetSecret =
@@ -405,11 +417,14 @@ export class StoreService {
 
     const totalAmount = subtotal - discountAmount;
     const orderNumber = this.generateOrderNumber();
+    const fulfilment = await this.resolveFulfilment(dto);
 
     const order = await this.orderModel.create({
       orderNumber,
       items: orderItems,
       delivery: dto.delivery,
+      fulfilment,
+      channel: dto.channel ?? 'crm',
       subtotal,
       discountAmount,
       couponCode,
@@ -419,6 +434,40 @@ export class StoreService {
     });
 
     return order;
+  }
+
+  /** Delivery (default) needs nothing extra; pickup needs an active campus. */
+  private async resolveFulfilment(dto: CreateOrderDto) {
+    if (dto.fulfilment?.method !== 'pickup') return { method: 'delivery' as const };
+    const ref = dto.fulfilment.branch ?? '';
+    const branch = await this.branchModel
+      .findOne({
+        isActive: true,
+        ...(Types.ObjectId.isValid(ref) && /^[a-f\d]{24}$/i.test(ref)
+          ? { _id: new Types.ObjectId(ref) }
+          : { slug: ref.toLowerCase() }),
+      })
+      .select('name')
+      .lean();
+    if (!branch) {
+      throw new BadRequestException('fulfilment.branch must be an active campus');
+    }
+    return {
+      method: 'pickup' as const,
+      branch: branch._id,
+      branchName: branch.name,
+    };
+  }
+
+  /**
+   * Where Flutterwave sends the payer back. Website orders go to the website
+   * (when WEBSITE_URL is set); everything else is unchanged.
+   */
+  private paymentReturnUrl(order: OrderDocument, productSlug?: string) {
+    if (order.channel === 'website' && this.websiteUrl) {
+      return `${this.websiteUrl}/shop/order?order=${encodeURIComponent(order.orderNumber)}`;
+    }
+    return `${this.frontendUrl}/store/payment/verify?order=${order.orderNumber}${productSlug ? `&product=${productSlug}` : ''}`;
   }
 
   async getOrders(query: {
@@ -579,7 +628,7 @@ export class StoreService {
       const product = firstProduct
         ? await this.productModel.findById(firstProduct).select('slug').lean()
         : null;
-      const redirectUrl = `${this.frontendUrl}/store/payment/verify?order=${order.orderNumber}${product?.slug ? `&product=${product.slug}` : ''}`;
+      const redirectUrl = this.paymentReturnUrl(order, product?.slug);
       return { paymentLink: redirectUrl, txRef: 'coupon-' + order.orderNumber, freeOrder: true };
     }
 
@@ -593,7 +642,7 @@ export class StoreService {
       tx_ref: txRef,
       amount: order.totalAmount,
       currency: order.currency || 'NGN',
-      redirect_url: `${this.frontendUrl}/store/payment/verify?order=${order.orderNumber}${product?.slug ? `&product=${product.slug}` : ''}`,
+      redirect_url: this.paymentReturnUrl(order, product?.slug),
       customer: {
         email: order.customerEmail || order.delivery.email || 'customer@store.com',
         phone_number: order.customerPhone || order.delivery.phone,
@@ -728,6 +777,14 @@ export class StoreService {
       return { status: 'error' };
     }
 
+    // Website donations (tx_ref PPTG-...) are settled by the giving module,
+    // which re-verifies with Flutterwave. Store refs carry on as before.
+    const txRef = payload?.data?.tx_ref;
+    if (typeof txRef === 'string' && txRef.startsWith('PPTG-')) {
+      if (this.donationsService) await this.donationsService.handleWebhook(payload);
+      return { status: 'ok' };
+    }
+
     if (payload.event === 'charge.completed' && payload.data.status === 'successful') {
       const txRef = payload.data.tx_ref;
       const order = await this.orderModel.findOne({ flutterwaveRef: txRef });
@@ -820,13 +877,12 @@ export class StoreService {
       </tr>`
         : '';
 
-    const deliveryParts = [
-      order.delivery.address,
-      order.delivery.city,
-      order.delivery.state,
-    ]
-      .filter(Boolean)
-      .join(', ');
+    const isPickup = order.fulfilment?.method === 'pickup';
+    const deliveryParts = isPickup
+      ? `Pickup at ${order.fulfilment?.branchName || 'your campus'}`
+      : [order.delivery.address, order.delivery.city, order.delivery.state]
+          .filter(Boolean)
+          .join(', ');
 
     const html = `
     <div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:#ffffff">
@@ -881,7 +937,7 @@ export class StoreService {
 
         <!-- Delivery -->
         <div style="margin-top:20px;border:1px solid #f3f4f6;border-radius:8px;padding:14px 14px 12px">
-          <p style="margin:0 0 8px;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#9ca3af;font-weight:700">Delivery</p>
+          <p style="margin:0 0 8px;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#9ca3af;font-weight:700">${isPickup ? 'Pickup' : 'Delivery'}</p>
           <p style="margin:0;font-size:13px;color:#374151;line-height:1.6">
             ${order.delivery.fullName}<br/>
             ${order.delivery.phone}<br/>
@@ -950,9 +1006,11 @@ export class StoreService {
       ? new Date((order as any).createdAt).toISOString().slice(0, 10)
       : '';
     const address =
-      (order.delivery?.address || '') +
-      (order.delivery?.city ? ', ' + order.delivery.city : '') +
-      (order.delivery?.state ? ', ' + order.delivery.state : '');
+      order.fulfilment?.method === 'pickup'
+        ? `Pickup: ${order.fulfilment.branchName || ''}`.trim()
+        : (order.delivery?.address || '') +
+          (order.delivery?.city ? ', ' + order.delivery.city : '') +
+          (order.delivery?.state ? ', ' + order.delivery.state : '');
 
     return (order.items || []).map((item) => {
       const cm = item.colour?.match(/^(.+?)\s*\(([^)]+)\)$/);

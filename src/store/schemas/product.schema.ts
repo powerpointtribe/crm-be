@@ -1,6 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
+/** Website shop category pills. */
+export const PRODUCT_CATEGORIES = ['books', 'merch', 'accessories'] as const;
+export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+export const PRODUCT_BADGES = ['new', 'bestseller'] as const;
+export type ProductBadge = (typeof PRODUCT_BADGES)[number];
+
 export type ProductDocument = Product & Document & { _id: Types.ObjectId };
 
 @Schema({ _id: true, versionKey: false })
@@ -59,6 +65,17 @@ export class Product {
   @Prop([String])
   tags?: string[];
 
+  /** Website shop category; null = not shown under a category pill. */
+  @Prop({ type: String, enum: PRODUCT_CATEGORIES, default: null })
+  category?: ProductCategory | null;
+
+  /** Short line under the name, e.g. the author of a book. */
+  @Prop({ trim: true, maxlength: 120 })
+  byline?: string;
+
+  @Prop({ type: String, enum: PRODUCT_BADGES, default: null })
+  badge?: ProductBadge | null;
+
   @Prop({ type: Types.ObjectId, ref: 'Member', required: true })
   createdBy: Types.ObjectId;
 }
@@ -67,4 +84,5 @@ export const ProductSchema = SchemaFactory.createForClass(Product);
 
 ProductSchema.index({ slug: 1 }, { unique: true });
 ProductSchema.index({ isActive: 1 });
+ProductSchema.index({ isActive: 1, category: 1 });
 ProductSchema.index({ name: 'text', description: 'text' });

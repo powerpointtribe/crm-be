@@ -52,6 +52,10 @@ describe('detectImageKind', () => {
   });
 });
 
+// Each test boots a Nest app; the first request can exceed jest's 5 s default
+// when the whole suite runs in parallel.
+jest.setTimeout(20_000);
+
 describe('UploadController (HTTP)', () => {
   let app: INestApplication;
   let memberToken: string;
