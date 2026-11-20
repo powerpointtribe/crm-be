@@ -6,6 +6,7 @@ import {
   UseInterceptors,
   UseGuards,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -20,6 +21,16 @@ import { CloudinaryService } from '../common/services/cloudinary.service';
 import { StorageService } from '../common/services/storage.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import {
+  OptionalUploadAuthGuard,
+  UploadAuthGuard,
+} from './guards/upload-auth.guard';
+import { AnonymousUploadLimitGuard } from './guards/anonymous-upload-limit.guard';
+import { detectImageKind } from './utils/image-signature.util';
+
+/** Anonymous uploads: smaller cap, and kept apart from staff/portal uploads. */
+export const ANONYMOUS_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const ANONYMOUS_UPLOAD_ROOT = 'public-uploads';
 
 @ApiTags('Upload')
 @Controller('upload')
@@ -48,11 +59,14 @@ export class UploadController {
     return cleaned || fallback;
   }
 
-  @Public()
+  @UseGuards(UploadAuthGuard)
+  @ApiBearerAuth()
   @Post('sign')
   @ApiOperation({
-    summary: 'Get a Cloudinary upload signature for direct browser upload',
+    summary:
+      'Get a Cloudinary upload signature for direct browser upload (staff or portal token required)',
   })
+  @ApiResponse({ status: 401, description: 'No valid staff or portal token' })
   @ApiResponse({
     status: 200,
     schema: {
@@ -71,11 +85,20 @@ export class UploadController {
   }
 
   @Public()
+  @UseGuards(OptionalUploadAuthGuard, AnonymousUploadLimitGuard)
   @Post('image')
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }),
   )
-  @ApiOperation({ summary: 'Upload an image to Cloudinary' })
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Upload an image (JPEG, PNG or WebP)',
+    description:
+      'Public, so public forms keep working. With a valid staff or portal token: up to 10 MB, ' +
+      'stored under the given folder. Without one: up to 5 MB, 5 uploads per minute per IP, ' +
+      'stored under "public-uploads/<folder>".',
+  })
+  @ApiResponse({ status: 429, description: 'Too many anonymous uploads' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -103,8 +126,10 @@ export class UploadController {
   })
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
-    @Body('folder') folder?: string,
+    @Body('folder') folder: string | undefined,
+    @Req() req: { user?: unknown },
   ) {
+    const anonymous = !req.user;
     if (!file) {
       throw new BadRequestException('No file provided');
     }
@@ -117,16 +142,27 @@ export class UploadController {
       );
     }
 
-    // Validate file size (10MB max)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      throw new BadRequestException('File size must be less than 10MB');
+    // The mimetype is client-supplied: check the actual bytes too.
+    if (!detectImageKind(file.buffer)) {
+      throw new BadRequestException(
+        'Only JPEG, PNG, and WebP images are allowed',
+      );
     }
+
+    // Validate file size (10MB signed in, 5MB anonymous)
+    const maxSize = anonymous ? ANONYMOUS_IMAGE_MAX_BYTES : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      throw new BadRequestException(
+        `File size must be less than ${anonymous ? 5 : 10}MB`,
+      );
+    }
+
+    const target = this.sanitizeFolder(folder, 'powerpoint/uploads');
 
     try {
       const imageUrl = await this.storage.uploadImage(
         file,
-        this.sanitizeFolder(folder, 'powerpoint/uploads'),
+        anonymous ? `${ANONYMOUS_UPLOAD_ROOT}/${target}` : target,
       );
       return {
         url: imageUrl,
