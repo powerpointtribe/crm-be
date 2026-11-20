@@ -50,6 +50,8 @@ import { QueueName } from '../common/interfaces/queue-job.interface';
 import { EventEmailProcessor } from '../queue/processors/event-email.processor';
 import { PortalModule } from '../portal/portal.module';
 import { LmsModule } from '../lms/lms.module';
+import { EventsWebsiteController } from './events-website.controller';
+import { EventsWebsiteService } from './events-website.service';
 
 @Module({
   imports: [
@@ -78,8 +80,19 @@ import { LmsModule } from '../lms/lms.module';
     PortalModule,
     forwardRef(() => LmsModule),
   ],
-  controllers: [EventsController, EventsAdminController],
-  providers: [EventsService, EventEmailProcessor, EventReminderScheduler],
+  // EventsWebsiteController first: its /events/website routes must be matched
+  // before EventsController's GET /events/:id.
+  controllers: [
+    EventsWebsiteController,
+    EventsController,
+    EventsAdminController,
+  ],
+  providers: [
+    EventsService,
+    EventsWebsiteService,
+    EventEmailProcessor,
+    EventReminderScheduler,
+  ],
   exports: [EventsService, MongooseModule],
 })
 export class EventsModule {}

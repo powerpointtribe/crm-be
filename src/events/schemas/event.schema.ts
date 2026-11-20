@@ -17,6 +17,21 @@ export enum EventType {
   OTHER = 'other',
 }
 
+// How an event is presented on the public website
+export enum WebsiteEventKind {
+  ONE_OFF = 'one_off',
+  WEEKLY_SERVICE = 'weekly_service',
+  YEARLY_GATHERING = 'yearly_gathering',
+}
+
+export interface EventWebsite {
+  showOnWebsite: boolean;
+  kind: WebsiteEventKind;
+  typeLabel?: string;
+  featured: boolean;
+  link?: string;
+}
+
 // Event status
 export enum EventStatus {
   DRAFT = 'draft',
@@ -464,6 +479,28 @@ export class Event {
 
   @Prop({ type: Date })
   updatedAt: Date;
+
+  // Public website (/events). Off by default: an event appears on the website
+  // only when staff switch showOnWebsite on (and it is published + upcoming).
+  @Prop({
+    type: {
+      showOnWebsite: { type: Boolean, default: false },
+      kind: {
+        type: String,
+        enum: Object.values(WebsiteEventKind),
+        default: WebsiteEventKind.ONE_OFF,
+      },
+      typeLabel: { type: String, trim: true },
+      featured: { type: Boolean, default: false },
+      link: { type: String, trim: true },
+    },
+    default: {
+      showOnWebsite: false,
+      kind: WebsiteEventKind.ONE_OFF,
+      featured: false,
+    },
+  })
+  website?: EventWebsite;
 }
 
 export const EventSchema = SchemaFactory.createForClass(Event);
@@ -480,3 +517,4 @@ EventSchema.index({ organizer: 1 });
 EventSchema.index({ 'committee.member': 1 });
 EventSchema.index({ branch: 1, status: 1, startDate: -1 });
 EventSchema.index({ tags: 1 });
+EventSchema.index({ status: 1, 'website.showOnWebsite': 1, startDate: 1 });
