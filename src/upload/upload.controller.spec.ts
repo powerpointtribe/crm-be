@@ -14,6 +14,7 @@ import {
   PortalAccountStatus,
 } from '../portal/schemas/portal-account.schema';
 import { PortalJwtStrategy } from '../portal/strategies/portal-jwt.strategy';
+import { autoMock } from '../test-utils/auto-mock-spec';
 import { UploadController } from './upload.controller';
 import { detectImageKind } from './utils/image-signature.util';
 
@@ -103,7 +104,11 @@ describe('UploadController (HTTP)', () => {
           },
         },
       ],
-    }).compile();
+    })
+      // PermissionGuard (only on /upload/website-image) needs Role/Permission
+      // models; those routes are covered in upload-website-image.int-spec.ts.
+      .useMocker(autoMock)
+      .compile();
 
     app = moduleRef.createNestApplication();
     // Same as main.ts, so X-Forwarded-For sets req.ip.

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CloudinaryService } from './cloudinary.service';
-import { R2StorageService } from './r2-storage.service';
+import { R2StorageService, WebsiteImageResult } from './r2-storage.service';
 
 /**
  * Storage facade — routes media uploads to Cloudflare R2 when it is configured
@@ -35,6 +35,16 @@ export class StorageService {
     return this.useR2
       ? this.r2.uploadImage(file, folder)
       : this.cloudinary.uploadImage(file, folder);
+  }
+
+  /** Website images: original format, never cropped (see R2/Cloudinary). */
+  uploadWebsiteImage(
+    file: Express.Multer.File,
+    folder?: string,
+  ): Promise<WebsiteImageResult> {
+    return this.useR2
+      ? this.r2.uploadWebsiteImage(file, folder)
+      : this.cloudinary.uploadWebsiteImage(file, folder);
   }
 
   uploadFile(
