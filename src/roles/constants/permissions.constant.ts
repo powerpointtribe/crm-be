@@ -78,6 +78,10 @@ import {
   GisPermission,
   GisPermissionMetadata,
 } from '../../gis/permissions';
+import {
+  WebsitePermission,
+  WebsitePermissionMetadata,
+} from '../../website/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -287,6 +291,15 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       perm,
       GisPermissionMetadata[perm] || {},
       'gis',
+    ),
+  ),
+
+  // Website Module (public website content + inbox)
+  ...Object.values(WebsitePermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      WebsitePermissionMetadata[perm] || {},
+      'website',
     ),
   ),
 ];
