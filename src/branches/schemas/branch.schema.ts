@@ -50,6 +50,35 @@ export class Branch {
 
   @Prop({ type: [String], default: [] })
   serviceTypes: string[]; // Types of services offered at this branch
+
+  // Public website (campus pages). Off by default: a branch only appears on
+  // the website once staff switch showOnWebsite on.
+  @Prop({
+    type: {
+      showOnWebsite: { type: Boolean, default: false },
+      venue: { type: String, trim: true },
+      mapUrl: { type: String, trim: true },
+      photoUrl: { type: String, trim: true },
+      serviceTimes: {
+        type: [{ label: String, day: String, time: String, _id: false }],
+        default: [],
+      },
+      order: { type: Number, default: 0 },
+      pastor: { type: Types.ObjectId, ref: 'WebPastor', default: null },
+    },
+    default: { showOnWebsite: false, serviceTimes: [], order: 0 },
+  })
+  website?: BranchWebsite;
+}
+
+export interface BranchWebsite {
+  showOnWebsite: boolean;
+  venue?: string;
+  mapUrl?: string;
+  photoUrl?: string;
+  serviceTimes: { label: string; day: string; time: string }[];
+  order: number;
+  pastor?: Types.ObjectId | null;
 }
 
 export const BranchSchema = SchemaFactory.createForClass(Branch);
@@ -58,3 +87,4 @@ export const BranchSchema = SchemaFactory.createForClass(Branch);
 BranchSchema.index({ slug: 1 });
 BranchSchema.index({ isActive: 1 });
 BranchSchema.index({ isMainBranch: 1 });
+BranchSchema.index({ 'website.showOnWebsite': 1, 'website.order': 1 });

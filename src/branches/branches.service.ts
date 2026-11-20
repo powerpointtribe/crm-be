@@ -3,12 +3,20 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Branch, BranchDocument } from './schemas/branch.schema';
 import { CreateBranchDto } from './dto/create-branch.dto';
+import { UpdateBranchWebsiteDto } from './dto/update-branch-website.dto';
+import {
+  WebPastor,
+  WebPastorDocument,
+} from '../website/schemas/web-content.schema';
+import { publishedFilter } from '../website/schemas/publishing';
 
 @Injectable()
 export class BranchesService {
   constructor(
     @InjectModel(Branch.name)
     private branchModel: Model<BranchDocument>,
+    @InjectModel(WebPastor.name)
+    private readonly pastorModel: Model<WebPastorDocument>,
   ) {}
 
   async create(createBranchDto: CreateBranchDto): Promise<BranchDocument> {
@@ -33,6 +41,76 @@ export class BranchesService {
 
   async findMainBranch(): Promise<BranchDocument | null> {
     return this.branchModel.findOne({ isMainBranch: true, isActive: true }).exec();
+  }
+
+  /** Merge website fields (only keys that were sent). null if not found. */
+  async updateWebsite(
+    id: string,
+    dto: UpdateBranchWebsiteDto,
+  ): Promise<BranchDocument | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    const set: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(dto)) {
+      if (v === undefined) continue;
+      set[`website.${k}`] =
+        k === 'pastor' && v !== null ? new Types.ObjectId(v as string) : v;
+    }
+    if (!Object.keys(set).length) return this.branchModel.findById(id).exec();
+    return this.branchModel
+      .findByIdAndUpdate(id, { $set: set }, { new: true, runValidators: true })
+      .exec();
+  }
+
+  /**
+   * Campuses for the public website: active, switched on, in order, with the
+   * campus pastor if that website pastor profile is published.
+   */
+  async findWebsiteCampuses() {
+    const branches = await this.branchModel
+      .find({ isActive: true, 'website.showOnWebsite': true })
+      .sort({ 'website.order': 1, name: 1 })
+      .lean()
+      .exec();
+    const pastorIds = branches
+      .map((b) => b.website?.pastor)
+      .filter((id): id is Types.ObjectId => !!id);
+    const pastors = pastorIds.length
+      ? await this.pastorModel
+          .find({ _id: { $in: pastorIds }, ...publishedFilter<WebPastor>() })
+          .lean()
+          .exec()
+      : [];
+    const byId = new Map(pastors.map((p) => [String(p._id), p]));
+    return branches.map((b) => {
+      const pastor = b.website?.pastor
+        ? byId.get(String(b.website.pastor))
+        : undefined;
+      return {
+        _id: b._id,
+        slug: b.slug,
+        name: b.name,
+        venue: b.website?.venue ?? null,
+        city: b.address?.city ?? null,
+        address: b.address ?? null,
+        phone: b.phone ?? null,
+        email: b.email ?? null,
+        isMain: !!b.isMainBranch,
+        timezone: b.timezone ?? null,
+        mapUrl: b.website?.mapUrl ?? null,
+        photoUrl: b.website?.photoUrl ?? null,
+        serviceTimes: (b.website?.serviceTimes ?? []).map(
+          ({ label, day, time }) => ({ label, day, time }),
+        ),
+        pastor: pastor
+          ? {
+              name: pastor.name,
+              role: pastor.role,
+              photoUrl: pastor.photoUrl ?? null,
+              photoAlt: pastor.photoAlt ?? null,
+            }
+          : null,
+      };
+    });
   }
 
   async update(
