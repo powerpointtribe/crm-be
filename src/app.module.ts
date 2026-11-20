@@ -7,6 +7,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
 import { AppController } from './app.controller';
+import { mongoTlsOptions } from './common/utils/mongo-tls.util';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { RolesModule } from './roles/roles.module';
@@ -58,9 +59,11 @@ import { DbBackupModule } from './db-backup/db-backup.module';
         dbName:
           configService.get<string>('PAID_DATABASE_NAME') ||
           configService.get<string>('DATABASE_NAME'),
-        ssl: true,
-        tls: true,
-        tlsInsecure: false,
+        // TLS stays on unless MONGODB_TLS=false outside production (local dev).
+        ...mongoTlsOptions({
+          MONGODB_TLS: configService.get<string>('MONGODB_TLS'),
+          NODE_ENV: configService.get<string>('NODE_ENV'),
+        }),
         maxPoolSize: Number(configService.get('MONGO_MAX_POOL_SIZE') ?? 20),
         minPoolSize: 2,
         maxIdleTimeMS: 60_000,
