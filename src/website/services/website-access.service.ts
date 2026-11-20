@@ -12,19 +12,24 @@ type StaffUser = {
 export class WebsiteAccessService {
   constructor(private readonly userPermissions: UserPermissionsService) {}
 
-  async has(user: StaffUser, permission: string): Promise<boolean> {
+  /** All of the user's permissions (role + membership), or empty on error. */
+  async permissionsOf(user: StaffUser): Promise<Set<string>> {
     const role = user?.role as { _id?: unknown } | undefined;
     const roleId = (role?._id ?? role) as string | undefined;
-    if (!roleId) return false;
+    if (!roleId) return new Set();
     try {
       const { permissions } = await this.userPermissions.getUserPermissions(
         String(roleId),
         user.membershipStatus,
       );
-      return permissions.includes(permission);
+      return new Set(permissions);
     } catch {
-      return false;
+      return new Set();
     }
+  }
+
+  async has(user: StaffUser, permission: string): Promise<boolean> {
+    return (await this.permissionsOf(user)).has(permission);
   }
 
   /**

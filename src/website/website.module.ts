@@ -19,6 +19,21 @@ import {
 } from './schemas/web-form-submission.schema';
 import { WebsiteFormsService } from './services/website-forms.service';
 import { WebsiteInboxService } from './services/website-inbox.service';
+import { WebsiteSummaryService } from './services/website-summary.service';
+import { Event, EventSchema } from '../events/schemas/event.schema';
+import {
+  GivingAccount,
+  GivingAccountSchema,
+} from '../giving/schemas/giving.schemas';
+import {
+  LostItemClaim,
+  LostItemClaimSchema,
+} from '../lost-found/schemas/lost-item-claim.schema';
+import {
+  LostItem,
+  LostItemSchema,
+} from '../lost-found/schemas/lost-item.schema';
+import { Order, OrderSchema } from '../store/schemas/order.schema';
 import { WEBSITE_CONTENT_CONTROLLERS } from './controllers/website-content.controller';
 import { WebsitePublicController } from './controllers/website-public.controller';
 import { WebsiteSettingsController } from './controllers/website-settings.controller';
@@ -70,6 +85,12 @@ export const WEBSITE_MODELS = [
       { name: Branch.name, schema: BranchSchema },
       // Read-only: match an existing first-timer for "plan a visit".
       { name: FirstTimer.name, schema: FirstTimerSchema },
+      // Read-only: counted by GET /website/summary.
+      { name: Event.name, schema: EventSchema },
+      { name: LostItem.name, schema: LostItemSchema },
+      { name: LostItemClaim.name, schema: LostItemClaimSchema },
+      { name: GivingAccount.name, schema: GivingAccountSchema },
+      { name: Order.name, schema: OrderSchema },
     ]),
   ],
   controllers: [
@@ -86,6 +107,7 @@ export const WEBSITE_MODELS = [
     WebsiteAccessService,
     WebsiteFormsService,
     WebsiteInboxService,
+    WebsiteSummaryService,
   ],
   exports: [
     WebSermonsService,

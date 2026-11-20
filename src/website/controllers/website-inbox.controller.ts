@@ -29,6 +29,12 @@ import {
 } from '../dto/inbox.dto';
 import { WebsitePermission as P } from '../permissions';
 import { WebsiteInboxService } from '../services/website-inbox.service';
+import { WebsiteSummaryService } from '../services/website-summary.service';
+import { RequireAnyPermission } from '../../roles/decorators/require-permission.decorator';
+import { EventsPermission } from '../../events/permissions';
+import { GivingPermission } from '../../giving/permissions';
+import { LostFoundPermission } from '../../lost-found/permissions';
+import { StorePermission } from '../../store/permissions';
 
 const paramId = (_r: unknown, req: { params: { id: string } }) => req.params.id;
 
@@ -38,7 +44,34 @@ const paramId = (_r: unknown, req: { params: { id: string } }) => req.params.id;
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @UseInterceptors(AuditLogInterceptor)
 export class WebsiteInboxController {
-  constructor(private readonly inbox: WebsiteInboxService) {}
+  constructor(
+    private readonly inbox: WebsiteInboxService,
+    private readonly summaryService: WebsiteSummaryService,
+  ) {}
+
+  @Get('summary')
+  @RequireAnyPermission(
+    P.VIEW_SUBMISSIONS,
+    P.VIEW_CONTENT,
+    EventsPermission.VIEW_EVENTS,
+    LostFoundPermission.VIEW_ITEMS,
+    LostFoundPermission.VIEW_CLAIMS,
+    GivingPermission.APPROVE_ACCOUNTS,
+    StorePermission.VIEW_ORDERS,
+  )
+  @ApiOperation({
+    summary: 'Website admin dashboard counters',
+    description:
+      'Only the counters the caller may see: newSubmissions, draftSermons, upcomingEvents, lostItemsToReview, claimsPending, accountsAwaitingApproval, ordersToFulfil.',
+  })
+  async dashboard(
+    @Request() req: { user: Parameters<WebsiteSummaryService['summary']>[0] },
+  ) {
+    return ResponseUtil.success(
+      await this.summaryService.summary(req.user),
+      'Summary retrieved',
+    );
+  }
 
   @Get('submissions')
   @RequirePermission(P.VIEW_SUBMISSIONS)
