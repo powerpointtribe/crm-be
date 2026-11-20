@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
-import { Connection, Model } from 'mongoose';
+import { Model } from 'mongoose';
 import * as request from 'supertest';
 import { Event, EventSchema } from '../events/schemas/event.schema';
 import {
@@ -36,7 +36,7 @@ import { WebsiteSummaryService } from './services/website-summary.service';
 type Json = Record<string, any>;
 
 describe('GET /website/summary (integration)', () => {
-  let db: { connection: Connection; close: () => Promise<void> };
+  let db: Awaited<ReturnType<typeof openTestDb>>;
   let app: INestApplication;
   let staff: ReturnType<typeof staffAuthHarness>['staff'];
 
@@ -57,6 +57,7 @@ describe('GET /website/summary (integration)', () => {
     };
     const auth = staffAuthHarness(c);
     staff = auth.staff;
+    await db.ready();
     const moduleRef = await Test.createTestingModule({
       imports: [PassportModule],
       controllers: [WebsiteInboxController],
@@ -116,9 +117,10 @@ describe('GET /website/summary (integration)', () => {
       { approvalStatus: 'approved', pendingChange: null },
     ]);
     await raw(Order.name, [
-      { status: 'paid' },
-      { status: 'processing' },
-      { status: 'delivered' },
+      // orderNumber is unique: give each fixture one.
+      { orderNumber: 'ORD-T-1', status: 'paid' },
+      { orderNumber: 'ORD-T-2', status: 'processing' },
+      { orderNumber: 'ORD-T-3', status: 'delivered' },
     ]);
   });
 

@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
-import { Connection, Model } from 'mongoose';
+import { Model } from 'mongoose';
 import * as request from 'supertest';
 import { PermissionGuard } from '../roles/guards/permission.guard';
 import { configureLikeMain } from '../test-utils/app-spec';
@@ -20,7 +20,7 @@ import { Branch, BranchSchema } from './schemas/branch.schema';
 type Json = Record<string, any>;
 
 describe('Branch website fields (integration)', () => {
-  let db: { connection: Connection; close: () => Promise<void> };
+  let db: Awaited<ReturnType<typeof openTestDb>>;
   let app: INestApplication;
   let staff: ReturnType<typeof staffAuthHarness>['staff'];
   let branches: Model<Branch>;
@@ -33,6 +33,7 @@ describe('Branch website fields (integration)', () => {
     pastors = c.model(WebPastor.name, WebPastorSchema);
     const auth = staffAuthHarness(c);
     staff = auth.staff;
+    await db.ready();
     const moduleRef = await Test.createTestingModule({
       imports: [PassportModule],
       controllers: [BranchesController],

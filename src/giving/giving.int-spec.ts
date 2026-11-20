@@ -5,7 +5,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { Connection, Model, Types } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import * as request from 'supertest';
 import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
 import { PermissionGuard } from '../roles/guards/permission.guard';
@@ -30,7 +30,7 @@ import { GivingAccountsService } from './services/giving-accounts.service';
 type Json = Record<string, any>;
 
 describe('Giving API (integration)', () => {
-  let db: { connection: Connection; close: () => Promise<void> };
+  let db: Awaited<ReturnType<typeof openTestDb>>;
   let app: INestApplication;
   let staff: ReturnType<typeof staffAuthHarness>['staff'];
   const m: Record<string, Model<any>> = {};
@@ -60,6 +60,8 @@ describe('Giving API (integration)', () => {
     m.Branch = c.model(Branch.name, BranchSchema);
     const auth = staffAuthHarness(c);
     staff = auth.staff;
+
+    await db.ready();
 
     const moduleRef = await Test.createTestingModule({
       imports: [

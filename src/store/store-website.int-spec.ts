@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { getModelToken } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
-import { Connection, Model, Types } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import * as request from 'supertest';
 import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
 import { DonationsService } from '../giving/services/donations.service';
@@ -47,7 +47,7 @@ const CONFIG: Record<string, string> = {
 };
 
 describe('Store additions for the website (integration)', () => {
-  let db: { connection: Connection; close: () => Promise<void> };
+  let db: Awaited<ReturnType<typeof openTestDb>>;
   let app: INestApplication;
   let staff: ReturnType<typeof staffAuthHarness>['staff'];
   const m: Record<string, Model<any>> = {};
@@ -71,6 +71,8 @@ describe('Store additions for the website (integration)', () => {
       m[name] = c.model(name, schema);
     const auth = staffAuthHarness(c);
     staff = auth.staff;
+
+    await db.ready();
 
     const moduleRef = await Test.createTestingModule({
       imports: [PassportModule],

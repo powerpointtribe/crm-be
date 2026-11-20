@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
-import { Connection } from 'mongoose';
+
 import * as request from 'supertest';
 import { CloudinaryService } from '../common/services/cloudinary.service';
 import { StorageService } from '../common/services/storage.service';
@@ -19,7 +19,7 @@ const PNG = Buffer.concat([
 const FAKE = Buffer.from('<svg onload="alert(1)"></svg>............');
 
 describe('POST /upload/website-image (integration)', () => {
-  let db: { connection: Connection; close: () => Promise<void> };
+  let db: Awaited<ReturnType<typeof openTestDb>>;
   let app: INestApplication;
   let staff: ReturnType<typeof staffAuthHarness>['staff'];
   const storage = {
@@ -34,6 +34,7 @@ describe('POST /upload/website-image (integration)', () => {
     db = await openTestDb('upload_website');
     const auth = staffAuthHarness(db.connection);
     staff = auth.staff;
+    await db.ready();
     const moduleRef = await Test.createTestingModule({
       imports: [PassportModule],
       controllers: [UploadController],

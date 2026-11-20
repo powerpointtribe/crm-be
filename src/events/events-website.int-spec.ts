@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
-import { Connection, Model, Types } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import * as request from 'supertest';
 import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
 import { PermissionGuard } from '../roles/guards/permission.guard';
@@ -20,7 +20,7 @@ type Json = Record<string, any>;
 const DAY = 86_400_000;
 
 describe('Events on the website (integration)', () => {
-  let db: { connection: Connection; close: () => Promise<void> };
+  let db: Awaited<ReturnType<typeof openTestDb>>;
   let app: INestApplication;
   let staff: ReturnType<typeof staffAuthHarness>['staff'];
   let events: Model<Event>;
@@ -42,6 +42,7 @@ describe('Events on the website (integration)', () => {
     const branches = c.model(Branch.name, BranchSchema);
     const auth = staffAuthHarness(c);
     staff = auth.staff;
+    await db.ready();
     const moduleRef = await Test.createTestingModule({
       imports: [PassportModule],
       // Same order as EventsModule.

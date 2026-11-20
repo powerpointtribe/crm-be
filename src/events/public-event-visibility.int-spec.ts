@@ -1,7 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import { Connection, Model } from 'mongoose';
+import { Model } from 'mongoose';
 import * as request from 'supertest';
 import { autoMock } from '../test-utils/auto-mock-spec';
 import { openTestDb } from '../test-utils/mongo-spec';
@@ -20,7 +20,7 @@ import { Feedback, FeedbackSchema } from './schemas/feedback.schema';
 import { Testimony, TestimonySchema } from './schemas/testimony.schema';
 
 describe('Public event routes hide draft events (integration)', () => {
-  let db: { connection: Connection; close: () => Promise<void> };
+  let db: Awaited<ReturnType<typeof openTestDb>>;
   let app: INestApplication;
   let events: Model<Event>;
   let lms: LmsService;
@@ -46,6 +46,8 @@ describe('Public event routes hide draft events (integration)', () => {
       [Member.name]: c.model(Member.name, MemberSchema),
     };
     events = models[Event.name] as Model<Event>;
+
+    await db.ready();
 
     const moduleRef = await Test.createTestingModule({
       controllers: [EventsController],

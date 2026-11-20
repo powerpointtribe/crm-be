@@ -4,7 +4,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { Connection, Model, Types } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import * as request from 'supertest';
 import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
 import { PermissionGuard } from '../roles/guards/permission.guard';
@@ -26,7 +26,7 @@ import { LostItem, LostItemSchema } from './schemas/lost-item.schema';
 type Json = Record<string, any>;
 
 describe('Lost & found API (integration)', () => {
-  let db: { connection: Connection; close: () => Promise<void> };
+  let db: Awaited<ReturnType<typeof openTestDb>>;
   let app: INestApplication;
   let service: LostFoundService;
   let staff: ReturnType<typeof staffAuthHarness>['staff'];
@@ -50,6 +50,8 @@ describe('Lost & found API (integration)', () => {
     const branches = c.model(Branch.name, BranchSchema);
     const auth = staffAuthHarness(c);
     staff = auth.staff;
+
+    await db.ready();
 
     const moduleRef = await Test.createTestingModule({
       imports: [
