@@ -1,7 +1,24 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
+import { EmailTemplateSharedModule } from '../bulk-email/email-template-shared.module';
+import { FirstTimersModule } from '../first-timers/first-timers.module';
+import {
+  FirstTimer,
+  FirstTimerSchema,
+} from '../first-timers/schemas/first-timer.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { RolesModule } from '../roles/roles.module';
+import { WebsiteFormsController } from './controllers/website-forms.controller';
+import { WebsiteInboxController } from './controllers/website-inbox.controller';
+import {
+  WebFormSubmission,
+  WebFormSubmissionSchema,
+  WebSubscription,
+  WebSubscriptionSchema,
+} from './schemas/web-form-submission.schema';
+import { WebsiteFormsService } from './services/website-forms.service';
+import { WebsiteInboxService } from './services/website-inbox.service';
 import { WEBSITE_CONTENT_CONTROLLERS } from './controllers/website-content.controller';
 import { WebsitePublicController } from './controllers/website-public.controller';
 import { WebsiteSettingsController } from './controllers/website-settings.controller';
@@ -37,20 +54,29 @@ export const WEBSITE_MODELS = [
   { name: WebTestimony.name, schema: WebTestimonySchema },
   { name: WebSnippet.name, schema: WebSnippetSchema },
   { name: WebFaq.name, schema: WebFaqSchema },
+  { name: WebFormSubmission.name, schema: WebFormSubmissionSchema },
+  { name: WebSubscription.name, schema: WebSubscriptionSchema },
 ];
 
 /** Content and inbox for the public website (powerpointtribe site). */
 @Module({
   imports: [
     RolesModule,
+    FirstTimersModule,
+    NotificationsModule,
+    EmailTemplateSharedModule,
     MongooseModule.forFeature([
       ...WEBSITE_MODELS,
       { name: Branch.name, schema: BranchSchema },
+      // Read-only: match an existing first-timer for "plan a visit".
+      { name: FirstTimer.name, schema: FirstTimerSchema },
     ]),
   ],
   controllers: [
     WebsitePublicController,
+    WebsiteFormsController,
     WebsiteSettingsController,
+    WebsiteInboxController,
     ...WEBSITE_CONTENT_CONTROLLERS,
   ],
   providers: [
@@ -58,6 +84,8 @@ export const WEBSITE_MODELS = [
     WebContentService,
     WebsiteSettingsService,
     WebsiteAccessService,
+    WebsiteFormsService,
+    WebsiteInboxService,
   ],
   exports: [
     WebSermonsService,
