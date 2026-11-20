@@ -82,6 +82,10 @@ import {
   WebsitePermission,
   WebsitePermissionMetadata,
 } from '../../website/permissions';
+import {
+  LostFoundPermission,
+  LostFoundPermissionMetadata,
+} from '../../lost-found/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -300,6 +304,15 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       perm,
       WebsitePermissionMetadata[perm] || {},
       'website',
+    ),
+  ),
+
+  // Lost & Found Module (Care Closet)
+  ...Object.values(LostFoundPermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      LostFoundPermissionMetadata[perm] || {},
+      'lost-found',
     ),
   ),
 ];
