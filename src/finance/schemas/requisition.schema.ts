@@ -205,7 +205,6 @@ export const RequisitionSchema = SchemaFactory.createForClass(Requisition);
 // Indexes for common queries
 RequisitionSchema.index({ branch: 1, status: 1 });
 RequisitionSchema.index({ requestor: 1, status: 1 });
-RequisitionSchema.index({ expenseCategory: 1 });
 RequisitionSchema.index({ dateNeeded: 1 });
 RequisitionSchema.index({ createdAt: -1 });
 RequisitionSchema.index({ submittedAt: -1 });

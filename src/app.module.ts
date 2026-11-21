@@ -7,6 +7,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
 import { AppController } from './app.controller';
+import { mongoTlsOptions } from './common/utils/mongo-tls.util';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { RolesModule } from './roles/roles.module';
@@ -36,6 +37,9 @@ import { StoreModule } from './store/store.module';
 import { ServiceAttendanceModule } from './service-attendance/service-attendance.module';
 import { GisModule } from './gis/gis.module';
 import { DbBackupModule } from './db-backup/db-backup.module';
+import { WebsiteModule } from './website/website.module';
+import { LostFoundModule } from './lost-found/lost-found.module';
+import { GivingModule } from './giving/giving.module';
 
 @Module({
   imports: [
@@ -58,9 +62,11 @@ import { DbBackupModule } from './db-backup/db-backup.module';
         dbName:
           configService.get<string>('PAID_DATABASE_NAME') ||
           configService.get<string>('DATABASE_NAME'),
-        ssl: true,
-        tls: true,
-        tlsInsecure: false,
+        // TLS stays on unless MONGODB_TLS=false outside production (local dev).
+        ...mongoTlsOptions({
+          MONGODB_TLS: configService.get<string>('MONGODB_TLS'),
+          NODE_ENV: configService.get<string>('NODE_ENV'),
+        }),
         maxPoolSize: Number(configService.get('MONGO_MAX_POOL_SIZE') ?? 20),
         minPoolSize: 2,
         maxIdleTimeMS: 60_000,
@@ -118,6 +124,9 @@ import { DbBackupModule } from './db-backup/db-backup.module';
     ServiceAttendanceModule,
     GisModule,
     DbBackupModule,
+    WebsiteModule,
+    LostFoundModule,
+    GivingModule,
   ],
   controllers: [AppController],
   providers: [

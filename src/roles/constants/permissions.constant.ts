@@ -78,6 +78,18 @@ import {
   GisPermission,
   GisPermissionMetadata,
 } from '../../gis/permissions';
+import {
+  WebsitePermission,
+  WebsitePermissionMetadata,
+} from '../../website/permissions';
+import {
+  LostFoundPermission,
+  LostFoundPermissionMetadata,
+} from '../../lost-found/permissions';
+import {
+  GivingPermission,
+  GivingPermissionMetadata,
+} from '../../giving/permissions';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 
 /**
@@ -287,6 +299,33 @@ export const ALL_PERMISSIONS: CreatePermissionDto[] = [
       perm,
       GisPermissionMetadata[perm] || {},
       'gis',
+    ),
+  ),
+
+  // Website Module (public website content + inbox)
+  ...Object.values(WebsitePermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      WebsitePermissionMetadata[perm] || {},
+      'website',
+    ),
+  ),
+
+  // Lost & Found Module (Care Closet)
+  ...Object.values(LostFoundPermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      LostFoundPermissionMetadata[perm] || {},
+      'lost-found',
+    ),
+  ),
+
+  // Giving Module (giving accounts + online donations)
+  ...Object.values(GivingPermission).map((perm) =>
+    createPermissionDto(
+      perm,
+      GivingPermissionMetadata[perm] || {},
+      'giving',
     ),
   ),
 ];

@@ -62,7 +62,6 @@ export const InventoryCategorySchema =
   SchemaFactory.createForClass(InventoryCategory);
 
 // Indexes
-InventoryCategorySchema.index({ code: 1 });
 InventoryCategorySchema.index({ name: 1 });
 InventoryCategorySchema.index({ type: 1 });
 InventoryCategorySchema.index({ parentCategory: 1 });

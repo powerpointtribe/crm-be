@@ -16,6 +16,8 @@
     "seed:admin": "npx ts-node src/scripts/init-super-admin.ts",
     "seed:data": "npx ts-node src/scripts/seed-data.ts",
     "seed:all": "npm run seed:admin && npm run seed:data",
+    "seed:website": "npx ts-node src/scripts/seed-website.ts",
+    "migrate:worker-trainee-indexes": "npx ts-node src/scripts/migrate-worker-trainee-indexes.ts",
     "seed:lbs-2026": "npx ts-node src/events/seeders/seed-lbs-2026.ts",
     "seed:lbs-2026:remove": "npx ts-node src/events/seeders/seed-lbs-2026.ts remove",
     "seed:cmit-cohort-1": "npx ts-node src/events/seeders/seed-cmit-cohort-1.ts",
@@ -35,7 +37,8 @@
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "test:int": "jest --config test/jest-int.json --runInBand"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1079.0",

@@ -60,7 +60,7 @@ export class Quiz {
   @Prop({ type: Types.ObjectId, ref: 'Event', required: true, index: true })
   event: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Lesson', required: true, index: true })
+  @Prop({ type: Types.ObjectId, ref: 'Lesson', required: true })
   lesson: Types.ObjectId;
 
   @Prop({ trim: true })

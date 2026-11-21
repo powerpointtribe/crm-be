@@ -32,6 +32,7 @@ import {
   AttendanceStatus,
 } from '../common/enums/workers-training.enum';
 import { WorkersTrainingPermission } from './permissions';
+import { PublicEnrollmentDto } from './dto/public-enrollment.dto';
 
 @ApiTags('Workers Training - Trainees')
 @Controller('workers-training/trainees')
@@ -90,7 +91,8 @@ export class WorkerTraineeController {
     status: HttpStatus.CREATED,
     description: 'Enrollment request submitted successfully',
   })
-  async publicEnrollment(@Body() enrollmentData: any) {
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid body' })
+  async publicEnrollment(@Body() enrollmentData: PublicEnrollmentDto) {
     return this.workerTraineeService.bulkEnrollFromForm(enrollmentData);
   }
 

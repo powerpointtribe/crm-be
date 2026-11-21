@@ -65,7 +65,6 @@ export class Permission {
 export const PermissionSchema = SchemaFactory.createForClass(Permission);
 
 // Add indexes for better performance
-PermissionSchema.index({ name: 1 });
 PermissionSchema.index({ module: 1 });
 PermissionSchema.index({ resource: 1, action: 1 });
 PermissionSchema.index({ 'endpoint.path': 1, 'endpoint.method': 1 });

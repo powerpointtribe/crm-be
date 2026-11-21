@@ -2,7 +2,6 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import * as bcrypt from 'bcryptjs';
 import { RolesSeederService } from './roles-seeder.service';
 import { RolesService } from './roles.service';
 import { EndpointDiscoveryService } from './endpoint-discovery.service';
@@ -75,7 +74,8 @@ export class AutoInitService implements OnModuleInit {
     });
   }
 
-  private async initializeIfNeeded(): Promise<void> {
+  /** Full idempotent bootstrap. Also called directly by `npm run seed:admin`. */
+  async initializeIfNeeded(): Promise<void> {
     this.logger.log('🚀 initializeIfNeeded() started');
     try {
       // Check current stats
@@ -204,10 +204,10 @@ export class AutoInitService implements OnModuleInit {
       if (!adminUser && adminPassword) {
         // Create the super admin member
         this.logger.log(`Creating super admin member: ${adminEmail}...`);
-        const hashedPassword = await bcrypt.hash(adminPassword, 10);
+        // MembersService.create hashes the password: pass it in plain text.
         adminUser = await this.membersService.create({
           email: adminEmail,
-          password: hashedPassword,
+          password: adminPassword,
           firstName: adminFirstName,
           lastName: adminLastName,
           phone: '0000000000',

@@ -1,3 +1,4 @@
+import { publicEventFilter } from '../events/utils/public-event-filter.util';
 import {
   BadRequestException,
   ForbiddenException,
@@ -608,7 +609,7 @@ export class LmsService {
    */
   async getPublicQaFeed(eventSlug?: string) {
     const event = await this.eventModel
-      .findOne({ registrationSlug: eventSlug || 'cmit-cohort-1' })
+      .findOne(publicEventFilter(eventSlug || 'cmit-cohort-1'))
       .select('_id')
       .lean();
     if (!event) return { supportEmail: 'cmithub@gmail.com', items: [] };

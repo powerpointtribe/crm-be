@@ -70,8 +70,6 @@ export class Role {
 export const RoleSchema = SchemaFactory.createForClass(Role);
 
 // Add indexes for better performance
-RoleSchema.index({ name: 1 });
-RoleSchema.index({ slug: 1 });
 RoleSchema.index({ isActive: 1 });
 RoleSchema.index({ isSystemRole: 1 });
 RoleSchema.index({ level: -1 });

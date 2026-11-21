@@ -7,15 +7,19 @@ import { Order, OrderSchema } from './schemas/order.schema';
 import { Coupon, CouponSchema } from './schemas/coupon.schema';
 import { RolesModule } from '../roles/roles.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
+import { GivingModule } from '../giving/giving.module';
 
 @Module({
   imports: [
     RolesModule,
     NotificationsModule,
+    GivingModule,
     MongooseModule.forFeature([
       { name: Product.name, schema: ProductSchema },
       { name: Order.name, schema: OrderSchema },
       { name: Coupon.name, schema: CouponSchema },
+      { name: Branch.name, schema: BranchSchema },
     ]),
   ],
   controllers: [StoreController],

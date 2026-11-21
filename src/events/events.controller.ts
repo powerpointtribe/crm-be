@@ -160,7 +160,7 @@ export class EventsController {
 
   // Helper to validate API key for events in API integration mode
   private async validateApiKey(slug: string, apiKey?: string) {
-    const event = await this.eventsService.findBySlug(slug);
+    const event = await this.eventsService.findPublicBySlug(slug);
     if (event.registrationSettings?.integrationMode === 'api') {
       if (!apiKey || apiKey !== event.registrationSettings.apiKey) {
         throw new UnauthorizedException(

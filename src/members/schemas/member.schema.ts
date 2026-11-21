@@ -421,7 +421,6 @@ MemberSchema.methods.getAccessibleModules = function (): string[] {
 };
 
 // Add indexes for better performance
-MemberSchema.index({ email: 1 });
 MemberSchema.index({ phone: 1 });
 MemberSchema.index({ systemRoles: 1 });
 MemberSchema.index({ role: 1 });

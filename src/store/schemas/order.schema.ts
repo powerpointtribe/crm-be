@@ -61,8 +61,9 @@ export class DeliveryInfo {
   @Prop({ trim: true })
   email?: string;
 
-  @Prop({ required: true, trim: true })
-  address: string;
+  /** Required for delivery orders (enforced by CreateOrderDto); empty for pickup. */
+  @Prop({ trim: true })
+  address?: string;
 
   @Prop({ trim: true })
   city?: string;
@@ -75,6 +76,28 @@ export class DeliveryInfo {
 }
 
 export const DeliveryInfoSchema = SchemaFactory.createForClass(DeliveryInfo);
+
+export const ORDER_CHANNELS = ['crm', 'website'] as const;
+export type OrderChannel = (typeof ORDER_CHANNELS)[number];
+export const FULFILMENT_METHODS = ['delivery', 'pickup'] as const;
+export type FulfilmentMethod = (typeof FULFILMENT_METHODS)[number];
+
+/** How the order reaches the customer. Orders created before this field are delivery. */
+@Schema({ _id: false, versionKey: false })
+export class Fulfilment {
+  @Prop({ type: String, enum: FULFILMENT_METHODS, default: 'delivery' })
+  method: FulfilmentMethod;
+
+  /** Pickup campus. */
+  @Prop({ type: Types.ObjectId, ref: 'Branch' })
+  branch?: Types.ObjectId;
+
+  /** Campus name at order time, for emails and the order sheet. */
+  @Prop({ trim: true })
+  branchName?: string;
+}
+
+export const FulfilmentSchema = SchemaFactory.createForClass(Fulfilment);
 
 @Schema({ timestamps: true, versionKey: false, collection: 'store_orders' })
 export class Order {
@@ -133,11 +156,17 @@ export class Order {
 
   @Prop()
   customerPhone?: string;
+
+  /** Which frontend placed the order; decides where Flutterwave returns the payer. */
+  @Prop({ type: String, enum: ORDER_CHANNELS, default: 'crm' })
+  channel: OrderChannel;
+
+  @Prop({ type: FulfilmentSchema, default: () => ({ method: 'delivery' }) })
+  fulfilment: Fulfilment;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
 
-OrderSchema.index({ orderNumber: 1 }, { unique: true });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ paymentStatus: 1 });
 OrderSchema.index({ customerEmail: 1 });

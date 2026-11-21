@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,6 +24,8 @@ import { PermissionGuard } from '../roles/guards/permission.guard';
 import { RequirePermission } from '../roles/decorators/require-permission.decorator';
 import { ResponseUtil } from '../common/utils/response.util';
 import { Public } from '../common/decorators/public.decorator';
+import { SkipThrottle } from '@nestjs/throttler';
+import { UpdateBranchWebsiteDto } from './dto/update-branch-website.dto';
 
 @ApiTags('Branches')
 @ApiBearerAuth()
@@ -82,6 +85,22 @@ export class BranchesController {
     return ResponseUtil.success(publicBranches, 'Campuses retrieved successfully');
   }
 
+  @Get('public/website')
+  @Public()
+  @SkipThrottle()
+  @ApiOperation({
+    summary: 'Campuses shown on the public website (public)',
+    description:
+      'Active campuses with website.showOnWebsite, in website.order, with venue, map link, service times and the published campus pastor.',
+  })
+  @ApiResponse({ status: 200, description: 'Campuses retrieved successfully' })
+  async findWebsiteCampuses() {
+    return ResponseUtil.success(
+      await this.branchesService.findWebsiteCampuses(),
+      'Campuses retrieved successfully',
+    );
+  }
+
   @Get(':id')
   @RequirePermission('branches:view-details')
   @ApiOperation({ summary: 'Get campus by ID' })
@@ -105,6 +124,27 @@ export class BranchesController {
     const branch = await this.branchesService.update(id, updateData);
     if (!branch) {
       return ResponseUtil.error('Campus not found');
+    }
+    return ResponseUtil.success(branch, 'Campus updated successfully');
+  }
+
+  @Patch(':id/website')
+  @RequirePermission('branches:update')
+  @ApiOperation({
+    summary: 'Update how a campus appears on the public website',
+  })
+  @ApiParam({ name: 'id', description: 'Campus ID' })
+  @ApiResponse({ status: 200, description: 'Campus updated successfully' })
+  @ApiResponse({ status: 404, description: 'Campus not found' })
+  async updateWebsite(
+    @Param('id') id: string,
+    @Body() dto: UpdateBranchWebsiteDto,
+  ) {
+    const branch = await this.branchesService.updateWebsite(id, dto);
+    if (!branch) {
+      // New route, so it uses a real 404 instead of the 200 + success:false
+      // that the older routes in this controller return.
+      throw new NotFoundException('Campus not found');
     }
     return ResponseUtil.success(branch, 'Campus updated successfully');
   }
