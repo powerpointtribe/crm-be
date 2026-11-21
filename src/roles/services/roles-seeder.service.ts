@@ -26,7 +26,6 @@ export class RolesSeederService {
     try {
       let createdCount = 0;
       let updatedCount = 0;
-      let skippedCount = 0;
 
       for (const permissionDto of ALL_PERMISSIONS) {
         // Mark public endpoints
@@ -34,27 +33,20 @@ export class RolesSeederService {
           permissionDto.isPublic = true;
         }
 
-        // Check if permission already exists
-        const existing = await this.permissionModel.findOne({
-          name: permissionDto.name,
-        });
-
-        if (existing) {
-          // Update existing permission
-          await this.permissionModel.updateOne(
-            { _id: existing._id },
-            { $set: permissionDto },
-          );
-          updatedCount++;
-        } else {
-          // Create new permission
-          await this.permissionModel.create(permissionDto);
-          createdCount++;
-        }
+        // Atomic upsert keyed on the unique `name` index. A find-then-create
+        // races with AutoInitService, which seeds in the background whenever
+        // AppModule boots (including inside the seed scripts) → E11000.
+        const result = await this.permissionModel.updateOne(
+          { name: permissionDto.name },
+          { $set: permissionDto },
+          { upsert: true, setDefaultsOnInsert: true },
+        );
+        if (result.upsertedCount) createdCount++;
+        else updatedCount++;
       }
 
       this.logger.log(
-        `Permissions seeding completed: ${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped`,
+        `Permissions seeding completed: ${createdCount} created, ${updatedCount} updated`,
       );
     } catch (error) {
       this.logger.error('Error seeding permissions:', error);

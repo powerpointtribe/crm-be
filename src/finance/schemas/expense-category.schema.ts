@@ -52,6 +52,5 @@ export const ExpenseCategorySchema =
 
 // Indexes
 ExpenseCategorySchema.index({ branch: 1, name: 1 }, { unique: true });
-ExpenseCategorySchema.index({ code: 1 });
 ExpenseCategorySchema.index({ isActive: 1 });
 ExpenseCategorySchema.index({ sortOrder: 1 });

@@ -19,8 +19,35 @@ export class WorkerTrainee {
   @Prop({ type: Types.ObjectId, ref: 'Branch', index: true })
   branch?: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Member', required: true })
-  member: Types.ObjectId;
+  /**
+   * Required for staff enrolments. A public-form enrolment has no member yet:
+   * it carries `applicant` instead, and staff link a member later.
+   */
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Member',
+    required(this: WorkerTrainee) {
+      return !this.applicant;
+    },
+  })
+  member?: Types.ObjectId;
+
+  /** Contact details from the public enrolment form (no member account). */
+  @Prop({
+    type: {
+      firstName: { type: String, required: true, trim: true },
+      lastName: { type: String, required: true, trim: true },
+      email: { type: String, required: true, trim: true, lowercase: true },
+      phone: { type: String, required: true, trim: true },
+    },
+    _id: false,
+  })
+  applicant?: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+  };
 
   @Prop({ type: Types.ObjectId, ref: 'Cohort', required: true })
   cohort: Types.ObjectId;
@@ -264,8 +291,15 @@ export class WorkerTrainee {
   @Prop({ type: String })
   notes?: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Member', required: true })
-  enrolledBy: Types.ObjectId;
+  /** Who enrolled the trainee; unset for public-form enrolments. */
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Member',
+    required(this: WorkerTrainee) {
+      return !this.applicant;
+    },
+  })
+  enrolledBy?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Member' })
   updatedBy?: Types.ObjectId;
@@ -279,8 +313,21 @@ export class WorkerTrainee {
 
 export const WorkerTraineeSchema = SchemaFactory.createForClass(WorkerTrainee);
 
-// Unique constraint to prevent duplicate enrollment
-WorkerTraineeSchema.index({ member: 1, cohort: 1 }, { unique: true });
+// One enrolment per member per cohort. Partial, so public-form enrolments
+// (no member) don't collide with each other on `member: null`.
+// Existing databases: run `npm run migrate:worker-trainee-indexes` once.
+WorkerTraineeSchema.index(
+  { member: 1, cohort: 1 },
+  { unique: true, partialFilterExpression: { member: { $type: 'objectId' } } },
+);
+// One public-form enrolment per email per cohort.
+WorkerTraineeSchema.index(
+  { cohort: 1, 'applicant.email': 1 },
+  {
+    unique: true,
+    partialFilterExpression: { 'applicant.email': { $type: 'string' } },
+  },
+);
 
 // Other indexes for better query performance
 WorkerTraineeSchema.index({ member: 1, status: 1 });

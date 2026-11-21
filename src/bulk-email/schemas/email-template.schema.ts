@@ -58,7 +58,7 @@ export class EmailTemplate {
   @Prop({ required: true, trim: true })
   name: string;
 
-  @Prop({ trim: true, sparse: true })
+  @Prop({ trim: true })
   slug?: string;
 
   @Prop({

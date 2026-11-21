@@ -34,7 +34,7 @@ export class ActionToken {
   @Prop({ type: Types.ObjectId, ref: 'Member' })
   recipientMemberId?: Types.ObjectId;
 
-  @Prop({ required: true, type: Date, index: true })
+  @Prop({ required: true, type: Date })
   expiresAt: Date;
 
   @Prop({ type: Date, default: null })
@@ -50,7 +50,6 @@ export class ActionToken {
 export const ActionTokenSchema = SchemaFactory.createForClass(ActionToken);
 
 // Indexes
-ActionTokenSchema.index({ token: 1 }, { unique: true });
 ActionTokenSchema.index({ requisitionId: 1, actionType: 1 });
 ActionTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index for auto-cleanup
 ActionTokenSchema.index({ recipientEmail: 1 });

@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  Logger,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import {
 import { Cohort, CohortDocument } from './schemas/cohort.schema';
 import { CreateWorkerTraineeDto } from './dto/create-worker-trainee.dto';
 import { TraineeQueryDto } from './dto/trainee-query.dto';
+import { PublicEnrollmentDto } from './dto/public-enrollment.dto';
 import {
   WorkersTrainingStatus,
   AttendanceStatus,
@@ -27,6 +29,8 @@ import { CohortService } from './cohort.service';
 
 @Injectable()
 export class WorkerTraineeService {
+  private readonly logger = new Logger(WorkerTraineeService.name);
+
   constructor(
     @InjectModel(WorkerTrainee.name)
     private workerTraineeModel: Model<WorkerTraineeDocument>,
@@ -57,10 +61,7 @@ export class WorkerTraineeService {
       throw new BadRequestException('Cohort is at maximum capacity');
     }
 
-    if (
-      cohort.registrationEndDate &&
-      new Date() > cohort.registrationEndDate
-    ) {
+    if (cohort.registrationEndDate && new Date() > cohort.registrationEndDate) {
       throw new BadRequestException('Registration period has ended');
     }
 
@@ -70,9 +71,7 @@ export class WorkerTraineeService {
     });
 
     if (existingEnrollment) {
-      throw new ConflictException(
-        'Member is already enrolled in this cohort',
-      );
+      throw new ConflictException('Member is already enrolled in this cohort');
     }
 
     const trainee = new this.workerTraineeModel({
@@ -192,7 +191,10 @@ export class WorkerTraineeService {
     return trainee;
   }
 
-  async findByCohort(cohortId: string, queryDto: Partial<TraineeQueryDto> = {}) {
+  async findByCohort(
+    cohortId: string,
+    queryDto: Partial<TraineeQueryDto> = {},
+  ) {
     return this.findAll({ ...queryDto, cohort: cohortId });
   }
 
@@ -413,7 +415,10 @@ export class WorkerTraineeService {
       return;
     }
 
-    const totalScore = gradedAssignments.reduce((sum, a) => sum + (a.score || 0), 0);
+    const totalScore = gradedAssignments.reduce(
+      (sum, a) => sum + (a.score || 0),
+      0,
+    );
     const totalMaxScore = gradedAssignments.reduce(
       (sum, a) => sum + a.maxScore,
       0,
@@ -486,22 +491,12 @@ export class WorkerTraineeService {
     };
   }
 
-  async bulkEnrollFromForm(enrollmentData: {
-    cohortId: string;
-    trainees: Array<{
-      firstName: string;
-      lastName: string;
-      email: string;
-      phone: string;
-      emergencyContact?: string;
-      emergencyPhone?: string;
-      medicalNotes?: string;
-      dietaryRestrictions?: string;
-      hasTransportation?: boolean;
-      needsAccommodation?: boolean;
-      accommodationDetails?: string;
-    }>;
-  }) {
+  /**
+   * Public enrolment form: people who may not have a member record yet. Each
+   * trainee is stored with their contact details in `applicant`; staff link a
+   * member later. A repeat email in the same cohort is reported as failed.
+   */
+  async bulkEnrollFromForm(enrollmentData: PublicEnrollmentDto) {
     const cohort = await this.cohortModel.findById(enrollmentData.cohortId);
     if (!cohort) {
       throw new NotFoundException('Cohort not found');
@@ -511,43 +506,76 @@ export class WorkerTraineeService {
       throw new BadRequestException('Registration is not open for this cohort');
     }
 
-    const results = {
-      successful: [],
-      failed: [],
-      total: enrollmentData.trainees.length,
-    };
+    if (cohort.registrationEndDate && new Date() > cohort.registrationEndDate) {
+      throw new BadRequestException('Registration period has ended');
+    }
 
-    for (const traineeData of enrollmentData.trainees) {
+    if (
+      cohort.maxParticipants > 0 &&
+      cohort.currentParticipants + enrollmentData.trainees.length >
+        cohort.maxParticipants
+    ) {
+      throw new BadRequestException('Not enough places left in this cohort');
+    }
+
+    const results: {
+      successful: Array<{
+        firstName: string;
+        lastName: string;
+        email: string;
+        traineeId: Types.ObjectId;
+      }>;
+      failed: Array<{
+        firstName: string;
+        lastName: string;
+        email: string;
+        error: string;
+      }>;
+      total: number;
+    } = { successful: [], failed: [], total: enrollmentData.trainees.length };
+
+    for (const t of enrollmentData.trainees) {
+      const applicant = {
+        firstName: t.firstName.trim(),
+        lastName: t.lastName.trim(),
+        email: t.email.trim().toLowerCase(),
+        phone: t.phone.trim(),
+      };
+      const who = {
+        firstName: applicant.firstName,
+        lastName: applicant.lastName,
+        email: applicant.email,
+      };
       try {
-        const trainee = new this.workerTraineeModel({
-          member: null,
-          cohort: enrollmentData.cohortId,
+        const saved = await this.workerTraineeModel.create({
+          cohort: cohort._id,
+          applicant,
           status: WorkersTrainingStatus.REGISTERED,
-          enrolledBy: null,
-          emergencyContact: traineeData.emergencyContact,
-          emergencyPhone: traineeData.emergencyPhone,
-          medicalNotes: traineeData.medicalNotes,
-          dietaryRestrictions: traineeData.dietaryRestrictions,
-          hasTransportation: traineeData.hasTransportation || false,
-          needsAccommodation: traineeData.needsAccommodation || false,
-          accommodationDetails: traineeData.accommodationDetails,
+          emergencyContact: t.emergencyContact,
+          emergencyPhone: t.emergencyPhone,
+          medicalNotes: t.medicalNotes,
+          dietaryRestrictions: t.dietaryRestrictions,
+          hasTransportation: t.hasTransportation ?? false,
+          needsAccommodation: t.needsAccommodation ?? false,
+          accommodationDetails: t.accommodationDetails,
         });
-
-        const savedTrainee = await trainee.save();
-        (results.successful as any[]).push({
-          ...traineeData,
-          traineeId: savedTrainee._id,
-        });
-
         await this.cohortService.updateParticipantCount(
-          enrollmentData.cohortId,
+          cohort._id.toString(),
           1,
         );
+        results.successful.push({ ...who, traineeId: saved._id });
       } catch (error) {
-        (results.failed as any[]).push({
-          ...traineeData,
-          error: error.message,
-        });
+        if (error?.code === 11000) {
+          results.failed.push({
+            ...who,
+            error: 'Already enrolled in this cohort',
+          });
+          continue;
+        }
+        this.logger.error(
+          `Public enrolment failed for cohort ${cohort._id}: ${error?.message}`,
+        );
+        results.failed.push({ ...who, error: 'Could not save enrolment' });
       }
     }
 

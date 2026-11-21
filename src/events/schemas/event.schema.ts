@@ -512,7 +512,6 @@ EventSchema.index({ status: 1 });
 EventSchema.index({ type: 1 });
 EventSchema.index({ startDate: 1 });
 EventSchema.index({ endDate: 1 });
-EventSchema.index({ registrationSlug: 1 });
 EventSchema.index({ organizer: 1 });
 EventSchema.index({ 'committee.member': 1 });
 EventSchema.index({ branch: 1, status: 1, startDate: -1 });

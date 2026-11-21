@@ -84,7 +84,6 @@ export interface BranchWebsite {
 export const BranchSchema = SchemaFactory.createForClass(Branch);
 
 // Indexes for efficient queries
-BranchSchema.index({ slug: 1 });
 BranchSchema.index({ isActive: 1 });
 BranchSchema.index({ isMainBranch: 1 });
 BranchSchema.index({ 'website.showOnWebsite': 1, 'website.order': 1 });

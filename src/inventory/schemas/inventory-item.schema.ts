@@ -225,8 +225,6 @@ InventoryItemSchema.virtual('totalValue').get(function () {
 });
 
 // Indexes
-InventoryItemSchema.index({ itemCode: 1 });
-InventoryItemSchema.index({ barcode: 1 });
 InventoryItemSchema.index({ name: 1 });
 InventoryItemSchema.index({ category: 1 });
 InventoryItemSchema.index({ status: 1 });

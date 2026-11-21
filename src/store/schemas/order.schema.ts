@@ -167,7 +167,6 @@ export class Order {
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
 
-OrderSchema.index({ orderNumber: 1 }, { unique: true });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ paymentStatus: 1 });
 OrderSchema.index({ customerEmail: 1 });
